@@ -22,7 +22,7 @@ import "@openzeppelin/contracts@4.9.3/security/ReentrancyGuard.sol";
  * 
  * Key Difference: In Noice, creators get rewarded. Here, ENGAGERS get rewarded.
  */
-contract PitTipping is Ownable, Pausable, ReentrancyGuard {
+contract PitTipping is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     // Struct to store creator's reward configuration
@@ -175,7 +175,7 @@ contract PitTipping is Ownable, Pausable, ReentrancyGuard {
         string memory _actionType,
         bytes32 _farcasterCastHash,
         bytes32 _interactionHash
-    ) external onlyBackend whenNotPaused nonReentrant {
+    ) external onlyBackend nonReentrant {
         require(!processedInteractions[_interactionHash], "Interaction already processed");
         require(_postAuthor != _interactor, "Cannot tip yourself");
         
@@ -250,7 +250,7 @@ contract PitTipping is Ownable, Pausable, ReentrancyGuard {
         string[] calldata _actionTypes,
         bytes32[] calldata _castHashes,
         bytes32[] calldata _interactionHashes
-    ) external onlyBackend whenNotPaused nonReentrant {
+    ) external onlyBackend nonReentrant {
         require(_postAuthors.length == _interactors.length, "Array length mismatch");
         require(_postAuthors.length == _actionTypes.length, "Array length mismatch");
         require(_postAuthors.length == _castHashes.length, "Array length mismatch");
@@ -479,13 +479,7 @@ contract PitTipping is Ownable, Pausable, ReentrancyGuard {
     /**
      * @dev Pause/unpause contract (only owner)
      */
-    function pause() external onlyOwner {
-        _pause();
-    }
-
-    function unpause() external onlyOwner {
-        _unpause();
-    }
+    // Pause functionality removed for now - can be added back if needed
 
     /**
      * @dev Emergency withdraw for tokens mistakenly sent to this contract
