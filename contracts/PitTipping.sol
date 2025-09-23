@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.6.12;
 
-import "@openzeppelin/contracts@3.4.2/access/Ownable.sol";
-import "@openzeppelin/contracts@3.4.2/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts@3.4.2/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts@3.4.2/token/ERC20/SafeERC20.sol";
-import "@openzeppelin/contracts@3.4.2/utils/Pausable.sol";
+import "@openzeppelin/contracts@3.4.2/access/Ownable.sol";
 
 /**
  * @title PitTipping
@@ -22,7 +20,7 @@ import "@openzeppelin/contracts@3.4.2/utils/Pausable.sol";
  * 
  * Key Difference: In Noice, creators get rewarded. Here, ENGAGERS get rewarded.
  */
-contract PitTipping is Ownable, ReentrancyGuard, Pausable {
+contract PitTipping is Ownable {
     using SafeERC20 for IERC20;
 
     // Struct to store creator's reward configuration
@@ -171,11 +169,11 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
         string memory _actionType,
         bytes32 _farcasterCastHash,
         bytes32 _interactionHash
-    ) external onlyBackend nonReentrant whenNotPaused {
+    ) external onlyBackend {
         require(!processedInteractions[_interactionHash], "Interaction already processed");
         require(_postAuthor != _interactor, "Cannot tip yourself");
         
-        TippingConfig storage config = userConfigs[_postAuthor];
+        RewardConfig storage config = creatorConfigs[_postAuthor];
         require(config.isActive, "Author config not active");
         
         uint256 tipAmount = getTipAmount(config, _actionType);
@@ -246,7 +244,7 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
         string[] calldata _actionTypes,
         bytes32[] calldata _castHashes,
         bytes32[] calldata _interactionHashes
-    ) external onlyBackend nonReentrant whenNotPaused {
+    ) external onlyBackend {
         require(_postAuthors.length == _interactors.length, "Array length mismatch");
         require(_postAuthors.length == _actionTypes.length, "Array length mismatch");
         require(_postAuthors.length == _castHashes.length, "Array length mismatch");
@@ -272,7 +270,7 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
     ) internal returns (bool) {
         if (processedInteractions[_interactionHash] || _postAuthor == _interactor) return false;
         
-        TippingConfig storage config = userConfigs[_postAuthor];
+        RewardConfig storage config = creatorConfigs[_postAuthor];
         if (!config.isActive) return false;
         
         uint256 tipAmount = getTipAmount(config, _actionType);
