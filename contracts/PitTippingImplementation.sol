@@ -50,7 +50,7 @@ contract PitTippingImplementation {
     // Contract state
     address public feeRecipient;
     address public backendVerifier;
-    uint256 public protocolFeeBps = 100; // 1% fee
+    uint256 public protocolFeeBps = 0; // NO fees - like Noice
 
     // Events
     event ConfigUpdated(
