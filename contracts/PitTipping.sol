@@ -273,19 +273,16 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
         bytes32 _castHash,
         bytes32 _interactionHash
     ) internal returns (bool) {
-        if (processedInteractions[_interactionHash]) return false;
-        if (_postAuthor == _interactor) return false;
+        if (processedInteractions[_interactionHash] || _postAuthor == _interactor) return false;
         
         TippingConfig storage config = userConfigs[_postAuthor];
         if (!config.isActive) return false;
         
         uint256 tipAmount = getTipAmount(config, _actionType);
-        if (tipAmount == 0) return false;
-        if (config.totalSpent + tipAmount > config.spendingLimit) return false;
+        if (tipAmount == 0 || config.totalSpent + tipAmount > config.spendingLimit) return false;
         
         IERC20 token = IERC20(config.token);
-        if (token.allowance(_postAuthor, address(this)) < tipAmount) return false;
-        if (token.balanceOf(_postAuthor) < tipAmount) return false;
+        if (token.allowance(_postAuthor, address(this)) < tipAmount || token.balanceOf(_postAuthor) < tipAmount) return false;
         
         processedInteractions[_interactionHash] = true;
         
@@ -303,23 +300,34 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
         totalTipsReceived[_interactor] += netAmount;
         totalTipsGiven[_postAuthor] += tipAmount;
         
+        _recordTip(_postAuthor, _interactor, config.token, netAmount, _actionType, _castHash);
+        
+        emit TipSent(_postAuthor, _interactor, config.token, netAmount, _actionType, _castHash);
+        
+        return true;
+    }
+    
+    function _recordTip(
+        address _from,
+        address _to,
+        address _token,
+        uint256 _amount,
+        string memory _actionType,
+        bytes32 _castHash
+    ) internal {
         tipHistory.push(TipTransaction({
-            from: _postAuthor,
-            to: _interactor,
-            token: config.token,
-            amount: netAmount,
+            from: _from,
+            to: _to,
+            token: _token,
+            amount: _amount,
             actionType: _actionType,
             timestamp: block.timestamp,
             farcasterCastHash: _castHash
         }));
         
         uint256 txnId = tipHistory.length - 1;
-        userTipsSent[_postAuthor].push(txnId);
-        userTipsReceived[_interactor].push(txnId);
-        
-        emit TipSent(_postAuthor, _interactor, config.token, netAmount, _actionType, _castHash);
-        
-        return true;
+        userTipsSent[_from].push(txnId);
+        userTipsReceived[_to].push(txnId);
     }
 
     /**
