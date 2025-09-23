@@ -4,6 +4,8 @@ pragma solidity ^0.8.19;
 import "@openzeppelin/contracts@4.9.3/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts@4.9.3/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts@4.9.3/access/Ownable.sol";
+import "@openzeppelin/contracts@4.9.3/security/Pausable.sol";
+import "@openzeppelin/contracts@4.9.3/security/ReentrancyGuard.sol";
 
 /**
  * @title PitTipping
@@ -20,7 +22,7 @@ import "@openzeppelin/contracts@4.9.3/access/Ownable.sol";
  * 
  * Key Difference: In Noice, creators get rewarded. Here, ENGAGERS get rewarded.
  */
-contract PitTipping is Ownable {
+contract PitTipping is Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     // Struct to store creator's reward configuration
@@ -66,6 +68,10 @@ contract PitTipping is Ownable {
 
     // Backend verifier (only your backend can call processTip)
     address public backendVerifier;
+    address public feeRecipient;
+    uint256 public protocolFeeBps = 100; // 1% fee (100 basis points)
+    uint256 public batchIdCounter = 0;
+    uint256 public maxBatchSize = 100;
     
     // Events
     event ConfigUpdated(
@@ -169,7 +175,7 @@ contract PitTipping is Ownable {
         string memory _actionType,
         bytes32 _farcasterCastHash,
         bytes32 _interactionHash
-    ) external onlyBackend {
+    ) external onlyBackend whenNotPaused nonReentrant {
         require(!processedInteractions[_interactionHash], "Interaction already processed");
         require(_postAuthor != _interactor, "Cannot tip yourself");
         
@@ -244,21 +250,22 @@ contract PitTipping is Ownable {
         string[] calldata _actionTypes,
         bytes32[] calldata _castHashes,
         bytes32[] calldata _interactionHashes
-    ) external onlyBackend {
+    ) external onlyBackend whenNotPaused nonReentrant {
         require(_postAuthors.length == _interactors.length, "Array length mismatch");
         require(_postAuthors.length == _actionTypes.length, "Array length mismatch");
         require(_postAuthors.length == _castHashes.length, "Array length mismatch");
         require(_postAuthors.length == _interactionHashes.length, "Array length mismatch");
         
+        uint256 batchId = ++batchIdCounter;
         uint256 processedCount = 0;
         
         for (uint256 i = 0; i < _postAuthors.length; i++) {
-            if (_processTip(_postAuthors[i], _interactors[i], _actionTypes[i], _castHashes[i], _interactionHashes[i])) {
+            if (_processTip(_postAuthors[i], _interactors[i], _actionTypes[i], _castHashes[i], _interactionHashes[i], batchId)) {
                 processedCount++;
             }
         }
         
-        emit BatchProcessed(processedCount, block.timestamp);
+        emit BatchProcessed(batchId, processedCount, 0);
     }
     
     function _processTip(
@@ -266,7 +273,8 @@ contract PitTipping is Ownable {
         address _interactor,
         string memory _actionType,
         bytes32 _castHash,
-        bytes32 _interactionHash
+        bytes32 _interactionHash,
+        uint256 _batchId
     ) internal returns (bool) {
         if (processedInteractions[_interactionHash] || _postAuthor == _interactor) return false;
         
