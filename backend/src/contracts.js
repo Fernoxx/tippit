@@ -113,18 +113,22 @@ async function initializeContracts() {
     // Initialize contract
     const contractAddress = process.env.CONTRACT_ADDRESS;
     if (!contractAddress || contractAddress === '0x0000000000000000000000000000000000000000') {
-      throw new Error('CONTRACT_ADDRESS not set in environment variables');
+      // Use deployed proxy address as default
+      const defaultAddress = '0x5546973c5b38652db0920bb916fe2bc77d678af4';
+      console.log(`Using default contract address: ${defaultAddress}`);
+      contracts.pitTipping = new ethers.Contract(defaultAddress, PITTIPPING_ABI, signer);
+    } else {
+      contracts.pitTipping = new ethers.Contract(contractAddress, PITTIPPING_ABI, signer);
     }
-    
-    contracts.pitTipping = new ethers.Contract(contractAddress, PITTIPPING_ABI, signer);
     
     // Verify contract is deployed
-    const code = await provider.getCode(contractAddress);
+    const finalAddress = contracts.pitTipping.address;
+    const code = await provider.getCode(finalAddress);
     if (code === '0x') {
-      throw new Error(`No contract found at address ${contractAddress}`);
+      throw new Error(`No contract found at address ${finalAddress}`);
     }
     
-    console.log(`✅ Contract initialized at ${contractAddress}`);
+    console.log(`✅ Contract initialized at ${finalAddress}`);
     
     // Test connection
     try {

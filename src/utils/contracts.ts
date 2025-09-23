@@ -1,6 +1,6 @@
 export const CONTRACTS = {
   PitTipping: {
-    address: '0x0000000000000000000000000000000000000000', // To be deployed
+    address: '0x5546973c5b38652db0920bb916fe2bc77d678af4', // Deployed proxy address
     abi: [
       {
         "inputs": [
