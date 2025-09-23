@@ -243,115 +243,77 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
      * - All 50 engagers get their tips in ONE transaction (~$0.01 gas on Base)
      */
     function batchProcessTips(
-        address[] memory _postAuthors,    // Who wrote posts (pay tokens)
-        address[] memory _interactors,    // Who engaged (receive tokens)
-        string[] memory _actionTypes,     // "like", "reply", etc.
+        address[] memory _postAuthors,
+        address[] memory _interactors,
+        string[] memory _actionTypes,
         bytes32[] memory _castHashes,
         bytes32[] memory _interactionHashes
     ) external onlyBackend nonReentrant whenNotPaused {
-        require(
-            _postAuthors.length == _interactors.length &&
-            _postAuthors.length == _actionTypes.length &&
-            _postAuthors.length == _castHashes.length &&
-            _postAuthors.length == _interactionHashes.length,
-            "Array length mismatch"
-        );
+        require(_postAuthors.length == _interactors.length, "Array length mismatch");
+        require(_postAuthors.length == _actionTypes.length, "Array length mismatch");
+        require(_postAuthors.length == _castHashes.length, "Array length mismatch");
+        require(_postAuthors.length == _interactionHashes.length, "Array length mismatch");
         
-        uint256 gasStart = gasleft();
         uint256 batchId = ++batchIdCounter;
         uint256 processedCount = 0;
         
-        // Process each tip
         for (uint256 i = 0; i < _postAuthors.length; i++) {
-            processedCount += _processTipInBatch(
+            processedCount += _processSingleTip(
                 _postAuthors[i],
                 _interactors[i],
                 _actionTypes[i],
                 _castHashes[i],
-                _interactionHashes[i]
+                _interactionHashes[i],
+                batchId
             );
         }
         
-        uint256 gasUsed = gasStart - gasleft();
-        emit BatchProcessed(batchId, processedCount, gasUsed);
+        emit BatchProcessed(batchId, processedCount, block.timestamp);
     }
     
-    function _processTipInBatch(
+    function _processSingleTip(
         address _postAuthor,
         address _interactor,
         string memory _actionType,
         bytes32 _castHash,
-        bytes32 _interactionHash
+        bytes32 _interactionHash,
+        uint256 _batchId
     ) internal returns (uint256) {
-        // Early returns to reduce stack depth
-        if (processedInteractions[_interactionHash] || _postAuthor == _interactor) return 0;
+        if (processedInteractions[_interactionHash]) return 0;
+        if (_postAuthor == _interactor) return 0;
         
         TippingConfig storage config = userConfigs[_postAuthor];
         if (!config.isActive) return 0;
         
         uint256 tipAmount = getTipAmount(config, _actionType);
-        if (tipAmount == 0 || config.totalSpent + tipAmount > config.spendingLimit) return 0;
+        if (tipAmount == 0) return 0;
+        if (config.totalSpent + tipAmount > config.spendingLimit) return 0;
         
         IERC20 token = IERC20(config.token);
-        if (token.allowance(_postAuthor, address(this)) < tipAmount || token.balanceOf(_postAuthor) < tipAmount) return 0;
+        if (token.allowance(_postAuthor, address(this)) < tipAmount) return 0;
+        if (token.balanceOf(_postAuthor) < tipAmount) return 0;
         
-        // Process the tip
-        return _executeTipTransfer(_postAuthor, _interactor, config, token, tipAmount, _actionType, _castHash, _interactionHash);
-    }
-    
-    function _executeTipTransfer(
-        address _postAuthor,
-        address _interactor,
-        TippingConfig storage _config,
-        IERC20 _token,
-        uint256 _tipAmount,
-        string memory _actionType,
-        bytes32 _castHash,
-        bytes32 _interactionHash
-    ) internal returns (uint256) {
-        // Mark as processed
         processedInteractions[_interactionHash] = true;
         
-        // Calculate amounts
-        uint256 fee = (_tipAmount * protocolFeeBps) / 10000;
-        uint256 netAmount = _tipAmount - fee;
+        uint256 fee = (tipAmount * protocolFeeBps) / 10000;
+        uint256 netAmount = tipAmount - fee;
         
-        // Update spending tracker
-        _config.totalSpent += _tipAmount;
+        config.totalSpent += tipAmount;
         
-        // TRANSFER TOKENS: Post author → Engager
-        _token.safeTransferFrom(_postAuthor, _interactor, netAmount);
+        token.safeTransferFrom(_postAuthor, _interactor, netAmount);
         
-        // Transfer fee
         if (fee > 0) {
-            _token.safeTransferFrom(_postAuthor, feeRecipient, fee);
+            token.safeTransferFrom(_postAuthor, feeRecipient, fee);
         }
         
-        // Update stats
         totalTipsReceived[_interactor] += netAmount;
-        totalTipsGiven[_postAuthor] += _tipAmount;
+        totalTipsGiven[_postAuthor] += tipAmount;
         
-        // Record transaction
-        _recordTipTransaction(_postAuthor, _interactor, _config.token, netAmount, _actionType, _castHash);
-        
-        emit TipSent(_postAuthor, _interactor, _config.token, netAmount, _actionType, _castHash);
-        
-        return 1;
-    }
-    
-    function _recordTipTransaction(
-        address _from,
-        address _to,
-        address _token,
-        uint256 _amount,
-        string memory _actionType,
-        bytes32 _castHash
-    ) internal {
         TipTransaction memory txn = TipTransaction({
-            from: _from,
-            to: _to,
-            token: _token,
-            amount: _amount,
+            from: _postAuthor,
+            to: _interactor,
+            token: config.token,
+            amount: netAmount,
             actionType: _actionType,
             timestamp: block.timestamp,
             farcasterCastHash: _castHash
@@ -359,8 +321,12 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
         
         uint256 txnId = tipHistory.length;
         tipHistory.push(txn);
-        userTipsSent[_from].push(txnId);
-        userTipsReceived[_to].push(txnId);
+        userTipsSent[_postAuthor].push(txnId);
+        userTipsReceived[_interactor].push(txnId);
+        
+        emit TipSent(_postAuthor, _interactor, config.token, netAmount, _actionType, _castHash);
+        
+        return 1;
     }
 
     /**
