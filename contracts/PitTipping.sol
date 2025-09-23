@@ -11,19 +11,20 @@ import "@openzeppelin/contracts/security/Pausable.sol";
  * @title PitTipping
  * @dev Reverse tipping contract - Post authors tip users who interact with their posts
  * 
- * FLOW:
- * 1. User sets token allowance to this contract (any ERC20 token)
+ * FLOW (Like Noice):
+ * 1. User sets token allowance to this contract (any Base token)
  * 2. User configures tip amounts (like: 1 token, reply: 2 tokens, etc.)
  * 3. When someone likes/recasts/replies to their post → They get tipped tokens
  * 4. Backend verifies interaction via Neynar webhook
- * 5. Contract transfers tokens from post author to engager
+ * 5. Backend batches all interactions for 1 minute
+ * 6. After 1 minute, all engagers get their tips in ONE transaction
  */
 contract PitTipping is Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
     // Struct to store user's tipping configuration
     struct TippingConfig {
-        address token; // Any ERC20 token address (USDC, ETH, etc.)
+        address token; // Any ERC20 token address (USDC, ETH, DAI, etc.)
         uint256 likeAmount;    // Token amount to tip for likes
         uint256 replyAmount;   // Token amount to tip for replies
         uint256 recastAmount;  // Token amount to tip for recasts
@@ -78,12 +79,18 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
     );
     
     event TipSent(
-        address indexed from,      // Post author (pays USDC)
-        address indexed to,        // Engager (receives USDC)
+        address indexed from,      // Post author (pays tokens)
+        address indexed to,        // Engager (receives tokens)
         address token,
         uint256 amount,
         string actionType,
         bytes32 farcasterCastHash
+    );
+    
+    event BatchProcessed(
+        uint256 indexed batchId,
+        uint256 tipCount,
+        uint256 totalGasUsed
     );
     
     event ConfigRevoked(address indexed user);
@@ -94,6 +101,9 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
     // Protocol fee (1% = 100 bps)
     uint256 public protocolFeeBps = 100;
     address public feeRecipient;
+    
+    // Batch processing
+    uint256 public batchIdCounter;
     
     modifier onlyBackend() {
         require(msg.sender == backendVerifier, "Only backend can call");
@@ -150,15 +160,11 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
 
     /**
      * @dev Process a tip for an interaction (called by backend)
-     * 
-     * FLOW:
-     * 1. Backend verifies interaction via Neynar webhook
-     * 2. Backend calls this function
-     * 3. Contract transfers USDC from post author to engager
+     * Backend verifies the interaction via Neynar webhook
      */
     function processTip(
-        address _postAuthor,      // Who wrote the post (pays USDC)
-        address _interactor,      // Who liked/replied/etc (receives USDC)
+        address _postAuthor,      // Who wrote the post (pays tokens)
+        address _interactor,      // Who liked/replied/etc (receives tokens)
         string memory _actionType, // "like", "reply", "recast", etc.
         bytes32 _farcasterCastHash,
         bytes32 _interactionHash
@@ -227,12 +233,18 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
     }
 
     /**
-     * @dev Batch process multiple tips (like Noice does)
-     * Processes multiple interactions in one transaction for gas efficiency
+     * @dev BATCH PROCESSING: Process multiple tips in one transaction (Like Noice)
+     * This is the key function - backend calls this every 1 minute with all interactions
+     * 
+     * Example:
+     * - 1 minute passes
+     * - 50 people liked/replied to posts
+     * - Backend calls this function with all 50 interactions
+     * - All 50 engagers get their tips in ONE transaction (~$0.01 gas on Base)
      */
     function batchProcessTips(
-        address[] memory _postAuthors,    // Who wrote posts (pay USDC)
-        address[] memory _interactors,    // Who engaged (receive USDC)
+        address[] memory _postAuthors,    // Who wrote posts (pay tokens)
+        address[] memory _interactors,    // Who engaged (receive tokens)
         string[] memory _actionTypes,     // "like", "reply", etc.
         bytes32[] memory _castHashes,
         bytes32[] memory _interactionHashes
@@ -245,6 +257,11 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
             "Array length mismatch"
         );
         
+        uint256 gasStart = gasleft();
+        uint256 batchId = ++batchIdCounter;
+        uint256 processedCount = 0;
+        
+        // Process each tip
         for (uint256 i = 0; i < _postAuthors.length; i++) {
             if (!processedInteractions[_interactionHashes[i]] &&
                 _postAuthors[i] != _interactors[i]) {
@@ -299,15 +316,19 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
                             userTipsReceived[_interactors[i]].push(txnId);
                             
                             emit TipSent(_postAuthors[i], _interactors[i], config.token, netAmount, _actionTypes[i], _castHashes[i]);
+                            processedCount++;
                         }
                     }
                 }
             }
         }
+        
+        uint256 gasUsed = gasStart - gasleft();
+        emit BatchProcessed(batchId, processedCount, gasUsed);
     }
 
     /**
-     * @dev Get token tip amount for a specific action type
+     * @dev Get tip amount for a specific action type
      */
     function getTipAmount(TippingConfig memory config, string memory actionType) 
         internal 

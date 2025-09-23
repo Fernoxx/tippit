@@ -5,7 +5,9 @@ class BatchProcessor {
   constructor() {
     this.pendingInteractions = [];
     this.processedHashes = new Set();
-    this.maxBatchSize = parseInt(process.env.MAX_BATCH_SIZE) || 50;
+    this.maxBatchSize = parseInt(process.env.MAX_BATCH_SIZE) || 100; // Can handle 100+ interactions
+    this.batchIntervalMs = (parseInt(process.env.BATCH_INTERVAL_MINUTES) || 1) * 60 * 1000; // 1 minute default
+    this.lastBatchTime = 0;
   }
 
   // Add interaction to batch
@@ -42,15 +44,27 @@ class BatchProcessor {
     return true;
   }
 
-  // Process batch of interactions
+  // Process batch of interactions (Like Noice - every 1 minute)
   async processBatch() {
+    const now = Date.now();
+    const timeSinceLastBatch = now - this.lastBatchTime;
+    
+    // Only process if we have interactions and enough time has passed
     if (this.pendingInteractions.length === 0) {
       console.log('📭 No interactions to process');
       return { processed: 0, failed: 0 };
     }
 
+    // Process if we have enough interactions OR enough time has passed
+    if (this.pendingInteractions.length < 10 && timeSinceLastBatch < this.batchIntervalMs) {
+      console.log(`⏳ Waiting for more interactions or time to pass... (${this.pendingInteractions.length} pending, ${Math.round((this.batchIntervalMs - timeSinceLastBatch) / 1000)}s remaining)`);
+      return { processed: 0, failed: 0 };
+    }
+
     const batch = this.pendingInteractions.splice(0, this.maxBatchSize);
-    console.log(`🔄 Processing batch of ${batch.length} interactions...`);
+    this.lastBatchTime = now;
+    
+    console.log(`🔄 Processing batch of ${batch.length} interactions (${Math.round(timeSinceLastBatch / 1000)}s since last batch)...`);
 
     let processed = 0;
     let failed = 0;
@@ -63,6 +77,8 @@ class BatchProcessor {
       const castHashes = batch.map(i => i.castHash || '0x0000000000000000000000000000000000000000000000000000000000000000');
       const interactionHashes = batch.map(i => i.interactionHash);
 
+      console.log(`📤 Sending batch to contract: ${batch.length} interactions`);
+      
       // Call contract batch function
       const tx = await contracts.pitTipping.batchProcessTips(
         postAuthors,
@@ -76,7 +92,15 @@ class BatchProcessor {
       
       // Wait for confirmation
       const receipt = await tx.wait();
-      console.log(`✅ Batch processed successfully! Gas used: ${receipt.gasUsed.toString()}`);
+      const gasUsed = receipt.gasUsed.toString();
+      const gasPrice = receipt.gasPrice?.toString() || '0';
+      const gasCost = (BigInt(gasUsed) * BigInt(gasPrice)) / BigInt(10**18);
+      
+      console.log(`✅ Batch processed successfully!`);
+      console.log(`   📊 Interactions: ${batch.length}`);
+      console.log(`   ⛽ Gas used: ${gasUsed}`);
+      console.log(`   💰 Gas cost: ${gasCost.toString()} ETH (~$${parseFloat(gasCost.toString()) * 3000})`);
+      console.log(`   💸 Cost per tip: ~$${parseFloat(gasCost.toString()) * 3000 / batch.length}`);
       
       processed = batch.length;
       
@@ -84,7 +108,7 @@ class BatchProcessor {
       console.error('❌ Batch processing failed:', error);
       
       // Try individual processing as fallback
-      console.log('🔄 Attempting individual processing...');
+      console.log('🔄 Attempting individual processing as fallback...');
       
       for (const interaction of batch) {
         try {
