@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity 0.6.12;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 
 /**
  * @title PitTipping
@@ -110,7 +110,7 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
         _;
     }
 
-    constructor(address _feeRecipient, address _backendVerifier) Ownable(msg.sender) {
+    constructor(address _feeRecipient, address _backendVerifier) public {
         feeRecipient = _feeRecipient;
         backendVerifier = _backendVerifier;
     }
@@ -238,18 +238,17 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
      * - All 50 engagers get their tips in ONE transaction (~$0.01 gas on Base)
      */
     function batchProcessTips(
-        address[] memory _postAuthors,
-        address[] memory _interactors,
-        string[] memory _actionTypes,
-        bytes32[] memory _castHashes,
-        bytes32[] memory _interactionHashes
+        address[] calldata _postAuthors,
+        address[] calldata _interactors,
+        string[] calldata _actionTypes,
+        bytes32[] calldata _castHashes,
+        bytes32[] calldata _interactionHashes
     ) external onlyBackend nonReentrant whenNotPaused {
         require(_postAuthors.length == _interactors.length, "Array length mismatch");
         require(_postAuthors.length == _actionTypes.length, "Array length mismatch");
         require(_postAuthors.length == _castHashes.length, "Array length mismatch");
         require(_postAuthors.length == _interactionHashes.length, "Array length mismatch");
         
-        uint256 batchId = ++batchIdCounter;
         uint256 processedCount = 0;
         
         for (uint256 i = 0; i < _postAuthors.length; i++) {
@@ -258,7 +257,7 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
             }
         }
         
-        emit BatchProcessed(batchId, processedCount, block.timestamp);
+        emit BatchProcessed(processedCount, block.timestamp);
     }
     
     function _processTip(
