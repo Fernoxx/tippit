@@ -20,7 +20,8 @@
     "NEYNAR_API_KEY": "@neynar_api_key",
     "WEBHOOK_SECRET": "@webhook_secret",
     "NEXT_PUBLIC_PIT_TIPPING_ADDRESS": "@pit_tipping_address",
-    "NEXT_PUBLIC_FARCASTER_ORACLE_ADDRESS": "@farcaster_oracle_address"
+    "NEXT_PUBLIC_FARCASTER_ORACLE_ADDRESS": "@farcaster_oracle_address",
+    "INTERNAL_API_KEY": "@internal_api_key"
   },
   "build": {
     "env": {
