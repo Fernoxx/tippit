@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.30;
+pragma solidity ^0.8.19;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
@@ -163,9 +163,9 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
      * Backend verifies the interaction via Neynar webhook
      */
     function processTip(
-        address _postAuthor,      // Who wrote the post (pays tokens)
-        address _interactor,      // Who liked/replied/etc (receives tokens)
-        string memory _actionType, // "like", "reply", "recast", etc.
+        address _postAuthor,
+        address _interactor,
+        string memory _actionType,
         bytes32 _farcasterCastHash,
         bytes32 _interactionHash
     ) external onlyBackend nonReentrant whenNotPaused {
@@ -175,61 +175,56 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
         TippingConfig storage config = userConfigs[_postAuthor];
         require(config.isActive, "Author config not active");
         
-        // Get token amount to tip for this action
         uint256 tipAmount = getTipAmount(config, _actionType);
         require(tipAmount > 0, "No tip amount set for action");
-        
-        // Check if within spending limit
         require(config.totalSpent + tipAmount <= config.spendingLimit, "Spending limit reached");
         
-        // Check token allowance (user must approve this contract to spend their tokens)
         IERC20 token = IERC20(config.token);
-        uint256 allowance = token.allowance(_postAuthor, address(this));
-        require(allowance >= tipAmount, "Insufficient token allowance");
+        require(token.allowance(_postAuthor, address(this)) >= tipAmount, "Insufficient token allowance");
+        require(token.balanceOf(_postAuthor) >= tipAmount, "Insufficient token balance");
         
-        // Check token balance
-        uint256 balance = token.balanceOf(_postAuthor);
-        require(balance >= tipAmount, "Insufficient token balance");
-        
-        // Mark interaction as processed
         processedInteractions[_interactionHash] = true;
         
-        // Calculate protocol fee (1%)
         uint256 fee = (tipAmount * protocolFeeBps) / 10000;
         uint256 netAmount = tipAmount - fee;
         
-        // Update spending tracker
         config.totalSpent += tipAmount;
         
-        // TRANSFER TOKENS: Post author → Engager
         token.safeTransferFrom(_postAuthor, _interactor, netAmount);
         
-        // Transfer fee to protocol
         if (fee > 0) {
             token.safeTransferFrom(_postAuthor, feeRecipient, fee);
         }
         
-        // Update stats
-        totalTipsReceived[_interactor] += netAmount;  // Engager received tokens
-        totalTipsGiven[_postAuthor] += tipAmount;     // Post author gave tokens
+        totalTipsReceived[_interactor] += netAmount;
+        totalTipsGiven[_postAuthor] += tipAmount;
         
-        // Record transaction
-        TipTransaction memory txn = TipTransaction({
-            from: _postAuthor,        // Who paid
-            to: _interactor,          // Who received
-            token: config.token,      // Token address
-            amount: netAmount,        // Token amount
-            actionType: _actionType,  // "like", "reply", etc.
-            timestamp: block.timestamp,
-            farcasterCastHash: _farcasterCastHash
-        });
-        
-        uint256 txnId = tipHistory.length;
-        tipHistory.push(txn);
-        userTipsSent[_postAuthor].push(txnId);
-        userTipsReceived[_interactor].push(txnId);
+        _recordSingleTip(_postAuthor, _interactor, config.token, netAmount, _actionType, _farcasterCastHash);
         
         emit TipSent(_postAuthor, _interactor, config.token, netAmount, _actionType, _farcasterCastHash);
+    }
+    
+    function _recordSingleTip(
+        address _from,
+        address _to,
+        address _token,
+        uint256 _amount,
+        string memory _actionType,
+        bytes32 _castHash
+    ) internal {
+        tipHistory.push(TipTransaction({
+            from: _from,
+            to: _to,
+            token: _token,
+            amount: _amount,
+            actionType: _actionType,
+            timestamp: block.timestamp,
+            farcasterCastHash: _castHash
+        }));
+        
+        uint256 txnId = tipHistory.length - 1;
+        userTipsSent[_from].push(txnId);
+        userTipsReceived[_to].push(txnId);
     }
 
     /**
