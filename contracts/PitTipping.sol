@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.6.12;
+pragma solidity ^0.8.19;
 
-import "@openzeppelin/contracts@3.4.2/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts@3.4.2/token/ERC20/SafeERC20.sol";
-import "@openzeppelin/contracts@3.4.2/access/Ownable.sol";
+import "@openzeppelin/contracts@4.9.3/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts@4.9.3/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts@4.9.3/access/Ownable.sol";
 
 /**
  * @title PitTipping
@@ -111,7 +111,7 @@ contract PitTipping is Ownable {
         _;
     }
 
-    constructor(address _feeRecipient, address _backendVerifier) public {
+    constructor(address _feeRecipient, address _backendVerifier) {
         feeRecipient = _feeRecipient;
         backendVerifier = _backendVerifier;
     }
