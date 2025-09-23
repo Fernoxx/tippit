@@ -4,8 +4,6 @@ pragma solidity ^0.8.19;
 import "@openzeppelin/contracts@4.9.3/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts@4.9.3/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts@4.9.3/access/Ownable.sol";
-import "@openzeppelin/contracts@4.9.3/security/Pausable.sol";
-import "@openzeppelin/contracts@4.9.3/security/ReentrancyGuard.sol";
 
 /**
  * @title PitTipping
@@ -22,7 +20,7 @@ import "@openzeppelin/contracts@4.9.3/security/ReentrancyGuard.sol";
  * 
  * Key Difference: In Noice, creators get rewarded. Here, ENGAGERS get rewarded.
  */
-contract PitTipping is Ownable, ReentrancyGuard {
+contract PitTippingClean is Ownable {
     using SafeERC20 for IERC20;
 
     // Struct to store creator's reward configuration
@@ -43,8 +41,8 @@ contract PitTipping is Ownable, ReentrancyGuard {
         address from;           // Post author (who pays)
         address to;             // Engager (who receives tokens)
         address token;          // Token address
-        uint256 amount;         // Token amount transferred
-        string actionType;      // "like", "reply", "recast", etc.
+        uint256 amount;         // Token amount
+        string actionType;      // "like", "reply", etc.
         uint256 timestamp;      // When tip happened
         bytes32 farcasterCastHash; // Cast hash
     }
@@ -53,26 +51,20 @@ contract PitTipping is Ownable, ReentrancyGuard {
     mapping(address => RewardConfig) public creatorConfigs;
     mapping(address => uint256) public totalTipsReceived; // Total tokens received by user
     mapping(address => uint256) public totalTipsGiven;    // Total tokens given by user
+    mapping(bytes32 => bool) public processedInteractions;
     
     // Arrays for leaderboard functionality
     address[] public activeUsers;
     mapping(address => bool) public isActiveUser;
-    
-    // Transaction history
     TipTransaction[] public tipHistory;
     mapping(address => uint256[]) public userTipsSent;
     mapping(address => uint256[]) public userTipsReceived;
 
-    // Track processed interactions to prevent double-tipping
-    mapping(bytes32 => bool) public processedInteractions;
-
-    // Backend verifier (only your backend can call processTip)
-    address public backendVerifier;
+    // Contract state
     address public feeRecipient;
+    address public backendVerifier;
     uint256 public protocolFeeBps = 100; // 1% fee (100 basis points)
-    uint256 public batchIdCounter = 0;
-    uint256 public maxBatchSize = 100;
-    
+
     // Events
     event ConfigUpdated(
         address indexed user,
@@ -84,29 +76,22 @@ contract PitTipping is Ownable, ReentrancyGuard {
         uint256 followAmount,
         uint256 spendingLimit
     );
-    
+
     event TipSent(
-        address indexed from,      // Post author (pays tokens)
-        address indexed to,        // Engager (receives tokens)
-        address token,
+        address indexed from,
+        address indexed to,
+        address indexed token,
         uint256 amount,
         string actionType,
         bytes32 farcasterCastHash
     );
-    
-    event BatchProcessed(
-        uint256 indexed batchId,
-        uint256 tipCount,
-        uint256 totalGasUsed
-    );
-    
-    event ConfigRevoked(address indexed user);
-    event SpendingLimitUpdated(address indexed user, uint256 newLimit);
-    event EmergencyWithdraw(address indexed token, uint256 amount, address indexed to);
-    event BackendVerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
 
-    // Protocol fee and batch processing variables already declared above
-    
+    event BatchProcessed(
+        uint256 processedCount,
+        uint256 timestamp
+    );
+
+    // Modifiers
     modifier onlyBackend() {
         require(msg.sender == backendVerifier, "Only backend can call");
         _;
@@ -118,16 +103,16 @@ contract PitTipping is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Set or update user's tipping configuration
-     * User sets how much tokens to tip for each interaction type (any Base token)
+     * @dev Set or update user's reward configuration
+     * User sets how much tokens to reward for each interaction type (any Base token)
      */
     function setRewardConfig(
         address _token,           // Any Base token address (USDC, ETH, DAI, etc.)
-        uint256 _likeAmount,      // Tokens to tip for likes
-        uint256 _replyAmount,     // Tokens to tip for replies
-        uint256 _recastAmount,    // Tokens to tip for recasts
-        uint256 _quoteAmount,     // Tokens to tip for quotes
-        uint256 _followAmount,    // Tokens to tip for follows
+        uint256 _likeAmount,      // Tokens to reward for likes
+        uint256 _replyAmount,     // Tokens to reward for replies
+        uint256 _recastAmount,    // Tokens to reward for recasts
+        uint256 _quoteAmount,     // Tokens to reward for quotes
+        uint256 _followAmount,    // Tokens to reward for follows
         uint256 _spendingLimit    // Maximum tokens to spend total
     ) external {
         require(_token != address(0), "Invalid token address");
@@ -147,7 +132,7 @@ contract PitTipping is Ownable, ReentrancyGuard {
             activeUsers.push(msg.sender);
             isActiveUser[msg.sender] = true;
         }
-        
+
         emit ConfigUpdated(
             msg.sender,
             _token,
@@ -170,7 +155,7 @@ contract PitTipping is Ownable, ReentrancyGuard {
         string memory _actionType,
         bytes32 _farcasterCastHash,
         bytes32 _interactionHash
-    ) external onlyBackend nonReentrant {
+    ) external onlyBackend {
         require(!processedInteractions[_interactionHash], "Interaction already processed");
         require(_postAuthor != _interactor, "Cannot tip yourself");
         
@@ -245,22 +230,21 @@ contract PitTipping is Ownable, ReentrancyGuard {
         string[] calldata _actionTypes,
         bytes32[] calldata _castHashes,
         bytes32[] calldata _interactionHashes
-    ) external onlyBackend nonReentrant {
+    ) external onlyBackend {
         require(_postAuthors.length == _interactors.length, "Array length mismatch");
         require(_postAuthors.length == _actionTypes.length, "Array length mismatch");
         require(_postAuthors.length == _castHashes.length, "Array length mismatch");
         require(_postAuthors.length == _interactionHashes.length, "Array length mismatch");
         
-        uint256 batchId = ++batchIdCounter;
         uint256 processedCount = 0;
         
         for (uint256 i = 0; i < _postAuthors.length; i++) {
-            if (_processTip(_postAuthors[i], _interactors[i], _actionTypes[i], _castHashes[i], _interactionHashes[i], batchId)) {
+            if (_processTip(_postAuthors[i], _interactors[i], _actionTypes[i], _castHashes[i], _interactionHashes[i])) {
                 processedCount++;
             }
         }
         
-        emit BatchProcessed(batchId, processedCount, 0);
+        emit BatchProcessed(processedCount, block.timestamp);
     }
     
     function _processTip(
@@ -268,8 +252,7 @@ contract PitTipping is Ownable, ReentrancyGuard {
         address _interactor,
         string memory _actionType,
         bytes32 _castHash,
-        bytes32 _interactionHash,
-        uint256 _batchId
+        bytes32 _interactionHash
     ) internal returns (bool) {
         if (processedInteractions[_interactionHash] || _postAuthor == _interactor) return false;
         
@@ -354,127 +337,64 @@ contract PitTipping is Ownable, ReentrancyGuard {
      * @dev Update spending limit
      */
     function updateSpendingLimit(uint256 _newLimit) external {
-        require(_newLimit > 0, "Limit must be > 0");
+        require(_newLimit > 0, "Spending limit must be > 0");
         creatorConfigs[msg.sender].spendingLimit = _newLimit;
-        emit SpendingLimitUpdated(msg.sender, _newLimit);
     }
 
     /**
-     * @dev Revoke tipping configuration
+     * @dev Disable tipping configuration
      */
-    function revokeConfig() external {
+    function disableRewards() external {
         creatorConfigs[msg.sender].isActive = false;
-        emit ConfigRevoked(msg.sender);
     }
 
     /**
-     * @dev Get users sorted by tip amount per like (for homepage)
+     * @dev Get user's reward configuration
      */
-    function getUsersByLikeAmount(uint256 offset, uint256 limit) 
-        external 
-        view 
-        returns (address[] memory users, uint256[] memory amounts) 
-    {
-        uint256 activeCount = 0;
-        for (uint256 i = 0; i < activeUsers.length; i++) {
-            if (creatorConfigs[activeUsers[i]].isActive) {
-                activeCount++;
-            }
-        }
-        
-        uint256 returnCount = limit;
-        if (offset + limit > activeCount) {
-            returnCount = activeCount > offset ? activeCount - offset : 0;
-        }
-        
-        users = new address[](returnCount);
-        amounts = new uint256[](returnCount);
-        
-        // Simple implementation - in production, use more efficient sorting
-        address[] memory tempUsers = new address[](activeCount);
-        uint256[] memory tempAmounts = new uint256[](activeCount);
-        uint256 index = 0;
-        
-        for (uint256 i = 0; i < activeUsers.length; i++) {
-            if (creatorConfigs[activeUsers[i]].isActive) {
-                tempUsers[index] = activeUsers[i];
-                tempAmounts[index] = creatorConfigs[activeUsers[i]].likeAmount;
-                index++;
-            }
-        }
-        
-        // Sort by like amount (descending)
-        for (uint256 i = 0; i < activeCount - 1; i++) {
-            for (uint256 j = 0; j < activeCount - i - 1; j++) {
-                if (tempAmounts[j] < tempAmounts[j + 1]) {
-                    uint256 tempAmount = tempAmounts[j];
-                    tempAmounts[j] = tempAmounts[j + 1];
-                    tempAmounts[j + 1] = tempAmount;
-                    
-                    address tempUser = tempUsers[j];
-                    tempUsers[j] = tempUsers[j + 1];
-                    tempUsers[j + 1] = tempUser;
-                }
-            }
-        }
-        
-        // Copy to return arrays
-        for (uint256 i = 0; i < returnCount; i++) {
-            users[i] = tempUsers[offset + i];
-            amounts[i] = tempAmounts[offset + i];
-        }
-        
-        return (users, amounts);
+    function getUserConfig(address _user) external view returns (
+        address token,
+        uint256 likeAmount,
+        uint256 replyAmount,
+        uint256 recastAmount,
+        uint256 quoteAmount,
+        uint256 followAmount,
+        uint256 spendingLimit,
+        uint256 totalSpent,
+        bool isActive
+    ) {
+        RewardConfig memory config = creatorConfigs[_user];
+        return (
+            config.token,
+            config.likeAmount,
+            config.replyAmount,
+            config.recastAmount,
+            config.quoteAmount,
+            config.followAmount,
+            config.spendingLimit,
+            config.totalSpent,
+            config.isActive
+        );
     }
 
     /**
-     * @dev Get leaderboard of most tipped users
+     * @dev Get available balance for tipping
      */
-    function getLeaderboard(uint256 offset, uint256 limit) 
-        external 
-        view 
-        returns (address[] memory users, uint256[] memory amounts) 
-    {
-        uint256 userCount = activeUsers.length;
-        uint256 returnCount = limit;
-        if (offset + limit > userCount) {
-            returnCount = userCount > offset ? userCount - offset : 0;
+    function getUserAvailableBalance(address _user) external view returns (
+        address token,
+        uint256 balance,
+        uint256 allowance,
+        uint256 availableToTip
+    ) {
+        RewardConfig memory config = creatorConfigs[_user];
+        if (config.token == address(0)) {
+            return (address(0), 0, 0, 0);
         }
         
-        users = new address[](returnCount);
-        amounts = new uint256[](returnCount);
-        
-        // In production, implement efficient sorting
-        for (uint256 i = 0; i < returnCount && i + offset < userCount; i++) {
-            users[i] = activeUsers[i + offset];
-            amounts[i] = totalTipsReceived[activeUsers[i + offset]];
-        }
-        
-        return (users, amounts);
+        token = config.token;
+        balance = IERC20(config.token).balanceOf(_user);
+        allowance = IERC20(config.token).allowance(_user, address(this));
+        availableToTip = config.spendingLimit - config.totalSpent;
     }
-
-    /**
-     * @dev Update backend verifier address (only owner)
-     */
-    function updateBackendVerifier(address _newVerifier) external onlyOwner {
-        require(_newVerifier != address(0), "Invalid verifier address");
-        address oldVerifier = backendVerifier;
-        backendVerifier = _newVerifier;
-        emit BackendVerifierUpdated(oldVerifier, _newVerifier);
-    }
-
-    /**
-     * @dev Update protocol fee (only owner)
-     */
-    function updateProtocolFee(uint256 _newFeeBps) external onlyOwner {
-        require(_newFeeBps <= 500, "Fee too high"); // Max 5%
-        protocolFeeBps = _newFeeBps;
-    }
-
-    /**
-     * @dev Pause/unpause contract (only owner)
-     */
-    // Pause functionality removed for now - can be added back if needed
 
     /**
      * @dev Emergency withdraw for tokens mistakenly sent to this contract
@@ -487,31 +407,21 @@ contract PitTipping is Ownable, ReentrancyGuard {
         require(balance > 0, "No tokens to withdraw");
         
         IERC20(_token).safeTransfer(_to, balance);
-        
-        emit EmergencyWithdraw(_token, balance, _to);
     }
 
     /**
-     * @dev Get user's available token balance (considering allowance)
+     * @dev Set protocol fee (only owner)
      */
-    function getUserAvailableBalance(address _user) 
-        external 
-        view 
-        returns (
-            address token,
-            uint256 balance,
-            uint256 allowance,
-            uint256 availableToTip
-        ) 
-    {
-        RewardConfig memory config = creatorConfigs[_user];
-        if (config.token == address(0)) {
-            return (address(0), 0, 0, 0);
-        }
-        
-        token = config.token;
-        balance = IERC20(token).balanceOf(_user);
-        allowance = IERC20(token).allowance(_user, address(this));
-        availableToTip = balance < allowance ? balance : allowance;
+    function setProtocolFee(uint256 _newFeeBps) external onlyOwner {
+        require(_newFeeBps <= 1000, "Fee cannot exceed 10%"); // Max 10%
+        protocolFeeBps = _newFeeBps;
+    }
+
+    /**
+     * @dev Update backend verifier address (only owner)
+     */
+    function updateBackendVerifier(address _newVerifier) external onlyOwner {
+        require(_newVerifier != address(0), "Invalid address");
+        backendVerifier = _newVerifier;
     }
 }
