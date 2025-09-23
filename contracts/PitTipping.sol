@@ -279,6 +279,7 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
         bytes32 _interactionHash,
         uint256 _batchId
     ) internal returns (uint256) {
+        // Early validation checks
         if (processedInteractions[_interactionHash]) return 0;
         if (_postAuthor == _interactor) return 0;
         
@@ -289,31 +290,61 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
         if (tipAmount == 0) return 0;
         if (config.totalSpent + tipAmount > config.spendingLimit) return 0;
         
+        // Check token allowance and balance
         IERC20 token = IERC20(config.token);
         if (token.allowance(_postAuthor, address(this)) < tipAmount) return 0;
         if (token.balanceOf(_postAuthor) < tipAmount) return 0;
         
+        // Execute the tip transfer
+        return _executeTip(_postAuthor, _interactor, config, token, tipAmount, _actionType, _castHash, _interactionHash);
+    }
+    
+    function _executeTip(
+        address _postAuthor,
+        address _interactor,
+        TippingConfig storage _config,
+        IERC20 _token,
+        uint256 _tipAmount,
+        string memory _actionType,
+        bytes32 _castHash,
+        bytes32 _interactionHash
+    ) internal returns (uint256) {
         processedInteractions[_interactionHash] = true;
         
-        uint256 fee = (tipAmount * protocolFeeBps) / 10000;
-        uint256 netAmount = tipAmount - fee;
+        uint256 fee = (_tipAmount * protocolFeeBps) / 10000;
+        uint256 netAmount = _tipAmount - fee;
         
-        config.totalSpent += tipAmount;
+        _config.totalSpent += _tipAmount;
         
-        token.safeTransferFrom(_postAuthor, _interactor, netAmount);
+        _token.safeTransferFrom(_postAuthor, _interactor, netAmount);
         
         if (fee > 0) {
-            token.safeTransferFrom(_postAuthor, feeRecipient, fee);
+            _token.safeTransferFrom(_postAuthor, feeRecipient, fee);
         }
         
         totalTipsReceived[_interactor] += netAmount;
-        totalTipsGiven[_postAuthor] += tipAmount;
+        totalTipsGiven[_postAuthor] += _tipAmount;
         
+        _recordTransaction(_postAuthor, _interactor, _config.token, netAmount, _actionType, _castHash);
+        
+        emit TipSent(_postAuthor, _interactor, _config.token, netAmount, _actionType, _castHash);
+        
+        return 1;
+    }
+    
+    function _recordTransaction(
+        address _from,
+        address _to,
+        address _token,
+        uint256 _amount,
+        string memory _actionType,
+        bytes32 _castHash
+    ) internal {
         TipTransaction memory txn = TipTransaction({
-            from: _postAuthor,
-            to: _interactor,
-            token: config.token,
-            amount: netAmount,
+            from: _from,
+            to: _to,
+            token: _token,
+            amount: _amount,
             actionType: _actionType,
             timestamp: block.timestamp,
             farcasterCastHash: _castHash
@@ -321,12 +352,8 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
         
         uint256 txnId = tipHistory.length;
         tipHistory.push(txn);
-        userTipsSent[_postAuthor].push(txnId);
-        userTipsReceived[_interactor].push(txnId);
-        
-        emit TipSent(_postAuthor, _interactor, config.token, netAmount, _actionType, _castHash);
-        
-        return 1;
+        userTipsSent[_from].push(txnId);
+        userTipsReceived[_to].push(txnId);
     }
 
     /**
