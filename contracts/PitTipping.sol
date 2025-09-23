@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.24;
 
-import "@openzeppelin/contracts@4.9.3/access/Ownable.sol";
-import "@openzeppelin/contracts@4.9.3/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts@4.9.3/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts@4.9.3/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts@4.9.3/security/Pausable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/security/Pausable.sol";
 
 /**
  * @title PitTipping
@@ -110,7 +110,7 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
         _;
     }
 
-    constructor(address _feeRecipient, address _backendVerifier) {
+    constructor(address _feeRecipient, address _backendVerifier) Ownable(msg.sender) {
         feeRecipient = _feeRecipient;
         backendVerifier = _backendVerifier;
     }
