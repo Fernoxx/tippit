@@ -1,0 +1,13 @@
+# This file defines code ownership for automatic review requests
+# All changes will be pushed directly to main after review
+
+# Global owners for all files
+* @your-github-username
+
+# Smart contracts require additional review
+/contracts/ @your-github-username @contract-reviewer
+
+# Frontend code
+/src/ @your-github-username
+/pages/ @your-github-username
+/components/ @your-github-username
