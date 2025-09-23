@@ -125,24 +125,17 @@ export default async function handler(
         )
       );
       
-      // Call our internal API to process the tip
+      // Forward to backend for batch processing
+      const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
       const processResponse = await fetch(
-        `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/process-tip`,
+        `${backendUrl}/webhook/neynar`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.INTERNAL_API_KEY}`,
+            'x-neynar-signature': req.headers['x-neynar-signature'] as string,
           },
-          body: JSON.stringify({
-            authorFid,
-            interactorFid,
-            authorAddress,
-            interactorAddress,
-            interactionType,
-            castHash,
-            interactionHash,
-          }),
+          body: JSON.stringify(req.body),
         }
       );
       
@@ -150,8 +143,9 @@ export default async function handler(
       
       res.status(200).json({
         success: true,
-        processed: result.success,
-        transactionHash: result.transactionHash,
+        processed: result.processed || false,
+        queued: result.queued || false,
+        interactionType: result.interactionType,
       });
     } else {
       res.status(200).json({ 

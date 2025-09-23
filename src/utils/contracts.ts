@@ -1,5 +1,5 @@
 export const CONTRACTS = {
-  PITTipping: {
+  PITTippingSimplified: {
     address: '0x0000000000000000000000000000000000000000', // To be deployed
     abi: [
       {
@@ -95,18 +95,29 @@ export const CONTRACTS = {
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
-      }
-    ]
-  },
-  FarcasterOracle: {
-    address: '0x0000000000000000000000000000000000000000', // To be deployed
-    abi: [
+      },
       {
         "inputs": [
-          { "internalType": "uint256", "name": "_fid", "type": "uint256" },
-          { "internalType": "address", "name": "_ethAddress", "type": "address" }
+          { "internalType": "address", "name": "_postAuthor", "type": "address" },
+          { "internalType": "address", "name": "_interactor", "type": "address" },
+          { "internalType": "string", "name": "_actionType", "type": "string" },
+          { "internalType": "bytes32", "name": "_farcasterCastHash", "type": "bytes32" },
+          { "internalType": "bytes32", "name": "_interactionHash", "type": "bytes32" }
         ],
-        "name": "mapFIDToAddress",
+        "name": "processTip",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          { "internalType": "address[]", "name": "_postAuthors", "type": "address[]" },
+          { "internalType": "address[]", "name": "_interactors", "type": "address[]" },
+          { "internalType": "string[]", "name": "_actionTypes", "type": "string[]" },
+          { "internalType": "bytes32[]", "name": "_castHashes", "type": "bytes32[]" },
+          { "internalType": "bytes32[]", "name": "_interactionHashes", "type": "bytes32[]" }
+        ],
+        "name": "batchProcessTips",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"

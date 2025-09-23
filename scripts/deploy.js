@@ -1,39 +1,27 @@
 const { ethers } = require("hardhat");
 
 async function main() {
-  console.log("Deploying PIT contracts to Base...");
+  console.log("Deploying PITTippingSimplified contract to Base...");
 
   const [deployer] = await ethers.getSigners();
   console.log("Deploying contracts with account:", deployer.address);
 
-  // Deploy PITTipping contract
-  const PITTipping = await ethers.getContractFactory("PITTipping");
-  const pitTipping = await PITTipping.deploy(
+  // Deploy PITTippingSimplified contract
+  const PITTippingSimplified = await ethers.getContractFactory("PITTippingSimplified");
+  const pitTipping = await PITTippingSimplified.deploy(
     deployer.address, // fee recipient
-    deployer.address  // temporary oracle address
+    deployer.address  // backend verifier (will be updated later)
   );
   await pitTipping.deployed();
-  console.log("PITTipping deployed to:", pitTipping.address);
-
-  // Deploy FarcasterOracle contract
-  const FarcasterOracle = await ethers.getContractFactory("FarcasterOracle");
-  const farcasterOracle = await FarcasterOracle.deploy(pitTipping.address);
-  await farcasterOracle.deployed();
-  console.log("FarcasterOracle deployed to:", farcasterOracle.address);
-
-  // Update oracle address in PITTipping
-  await pitTipping.updateOracle(farcasterOracle.address);
-  console.log("Oracle address updated in PITTipping");
-
-  // Grant verifier role to the oracle service account
-  const VERIFIER_ROLE = await farcasterOracle.VERIFIER_ROLE();
-  await farcasterOracle.grantRole(VERIFIER_ROLE, deployer.address);
-  console.log("Verifier role granted");
+  console.log("PITTippingSimplified deployed to:", pitTipping.address);
 
   console.log("\nDeployment complete!");
-  console.log("PITTipping:", pitTipping.address);
-  console.log("FarcasterOracle:", farcasterOracle.address);
-  console.log("\nUpdate these addresses in src/utils/contracts.ts");
+  console.log("PITTippingSimplified:", pitTipping.address);
+  console.log("\nNext steps:");
+  console.log("1. Update CONTRACT_ADDRESS in backend/.env");
+  console.log("2. Update address in src/utils/contracts.ts");
+  console.log("3. Update backend verifier address in contract");
+  console.log("4. Start backend server");
 }
 
 main()
