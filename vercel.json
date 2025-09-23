@@ -16,13 +16,15 @@
     }
   ],
   "env": {
-    "NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID": "@walletconnect_project_id",
+    "NEXT_PUBLIC_NEYNAR_API_KEY": "@neynar_api_key",
+    "NEYNAR_API_KEY": "@neynar_api_key",
+    "WEBHOOK_SECRET": "@webhook_secret",
     "NEXT_PUBLIC_PIT_TIPPING_ADDRESS": "@pit_tipping_address",
     "NEXT_PUBLIC_FARCASTER_ORACLE_ADDRESS": "@farcaster_oracle_address"
   },
   "build": {
     "env": {
-      "NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID": "@walletconnect_project_id",
+      "NEXT_PUBLIC_NEYNAR_API_KEY": "@neynar_api_key",
       "NEXT_PUBLIC_PIT_TIPPING_ADDRESS": "@pit_tipping_address",
       "NEXT_PUBLIC_FARCASTER_ORACLE_ADDRESS": "@farcaster_oracle_address"
     }
