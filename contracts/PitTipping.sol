@@ -176,7 +176,7 @@ contract PitTipping is Ownable {
         RewardConfig storage config = creatorConfigs[_postAuthor];
         require(config.isActive, "Author config not active");
         
-        uint256 tipAmount = getTipAmount(config, _actionType);
+        uint256 tipAmount = getRewardAmount(config, _actionType);
         require(tipAmount > 0, "No tip amount set for action");
         require(config.totalSpent + tipAmount <= config.spendingLimit, "Spending limit reached");
         
@@ -273,7 +273,7 @@ contract PitTipping is Ownable {
         RewardConfig storage config = creatorConfigs[_postAuthor];
         if (!config.isActive) return false;
         
-        uint256 tipAmount = getTipAmount(config, _actionType);
+        uint256 tipAmount = getRewardAmount(config, _actionType);
         if (tipAmount == 0 || config.totalSpent + tipAmount > config.spendingLimit) return false;
         
         IERC20 token = IERC20(config.token);
@@ -326,9 +326,9 @@ contract PitTipping is Ownable {
     }
 
     /**
-     * @dev Get tip amount for a specific action type
+     * @dev Get reward amount for a specific action type
      */
-    function getTipAmount(RewardConfig memory config, string memory actionType) 
+    function getRewardAmount(RewardConfig memory config, string memory actionType) 
         internal 
         pure 
         returns (uint256) 
