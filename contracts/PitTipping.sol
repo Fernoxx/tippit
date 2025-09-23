@@ -263,68 +263,87 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
         
         // Process each tip
         for (uint256 i = 0; i < _postAuthors.length; i++) {
-            if (!processedInteractions[_interactionHashes[i]] &&
-                _postAuthors[i] != _interactors[i]) {
-                
-                TippingConfig storage config = userConfigs[_postAuthors[i]];
-                if (config.isActive) {
-                    uint256 tipAmount = getTipAmount(config, _actionTypes[i]);
-                    if (tipAmount > 0 && 
-                        config.totalSpent + tipAmount <= config.spendingLimit) {
-                        
-                        IERC20 token = IERC20(config.token);
-                        uint256 allowance = token.allowance(_postAuthors[i], address(this));
-                        uint256 balance = token.balanceOf(_postAuthors[i]);
-                        
-                        if (allowance >= tipAmount && balance >= tipAmount) {
-                            // Mark as processed
-                            processedInteractions[_interactionHashes[i]] = true;
-                            
-                            // Calculate fee
-                            uint256 fee = (tipAmount * protocolFeeBps) / 10000;
-                            uint256 netAmount = tipAmount - fee;
-                            
-                            // Update spending tracker
-                            config.totalSpent += tipAmount;
-                            
-                            // TRANSFER TOKENS: Post author → Engager
-                            token.safeTransferFrom(_postAuthors[i], _interactors[i], netAmount);
-                            
-                            // Transfer fee
-                            if (fee > 0) {
-                                token.safeTransferFrom(_postAuthors[i], feeRecipient, fee);
-                            }
-                            
-                            // Update stats
-                            totalTipsReceived[_interactors[i]] += netAmount;
-                            totalTipsGiven[_postAuthors[i]] += tipAmount;
-                            
-                            // Record transaction
-                            TipTransaction memory txn = TipTransaction({
-                                from: _postAuthors[i],
-                                to: _interactors[i],
-                                token: config.token,
-                                amount: netAmount,
-                                actionType: _actionTypes[i],
-                                timestamp: block.timestamp,
-                                farcasterCastHash: _castHashes[i]
-                            });
-                            
-                            uint256 txnId = tipHistory.length;
-                            tipHistory.push(txn);
-                            userTipsSent[_postAuthors[i]].push(txnId);
-                            userTipsReceived[_interactors[i]].push(txnId);
-                            
-                            emit TipSent(_postAuthors[i], _interactors[i], config.token, netAmount, _actionTypes[i], _castHashes[i]);
-                            processedCount++;
-                        }
-                    }
-                }
-            }
+            processedCount += _processTipInBatch(
+                _postAuthors[i],
+                _interactors[i],
+                _actionTypes[i],
+                _castHashes[i],
+                _interactionHashes[i]
+            );
         }
         
         uint256 gasUsed = gasStart - gasleft();
         emit BatchProcessed(batchId, processedCount, gasUsed);
+    }
+    
+    function _processTipInBatch(
+        address _postAuthor,
+        address _interactor,
+        string memory _actionType,
+        bytes32 _castHash,
+        bytes32 _interactionHash
+    ) internal returns (uint256) {
+        if (processedInteractions[_interactionHash] || _postAuthor == _interactor) {
+            return 0;
+        }
+        
+        TippingConfig storage config = userConfigs[_postAuthor];
+        if (!config.isActive) {
+            return 0;
+        }
+        
+        uint256 tipAmount = getTipAmount(config, _actionType);
+        if (tipAmount == 0 || config.totalSpent + tipAmount > config.spendingLimit) {
+            return 0;
+        }
+        
+        IERC20 token = IERC20(config.token);
+        if (token.allowance(_postAuthor, address(this)) < tipAmount ||
+            token.balanceOf(_postAuthor) < tipAmount) {
+            return 0;
+        }
+        
+        // Mark as processed
+        processedInteractions[_interactionHash] = true;
+        
+        // Calculate amounts
+        uint256 fee = (tipAmount * protocolFeeBps) / 10000;
+        uint256 netAmount = tipAmount - fee;
+        
+        // Update spending tracker
+        config.totalSpent += tipAmount;
+        
+        // TRANSFER TOKENS: Post author → Engager
+        token.safeTransferFrom(_postAuthor, _interactor, netAmount);
+        
+        // Transfer fee
+        if (fee > 0) {
+            token.safeTransferFrom(_postAuthor, feeRecipient, fee);
+        }
+        
+        // Update stats
+        totalTipsReceived[_interactor] += netAmount;
+        totalTipsGiven[_postAuthor] += tipAmount;
+        
+        // Record transaction
+        TipTransaction memory txn = TipTransaction({
+            from: _postAuthor,
+            to: _interactor,
+            token: config.token,
+            amount: netAmount,
+            actionType: _actionType,
+            timestamp: block.timestamp,
+            farcasterCastHash: _castHash
+        });
+        
+        uint256 txnId = tipHistory.length;
+        tipHistory.push(txn);
+        userTipsSent[_postAuthor].push(txnId);
+        userTipsReceived[_interactor].push(txnId);
+        
+        emit TipSent(_postAuthor, _interactor, config.token, netAmount, _actionType, _castHash);
+        
+        return 1;
     }
 
     /**
