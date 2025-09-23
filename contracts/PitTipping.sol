@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.6.12;
 
-import "@openzeppelin/contracts-v3.4.0/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts-v3.4.0/token/ERC20/SafeERC20.sol";
-import "@openzeppelin/contracts-v3.4.0/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title PitTipping
