@@ -1,0 +1,53 @@
+name: Deploy Smart Contracts
+
+on:
+  workflow_dispatch:
+    inputs:
+      network:
+        description: 'Network to deploy to'
+        required: true
+        default: 'base-goerli'
+        type: choice
+        options:
+        - base-goerli
+        - base
+
+jobs:
+  deploy-contracts:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Compile contracts
+      run: npx hardhat compile
+    
+    - name: Deploy contracts
+      run: npx hardhat run scripts/deploy.js --network ${{ github.event.inputs.network }}
+      env:
+        PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+        BASE_RPC_URL: ${{ secrets.BASE_RPC_URL }}
+        BASESCAN_API_KEY: ${{ secrets.BASESCAN_API_KEY }}
+    
+    - name: Verify contracts
+      run: |
+        echo "Waiting for Basescan to index contracts..."
+        sleep 30
+        npx hardhat verify --network ${{ github.event.inputs.network }} --constructor-args scripts/constructor-args.js
+      continue-on-error: true
+    
+    - name: Update frontend config
+      run: |
+        echo "Contract deployment complete!"
+        echo "Update the following in your repository secrets:"
+        echo "- NEXT_PUBLIC_PIT_TIPPING_ADDRESS"
+        echo "- NEXT_PUBLIC_FARCASTER_ORACLE_ADDRESS"
