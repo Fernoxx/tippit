@@ -283,54 +283,75 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
         bytes32 _castHash,
         bytes32 _interactionHash
     ) internal returns (uint256) {
-        if (processedInteractions[_interactionHash] || _postAuthor == _interactor) {
-            return 0;
-        }
+        // Early returns to reduce stack depth
+        if (processedInteractions[_interactionHash] || _postAuthor == _interactor) return 0;
         
         TippingConfig storage config = userConfigs[_postAuthor];
-        if (!config.isActive) {
-            return 0;
-        }
+        if (!config.isActive) return 0;
         
         uint256 tipAmount = getTipAmount(config, _actionType);
-        if (tipAmount == 0 || config.totalSpent + tipAmount > config.spendingLimit) {
-            return 0;
-        }
+        if (tipAmount == 0 || config.totalSpent + tipAmount > config.spendingLimit) return 0;
         
         IERC20 token = IERC20(config.token);
-        if (token.allowance(_postAuthor, address(this)) < tipAmount ||
-            token.balanceOf(_postAuthor) < tipAmount) {
-            return 0;
-        }
+        if (token.allowance(_postAuthor, address(this)) < tipAmount || token.balanceOf(_postAuthor) < tipAmount) return 0;
         
+        // Process the tip
+        return _executeTipTransfer(_postAuthor, _interactor, config, token, tipAmount, _actionType, _castHash, _interactionHash);
+    }
+    
+    function _executeTipTransfer(
+        address _postAuthor,
+        address _interactor,
+        TippingConfig storage _config,
+        IERC20 _token,
+        uint256 _tipAmount,
+        string memory _actionType,
+        bytes32 _castHash,
+        bytes32 _interactionHash
+    ) internal returns (uint256) {
         // Mark as processed
         processedInteractions[_interactionHash] = true;
         
         // Calculate amounts
-        uint256 fee = (tipAmount * protocolFeeBps) / 10000;
-        uint256 netAmount = tipAmount - fee;
+        uint256 fee = (_tipAmount * protocolFeeBps) / 10000;
+        uint256 netAmount = _tipAmount - fee;
         
         // Update spending tracker
-        config.totalSpent += tipAmount;
+        _config.totalSpent += _tipAmount;
         
         // TRANSFER TOKENS: Post author → Engager
-        token.safeTransferFrom(_postAuthor, _interactor, netAmount);
+        _token.safeTransferFrom(_postAuthor, _interactor, netAmount);
         
         // Transfer fee
         if (fee > 0) {
-            token.safeTransferFrom(_postAuthor, feeRecipient, fee);
+            _token.safeTransferFrom(_postAuthor, feeRecipient, fee);
         }
         
         // Update stats
         totalTipsReceived[_interactor] += netAmount;
-        totalTipsGiven[_postAuthor] += tipAmount;
+        totalTipsGiven[_postAuthor] += _tipAmount;
         
         // Record transaction
+        _recordTipTransaction(_postAuthor, _interactor, _config.token, netAmount, _actionType, _castHash);
+        
+        emit TipSent(_postAuthor, _interactor, _config.token, netAmount, _actionType, _castHash);
+        
+        return 1;
+    }
+    
+    function _recordTipTransaction(
+        address _from,
+        address _to,
+        address _token,
+        uint256 _amount,
+        string memory _actionType,
+        bytes32 _castHash
+    ) internal {
         TipTransaction memory txn = TipTransaction({
-            from: _postAuthor,
-            to: _interactor,
-            token: config.token,
-            amount: netAmount,
+            from: _from,
+            to: _to,
+            token: _token,
+            amount: _amount,
             actionType: _actionType,
             timestamp: block.timestamp,
             farcasterCastHash: _castHash
@@ -338,12 +359,8 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
         
         uint256 txnId = tipHistory.length;
         tipHistory.push(txn);
-        userTipsSent[_postAuthor].push(txnId);
-        userTipsReceived[_interactor].push(txnId);
-        
-        emit TipSent(_postAuthor, _interactor, config.token, netAmount, _actionType, _castHash);
-        
-        return 1;
+        userTipsSent[_from].push(txnId);
+        userTipsReceived[_to].push(txnId);
     }
 
     /**
