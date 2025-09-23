@@ -18,23 +18,15 @@ export const CONTRACTS = {
         "type": "function"
       },
       {
-        "inputs": [
-          { "internalType": "address", "name": "_token", "type": "address" },
-          { "internalType": "uint256", "name": "_amount", "type": "uint256" }
+        "inputs": [{ "internalType": "address", "name": "_user", "type": "address" }],
+        "name": "getUserAvailableBalance",
+        "outputs": [
+          { "internalType": "address", "name": "token", "type": "address" },
+          { "internalType": "uint256", "name": "balance", "type": "uint256" },
+          { "internalType": "uint256", "name": "allowance", "type": "uint256" },
+          { "internalType": "uint256", "name": "availableToTip", "type": "uint256" }
         ],
-        "name": "depositFunds",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-      },
-      {
-        "inputs": [
-          { "internalType": "address", "name": "_token", "type": "address" },
-          { "internalType": "uint256", "name": "_amount", "type": "uint256" }
-        ],
-        "name": "withdrawFunds",
-        "outputs": [],
-        "stateMutability": "nonpayable",
+        "stateMutability": "view",
         "type": "function"
       },
       {
@@ -96,12 +88,12 @@ export const CONTRACTS = {
       },
       {
         "inputs": [
-          { "internalType": "address", "name": "user", "type": "address" },
-          { "internalType": "address", "name": "token", "type": "address" }
+          { "internalType": "address", "name": "_token", "type": "address" },
+          { "internalType": "address", "name": "_to", "type": "address" }
         ],
-        "name": "tokenBalances",
-        "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
-        "stateMutability": "view",
+        "name": "emergencyWithdraw",
+        "outputs": [],
+        "stateMutability": "nonpayable",
         "type": "function"
       }
     ]

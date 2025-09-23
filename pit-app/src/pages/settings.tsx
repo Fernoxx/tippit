@@ -25,15 +25,15 @@ export default function Settings() {
   const { address } = useAccount();
   const {
     userConfig,
-    userBalance,
+    availableBalance,
+    tokenBalance,
+    tokenAllowance,
     setTippingConfig,
-    depositFunds,
-    withdrawFunds,
+    approveToken,
     updateSpendingLimit,
     revokeConfig,
     isSettingConfig,
-    isDepositing,
-    isWithdrawing,
+    isApproving,
     isUpdatingLimit,
     isRevoking,
   } = usePIT();
@@ -43,8 +43,9 @@ export default function Settings() {
   
   // Form states
   const [spendingLimit, setSpendingLimitValue] = useState('100');
-  const [depositAmount, setDepositAmount] = useState('');
-  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [allowanceAmount, setAllowanceAmount] = useState('');
+  const [selectedToken, setSelectedToken] = useState(CONTRACTS.USDC.address);
+  const [customTokenAddress, setCustomTokenAddress] = useState('');
   const [tippingAmounts, setTippingAmounts] = useState({
     like: '0.1',
     reply: '0.2',
@@ -53,26 +54,10 @@ export default function Settings() {
     follow: '0.5',
   });
 
-  // Get USDC balance
-  const { data: usdcBalance } = useBalance({
+  // Get current token balance
+  const { data: currentTokenBalance } = useBalance({
     address,
-    token: CONTRACTS.USDC.address as `0x${string}`,
-  });
-
-  // Check USDC allowance
-  const { data: usdcAllowance } = useContractRead({
-    address: CONTRACTS.USDC.address as `0x${string}`,
-    abi: CONTRACTS.USDC.abi,
-    functionName: 'allowance',
-    args: address ? [address, CONTRACTS.PITTipping.address] : undefined,
-    enabled: !!address,
-  });
-
-  // Approve USDC
-  const { write: approveUsdc } = useContractWrite({
-    address: CONTRACTS.USDC.address as `0x${string}`,
-    abi: CONTRACTS.USDC.abi,
-    functionName: 'approve',
+    token: (userConfig?.token || selectedToken) as `0x${string}`,
   });
 
   useEffect(() => {
@@ -103,15 +88,18 @@ export default function Settings() {
 
   const handleSaveTippingConfig = async () => {
     try {
+      const tokenAddress = selectedToken === 'custom' ? customTokenAddress : selectedToken;
+      const decimals = selectedToken === CONTRACTS.USDC.address ? CONTRACTS.USDC.decimals : 18; // Default to 18 for unknown tokens
+      
       await setTippingConfig?.({
         args: [
-          CONTRACTS.USDC.address,
-          parseUnits(tippingAmounts.like, CONTRACTS.USDC.decimals),
-          parseUnits(tippingAmounts.reply, CONTRACTS.USDC.decimals),
-          parseUnits(tippingAmounts.recast, CONTRACTS.USDC.decimals),
-          parseUnits(tippingAmounts.quote, CONTRACTS.USDC.decimals),
-          parseUnits(tippingAmounts.follow, CONTRACTS.USDC.decimals),
-          parseUnits(spendingLimit, CONTRACTS.USDC.decimals),
+          tokenAddress,
+          parseUnits(tippingAmounts.like, decimals),
+          parseUnits(tippingAmounts.reply, decimals),
+          parseUnits(tippingAmounts.recast, decimals),
+          parseUnits(tippingAmounts.quote, decimals),
+          parseUnits(tippingAmounts.follow, decimals),
+          parseUnits(spendingLimit, decimals),
         ],
       });
       toast.success('Tipping configuration saved!');
@@ -120,40 +108,21 @@ export default function Settings() {
     }
   };
 
-  const handleDeposit = async () => {
-    if (!depositAmount) return;
+  const handleApproveAllowance = async () => {
+    if (!allowanceAmount) return;
     
-    const amount = parseUnits(depositAmount, CONTRACTS.USDC.decimals);
-    
-    // Check if approval is needed
-    if (usdcAllowance && usdcAllowance < amount) {
-      await approveUsdc?.({
+    try {
+      const tokenAddress = userConfig?.token || selectedToken;
+      const decimals = tokenAddress === CONTRACTS.USDC.address ? CONTRACTS.USDC.decimals : 18;
+      const amount = parseUnits(allowanceAmount, decimals);
+      
+      await approveToken?.({
         args: [CONTRACTS.PITTipping.address, amount],
       });
-    }
-    
-    try {
-      await depositFunds?.({
-        args: [CONTRACTS.USDC.address, amount],
-      });
-      toast.success('Funds deposited successfully!');
-      setDepositAmount('');
+      toast.success('Allowance approved successfully!');
+      setAllowanceAmount('');
     } catch (error) {
-      toast.error('Failed to deposit funds');
-    }
-  };
-
-  const handleWithdraw = async () => {
-    if (!withdrawAmount) return;
-    
-    try {
-      await withdrawFunds?.({
-        args: [CONTRACTS.USDC.address, parseUnits(withdrawAmount, CONTRACTS.USDC.decimals)],
-      });
-      toast.success('Funds withdrawn successfully!');
-      setWithdrawAmount('');
-    } catch (error) {
-      toast.error('Failed to withdraw funds');
+      toast.error('Failed to approve allowance');
     }
   };
 
@@ -216,31 +185,37 @@ export default function Settings() {
             </div>
           </div>
           <div className="text-right">
-            <p className="text-sm text-gray-600">USDC Balance</p>
+            <p className="text-sm text-gray-600">Token Balance</p>
             <p className="text-2xl font-bold text-accent">
-              {usdcBalance ? formatAmount(usdcBalance.value, CONTRACTS.USDC.decimals) : '0'} USDC
+              {currentTokenBalance ? formatAmount(currentTokenBalance.value, currentTokenBalance.decimals) : '0'} {currentTokenBalance?.symbol || 'TOKEN'}
             </p>
           </div>
         </div>
         
-        {userConfig && (
+        {userConfig && availableBalance && (
           <div className="mt-4 pt-4 border-t border-gray-200">
-            <div className="flex items-center justify-between">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
-                <p className="text-sm text-gray-600">Deposited in PIT</p>
-                <p className="text-xl font-bold text-accent">
-                  {userBalance ? formatAmount(userBalance as bigint) : '0'} USDC
+                <p className="text-sm text-gray-600">Allowance</p>
+                <p className="text-lg font-bold text-accent">
+                  {formatAmount(availableBalance.allowance)}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Available to Tip</p>
+                <p className="text-lg font-bold text-green-600">
+                  {formatAmount(availableBalance.availableToTip)}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-gray-600">Total Spent</p>
-                <p className="text-xl font-bold text-gray-700">
-                  {formatAmount(userConfig.totalSpent)} USDC
+                <p className="text-lg font-bold text-gray-700">
+                  {formatAmount(userConfig.totalSpent)}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-gray-600">Status</p>
-                <p className={`text-xl font-bold ${userConfig.isActive ? 'text-green-600' : 'text-red-600'}`}>
+                <p className={`text-lg font-bold ${userConfig.isActive ? 'text-green-600' : 'text-red-600'}`}>
                   {userConfig.isActive ? 'Active' : 'Inactive'}
                 </p>
               </div>
@@ -309,51 +284,80 @@ export default function Settings() {
                 </p>
               </div>
 
-              {/* Deposit/Withdraw */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Deposit USDC
-                  </label>
-                  <div className="flex space-x-2">
+              {/* Token Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Tipping Token
+                </label>
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-3">
                     <input
-                      type="number"
-                      value={depositAmount}
-                      onChange={(e) => setDepositAmount(e.target.value)}
-                      className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-accent focus:outline-none"
-                      placeholder="50"
+                      type="radio"
+                      id="usdc"
+                      name="token"
+                      value={CONTRACTS.USDC.address}
+                      checked={selectedToken === CONTRACTS.USDC.address}
+                      onChange={(e) => setSelectedToken(e.target.value)}
+                      className="w-4 h-4 text-accent"
                     />
-                    <button
-                      onClick={handleDeposit}
-                      disabled={isDepositing || !depositAmount}
-                      className="btn-primary"
-                    >
-                      {isDepositing ? 'Depositing...' : 'Deposit'}
-                    </button>
+                    <label htmlFor="usdc" className="flex items-center space-x-2">
+                      <DollarSign className="w-5 h-5" />
+                      <span>USDC (Recommended)</span>
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <input
+                      type="radio"
+                      id="custom"
+                      name="token"
+                      value="custom"
+                      checked={selectedToken === 'custom'}
+                      onChange={(e) => setSelectedToken(e.target.value)}
+                      className="w-4 h-4 text-accent"
+                    />
+                    <label htmlFor="custom" className="flex-1">
+                      <span>Custom Token</span>
+                      {selectedToken === 'custom' && (
+                        <input
+                          type="text"
+                          value={customTokenAddress}
+                          onChange={(e) => setCustomTokenAddress(e.target.value)}
+                          className="mt-2 w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:border-accent focus:outline-none"
+                          placeholder="0x... (Token contract address)"
+                        />
+                      )}
+                    </label>
                   </div>
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Withdraw USDC
-                  </label>
-                  <div className="flex space-x-2">
-                    <input
-                      type="number"
-                      value={withdrawAmount}
-                      onChange={(e) => setWithdrawAmount(e.target.value)}
-                      className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-accent focus:outline-none"
-                      placeholder="25"
-                    />
-                    <button
-                      onClick={handleWithdraw}
-                      disabled={isWithdrawing || !withdrawAmount}
-                      className="btn-secondary"
-                    >
-                      {isWithdrawing ? 'Withdrawing...' : 'Withdraw'}
-                    </button>
-                  </div>
+              {/* Allowance Management */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Token Allowance
+                </label>
+                <p className="text-sm text-gray-600 mb-3">
+                  Current allowance: {tokenAllowance ? formatAmount(tokenAllowance as bigint) : '0'} {currentTokenBalance?.symbol || 'TOKEN'}
+                </p>
+                <div className="flex space-x-2">
+                  <input
+                    type="number"
+                    value={allowanceAmount}
+                    onChange={(e) => setAllowanceAmount(e.target.value)}
+                    className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-accent focus:outline-none"
+                    placeholder="1000"
+                  />
+                  <button
+                    onClick={handleApproveAllowance}
+                    disabled={isApproving || !allowanceAmount}
+                    className="btn-primary"
+                  >
+                    {isApproving ? 'Approving...' : 'Approve Allowance'}
+                  </button>
                 </div>
+                <p className="text-sm text-gray-600 mt-2">
+                  This allows PIT to spend tokens from your wallet when processing tips
+                </p>
               </div>
 
               {/* Revoke Access */}

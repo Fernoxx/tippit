@@ -1,4 +1,4 @@
-import { useContractRead, useContractWrite, usePrepareContractWrite } from 'wagmi';
+import { useContractRead, useContractWrite, usePrepareContractWrite, useBalance } from 'wagmi';
 import { CONTRACTS, formatAmount } from '@/utils/contracts';
 import { useAccount } from 'wagmi';
 import { parseUnits } from 'viem';
@@ -15,13 +15,29 @@ export const usePIT = () => {
     enabled: !!address,
   });
 
-  // Read user balance
-  const { data: userBalance } = useContractRead({
+  // Read user available balance (includes allowance check)
+  const { data: availableBalance } = useContractRead({
     address: CONTRACTS.PITTipping.address as `0x${string}`,
     abi: CONTRACTS.PITTipping.abi,
-    functionName: 'tokenBalances',
-    args: address && userConfig ? [address, userConfig[0]] : undefined,
-    enabled: !!address && !!userConfig,
+    functionName: 'getUserAvailableBalance',
+    args: address ? [address] : undefined,
+    enabled: !!address,
+  });
+
+  // Get token balance in wallet
+  const { data: tokenBalance } = useBalance({
+    address,
+    token: userConfig?.[0] as `0x${string}`,
+    enabled: !!address && !!userConfig?.[0],
+  });
+
+  // Read token allowance
+  const { data: tokenAllowance } = useContractRead({
+    address: userConfig?.[0] as `0x${string}`,
+    abi: CONTRACTS.USDC.abi,
+    functionName: 'allowance',
+    args: address && userConfig ? [address, CONTRACTS.PITTipping.address] : undefined,
+    enabled: !!address && !!userConfig?.[0],
   });
 
   // Set tipping config
@@ -33,23 +49,15 @@ export const usePIT = () => {
 
   const { write: setTippingConfig, isLoading: isSettingConfig } = useContractWrite(setConfigPrepare);
 
-  // Deposit funds
-  const { config: depositPrepare } = usePrepareContractWrite({
-    address: CONTRACTS.PITTipping.address as `0x${string}`,
-    abi: CONTRACTS.PITTipping.abi,
-    functionName: 'depositFunds',
+  // Approve token
+  const { config: approvePrepare } = usePrepareContractWrite({
+    address: userConfig?.[0] as `0x${string}`,
+    abi: CONTRACTS.USDC.abi,
+    functionName: 'approve',
+    enabled: !!userConfig?.[0],
   });
 
-  const { write: depositFunds, isLoading: isDepositing } = useContractWrite(depositPrepare);
-
-  // Withdraw funds
-  const { config: withdrawPrepare } = usePrepareContractWrite({
-    address: CONTRACTS.PITTipping.address as `0x${string}`,
-    abi: CONTRACTS.PITTipping.abi,
-    functionName: 'withdrawFunds',
-  });
-
-  const { write: withdrawFunds, isLoading: isWithdrawing } = useContractWrite(withdrawPrepare);
+  const { write: approveToken, isLoading: isApproving } = useContractWrite(approvePrepare);
 
   // Update spending limit
   const { config: updateLimitPrepare } = usePrepareContractWrite({
@@ -81,15 +89,20 @@ export const usePIT = () => {
       totalSpent: userConfig[7],
       isActive: userConfig[8],
     } : null,
-    userBalance,
+    availableBalance: availableBalance ? {
+      token: availableBalance[0],
+      balance: availableBalance[1],
+      allowance: availableBalance[2],
+      availableToTip: availableBalance[3],
+    } : null,
+    tokenBalance,
+    tokenAllowance,
     setTippingConfig,
-    depositFunds,
-    withdrawFunds,
+    approveToken,
     updateSpendingLimit,
     revokeConfig,
     isSettingConfig,
-    isDepositing,
-    isWithdrawing,
+    isApproving,
     isUpdatingLimit,
     isRevoking,
   };

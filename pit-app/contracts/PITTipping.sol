@@ -10,13 +10,14 @@ import "@openzeppelin/contracts/security/Pausable.sol";
 /**
  * @title PITTipping
  * @dev Reverse tipping contract where post authors tip users who interact with their posts
+ * Uses token allowances - no funds are held in the contract
  */
 contract PITTipping is Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
     // Struct to store user's tipping configuration
     struct TippingConfig {
-        address token; // Token address (e.g., USDC)
+        address token; // Token address (e.g., USDC or any ERC20 on Base)
         uint256 likeAmount;
         uint256 replyAmount;
         uint256 recastAmount;
@@ -40,8 +41,6 @@ contract PITTipping is Ownable, ReentrancyGuard, Pausable {
 
     // Mappings
     mapping(address => TippingConfig) public userConfigs;
-    mapping(address => uint256) public userAllowances;
-    mapping(address => mapping(address => uint256)) public tokenBalances; // user => token => balance
     mapping(address => uint256) public totalTipsReceived;
     mapping(address => uint256) public totalTipsGiven;
     
@@ -75,10 +74,9 @@ contract PITTipping is Ownable, ReentrancyGuard, Pausable {
         bytes32 farcasterCastHash
     );
     
-    event FundsDeposited(address indexed user, address token, uint256 amount);
-    event FundsWithdrawn(address indexed user, address token, uint256 amount);
     event ConfigRevoked(address indexed user);
     event SpendingLimitUpdated(address indexed user, uint256 newLimit);
+    event EmergencyWithdraw(address indexed token, uint256 amount, address indexed to);
 
     // Protocol fee
     uint256 public protocolFeeBps = 100; // 1%
@@ -140,33 +138,8 @@ contract PITTipping is Ownable, ReentrancyGuard, Pausable {
     }
 
     /**
-     * @dev Deposit funds for tipping
-     */
-    function depositFunds(address _token, uint256 _amount) external nonReentrant {
-        require(_amount > 0, "Amount must be > 0");
-        require(_token != address(0), "Invalid token address");
-        
-        IERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
-        tokenBalances[msg.sender][_token] += _amount;
-        
-        emit FundsDeposited(msg.sender, _token, _amount);
-    }
-
-    /**
-     * @dev Withdraw deposited funds
-     */
-    function withdrawFunds(address _token, uint256 _amount) external nonReentrant {
-        require(_amount > 0, "Amount must be > 0");
-        require(tokenBalances[msg.sender][_token] >= _amount, "Insufficient balance");
-        
-        tokenBalances[msg.sender][_token] -= _amount;
-        IERC20(_token).safeTransfer(msg.sender, _amount);
-        
-        emit FundsWithdrawn(msg.sender, _token, _amount);
-    }
-
-    /**
      * @dev Process a tip for an interaction (called by oracle)
+     * Transfers tokens directly from post author to interactor using allowance
      */
     function processTip(
         address _postAuthor,
@@ -181,20 +154,29 @@ contract PITTipping is Ownable, ReentrancyGuard, Pausable {
         require(tipAmount > 0, "No tip amount set for action");
         
         require(config.totalSpent + tipAmount <= config.spendingLimit, "Spending limit reached");
-        require(tokenBalances[_postAuthor][config.token] >= tipAmount, "Insufficient balance");
+        
+        // Check allowance
+        IERC20 token = IERC20(config.token);
+        uint256 allowance = token.allowance(_postAuthor, address(this));
+        require(allowance >= tipAmount, "Insufficient allowance");
+        
+        // Check balance
+        uint256 balance = token.balanceOf(_postAuthor);
+        require(balance >= tipAmount, "Insufficient token balance");
         
         // Calculate fee
         uint256 fee = (tipAmount * protocolFeeBps) / 10000;
         uint256 netAmount = tipAmount - fee;
         
-        // Update balances
-        tokenBalances[_postAuthor][config.token] -= tipAmount;
+        // Update spending tracker
         config.totalSpent += tipAmount;
         
-        // Transfer tip
-        IERC20(config.token).safeTransfer(_interactor, netAmount);
+        // Transfer tip directly from author to interactor
+        token.safeTransferFrom(_postAuthor, _interactor, netAmount);
+        
+        // Transfer fee to protocol
         if (fee > 0) {
-            IERC20(config.token).safeTransfer(feeRecipient, fee);
+            token.safeTransferFrom(_postAuthor, feeRecipient, fee);
         }
         
         // Update stats
@@ -371,5 +353,51 @@ contract PITTipping is Ownable, ReentrancyGuard, Pausable {
 
     function unpause() external onlyOwner {
         _unpause();
+    }
+
+    /**
+     * @dev Emergency withdraw for tokens mistakenly sent to this contract
+     * @param _token Token address to withdraw
+     * @param _to Address to send tokens to
+     */
+    function emergencyWithdraw(address _token, address _to) external onlyOwner {
+        require(_token != address(0), "Invalid token address");
+        require(_to != address(0), "Invalid recipient address");
+        
+        uint256 balance = IERC20(_token).balanceOf(address(this));
+        require(balance > 0, "No tokens to withdraw");
+        
+        IERC20(_token).safeTransfer(_to, balance);
+        
+        emit EmergencyWithdraw(_token, balance, _to);
+    }
+
+    /**
+     * @dev Get user's available balance (token balance - considering allowance)
+     * @param _user User address
+     * @return token Token address
+     * @return balance Token balance in wallet
+     * @return allowance Allowance given to this contract
+     * @return availableToTip Minimum of balance and allowance
+     */
+    function getUserAvailableBalance(address _user) 
+        external 
+        view 
+        returns (
+            address token,
+            uint256 balance,
+            uint256 allowance,
+            uint256 availableToTip
+        ) 
+    {
+        TippingConfig memory config = userConfigs[_user];
+        if (config.token == address(0)) {
+            return (address(0), 0, 0, 0);
+        }
+        
+        token = config.token;
+        balance = IERC20(token).balanceOf(_user);
+        allowance = IERC20(token).allowance(_user, address(this));
+        availableToTip = balance < allowance ? balance : allowance;
     }
 }

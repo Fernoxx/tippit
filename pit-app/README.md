@@ -6,16 +6,22 @@ PIT is a reverse tipping application for Farcaster where users get tipped for en
 
 - **Reverse Tipping**: Post authors tip users who interact with their content
 - **Multiple Interaction Types**: Support for likes, replies, recasts, quotes, and follows
+- **Token Allowance System**: No funds held in contract - uses ERC20 allowances for security
+- **Multi-Token Support**: Use USDC or any ERC20 token on Base chain
 - **Spending Controls**: Set maximum spending limits and per-interaction tip amounts
 - **Real-time Leaderboard**: Track top tippers and earners
-- **USDC Support**: Built-in support for USDC on Base chain
+- **Emergency Withdraw**: Owner can recover mistakenly sent tokens
 - **Farcaster Integration**: Seamless integration with Farcaster protocol
 
 ## Architecture
 
 ### Smart Contracts
 
-1. **PITTipping.sol**: Main contract handling tipping logic, user configurations, and fund management
+1. **PITTipping.sol**: Main contract handling tipping logic using token allowances
+   - No custody of user funds - tips transfer directly from author to interactor
+   - Support for any ERC20 token on Base chain
+   - Emergency withdraw for mistakenly sent tokens
+   
 2. **FarcasterOracle.sol**: Oracle contract for verifying Farcaster interactions and mapping FIDs to addresses
 
 ### Frontend
@@ -97,9 +103,10 @@ vercel
 
 1. Connect your wallet and Farcaster account
 2. Go to Settings and configure:
-   - Set spending limit (maximum USDC to spend)
+   - Choose your tipping token (USDC or any ERC20 on Base)
+   - Set spending limit (maximum amount to spend)
    - Set tip amounts for each interaction type
-   - Deposit USDC to fund tips
+   - Approve token allowance for the PIT contract
 3. Your posts will now automatically tip users who interact with them
 
 ### For Users (Earners)
@@ -108,6 +115,13 @@ vercel
 2. Browse posts from users who have enabled tipping
 3. Interact with posts (like, reply, recast, etc.)
 4. Receive tips automatically to your wallet
+
+### Key Security Features
+
+- **Non-Custodial**: Contract never holds user funds
+- **Allowance-Based**: Uses standard ERC20 allowance pattern
+- **Direct Transfers**: Tips go directly from author to interactor
+- **Revocable**: Users can revoke access at any time
 
 ## Contract Addresses (To be deployed)
 
