@@ -26,11 +26,11 @@ contract PitTipping is Ownable {
     // Struct to store creator's reward configuration
     struct RewardConfig {
         address token; // Any ERC20 token address (USDC, ETH, DAI, etc.)
-        uint256 likeReward;    // Token reward for likes received
-        uint256 replyReward;   // Token reward for replies received
-        uint256 recastReward;  // Token reward for recasts received
-        uint256 quoteReward;   // Token reward for quotes received
-        uint256 followReward;  // Token reward for follows received
+        uint256 likeAmount;    // Token reward for likes received
+        uint256 replyAmount;   // Token reward for replies received
+        uint256 recastAmount;  // Token reward for recasts received
+        uint256 quoteAmount;   // Token reward for quotes received
+        uint256 followAmount;  // Token reward for follows received
         uint256 spendingLimit; // Maximum tokens they can spend in total
         uint256 totalSpent;    // Tokens already spent
         bool isActive;         // Whether rewards are enabled
@@ -120,7 +120,7 @@ contract PitTipping is Ownable {
      * @dev Set or update user's tipping configuration
      * User sets how much tokens to tip for each interaction type (any Base token)
      */
-    function setTippingConfig(
+    function setRewardConfig(
         address _token,           // Any Base token address (USDC, ETH, DAI, etc.)
         uint256 _likeAmount,      // Tokens to tip for likes
         uint256 _replyAmount,     // Tokens to tip for replies
@@ -132,7 +132,7 @@ contract PitTipping is Ownable {
         require(_token != address(0), "Invalid token address");
         require(_spendingLimit > 0, "Spending limit must be > 0");
         
-        TippingConfig storage config = userConfigs[msg.sender];
+        RewardConfig storage config = creatorConfigs[msg.sender];
         config.token = _token;
         config.likeAmount = _likeAmount;
         config.replyAmount = _replyAmount;
@@ -328,7 +328,7 @@ contract PitTipping is Ownable {
     /**
      * @dev Get tip amount for a specific action type
      */
-    function getTipAmount(TippingConfig memory config, string memory actionType) 
+    function getTipAmount(RewardConfig memory config, string memory actionType) 
         internal 
         pure 
         returns (uint256) 
@@ -352,7 +352,7 @@ contract PitTipping is Ownable {
      */
     function updateSpendingLimit(uint256 _newLimit) external {
         require(_newLimit > 0, "Limit must be > 0");
-        userConfigs[msg.sender].spendingLimit = _newLimit;
+        creatorConfigs[msg.sender].spendingLimit = _newLimit;
         emit SpendingLimitUpdated(msg.sender, _newLimit);
     }
 
@@ -360,7 +360,7 @@ contract PitTipping is Ownable {
      * @dev Revoke tipping configuration
      */
     function revokeConfig() external {
-        userConfigs[msg.sender].isActive = false;
+        creatorConfigs[msg.sender].isActive = false;
         emit ConfigRevoked(msg.sender);
     }
 
@@ -374,7 +374,7 @@ contract PitTipping is Ownable {
     {
         uint256 activeCount = 0;
         for (uint256 i = 0; i < activeUsers.length; i++) {
-            if (userConfigs[activeUsers[i]].isActive) {
+            if (creatorConfigs[activeUsers[i]].isActive) {
                 activeCount++;
             }
         }
@@ -393,9 +393,9 @@ contract PitTipping is Ownable {
         uint256 index = 0;
         
         for (uint256 i = 0; i < activeUsers.length; i++) {
-            if (userConfigs[activeUsers[i]].isActive) {
+            if (creatorConfigs[activeUsers[i]].isActive) {
                 tempUsers[index] = activeUsers[i];
-                tempAmounts[index] = userConfigs[activeUsers[i]].likeAmount;
+                tempAmounts[index] = creatorConfigs[activeUsers[i]].likeAmount;
                 index++;
             }
         }
@@ -507,7 +507,7 @@ contract PitTipping is Ownable {
             uint256 availableToTip
         ) 
     {
-        TippingConfig memory config = userConfigs[_user];
+        RewardConfig memory config = creatorConfigs[_user];
         if (config.token == address(0)) {
             return (address(0), 0, 0, 0);
         }
