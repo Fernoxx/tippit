@@ -3,15 +3,15 @@
 ## 🎯 **System Overview**
 
 **Your System Logic:**
-1. **User sets USDC allowance** to the contract
-2. **User configures tip amounts** (like: 1 USDC, reply: 2 USDC, etc.)
-3. **When someone likes/recasts/replies to their post** → They get tipped USDC
+1. **User sets token allowance** to the contract (any Base token: USDC, ETH, DAI, etc.)
+2. **User configures tip amounts** (like: 1 token, reply: 2 tokens, etc.)
+3. **When someone likes/recasts/replies to their post** → They get tipped tokens
 4. **Backend checks via Neynar webhook** → Processes the tip
-5. **Engager receives USDC** from the post author
+5. **Engager receives tokens** from the post author
 
 **Flow:**
 ```
-User posts → Someone likes → Neynar webhook → Backend → Contract → USDC transfer
+User posts → Someone likes → Neynar webhook → Backend → Contract → Token transfer
 ```
 
 ## 📋 **Complete Deployment Steps**
@@ -159,19 +159,19 @@ curl https://your-backend-domain.com/health
 ### **3. Test Frontend**
 1. **Connect wallet**
 2. **Set up tipping config:**
-   - Token: USDC (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913)
-   - Like amount: 1 USDC
-   - Reply amount: 2 USDC
-   - Spending limit: 100 USDC
-3. **Approve USDC allowance**
+   - Token: Any Base token (USDC, ETH, DAI, etc.)
+   - Like amount: 1 token
+   - Reply amount: 2 tokens
+   - Spending limit: 100 tokens
+3. **Approve token allowance**
 4. **Test with real Farcaster interaction**
 
 ## 🔄 **How It Works**
 
 ### **User Setup:**
 1. User connects wallet
-2. User sets tipping config (USDC amounts for each action)
-3. User approves USDC allowance to contract
+2. User sets tipping config (token amounts for each action)
+3. User approves token allowance to contract
 4. User posts on Farcaster
 
 ### **When Someone Engages:**
@@ -179,8 +179,8 @@ curl https://your-backend-domain.com/health
 2. **Neynar sends webhook** to your backend
 3. **Backend verifies signature** and queues interaction
 4. **Batch processor runs** (every minute)
-5. **Contract transfers USDC** from post author to engager
-6. **Engager receives USDC** in their wallet
+5. **Contract transfers tokens** from post author to engager
+6. **Engager receives tokens** in their wallet
 
 ### **Example:**
 - Alice sets: Like = 1 USDC, Reply = 2 USDC
@@ -199,7 +199,7 @@ curl https://your-backend-domain.com/health
 
 ### **Contract Events:**
 - `ConfigUpdated` - User set up tipping
-- `TipSent` - USDC transferred from author to engager
+- `TipSent` - Tokens transferred from author to engager
 - `ConfigRevoked` - User disabled tipping
 
 ## 🚨 **Troubleshooting**
@@ -215,8 +215,8 @@ curl https://your-backend-domain.com/health
    - Check `PRIVATE_KEY` has permissions
    - Ensure contract is deployed
 
-3. **USDC transfers fail**
-   - Check user has USDC balance
+3. **Token transfers fail**
+   - Check user has token balance
    - Check user approved allowance
    - Check spending limit not exceeded
 
@@ -242,14 +242,14 @@ curl https://your-backend-domain.com/interactions/pending
 - [ ] All environment variables set
 - [ ] Backend verifier updated in contract
 - [ ] Test webhook working
-- [ ] Test USDC transfer working
+- [ ] Test token transfer working
 
 ## 🎉 **You're Done!**
 
 Your PIT tipping system is now live! Users can:
-1. Set USDC tipping amounts
-2. Approve USDC allowance
+1. Set token tipping amounts (any Base token)
+2. Approve token allowance
 3. Get tipped when people engage with their posts
-4. Receive USDC when they engage with others' posts
+4. Receive tokens when they engage with others' posts
 
 The system works exactly like Noice but with your custom logic! 🚀

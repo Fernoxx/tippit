@@ -1,22 +1,22 @@
 const { ethers } = require("hardhat");
 
 async function main() {
-  console.log("Deploying PITTippingSimplified contract to Base...");
+  console.log("Deploying PitTipping contract to Base...");
 
   const [deployer] = await ethers.getSigners();
   console.log("Deploying contracts with account:", deployer.address);
 
-  // Deploy PITTippingSimplified contract
-  const PITTippingSimplified = await ethers.getContractFactory("PITTippingSimplified");
-  const pitTipping = await PITTippingSimplified.deploy(
+  // Deploy PitTipping contract
+  const PitTipping = await ethers.getContractFactory("PitTipping");
+  const pitTipping = await PitTipping.deploy(
     deployer.address, // fee recipient
     deployer.address  // backend verifier (will be updated later)
   );
   await pitTipping.deployed();
-  console.log("PITTippingSimplified deployed to:", pitTipping.address);
+  console.log("PitTipping deployed to:", pitTipping.address);
 
   console.log("\nDeployment complete!");
-  console.log("PITTippingSimplified:", pitTipping.address);
+  console.log("PitTipping:", pitTipping.address);
   console.log("\nNext steps:");
   console.log("1. Update CONTRACT_ADDRESS in backend/.env");
   console.log("2. Update address in src/utils/contracts.ts");

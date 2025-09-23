@@ -19,7 +19,7 @@ async function main() {
   }
 
   // Deploy contract
-  const PITTippingSimplified = await ethers.getContractFactory('PITTippingSimplified');
+  const PitTipping = await ethers.getContractFactory('PitTipping');
   
   const feeRecipient = process.env.FEE_RECIPIENT || signer.address;
   const backendVerifier = process.env.BACKEND_VERIFIER || signer.address;
@@ -28,7 +28,7 @@ async function main() {
   console.log('  Fee Recipient:', feeRecipient);
   console.log('  Backend Verifier:', backendVerifier);
   
-  const pitTipping = await PITTippingSimplified.deploy(
+  const pitTipping = await PitTipping.deploy(
     feeRecipient,
     backendVerifier
   );
@@ -37,7 +37,7 @@ async function main() {
   await pitTipping.waitForDeployment();
   
   const contractAddress = await pitTipping.getAddress();
-  console.log('✅ PITTippingSimplified deployed to:', contractAddress);
+  console.log('✅ PitTipping deployed to:', contractAddress);
   
   // Verify deployment
   const code = await provider.getCode(contractAddress);

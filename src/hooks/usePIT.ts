@@ -8,8 +8,8 @@ export const usePIT = () => {
 
   // Read user config
   const { data: userConfig } = useContractRead({
-    address: CONTRACTS.PITTippingSimplified.address as `0x${string}`,
-    abi: CONTRACTS.PITTippingSimplified.abi,
+    address: CONTRACTS.PitTipping.address as `0x${string}`,
+    abi: CONTRACTS.PitTipping.abi,
     functionName: 'userConfigs',
     args: address ? [address] : undefined,
     enabled: !!address,
@@ -17,8 +17,8 @@ export const usePIT = () => {
 
   // Read user available balance (includes allowance check)
   const { data: availableBalance } = useContractRead({
-    address: CONTRACTS.PITTippingSimplified.address as `0x${string}`,
-    abi: CONTRACTS.PITTippingSimplified.abi,
+    address: CONTRACTS.PitTipping.address as `0x${string}`,
+    abi: CONTRACTS.PitTipping.abi,
     functionName: 'getUserAvailableBalance',
     args: address ? [address] : undefined,
     enabled: !!address,
@@ -36,14 +36,14 @@ export const usePIT = () => {
     address: userConfig?.[0] as `0x${string}`,
     abi: CONTRACTS.USDC.abi,
     functionName: 'allowance',
-    args: address && userConfig ? [address, CONTRACTS.PITTippingSimplified.address] : undefined,
+    args: address && userConfig ? [address, CONTRACTS.PitTipping.address] : undefined,
     enabled: !!address && !!userConfig?.[0],
   });
 
   // Set tipping config
   const { config: setConfigPrepare } = usePrepareContractWrite({
-    address: CONTRACTS.PITTippingSimplified.address as `0x${string}`,
-    abi: CONTRACTS.PITTippingSimplified.abi,
+    address: CONTRACTS.PitTipping.address as `0x${string}`,
+    abi: CONTRACTS.PitTipping.abi,
     functionName: 'setTippingConfig',
   });
 
@@ -61,8 +61,8 @@ export const usePIT = () => {
 
   // Update spending limit
   const { config: updateLimitPrepare } = usePrepareContractWrite({
-    address: CONTRACTS.PITTippingSimplified.address as `0x${string}`,
-    abi: CONTRACTS.PITTippingSimplified.abi,
+    address: CONTRACTS.PitTipping.address as `0x${string}`,
+    abi: CONTRACTS.PitTipping.abi,
     functionName: 'updateSpendingLimit',
   });
 
@@ -70,8 +70,8 @@ export const usePIT = () => {
 
   // Revoke config
   const { config: revokePrepare } = usePrepareContractWrite({
-    address: CONTRACTS.PITTippingSimplified.address as `0x${string}`,
-    abi: CONTRACTS.PITTippingSimplified.abi,
+    address: CONTRACTS.PitTipping.address as `0x${string}`,
+    abi: CONTRACTS.PitTipping.abi,
     functionName: 'revokeConfig',
   });
 
@@ -110,8 +110,8 @@ export const usePIT = () => {
 
 export const useHomepageData = () => {
   const { data } = useContractRead({
-    address: CONTRACTS.PITTippingSimplified.address as `0x${string}`,
-    abi: CONTRACTS.PITTippingSimplified.abi,
+    address: CONTRACTS.PitTipping.address as `0x${string}`,
+    abi: CONTRACTS.PitTipping.abi,
     functionName: 'getUsersByLikeAmount',
     args: [0, 20], // Get top 20 users
   });
@@ -124,8 +124,8 @@ export const useHomepageData = () => {
 
 export const useLeaderboardData = () => {
   const { data } = useContractRead({
-    address: CONTRACTS.PITTippingSimplified.address as `0x${string}`,
-    abi: CONTRACTS.PITTippingSimplified.abi,
+    address: CONTRACTS.PitTipping.address as `0x${string}`,
+    abi: CONTRACTS.PitTipping.abi,
     functionName: 'getLeaderboard',
     args: [0, 20], // Get top 20 tippers
   });

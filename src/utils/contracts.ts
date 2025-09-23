@@ -1,5 +1,5 @@
 export const CONTRACTS = {
-  PITTippingSimplified: {
+  PitTipping: {
     address: '0x0000000000000000000000000000000000000000', // To be deployed
     abi: [
       {

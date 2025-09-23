@@ -107,16 +107,16 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
 
     /**
      * @dev Set or update user's tipping configuration
-     * User sets how much USDC to tip for each interaction type
+     * User sets how much tokens to tip for each interaction type (any Base token)
      */
     function setTippingConfig(
-        address _token,           // USDC address
-        uint256 _likeAmount,      // USDC to tip for likes
-        uint256 _replyAmount,     // USDC to tip for replies
-        uint256 _recastAmount,    // USDC to tip for recasts
-        uint256 _quoteAmount,     // USDC to tip for quotes
-        uint256 _followAmount,    // USDC to tip for follows
-        uint256 _spendingLimit    // Maximum USDC to spend total
+        address _token,           // Any Base token address (USDC, ETH, DAI, etc.)
+        uint256 _likeAmount,      // Tokens to tip for likes
+        uint256 _replyAmount,     // Tokens to tip for replies
+        uint256 _recastAmount,    // Tokens to tip for recasts
+        uint256 _quoteAmount,     // Tokens to tip for quotes
+        uint256 _followAmount,    // Tokens to tip for follows
+        uint256 _spendingLimit    // Maximum tokens to spend total
     ) external {
         require(_token != address(0), "Invalid token address");
         require(_spendingLimit > 0, "Spending limit must be > 0");
@@ -169,21 +169,21 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
         TippingConfig storage config = userConfigs[_postAuthor];
         require(config.isActive, "Author config not active");
         
-        // Get USDC amount to tip for this action
+        // Get token amount to tip for this action
         uint256 tipAmount = getTipAmount(config, _actionType);
         require(tipAmount > 0, "No tip amount set for action");
         
         // Check if within spending limit
         require(config.totalSpent + tipAmount <= config.spendingLimit, "Spending limit reached");
         
-        // Check USDC allowance (user must approve this contract to spend their USDC)
+        // Check token allowance (user must approve this contract to spend their tokens)
         IERC20 token = IERC20(config.token);
         uint256 allowance = token.allowance(_postAuthor, address(this));
-        require(allowance >= tipAmount, "Insufficient USDC allowance");
+        require(allowance >= tipAmount, "Insufficient token allowance");
         
-        // Check USDC balance
+        // Check token balance
         uint256 balance = token.balanceOf(_postAuthor);
-        require(balance >= tipAmount, "Insufficient USDC balance");
+        require(balance >= tipAmount, "Insufficient token balance");
         
         // Mark interaction as processed
         processedInteractions[_interactionHash] = true;
@@ -195,7 +195,7 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
         // Update spending tracker
         config.totalSpent += tipAmount;
         
-        // TRANSFER USDC: Post author → Engager
+        // TRANSFER TOKENS: Post author → Engager
         token.safeTransferFrom(_postAuthor, _interactor, netAmount);
         
         // Transfer fee to protocol
@@ -204,15 +204,15 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
         }
         
         // Update stats
-        totalTipsReceived[_interactor] += netAmount;  // Engager received USDC
-        totalTipsGiven[_postAuthor] += tipAmount;     // Post author gave USDC
+        totalTipsReceived[_interactor] += netAmount;  // Engager received tokens
+        totalTipsGiven[_postAuthor] += tipAmount;     // Post author gave tokens
         
         // Record transaction
         TipTransaction memory txn = TipTransaction({
             from: _postAuthor,        // Who paid
             to: _interactor,          // Who received
-            token: config.token,      // USDC
-            amount: netAmount,        // USDC amount
+            token: config.token,      // Token address
+            amount: netAmount,        // Token amount
             actionType: _actionType,  // "like", "reply", etc.
             timestamp: block.timestamp,
             farcasterCastHash: _farcasterCastHash
@@ -270,7 +270,7 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
                             // Update spending tracker
                             config.totalSpent += tipAmount;
                             
-                            // TRANSFER USDC: Post author → Engager
+                            // TRANSFER TOKENS: Post author → Engager
                             token.safeTransferFrom(_postAuthors[i], _interactors[i], netAmount);
                             
                             // Transfer fee
@@ -307,7 +307,7 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
     }
 
     /**
-     * @dev Get USDC tip amount for a specific action type
+     * @dev Get token tip amount for a specific action type
      */
     function getTipAmount(TippingConfig memory config, string memory actionType) 
         internal 
@@ -476,7 +476,7 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
     }
 
     /**
-     * @dev Get user's available USDC balance (considering allowance)
+     * @dev Get user's available token balance (considering allowance)
      */
     function getUserAvailableBalance(address _user) 
         external 
