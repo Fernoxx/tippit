@@ -9,30 +9,33 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 
 /**
  * @title PitTipping
- * @dev Reverse tipping contract - Post authors tip users who interact with their posts
+ * @dev Engagement Rewards Contract - Post authors reward users who interact with their content
+ * Built for Base network with support for any ERC20 token microtransactions
  * 
- * FLOW (Like Noice):
- * 1. User sets token allowance to this contract (any Base token)
- * 2. User configures tip amounts (like: 1 token, reply: 2 tokens, etc.)
- * 3. When someone likes/recasts/replies to their post → They get tipped tokens
+ * REWARD FLOW (Different from Noice):
+ * 1. Content creator sets token allowance to this contract (any Base token)
+ * 2. Creator configures reward amounts (like: 1 token, reply: 2 tokens, etc.)
+ * 3. When someone likes/recasts/replies to their post → ENGAGER gets rewarded tokens
  * 4. Backend verifies interaction via Neynar webhook
  * 5. Backend batches all interactions for 1 minute
- * 6. After 1 minute, all engagers get their tips in ONE transaction
+ * 6. After 1 minute, all engagers get their rewards in ONE transaction
+ * 
+ * Key Difference: In Noice, creators get rewarded. Here, ENGAGERS get rewarded.
  */
 contract PitTipping is Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
-    // Struct to store user's tipping configuration
-    struct TippingConfig {
+    // Struct to store creator's reward configuration
+    struct RewardConfig {
         address token; // Any ERC20 token address (USDC, ETH, DAI, etc.)
-        uint256 likeAmount;    // Token amount to tip for likes
-        uint256 replyAmount;   // Token amount to tip for replies
-        uint256 recastAmount;  // Token amount to tip for recasts
-        uint256 quoteAmount;   // Token amount to tip for quotes
-        uint256 followAmount;  // Token amount to tip for follows
+        uint256 likeReward;    // Token reward for likes received
+        uint256 replyReward;   // Token reward for replies received
+        uint256 recastReward;  // Token reward for recasts received
+        uint256 quoteReward;   // Token reward for quotes received
+        uint256 followReward;  // Token reward for follows received
         uint256 spendingLimit; // Maximum tokens they can spend in total
         uint256 totalSpent;    // Tokens already spent
-        bool isActive;         // Whether tipping is enabled
+        bool isActive;         // Whether rewards are enabled
     }
 
     // Struct to store tip transaction details
@@ -47,7 +50,7 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
     }
 
     // Mappings
-    mapping(address => TippingConfig) public userConfigs;
+    mapping(address => RewardConfig) public creatorConfigs;
     mapping(address => uint256) public totalTipsReceived; // Total tokens received by user
     mapping(address => uint256) public totalTipsGiven;    // Total tokens given by user
     
