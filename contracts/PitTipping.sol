@@ -110,7 +110,7 @@ contract PitTipping is Ownable, ReentrancyGuard, Pausable {
         _;
     }
 
-    constructor(address _feeRecipient, address _backendVerifier) {
+    constructor(address _feeRecipient, address _backendVerifier) Ownable(msg.sender) {
         feeRecipient = _feeRecipient;
         backendVerifier = _backendVerifier;
     }
