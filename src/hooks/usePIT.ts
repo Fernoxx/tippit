@@ -59,6 +59,17 @@ export const usePIT = () => {
 
   const { write: approveToken, isLoading: isApproving } = useContractWrite(approvePrepare);
 
+  // Revoke token allowance (set to 0)
+  const { config: revokeAllowancePrepare } = usePrepareContractWrite({
+    address: userConfig?.[0] as `0x${string}`,
+    abi: CONTRACTS.USDC.abi,
+    functionName: 'approve',
+    args: [CONTRACTS.PitTipping.address, 0n], // Set allowance to 0
+    enabled: !!userConfig?.[0],
+  });
+
+  const { write: revokeTokenAllowance, isLoading: isRevokingAllowance } = useContractWrite(revokeAllowancePrepare);
+
   // Update spending limit
   const { config: updateLimitPrepare } = usePrepareContractWrite({
     address: CONTRACTS.PitTipping.address as `0x${string}`,
@@ -99,10 +110,12 @@ export const usePIT = () => {
     tokenAllowance,
     setTippingConfig,
     approveToken,
+    revokeTokenAllowance,
     updateSpendingLimit,
     revokeConfig,
     isSettingConfig,
     isApproving,
+    isRevokingAllowance,
     isUpdatingLimit,
     isRevoking,
   };

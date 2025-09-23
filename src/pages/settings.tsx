@@ -30,10 +30,12 @@ export default function Settings() {
     tokenAllowance,
     setTippingConfig,
     approveToken,
+    revokeTokenAllowance,
     updateSpendingLimit,
     revokeConfig,
     isSettingConfig,
     isApproving,
+    isRevokingAllowance,
     isUpdatingLimit,
     isRevoking,
   } = usePIT();
@@ -117,7 +119,7 @@ export default function Settings() {
       const amount = parseUnits(allowanceAmount, decimals);
       
       await approveToken?.({
-        args: [CONTRACTS.PITTipping.address, amount],
+        args: [CONTRACTS.PitTipping.address, amount],
       });
       toast.success('Allowance approved successfully!');
       setAllowanceAmount('');
@@ -134,6 +136,17 @@ export default function Settings() {
       toast.success('Spending limit updated!');
     } catch (error) {
       toast.error('Failed to update spending limit');
+    }
+  };
+
+  const handleRevokeTokenAllowance = async () => {
+    if (confirm('Are you sure you want to revoke your token allowance? This will prevent the contract from spending your tokens.')) {
+      try {
+        await revokeTokenAllowance?.();
+        toast.success('Token allowance revoked');
+      } catch (error) {
+        toast.error('Failed to revoke token allowance');
+      }
     }
   };
 
@@ -353,6 +366,13 @@ export default function Settings() {
                     className="btn-primary"
                   >
                     {isApproving ? 'Approving...' : 'Approve Allowance'}
+                  </button>
+                  <button
+                    onClick={handleRevokeTokenAllowance}
+                    disabled={isRevokingAllowance || !tokenAllowance || tokenAllowance === 0n}
+                    className="bg-red-600 text-white px-4 py-3 rounded-xl font-semibold hover:bg-red-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  >
+                    {isRevokingAllowance ? 'Revoking...' : 'Revoke Allowance'}
                   </button>
                 </div>
                 <p className="text-sm text-gray-600 mt-2">
