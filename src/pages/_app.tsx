@@ -12,7 +12,7 @@ const { chains, publicClient } = configureChains([base], [publicProvider()]);
 
 const { connectors } = getDefaultWallets({
   appName: 'PIT - Post Incentive Tipping',
-  projectId: 'YOUR_PROJECT_ID', // Get from WalletConnect
+  projectId: 'pit-farcaster-tipping', // Dummy project ID
   chains,
 });
 

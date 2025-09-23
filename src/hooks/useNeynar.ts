@@ -1,0 +1,120 @@
+import { useState, useEffect } from 'react';
+import { useAccount } from 'wagmi';
+
+const NEYNAR_API_URL = 'https://api.neynar.com/v2';
+
+interface FarcasterUser {
+  fid: number;
+  username: string;
+  displayName: string;
+  pfp: {
+    url: string;
+  };
+  profile: {
+    bio: {
+      text: string;
+    };
+  };
+  verifiedAddresses: {
+    ethAddresses: string[];
+  };
+}
+
+export const useNeynar = () => {
+  const { address } = useAccount();
+  const [user, setUser] = useState<FarcasterUser | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Get user by verified Ethereum address
+  const getUserByAddress = async (ethAddress: string) => {
+    try {
+      const response = await fetch(
+        `${NEYNAR_API_URL}/farcaster/user/by-verification?address=${ethAddress}`,
+        {
+          headers: {
+            'api_key': process.env.NEXT_PUBLIC_NEYNAR_API_KEY!,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('User not found');
+      }
+
+      const data = await response.json();
+      return data.user;
+    } catch (error) {
+      console.error('Error fetching user:', error);
+      return null;
+    }
+  };
+
+  // Get user interactions (likes, recasts, etc.)
+  const getUserInteractions = async (fid: number, castHash: string) => {
+    try {
+      const response = await fetch(
+        `${NEYNAR_API_URL}/farcaster/cast?hash=${castHash}`,
+        {
+          headers: {
+            'api_key': process.env.NEXT_PUBLIC_NEYNAR_API_KEY!,
+          },
+        }
+      );
+
+      const data = await response.json();
+      return {
+        likes: data.cast.reactions.likes || [],
+        recasts: data.cast.reactions.recasts || [],
+        replies: data.cast.replies || [],
+      };
+    } catch (error) {
+      console.error('Error fetching interactions:', error);
+      return null;
+    }
+  };
+
+  // Subscribe to webhooks for real-time updates
+  const subscribeToWebhooks = async (fid: number) => {
+    try {
+      const response = await fetch('/api/neynar/subscribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fid,
+          webhookUrl: `${window.location.origin}/api/neynar/webhook`,
+          subscription: {
+            'cast.created': true,
+            'reaction.created': true,
+            'follow.created': true,
+          },
+        }),
+      });
+
+      return response.ok;
+    } catch (error) {
+      console.error('Error subscribing to webhooks:', error);
+      return false;
+    }
+  };
+
+  // Load user data when address changes
+  useEffect(() => {
+    if (address) {
+      setIsLoading(true);
+      getUserByAddress(address).then((userData) => {
+        setUser(userData);
+        setIsLoading(false);
+      });
+    }
+  }, [address]);
+
+  return {
+    user,
+    isLoading,
+    getUserByAddress,
+    getUserInteractions,
+    subscribeToWebhooks,
+  };
+};

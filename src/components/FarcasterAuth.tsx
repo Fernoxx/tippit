@@ -2,20 +2,14 @@ import { useEffect, useState } from 'react';
 import { useAccount } from 'wagmi';
 import { useContractWrite } from 'wagmi';
 import { CONTRACTS } from '@/utils/contracts';
+import { useNeynar } from '@/hooks/useNeynar';
 import toast from 'react-hot-toast';
 import { User, CheckCircle, XCircle } from 'lucide-react';
 
-interface FarcasterProfile {
-  fid: number;
-  username: string;
-  displayName: string;
-  pfp?: string;
-}
-
 export default function FarcasterAuth() {
   const { address } = useAccount();
-  const [profile, setProfile] = useState<FarcasterProfile | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const { user, isLoading: isLoadingNeynar } = useNeynar();
+  const [isConnecting, setIsConnecting] = useState(false);
 
   // Map FID to address in oracle contract
   const { write: mapFID } = useContractWrite({
@@ -24,38 +18,44 @@ export default function FarcasterAuth() {
     functionName: 'mapFIDToAddress',
   });
 
-  const connectFarcaster = async () => {
-    setIsLoading(true);
-    try {
-      // In production, this would open Farcaster auth flow
-      // For now, we'll simulate it
-      const mockProfile: FarcasterProfile = {
-        fid: Math.floor(Math.random() * 100000),
-        username: 'testuser',
-        displayName: 'Test User',
-      };
-      
-      setProfile(mockProfile);
-      
-      // Map FID to Ethereum address
-      await mapFID?.({
-        args: [mockProfile.fid, address],
+  // Auto-map FID when user data is loaded
+  useEffect(() => {
+    if (user && address && mapFID) {
+      mapFID({
+        args: [user.fid, address],
       });
+    }
+  }, [user, address, mapFID]);
+
+  const connectFarcaster = async () => {
+    setIsConnecting(true);
+    try {
+      // Open Neynar sign-in flow
+      window.open(
+        `https://neynar.com/sign-in?api_key=${process.env.NEXT_PUBLIC_NEYNAR_API_KEY}&redirect_url=${window.location.origin}/api/auth/callback`,
+        'farcaster-signin',
+        'width=500,height=700'
+      );
       
-      toast.success('Farcaster account connected!');
+      // Listen for callback
+      window.addEventListener('message', (event) => {
+        if (event.origin === window.location.origin && event.data.type === 'farcaster-auth-success') {
+          toast.success('Farcaster account connected!');
+          window.location.reload();
+        }
+      });
     } catch (error) {
       toast.error('Failed to connect Farcaster');
     } finally {
-      setIsLoading(false);
+      setIsConnecting(false);
     }
   };
 
-  const disconnectFarcaster = () => {
-    setProfile(null);
-    toast.success('Farcaster account disconnected');
-  };
+  // No disconnect needed - based on wallet connection
 
   if (!address) return null;
+
+  const isLoading = isLoadingNeynar || isConnecting;
 
   return (
     <div className="bg-white rounded-2xl p-6 card-shadow">
@@ -64,24 +64,24 @@ export default function FarcasterAuth() {
         Farcaster Connection
       </h3>
       
-      {profile ? (
+      {user ? (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              {profile.pfp ? (
+              {user.pfp?.url ? (
                 <img
-                  src={profile.pfp}
-                  alt={profile.displayName}
+                  src={user.pfp.url}
+                  alt={user.displayName}
                   className="w-12 h-12 rounded-full"
                 />
               ) : (
                 <div className="w-12 h-12 bg-accent rounded-full flex items-center justify-center text-white font-bold">
-                  {profile.displayName[0]}
+                  {user.displayName[0]}
                 </div>
               )}
               <div>
-                <p className="font-semibold">{profile.displayName}</p>
-                <p className="text-sm text-gray-600">@{profile.username}</p>
+                <p className="font-semibold">{user.displayName}</p>
+                <p className="text-sm text-gray-600">@{user.username}</p>
               </div>
             </div>
             <CheckCircle className="w-6 h-6 text-green-500" />
@@ -90,14 +90,12 @@ export default function FarcasterAuth() {
           <div className="flex items-center justify-between pt-4 border-t">
             <div>
               <p className="text-sm text-gray-600">FID</p>
-              <p className="font-mono font-semibold">{profile.fid}</p>
+              <p className="font-mono font-semibold">{user.fid}</p>
             </div>
-            <button
-              onClick={disconnectFarcaster}
-              className="text-red-600 hover:text-red-700 font-medium"
-            >
-              Disconnect
-            </button>
+            <div>
+              <p className="text-sm text-gray-600">Connected</p>
+              <p className="text-sm font-medium text-green-600">via Neynar</p>
+            </div>
           </div>
         </div>
       ) : (
