@@ -9,40 +9,46 @@ import "@openzeppelin/contracts/security/Pausable.sol";
 
 /**
  * @title PITTippingSimplified
- * @dev Simplified reverse tipping contract - direct calls from backend (like Noice)
- * No oracle needed - backend verifies via Neynar webhook signatures
+ * @dev Reverse tipping contract - Post authors tip users who interact with their posts
+ * 
+ * FLOW:
+ * 1. User sets USDC allowance to this contract
+ * 2. User configures tip amounts (like: 1 USDC, reply: 2 USDC, etc.)
+ * 3. When someone likes/recasts/replies to their post → They get tipped USDC
+ * 4. Backend verifies interaction via Neynar webhook
+ * 5. Contract transfers USDC from post author to engager
  */
 contract PITTippingSimplified is Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
     // Struct to store user's tipping configuration
     struct TippingConfig {
-        address token; // Token address (e.g., USDC or any ERC20 on Base)
-        uint256 likeAmount;
-        uint256 replyAmount;
-        uint256 recastAmount;
-        uint256 quoteAmount;
-        uint256 followAmount;
-        uint256 spendingLimit;
-        uint256 totalSpent;
-        bool isActive;
+        address token; // USDC address (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913)
+        uint256 likeAmount;    // USDC amount to tip for likes
+        uint256 replyAmount;   // USDC amount to tip for replies
+        uint256 recastAmount;  // USDC amount to tip for recasts
+        uint256 quoteAmount;   // USDC amount to tip for quotes
+        uint256 followAmount;  // USDC amount to tip for follows
+        uint256 spendingLimit; // Maximum USDC they can spend in total
+        uint256 totalSpent;    // USDC already spent
+        bool isActive;         // Whether tipping is enabled
     }
 
     // Struct to store tip transaction details
     struct TipTransaction {
-        address from;
-        address to;
-        address token;
-        uint256 amount;
-        string actionType;
-        uint256 timestamp;
-        bytes32 farcasterCastHash;
+        address from;           // Post author (who pays)
+        address to;             // Engager (who receives USDC)
+        address token;          // USDC address
+        uint256 amount;         // USDC amount transferred
+        string actionType;      // "like", "reply", "recast", etc.
+        uint256 timestamp;      // When tip happened
+        bytes32 farcasterCastHash; // Cast hash
     }
 
     // Mappings
     mapping(address => TippingConfig) public userConfigs;
-    mapping(address => uint256) public totalTipsReceived;
-    mapping(address => uint256) public totalTipsGiven;
+    mapping(address => uint256) public totalTipsReceived; // Total USDC received by user
+    mapping(address => uint256) public totalTipsGiven;    // Total USDC given by user
     
     // Arrays for leaderboard functionality
     address[] public activeUsers;
@@ -72,8 +78,8 @@ contract PITTippingSimplified is Ownable, ReentrancyGuard, Pausable {
     );
     
     event TipSent(
-        address indexed from,
-        address indexed to,
+        address indexed from,      // Post author (pays USDC)
+        address indexed to,        // Engager (receives USDC)
         address token,
         uint256 amount,
         string actionType,
@@ -85,8 +91,8 @@ contract PITTippingSimplified is Ownable, ReentrancyGuard, Pausable {
     event EmergencyWithdraw(address indexed token, uint256 amount, address indexed to);
     event BackendVerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
 
-    // Protocol fee
-    uint256 public protocolFeeBps = 100; // 1%
+    // Protocol fee (1% = 100 bps)
+    uint256 public protocolFeeBps = 100;
     address public feeRecipient;
     
     modifier onlyBackend() {
@@ -101,15 +107,16 @@ contract PITTippingSimplified is Ownable, ReentrancyGuard, Pausable {
 
     /**
      * @dev Set or update user's tipping configuration
+     * User sets how much USDC to tip for each interaction type
      */
     function setTippingConfig(
-        address _token,
-        uint256 _likeAmount,
-        uint256 _replyAmount,
-        uint256 _recastAmount,
-        uint256 _quoteAmount,
-        uint256 _followAmount,
-        uint256 _spendingLimit
+        address _token,           // USDC address
+        uint256 _likeAmount,      // USDC to tip for likes
+        uint256 _replyAmount,     // USDC to tip for replies
+        uint256 _recastAmount,    // USDC to tip for recasts
+        uint256 _quoteAmount,     // USDC to tip for quotes
+        uint256 _followAmount,    // USDC to tip for follows
+        uint256 _spendingLimit    // Maximum USDC to spend total
     ) external {
         require(_token != address(0), "Invalid token address");
         require(_spendingLimit > 0, "Spending limit must be > 0");
@@ -143,12 +150,16 @@ contract PITTippingSimplified is Ownable, ReentrancyGuard, Pausable {
 
     /**
      * @dev Process a tip for an interaction (called by backend)
-     * Backend verifies the interaction via Neynar webhook signature
+     * 
+     * FLOW:
+     * 1. Backend verifies interaction via Neynar webhook
+     * 2. Backend calls this function
+     * 3. Contract transfers USDC from post author to engager
      */
     function processTip(
-        address _postAuthor,
-        address _interactor,
-        string memory _actionType,
+        address _postAuthor,      // Who wrote the post (pays USDC)
+        address _interactor,      // Who liked/replied/etc (receives USDC)
+        string memory _actionType, // "like", "reply", "recast", etc.
         bytes32 _farcasterCastHash,
         bytes32 _interactionHash
     ) external onlyBackend nonReentrant whenNotPaused {
@@ -158,31 +169,33 @@ contract PITTippingSimplified is Ownable, ReentrancyGuard, Pausable {
         TippingConfig storage config = userConfigs[_postAuthor];
         require(config.isActive, "Author config not active");
         
+        // Get USDC amount to tip for this action
         uint256 tipAmount = getTipAmount(config, _actionType);
         require(tipAmount > 0, "No tip amount set for action");
         
+        // Check if within spending limit
         require(config.totalSpent + tipAmount <= config.spendingLimit, "Spending limit reached");
         
-        // Check allowance
+        // Check USDC allowance (user must approve this contract to spend their USDC)
         IERC20 token = IERC20(config.token);
         uint256 allowance = token.allowance(_postAuthor, address(this));
-        require(allowance >= tipAmount, "Insufficient allowance");
+        require(allowance >= tipAmount, "Insufficient USDC allowance");
         
-        // Check balance
+        // Check USDC balance
         uint256 balance = token.balanceOf(_postAuthor);
-        require(balance >= tipAmount, "Insufficient token balance");
+        require(balance >= tipAmount, "Insufficient USDC balance");
         
         // Mark interaction as processed
         processedInteractions[_interactionHash] = true;
         
-        // Calculate fee
+        // Calculate protocol fee (1%)
         uint256 fee = (tipAmount * protocolFeeBps) / 10000;
         uint256 netAmount = tipAmount - fee;
         
         // Update spending tracker
         config.totalSpent += tipAmount;
         
-        // Transfer tip directly from author to interactor
+        // TRANSFER USDC: Post author → Engager
         token.safeTransferFrom(_postAuthor, _interactor, netAmount);
         
         // Transfer fee to protocol
@@ -191,16 +204,16 @@ contract PITTippingSimplified is Ownable, ReentrancyGuard, Pausable {
         }
         
         // Update stats
-        totalTipsReceived[_interactor] += netAmount;
-        totalTipsGiven[_postAuthor] += tipAmount;
+        totalTipsReceived[_interactor] += netAmount;  // Engager received USDC
+        totalTipsGiven[_postAuthor] += tipAmount;     // Post author gave USDC
         
         // Record transaction
         TipTransaction memory txn = TipTransaction({
-            from: _postAuthor,
-            to: _interactor,
-            token: config.token,
-            amount: netAmount,
-            actionType: _actionType,
+            from: _postAuthor,        // Who paid
+            to: _interactor,          // Who received
+            token: config.token,      // USDC
+            amount: netAmount,        // USDC amount
+            actionType: _actionType,  // "like", "reply", etc.
             timestamp: block.timestamp,
             farcasterCastHash: _farcasterCastHash
         });
@@ -215,11 +228,12 @@ contract PITTippingSimplified is Ownable, ReentrancyGuard, Pausable {
 
     /**
      * @dev Batch process multiple tips (like Noice does)
+     * Processes multiple interactions in one transaction for gas efficiency
      */
     function batchProcessTips(
-        address[] memory _postAuthors,
-        address[] memory _interactors,
-        string[] memory _actionTypes,
+        address[] memory _postAuthors,    // Who wrote posts (pay USDC)
+        address[] memory _interactors,    // Who engaged (receive USDC)
+        string[] memory _actionTypes,     // "like", "reply", etc.
         bytes32[] memory _castHashes,
         bytes32[] memory _interactionHashes
     ) external onlyBackend nonReentrant whenNotPaused {
@@ -256,7 +270,7 @@ contract PITTippingSimplified is Ownable, ReentrancyGuard, Pausable {
                             // Update spending tracker
                             config.totalSpent += tipAmount;
                             
-                            // Transfer tip
+                            // TRANSFER USDC: Post author → Engager
                             token.safeTransferFrom(_postAuthors[i], _interactors[i], netAmount);
                             
                             // Transfer fee
@@ -293,7 +307,7 @@ contract PITTippingSimplified is Ownable, ReentrancyGuard, Pausable {
     }
 
     /**
-     * @dev Get tip amount for a specific action type
+     * @dev Get USDC tip amount for a specific action type
      */
     function getTipAmount(TippingConfig memory config, string memory actionType) 
         internal 
@@ -462,7 +476,7 @@ contract PITTippingSimplified is Ownable, ReentrancyGuard, Pausable {
     }
 
     /**
-     * @dev Get user's available balance (token balance - considering allowance)
+     * @dev Get user's available USDC balance (considering allowance)
      */
     function getUserAvailableBalance(address _user) 
         external 
