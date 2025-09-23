@@ -105,12 +105,7 @@ contract PitTipping is Ownable, ReentrancyGuard {
     event EmergencyWithdraw(address indexed token, uint256 amount, address indexed to);
     event BackendVerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
 
-    // Protocol fee (1% = 100 bps)
-    uint256 public protocolFeeBps = 100;
-    address public feeRecipient;
-    
-    // Batch processing
-    uint256 public batchIdCounter;
+    // Protocol fee and batch processing variables already declared above
     
     modifier onlyBackend() {
         require(msg.sender == backendVerifier, "Only backend can call");
