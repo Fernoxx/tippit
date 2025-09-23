@@ -8,38 +8,38 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 
 /**
- * @title PITTippingSimplified
+ * @title PitTipping
  * @dev Reverse tipping contract - Post authors tip users who interact with their posts
  * 
  * FLOW:
- * 1. User sets USDC allowance to this contract
- * 2. User configures tip amounts (like: 1 USDC, reply: 2 USDC, etc.)
- * 3. When someone likes/recasts/replies to their post → They get tipped USDC
+ * 1. User sets token allowance to this contract (any ERC20 token)
+ * 2. User configures tip amounts (like: 1 token, reply: 2 tokens, etc.)
+ * 3. When someone likes/recasts/replies to their post → They get tipped tokens
  * 4. Backend verifies interaction via Neynar webhook
- * 5. Contract transfers USDC from post author to engager
+ * 5. Contract transfers tokens from post author to engager
  */
-contract PITTippingSimplified is Ownable, ReentrancyGuard, Pausable {
+contract PitTipping is Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
     // Struct to store user's tipping configuration
     struct TippingConfig {
-        address token; // USDC address (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913)
-        uint256 likeAmount;    // USDC amount to tip for likes
-        uint256 replyAmount;   // USDC amount to tip for replies
-        uint256 recastAmount;  // USDC amount to tip for recasts
-        uint256 quoteAmount;   // USDC amount to tip for quotes
-        uint256 followAmount;  // USDC amount to tip for follows
-        uint256 spendingLimit; // Maximum USDC they can spend in total
-        uint256 totalSpent;    // USDC already spent
+        address token; // Any ERC20 token address (USDC, ETH, etc.)
+        uint256 likeAmount;    // Token amount to tip for likes
+        uint256 replyAmount;   // Token amount to tip for replies
+        uint256 recastAmount;  // Token amount to tip for recasts
+        uint256 quoteAmount;   // Token amount to tip for quotes
+        uint256 followAmount;  // Token amount to tip for follows
+        uint256 spendingLimit; // Maximum tokens they can spend in total
+        uint256 totalSpent;    // Tokens already spent
         bool isActive;         // Whether tipping is enabled
     }
 
     // Struct to store tip transaction details
     struct TipTransaction {
         address from;           // Post author (who pays)
-        address to;             // Engager (who receives USDC)
-        address token;          // USDC address
-        uint256 amount;         // USDC amount transferred
+        address to;             // Engager (who receives tokens)
+        address token;          // Token address
+        uint256 amount;         // Token amount transferred
         string actionType;      // "like", "reply", "recast", etc.
         uint256 timestamp;      // When tip happened
         bytes32 farcasterCastHash; // Cast hash
@@ -47,8 +47,8 @@ contract PITTippingSimplified is Ownable, ReentrancyGuard, Pausable {
 
     // Mappings
     mapping(address => TippingConfig) public userConfigs;
-    mapping(address => uint256) public totalTipsReceived; // Total USDC received by user
-    mapping(address => uint256) public totalTipsGiven;    // Total USDC given by user
+    mapping(address => uint256) public totalTipsReceived; // Total tokens received by user
+    mapping(address => uint256) public totalTipsGiven;    // Total tokens given by user
     
     // Arrays for leaderboard functionality
     address[] public activeUsers;
