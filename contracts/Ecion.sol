@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.6.12;
+pragma solidity 0.8.19;
 
 /**
  * @title Ecion
@@ -107,9 +107,13 @@ contract Ecion {
         uint256 processedCount,
         uint256 timestamp
     );
+    event EmergencyWithdraw(
+        address indexed token,
+        uint256 amount,
+        address indexed to
+    );
     event ConfigRevoked(address indexed user);
     event SpendingLimitUpdated(address indexed user, uint256 newLimit);
-    event EmergencyWithdraw(address indexed token, uint256 amount, address indexed to);
     event BackendVerifierUpdated(address indexed oldVerifier, address indexed newVerifier);
 
     modifier onlyOwner() {
@@ -122,7 +126,7 @@ contract Ecion {
         _;
     }
 
-    constructor() public {
+    constructor() {
         owner = msg.sender;
     }
 
@@ -258,7 +262,8 @@ contract Ecion {
         config.totalSpent += rewardAmount;
         
         // TRANSFER TOKENS: Post author → Engager
-        token.transferFrom(_postAuthor, _interactor, rewardAmount);
+        bool success = token.transferFrom(_postAuthor, _interactor, rewardAmount);
+        require(success, "Transfer failed");
         
         // Update stats
         totalTipsReceived[_interactor] += rewardAmount;  // Engager received tokens
@@ -336,7 +341,8 @@ contract Ecion {
         processedInteractions[_interactionHash] = true;
         config.totalSpent += rewardAmount;
         
-        token.transferFrom(_postAuthor, _interactor, rewardAmount);
+        bool success = token.transferFrom(_postAuthor, _interactor, rewardAmount);
+        require(success, "Transfer failed");
         
         totalTipsReceived[_interactor] += rewardAmount;
         totalTipsGiven[_postAuthor] += rewardAmount;
@@ -610,7 +616,8 @@ contract Ecion {
         uint256 balance = IERC20(_token).balanceOf(address(this));
         require(balance > 0, "No tokens to withdraw");
         
-        IERC20(_token).transfer(_to, balance);
+        bool success = IERC20(_token).transfer(_to, balance);
+        require(success, "Transfer failed");
         
         emit EmergencyWithdraw(_token, balance, _to);
     }
