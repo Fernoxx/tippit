@@ -18,12 +18,18 @@ Backend-only tipping system that works exactly like Noice but with additional fe
 ✅ **Batch processing** (100+ tips in 1 minute)
 ✅ **Spending limits** (max per user)
 
-### 3. 1-Minute Batch Processing
+### 3. 1-Minute Batch Processing (EXACTLY LIKE NOICE)
 ```
-Minute 1: Collect 50 tips → Send 50 individual transfers
-Minute 2: Collect 30 tips → Send 30 individual transfers  
-Minute 3: Collect 80 tips → Send 80 individual transfers
+Minute 1: Collect 50 tips → Send 1 transaction with 50 transfers
+Minute 2: Collect 30 tips → Send 1 transaction with 30 transfers  
+Minute 3: Collect 80 tips → Send 1 transaction with 80 transfers
 ```
+
+**Example Noice Transaction:**
+- Transaction Hash: `0x470cbadbd6a58f7ff736c8768daf9de8076ea1d08c1fac3aebc028ba3c0dd8b5`
+- **24 ERC-20 transfers** in ONE transaction
+- Gas used: 578,721 (15.23% of 3.8M limit)
+- Function: `multiTransfer(address[] recipients, uint256[] amounts)`
 
 ## Setup
 

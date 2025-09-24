@@ -168,22 +168,30 @@ class BatchProcessor {
     let failed = 0;
 
     try {
-      // Get token contract with batch transfer function
+      // Get token contract - USDC and most tokens support multiTransfer
       const tokenContract = new ethers.Contract(tokenAddress, [
         "function transfer(address to, uint256 amount) returns (bool)",
-        "function batchTransfer(address[] calldata recipients, uint256[] calldata amounts) returns (bool)"
+        "function multiTransfer(address[] calldata recipients, uint256[] calldata amounts) returns (bool)"
       ], this.wallet);
 
-      console.log(`💸 Processing ${tips.length} tips for token ${tokenAddress} in ONE transaction`);
+      console.log(`💸 Processing ${tips.length} tips for token ${tokenAddress} in ONE transaction (like Noice)`);
 
-      // Prepare batch data
+      // Prepare batch data exactly like Noice
       const recipients = tips.map(tip => tip.interactorAddress);
-      const amounts = tips.map(tip => ethers.parseUnits(tip.amount, 6)); // Assuming 6 decimals for USDC
+      const amounts = tips.map(tip => ethers.parseUnits(tip.amount, 6)); // USDC has 6 decimals
 
       try {
-        // Try batch transfer first (if contract supports it)
-        const tx = await tokenContract.batchTransfer(recipients, amounts);
-        await tx.wait();
+        // Use multiTransfer function (like Noice uses)
+        const tx = await tokenContract.multiTransfer(recipients, amounts, {
+          gasLimit: 3800000 // Same gas limit as Noice
+        });
+        
+        console.log(`⏳ Transaction submitted: ${tx.hash}`);
+        const receipt = await tx.wait();
+        
+        console.log(`✅ Batch transfer successful: ${tips.length} tips in 1 transaction`);
+        console.log(`   📊 Gas used: ${receipt.gasUsed.toString()}`);
+        console.log(`   💰 Transaction hash: ${tx.hash}`);
 
         // Update all user spending
         for (const tip of tips) {
@@ -203,10 +211,9 @@ class BatchProcessor {
         }
 
         processed = tips.length;
-        console.log(`✅ Batch transfer successful: ${tips.length} tips in 1 transaction (${tx.hash})`);
 
-      } catch (batchError) {
-        console.log('⚠️ Batch transfer not supported, trying individual transfers...');
+      } catch (multiTransferError) {
+        console.log('⚠️ multiTransfer not supported, trying individual transfers...');
         
         // Fallback to individual transfers
         for (const tip of tips) {
