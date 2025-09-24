@@ -10,7 +10,7 @@ export const usePIT = () => {
   const { data: userConfig } = useContractRead({
     address: CONTRACTS.PitTipping.address as `0x${string}`,
     abi: CONTRACTS.PitTipping.abi,
-    functionName: 'userConfigs',
+    functionName: 'creatorConfigs',
     args: address ? [address] : undefined,
     enabled: !!address,
   });
@@ -19,7 +19,7 @@ export const usePIT = () => {
   const { data: availableBalance } = useContractRead({
     address: CONTRACTS.PitTipping.address as `0x${string}`,
     abi: CONTRACTS.PitTipping.abi,
-    functionName: 'getUserAvailableBalance',
+    functionName: 'getCreatorAvailableBalance',
     args: address ? [address] : undefined,
     enabled: !!address,
   });
@@ -44,7 +44,7 @@ export const usePIT = () => {
   const { config: setConfigPrepare } = usePrepareContractWrite({
     address: CONTRACTS.PitTipping.address as `0x${string}`,
     abi: CONTRACTS.PitTipping.abi,
-    functionName: 'setTippingConfig',
+    functionName: 'setRewardConfig',
   });
 
   const { write: setTippingConfig, isLoading: isSettingConfig } = useContractWrite(setConfigPrepare);
@@ -104,7 +104,7 @@ export const usePIT = () => {
       token: availableBalance[0],
       balance: availableBalance[1],
       allowance: availableBalance[2],
-      availableToTip: availableBalance[3],
+      availableToReward: availableBalance[3],
     } : null,
     tokenBalance,
     tokenAllowance,
@@ -125,7 +125,7 @@ export const useHomepageData = () => {
   const { data } = useContractRead({
     address: CONTRACTS.PitTipping.address as `0x${string}`,
     abi: CONTRACTS.PitTipping.abi,
-    functionName: 'getUsersByLikeAmount',
+    functionName: 'getTopUsersByTipsReceived',
     args: [0, 20], // Get top 20 users
   });
 
@@ -139,7 +139,7 @@ export const useLeaderboardData = () => {
   const { data } = useContractRead({
     address: CONTRACTS.PitTipping.address as `0x${string}`,
     abi: CONTRACTS.PitTipping.abi,
-    functionName: 'getLeaderboard',
+    functionName: 'getTopUsersByTipsGiven',
     args: [0, 20], // Get top 20 tippers
   });
 

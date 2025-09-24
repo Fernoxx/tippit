@@ -217,7 +217,7 @@ export default function Settings() {
               <div>
                 <p className="text-sm text-gray-600">Available to Tip</p>
                 <p className="text-lg font-bold text-green-600">
-                  {formatAmount(availableBalance.availableToTip)}
+                  {formatAmount(availableBalance.availableToReward)}
                 </p>
               </div>
               <div>

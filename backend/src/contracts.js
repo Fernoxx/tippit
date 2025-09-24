@@ -12,7 +12,7 @@ const PITTIPPING_ABI = [
       { "internalType": "uint256", "name": "_followAmount", "type": "uint256" },
       { "internalType": "uint256", "name": "_spendingLimit", "type": "uint256" }
     ],
-    "name": "setTippingConfig",
+    "name": "setRewardConfig",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -45,7 +45,7 @@ const PITTIPPING_ABI = [
   },
   {
     "inputs": [{ "internalType": "address", "name": "_user", "type": "address" }],
-    "name": "userConfigs",
+    "name": "creatorConfigs",
     "outputs": [
       { "internalType": "address", "name": "token", "type": "address" },
       { "internalType": "uint256", "name": "likeAmount", "type": "uint256" },
@@ -62,12 +62,12 @@ const PITTIPPING_ABI = [
   },
   {
     "inputs": [{ "internalType": "address", "name": "_user", "type": "address" }],
-    "name": "getUserAvailableBalance",
+    "name": "getCreatorAvailableBalance",
     "outputs": [
       { "internalType": "address", "name": "token", "type": "address" },
       { "internalType": "uint256", "name": "balance", "type": "uint256" },
       { "internalType": "uint256", "name": "allowance", "type": "uint256" },
-      { "internalType": "uint256", "name": "availableToTip", "type": "uint256" }
+      { "internalType": "uint256", "name": "availableToReward", "type": "uint256" }
     ],
     "stateMutability": "view",
     "type": "function"
@@ -77,7 +77,7 @@ const PITTIPPING_ABI = [
       { "internalType": "uint256", "name": "offset", "type": "uint256" },
       { "internalType": "uint256", "name": "limit", "type": "uint256" }
     ],
-    "name": "getUsersByLikeAmount",
+    "name": "getTopUsersByTipsReceived",
     "outputs": [
       { "internalType": "address[]", "name": "users", "type": "address[]" },
       { "internalType": "uint256[]", "name": "amounts", "type": "uint256[]" }
@@ -90,7 +90,7 @@ const PITTIPPING_ABI = [
       { "internalType": "uint256", "name": "offset", "type": "uint256" },
       { "internalType": "uint256", "name": "limit", "type": "uint256" }
     ],
-    "name": "getLeaderboard",
+    "name": "getTopUsersByTipsGiven",
     "outputs": [
       { "internalType": "address[]", "name": "users", "type": "address[]" },
       { "internalType": "uint256[]", "name": "amounts", "type": "uint256[]" }
