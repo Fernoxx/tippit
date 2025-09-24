@@ -1,0 +1,20 @@
+{
+  "name": "ecion-backend",
+  "version": "1.0.0",
+  "description": "Ecion Backend - Backend-only tipping system like Noice",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ethers": "^6.7.1",
+    "node-cron": "^3.0.2",
+    "crypto": "^1.0.1",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
