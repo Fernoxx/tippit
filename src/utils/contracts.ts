@@ -11,7 +11,13 @@ export const CONTRACTS = {
           { "internalType": "uint256", "name": "_quoteAmount", "type": "uint256" },
           { "internalType": "uint256", "name": "_followAmount", "type": "uint256" },
           { "internalType": "uint256", "name": "_spendingLimit", "type": "uint256" },
-          { "internalType": "uint8", "name": "_audience", "type": "uint8" }
+          { "internalType": "uint8", "name": "_audience", "type": "uint8" },
+          { "internalType": "uint256", "name": "_minFollowerCount", "type": "uint256" },
+          { "internalType": "bool", "name": "_likeEnabled", "type": "bool" },
+          { "internalType": "bool", "name": "_replyEnabled", "type": "bool" },
+          { "internalType": "bool", "name": "_recastEnabled", "type": "bool" },
+          { "internalType": "bool", "name": "_quoteEnabled", "type": "bool" },
+          { "internalType": "bool", "name": "_followEnabled", "type": "bool" }
         ],
         "name": "setRewardConfig",
         "outputs": [],
@@ -83,6 +89,12 @@ export const CONTRACTS = {
           { "internalType": "uint256", "name": "spendingLimit", "type": "uint256" },
           { "internalType": "uint256", "name": "totalSpent", "type": "uint256" },
           { "internalType": "uint8", "name": "audience", "type": "uint8" },
+          { "internalType": "uint256", "name": "minFollowerCount", "type": "uint256" },
+          { "internalType": "bool", "name": "likeEnabled", "type": "bool" },
+          { "internalType": "bool", "name": "replyEnabled", "type": "bool" },
+          { "internalType": "bool", "name": "recastEnabled", "type": "bool" },
+          { "internalType": "bool", "name": "quoteEnabled", "type": "bool" },
+          { "internalType": "bool", "name": "followEnabled", "type": "bool" },
           { "internalType": "bool", "name": "isActive", "type": "bool" }
         ],
         "stateMutability": "view",

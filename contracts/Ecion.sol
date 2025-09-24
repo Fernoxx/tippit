@@ -41,6 +41,12 @@ contract Ecion {
         uint256 spendingLimit; // Maximum tokens they can spend in total
         uint256 totalSpent;    // Tokens already spent
         TippingAudience audience; // Who can receive tips
+        uint256 minFollowerCount; // Minimum followers required for engager
+        bool likeEnabled;      // Whether likes are enabled
+        bool replyEnabled;     // Whether replies are enabled
+        bool recastEnabled;    // Whether recasts are enabled
+        bool quoteEnabled;     // Whether quotes are enabled
+        bool followEnabled;    // Whether follows are enabled
         bool isActive;         // Whether rewards are enabled
     }
 
@@ -81,7 +87,13 @@ contract Ecion {
         uint256 quoteAmount,
         uint256 followAmount,
         uint256 spendingLimit,
-        TippingAudience audience
+        TippingAudience audience,
+        uint256 minFollowerCount,
+        bool likeEnabled,
+        bool replyEnabled,
+        bool recastEnabled,
+        bool quoteEnabled,
+        bool followEnabled
     );
     event TipSent(
         address indexed from,
@@ -134,7 +146,13 @@ contract Ecion {
         uint256 _quoteAmount,     // Tokens to reward for quotes
         uint256 _followAmount,    // Tokens to reward for follows
         uint256 _spendingLimit,   // Maximum tokens they can spend in total
-        TippingAudience _audience // Who can receive tips
+        TippingAudience _audience, // Who can receive tips
+        uint256 _minFollowerCount, // Minimum followers required for engager
+        bool _likeEnabled,        // Whether likes are enabled
+        bool _replyEnabled,       // Whether replies are enabled
+        bool _recastEnabled,      // Whether recasts are enabled
+        bool _quoteEnabled,       // Whether quotes are enabled
+        bool _followEnabled       // Whether follows are enabled
     ) external {
         require(_token != address(0), "Invalid token address");
         require(_spendingLimit > 0, "Spending limit must be > 0");
@@ -148,6 +166,12 @@ contract Ecion {
         config.followAmount = _followAmount;
         config.spendingLimit = _spendingLimit;
         config.audience = _audience;
+        config.minFollowerCount = _minFollowerCount;
+        config.likeEnabled = _likeEnabled;
+        config.replyEnabled = _replyEnabled;
+        config.recastEnabled = _recastEnabled;
+        config.quoteEnabled = _quoteEnabled;
+        config.followEnabled = _followEnabled;
         config.isActive = true;
 
         if (!isActiveUser[msg.sender]) {
@@ -164,7 +188,13 @@ contract Ecion {
             _quoteAmount,
             _followAmount,
             _spendingLimit,
-            _audience
+            _audience,
+            _minFollowerCount,
+            _likeEnabled,
+            _replyEnabled,
+            _recastEnabled,
+            _quoteEnabled,
+            _followEnabled
         );
     }
 
@@ -207,6 +237,7 @@ contract Ecion {
         // Get token amount to reward for this action
         uint256 rewardAmount = getRewardAmount(config, _actionType);
         require(rewardAmount > 0, "No reward amount set for action");
+        require(isActionEnabled(config, _actionType), "Action type not enabled");
         
         // Check if within spending limit
         require(config.totalSpent + rewardAmount <= config.spendingLimit, "Spending limit reached");
@@ -297,7 +328,7 @@ contract Ecion {
         if (!config.isActive) return false;
         
         uint256 rewardAmount = getRewardAmount(config, _actionType);
-        if (rewardAmount == 0 || config.totalSpent + rewardAmount > config.spendingLimit) return false;
+        if (rewardAmount == 0 || !isActionEnabled(config, _actionType) || config.totalSpent + rewardAmount > config.spendingLimit) return false;
         
         IERC20 token = IERC20(config.token);
         if (token.allowance(_postAuthor, address(this)) < rewardAmount || token.balanceOf(_postAuthor) < rewardAmount) return false;
@@ -352,6 +383,28 @@ contract Ecion {
     }
 
     /**
+     * @dev Check if action type is enabled
+     */
+    function isActionEnabled(RewardConfig memory config, string memory actionType) 
+        internal 
+        pure 
+        returns (bool) 
+    {
+        if (keccak256(abi.encodePacked(actionType)) == keccak256(abi.encodePacked("like"))) {
+            return config.likeEnabled;
+        } else if (keccak256(abi.encodePacked(actionType)) == keccak256(abi.encodePacked("reply"))) {
+            return config.replyEnabled;
+        } else if (keccak256(abi.encodePacked(actionType)) == keccak256(abi.encodePacked("recast"))) {
+            return config.recastEnabled;
+        } else if (keccak256(abi.encodePacked(actionType)) == keccak256(abi.encodePacked("quote"))) {
+            return config.quoteEnabled;
+        } else if (keccak256(abi.encodePacked(actionType)) == keccak256(abi.encodePacked("follow"))) {
+            return config.followEnabled;
+        }
+        return false;
+    }
+
+    /**
      * @dev Get creator's reward configuration
      */
     function getCreatorConfig(address _user) 
@@ -367,6 +420,12 @@ contract Ecion {
             uint256 spendingLimit,
             uint256 totalSpent,
             TippingAudience audience,
+            uint256 minFollowerCount,
+            bool likeEnabled,
+            bool replyEnabled,
+            bool recastEnabled,
+            bool quoteEnabled,
+            bool followEnabled,
             bool isActive
         ) 
     {
@@ -381,6 +440,12 @@ contract Ecion {
             config.spendingLimit,
             config.totalSpent,
             config.audience,
+            config.minFollowerCount,
+            config.likeEnabled,
+            config.replyEnabled,
+            config.recastEnabled,
+            config.quoteEnabled,
+            config.followEnabled,
             config.isActive
         );
     }
