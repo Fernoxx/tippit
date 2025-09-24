@@ -1,6 +1,66 @@
 const { ethers } = require('ethers');
 const { contracts } = require('./contracts');
 
+// Helper function to check if action is enabled
+function isActionEnabled(config, actionType) {
+  switch (actionType) {
+    case 'like': return config.likeEnabled;
+    case 'reply': return config.replyEnabled;
+    case 'recast': return config.recastEnabled;
+    case 'quote': return config.quoteEnabled;
+    case 'follow': return config.followEnabled;
+    default: return false;
+  }
+}
+
+// Helper function to get follower count from Neynar API
+async function getFollowerCount(fid) {
+  try {
+    const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`, {
+      headers: {
+        'api_key': process.env.NEYNAR_API_KEY,
+      },
+    });
+    
+    const data = await response.json();
+    if (data.users && data.users[0]) {
+      return data.users[0].follower_count || 0;
+    }
+    return 0;
+  } catch (error) {
+    console.error('Error fetching follower count:', error);
+    return 0;
+  }
+}
+
+// Helper function to check audience criteria
+async function checkAudienceCriteria(authorFid, interactorFid, audience) {
+  try {
+    if (audience === 2) { // Anyone
+      return true;
+    }
+    
+    const response = await fetch(`https://api.neynar.com/v2/farcaster/follows?fid=${authorFid}`, {
+      headers: {
+        'api_key': process.env.NEYNAR_API_KEY,
+      },
+    });
+    
+    const data = await response.json();
+    
+    if (audience === 0) { // Following - check if interactor is in author's following
+      return data.following?.some(user => user.fid === interactorFid) || false;
+    } else if (audience === 1) { // Followers - check if interactor is in author's followers
+      return data.followers?.some(user => user.fid === interactorFid) || false;
+    }
+    
+    return false;
+  } catch (error) {
+    console.error('Error checking audience criteria:', error);
+    return false;
+  }
+}
+
 class BatchProcessor {
   constructor() {
     this.pendingInteractions = [];
@@ -70,17 +130,63 @@ class BatchProcessor {
     let failed = 0;
 
     try {
-      // Prepare batch data
-      const postAuthors = batch.map(i => i.authorAddress);
-      const interactors = batch.map(i => i.interactorAddress);
-      const actionTypes = batch.map(i => i.interactionType);
-      const castHashes = batch.map(i => i.castHash || '0x0000000000000000000000000000000000000000000000000000000000000000');
-      const interactionHashes = batch.map(i => i.interactionHash);
+      // Validate interactions before processing
+      const validInteractions = [];
+      
+      for (const interaction of batch) {
+        try {
+          // Check if author has active config
+          const authorConfig = await contracts.ecion.creatorConfigs(interaction.authorAddress);
+          if (!authorConfig.isActive) {
+            console.log(`Author ${interaction.authorAddress} does not have active config`);
+            continue;
+          }
 
-      console.log(`📤 Sending batch to contract: ${batch.length} interactions`);
+          // Check if action type is enabled
+          if (!isActionEnabled(authorConfig, interaction.interactionType)) {
+            console.log(`Action type ${interaction.interactionType} is not enabled for author ${interaction.authorAddress}`);
+            continue;
+          }
+
+          // Check follower count requirement
+          const followerCount = await getFollowerCount(interaction.interactorFid);
+          if (followerCount < authorConfig.minFollowerCount) {
+            console.log(`Interactor ${interaction.interactorFid} has ${followerCount} followers, required: ${authorConfig.minFollowerCount}`);
+            continue;
+          }
+
+          // Check audience criteria
+          const meetsAudienceCriteria = await checkAudienceCriteria(interaction.authorFid, interaction.interactorFid, authorConfig.audience);
+          if (!meetsAudienceCriteria) {
+            console.log(`Interactor ${interaction.interactorFid} does not meet audience criteria for author ${interaction.authorFid}`);
+            continue;
+          }
+
+          validInteractions.push(interaction);
+        } catch (error) {
+          console.error(`Error validating interaction:`, error);
+          continue;
+        }
+      }
+
+      if (validInteractions.length === 0) {
+        console.log('❌ No valid interactions to process');
+        return { processed: 0, failed: batch.length };
+      }
+
+      console.log(`✅ Validated ${validInteractions.length}/${batch.length} interactions`);
+
+      // Prepare batch data
+      const postAuthors = validInteractions.map(i => i.authorAddress);
+      const interactors = validInteractions.map(i => i.interactorAddress);
+      const actionTypes = validInteractions.map(i => i.interactionType);
+      const castHashes = validInteractions.map(i => i.castHash || '0x0000000000000000000000000000000000000000000000000000000000000000');
+      const interactionHashes = validInteractions.map(i => i.interactionHash);
+
+      console.log(`📤 Sending batch to contract: ${validInteractions.length} interactions`);
       
       // Call contract batch function
-      const tx = await contracts.pitTipping.batchProcessTips(
+      const tx = await contracts.ecion.batchProcessTips(
         postAuthors,
         interactors,
         actionTypes,
@@ -97,12 +203,12 @@ class BatchProcessor {
       const gasCost = (BigInt(gasUsed) * BigInt(gasPrice)) / BigInt(10**18);
       
       console.log(`✅ Batch processed successfully!`);
-      console.log(`   📊 Interactions: ${batch.length}`);
+      console.log(`   📊 Interactions: ${validInteractions.length}`);
       console.log(`   ⛽ Gas used: ${gasUsed}`);
       console.log(`   💰 Gas cost: ${gasCost.toString()} ETH (~$${parseFloat(gasCost.toString()) * 3000})`);
-      console.log(`   💸 Cost per tip: ~$${parseFloat(gasCost.toString()) * 3000 / batch.length}`);
+      console.log(`   💸 Cost per tip: ~$${parseFloat(gasCost.toString()) * 3000 / validInteractions.length}`);
       
-      processed = batch.length;
+      processed = validInteractions.length;
       
     } catch (error) {
       console.error('❌ Batch processing failed:', error);
@@ -110,9 +216,9 @@ class BatchProcessor {
       // Try individual processing as fallback
       console.log('🔄 Attempting individual processing as fallback...');
       
-      for (const interaction of batch) {
+      for (const interaction of validInteractions) {
         try {
-          const tx = await contracts.pitTipping.processTip(
+          const tx = await contracts.ecion.processTip(
             interaction.authorAddress,
             interaction.interactorAddress,
             interaction.interactionType,
