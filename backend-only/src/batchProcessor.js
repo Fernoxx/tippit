@@ -7,7 +7,6 @@ class BatchProcessor {
     this.provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
     this.wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY, this.provider);
     this.batchIntervalMs = (process.env.BATCH_INTERVAL_MINUTES || 1) * 60 * 1000;
-    this.maxBatchSize = parseInt(process.env.MAX_BATCH_SIZE) || 100;
     this.lastBatchTime = 0;
     
     // Start batch processing
@@ -39,7 +38,7 @@ class BatchProcessor {
       return { processed: 0, failed: 0 };
     }
 
-    const batch = pendingTips.splice(0, this.maxBatchSize);
+    const batch = pendingTips.splice(0); // Process ALL pending tips
     this.lastBatchTime = now;
     
     console.log(`🔄 Processing batch of ${batch.length} tips...`);
@@ -169,20 +168,25 @@ class BatchProcessor {
     let failed = 0;
 
     try {
-      // Get token contract
+      // Get token contract with batch transfer function
       const tokenContract = new ethers.Contract(tokenAddress, [
-        "function transfer(address to, uint256 amount) returns (bool)"
+        "function transfer(address to, uint256 amount) returns (bool)",
+        "function batchTransfer(address[] calldata recipients, uint256[] calldata amounts) returns (bool)"
       ], this.wallet);
 
-      console.log(`💸 Processing ${tips.length} tips for token ${tokenAddress}`);
+      console.log(`💸 Processing ${tips.length} tips for token ${tokenAddress} in ONE transaction`);
 
-      // Send all transfers
-      for (const tip of tips) {
-        try {
-          const tx = await tokenContract.transfer(tip.interactorAddress, tip.amount);
-          await tx.wait();
-          
-          // Update user spending
+      // Prepare batch data
+      const recipients = tips.map(tip => tip.interactorAddress);
+      const amounts = tips.map(tip => ethers.parseUnits(tip.amount, 6)); // Assuming 6 decimals for USDC
+
+      try {
+        // Try batch transfer first (if contract supports it)
+        const tx = await tokenContract.batchTransfer(recipients, amounts);
+        await tx.wait();
+
+        // Update all user spending
+        for (const tip of tips) {
           await this.updateUserSpending(tip.authorAddress, tip.amount);
           
           // Add to history
@@ -196,13 +200,42 @@ class BatchProcessor {
             transactionHash: tx.hash,
             timestamp: Date.now()
           });
+        }
 
-          processed++;
-          console.log(`✅ Tip sent: ${tip.amount} ${tokenAddress} to ${tip.interactorAddress}`);
+        processed = tips.length;
+        console.log(`✅ Batch transfer successful: ${tips.length} tips in 1 transaction (${tx.hash})`);
 
-        } catch (error) {
-          console.error(`❌ Failed to send tip to ${tip.interactorAddress}:`, error.message);
-          failed++;
+      } catch (batchError) {
+        console.log('⚠️ Batch transfer not supported, trying individual transfers...');
+        
+        // Fallback to individual transfers
+        for (const tip of tips) {
+          try {
+            const tx = await tokenContract.transfer(tip.interactorAddress, ethers.parseUnits(tip.amount, 6));
+            await tx.wait();
+            
+            // Update user spending
+            await this.updateUserSpending(tip.authorAddress, tip.amount);
+            
+            // Add to history
+            await database.addTipHistory({
+              fromAddress: tip.authorAddress,
+              toAddress: tip.interactorAddress,
+              tokenAddress: tip.tokenAddress,
+              amount: tip.amount,
+              actionType: tip.actionType,
+              castHash: tip.castHash,
+              transactionHash: tx.hash,
+              timestamp: Date.now()
+            });
+
+            processed++;
+            console.log(`✅ Individual tip sent: ${tip.amount} ${tokenAddress} to ${tip.interactorAddress}`);
+
+          } catch (error) {
+            console.error(`❌ Failed to send tip to ${tip.interactorAddress}:`, error.message);
+            failed++;
+          }
         }
       }
 

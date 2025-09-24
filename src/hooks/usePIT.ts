@@ -1,7 +1,6 @@
-import { useContractRead, useContractWrite, usePrepareContractWrite, useBalance } from 'wagmi';
-import { CONTRACTS, formatAmount } from '@/utils/contracts';
+import { useBalance } from 'wagmi';
 import { useAccount } from 'wagmi';
-import { parseUnits } from 'viem';
+import { useState, useEffect } from 'react';
 
 export const usePIT = () => {
   const { address } = useAccount();
