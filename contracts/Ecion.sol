@@ -2,7 +2,7 @@
 pragma solidity 0.6.12;
 
 /**
- * @title PitTipping
+ * @title Ecion
  * @dev Engagement Rewards Contract - Post authors reward users who interact with their content
  * Based on Noice contract structure but ENGAGERS get rewards (not creators)
  * Built for Base network with support for any ERC20 token microtransactions
@@ -10,17 +10,26 @@ pragma solidity 0.6.12;
  * REWARD FLOW (Different from Noice):
  * 1. Content creator sets token allowance to this contract (any Base token)
  * 2. Creator configures reward amounts (like: 1 token, reply: 2 tokens, etc.)
- * 3. When someone likes/recasts/replies to their post → ENGAGER gets rewarded tokens
- * 4. Backend verifies interaction via Neynar webhook
- * 5. Backend batches all interactions for 1 minute
- * 6. After 1 minute, all engagers get their rewards in ONE transaction
+ * 3. Creator sets tipping audience: Following, Followers, or Anyone
+ * 4. When someone likes/recasts/replies to their post → ENGAGER gets rewarded tokens
+ * 5. Backend verifies interaction via Neynar webhook and checks audience eligibility
+ * 6. Backend batches all interactions for 1 minute
+ * 7. After 1 minute, all eligible engagers get their rewards in ONE transaction
  * 
  * Key Difference: In Noice, creators get rewarded. Here, ENGAGERS get rewarded.
+ * New Feature: Tipping audience control (Following/Followers/Anyone)
  */
-contract PitTipping {
+contract Ecion {
     // Owner
     address public owner;
     
+    // Enum for tipping audience
+    enum TippingAudience {
+        Following,  // Only users that the caster follows can get tips
+        Followers,  // Only users that follow the caster can get tips
+        Anyone      // Anyone can get tips (must be Farcaster user)
+    }
+
     // Struct to store creator's reward configuration
     struct RewardConfig {
         address token; // Any ERC20 token address (USDC, ETH, DAI, etc.)
@@ -31,6 +40,7 @@ contract PitTipping {
         uint256 followAmount;  // Token reward for follows received
         uint256 spendingLimit; // Maximum tokens they can spend in total
         uint256 totalSpent;    // Tokens already spent
+        TippingAudience audience; // Who can receive tips
         bool isActive;         // Whether rewards are enabled
     }
 
@@ -70,7 +80,8 @@ contract PitTipping {
         uint256 recastAmount,
         uint256 quoteAmount,
         uint256 followAmount,
-        uint256 spendingLimit
+        uint256 spendingLimit,
+        TippingAudience audience
     );
     event TipSent(
         address indexed from,
@@ -122,7 +133,8 @@ contract PitTipping {
         uint256 _recastAmount,    // Tokens to reward for recasts
         uint256 _quoteAmount,     // Tokens to reward for quotes
         uint256 _followAmount,    // Tokens to reward for follows
-        uint256 _spendingLimit    // Maximum tokens they can spend in total
+        uint256 _spendingLimit,   // Maximum tokens they can spend in total
+        TippingAudience _audience // Who can receive tips
     ) external {
         require(_token != address(0), "Invalid token address");
         require(_spendingLimit > 0, "Spending limit must be > 0");
@@ -135,6 +147,7 @@ contract PitTipping {
         config.quoteAmount = _quoteAmount;
         config.followAmount = _followAmount;
         config.spendingLimit = _spendingLimit;
+        config.audience = _audience;
         config.isActive = true;
 
         if (!isActiveUser[msg.sender]) {
@@ -150,7 +163,8 @@ contract PitTipping {
             _recastAmount,
             _quoteAmount,
             _followAmount,
-            _spendingLimit
+            _spendingLimit,
+            _audience
         );
     }
 
@@ -352,6 +366,7 @@ contract PitTipping {
             uint256 followAmount,
             uint256 spendingLimit,
             uint256 totalSpent,
+            TippingAudience audience,
             bool isActive
         ) 
     {
@@ -365,6 +380,7 @@ contract PitTipping {
             config.followAmount,
             config.spendingLimit,
             config.totalSpent,
+            config.audience,
             config.isActive
         );
     }

@@ -8,8 +8,8 @@ export const usePIT = () => {
 
   // Read user config
   const { data: userConfig } = useContractRead({
-    address: CONTRACTS.PitTipping.address as `0x${string}`,
-    abi: CONTRACTS.PitTipping.abi,
+    address: CONTRACTS.Ecion.address as `0x${string}`,
+    abi: CONTRACTS.Ecion.abi,
     functionName: 'creatorConfigs',
     args: address ? [address] : undefined,
     enabled: !!address,
@@ -17,8 +17,8 @@ export const usePIT = () => {
 
   // Read user available balance (includes allowance check)
   const { data: availableBalance } = useContractRead({
-    address: CONTRACTS.PitTipping.address as `0x${string}`,
-    abi: CONTRACTS.PitTipping.abi,
+    address: CONTRACTS.Ecion.address as `0x${string}`,
+    abi: CONTRACTS.Ecion.abi,
     functionName: 'getCreatorAvailableBalance',
     args: address ? [address] : undefined,
     enabled: !!address,
@@ -36,14 +36,14 @@ export const usePIT = () => {
     address: userConfig?.[0] as `0x${string}`,
     abi: CONTRACTS.USDC.abi,
     functionName: 'allowance',
-    args: address && userConfig ? [address, CONTRACTS.PitTipping.address] : undefined,
+    args: address && userConfig ? [address, CONTRACTS.Ecion.address] : undefined,
     enabled: !!address && !!userConfig?.[0],
   });
 
   // Set tipping config
   const { config: setConfigPrepare } = usePrepareContractWrite({
-    address: CONTRACTS.PitTipping.address as `0x${string}`,
-    abi: CONTRACTS.PitTipping.abi,
+    address: CONTRACTS.Ecion.address as `0x${string}`,
+    abi: CONTRACTS.Ecion.abi,
     functionName: 'setRewardConfig',
   });
 
@@ -64,7 +64,7 @@ export const usePIT = () => {
     address: userConfig?.[0] as `0x${string}`,
     abi: CONTRACTS.USDC.abi,
     functionName: 'approve',
-    args: [CONTRACTS.PitTipping.address, 0n], // Set allowance to 0
+    args: [CONTRACTS.Ecion.address, 0n], // Set allowance to 0
     enabled: !!userConfig?.[0],
   });
 
@@ -72,8 +72,8 @@ export const usePIT = () => {
 
   // Update spending limit
   const { config: updateLimitPrepare } = usePrepareContractWrite({
-    address: CONTRACTS.PitTipping.address as `0x${string}`,
-    abi: CONTRACTS.PitTipping.abi,
+    address: CONTRACTS.Ecion.address as `0x${string}`,
+    abi: CONTRACTS.Ecion.abi,
     functionName: 'updateSpendingLimit',
   });
 
@@ -81,8 +81,8 @@ export const usePIT = () => {
 
   // Revoke config
   const { config: revokePrepare } = usePrepareContractWrite({
-    address: CONTRACTS.PitTipping.address as `0x${string}`,
-    abi: CONTRACTS.PitTipping.abi,
+    address: CONTRACTS.Ecion.address as `0x${string}`,
+    abi: CONTRACTS.Ecion.abi,
     functionName: 'revokeConfig',
   });
 
@@ -98,7 +98,8 @@ export const usePIT = () => {
       followAmount: userConfig[5],
       spendingLimit: userConfig[6],
       totalSpent: userConfig[7],
-      isActive: userConfig[8],
+      audience: userConfig[8],
+      isActive: userConfig[9],
     } : null,
     availableBalance: availableBalance ? {
       token: availableBalance[0],
@@ -123,8 +124,8 @@ export const usePIT = () => {
 
 export const useHomepageData = () => {
   const { data } = useContractRead({
-    address: CONTRACTS.PitTipping.address as `0x${string}`,
-    abi: CONTRACTS.PitTipping.abi,
+    address: CONTRACTS.Ecion.address as `0x${string}`,
+    abi: CONTRACTS.Ecion.abi,
     functionName: 'getTopUsersByTipsReceived',
     args: [0, 20], // Get top 20 users
   });
@@ -137,8 +138,8 @@ export const useHomepageData = () => {
 
 export const useLeaderboardData = () => {
   const { data } = useContractRead({
-    address: CONTRACTS.PitTipping.address as `0x${string}`,
-    abi: CONTRACTS.PitTipping.abi,
+    address: CONTRACTS.Ecion.address as `0x${string}`,
+    abi: CONTRACTS.Ecion.abi,
     functionName: 'getTopUsersByTipsGiven',
     args: [0, 20], // Get top 20 tippers
   });

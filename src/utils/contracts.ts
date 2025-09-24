@@ -1,5 +1,5 @@
 export const CONTRACTS = {
-  PitTipping: {
+  Ecion: {
     address: '0x5546973c5b38652db0920bb916fe2bc77d678af4', // Deployed proxy address
     abi: [
       {
@@ -10,7 +10,8 @@ export const CONTRACTS = {
           { "internalType": "uint256", "name": "_recastAmount", "type": "uint256" },
           { "internalType": "uint256", "name": "_quoteAmount", "type": "uint256" },
           { "internalType": "uint256", "name": "_followAmount", "type": "uint256" },
-          { "internalType": "uint256", "name": "_spendingLimit", "type": "uint256" }
+          { "internalType": "uint256", "name": "_spendingLimit", "type": "uint256" },
+          { "internalType": "uint8", "name": "_audience", "type": "uint8" }
         ],
         "name": "setRewardConfig",
         "outputs": [],
@@ -81,6 +82,7 @@ export const CONTRACTS = {
           { "internalType": "uint256", "name": "followAmount", "type": "uint256" },
           { "internalType": "uint256", "name": "spendingLimit", "type": "uint256" },
           { "internalType": "uint256", "name": "totalSpent", "type": "uint256" },
+          { "internalType": "uint8", "name": "audience", "type": "uint8" },
           { "internalType": "bool", "name": "isActive", "type": "bool" }
         ],
         "stateMutability": "view",

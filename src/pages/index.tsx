@@ -1,14 +1,16 @@
 import { motion } from 'framer-motion';
-import { useHomepageData } from '@/hooks/usePIT';
+import { useHomepageData, useLeaderboardData } from '@/hooks/usePIT';
 import { formatAmount, CONTRACTS } from '@/utils/contracts';
-import { Heart, Zap, Users, TrendingUp } from 'lucide-react';
+import { Heart, Zap, Users, TrendingUp, Info } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { useState, useEffect } from 'react';
 
 export default function Home() {
-  const { users, amounts } = useHomepageData();
+  const { users: tipsReceivedUsers, amounts: tipsReceivedAmounts } = useHomepageData();
+  const { users: tipsGivenUsers, amounts: tipsGivenAmounts } = useLeaderboardData();
   const { address } = useAccount();
   const [mounted, setMounted] = useState(false);
+  const [activeTab, setActiveTab] = useState<'following' | 'followers' | 'anyone'>('anyone');
 
   useEffect(() => {
     setMounted(true);
@@ -48,7 +50,7 @@ export default function Home() {
         className="text-center py-12"
       >
         <h1 className="text-5xl md:text-6xl font-bold mb-4">
-          <span className="text-accent">Reverse</span> the Game
+          <span className="text-accent">Ecion</span> - Reverse Tipping
         </h1>
         <p className="text-xl md:text-2xl text-gray-700 mb-8">
           Get tipped for liking posts on Farcaster! 💰

@@ -55,6 +55,7 @@ export default function Settings() {
     quote: '0.25',
     follow: '0.5',
   });
+  const [selectedAudience, setSelectedAudience] = useState(2); // Default to "Anyone" (2)
 
   // Get current token balance
   const { data: currentTokenBalance } = useBalance({
@@ -73,6 +74,7 @@ export default function Settings() {
         quote: formatAmount(userConfig.quoteAmount),
         follow: formatAmount(userConfig.followAmount),
       });
+      setSelectedAudience(userConfig.audience);
     }
   }, [userConfig]);
 
@@ -102,6 +104,7 @@ export default function Settings() {
           parseUnits(tippingAmounts.quote, decimals),
           parseUnits(tippingAmounts.follow, decimals),
           parseUnits(spendingLimit, decimals),
+          selectedAudience,
         ],
       });
       toast.success('Tipping configuration saved!');
@@ -119,7 +122,7 @@ export default function Settings() {
       const amount = parseUnits(allowanceAmount, decimals);
       
       await approveToken?.({
-        args: [CONTRACTS.PitTipping.address, amount],
+        args: [CONTRACTS.Ecion.address, amount],
       });
       toast.success('Allowance approved successfully!');
       setAllowanceAmount('');
@@ -406,6 +409,38 @@ export default function Settings() {
               <p className="text-gray-600 mb-6">
                 Set how much USDC you want to tip for each type of interaction
               </p>
+
+              {/* Audience Selection */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Tipping Audience
+                </label>
+                <div className="space-y-3">
+                  {[
+                    { value: 0, label: 'Following', description: 'Only users you follow can receive tips' },
+                    { value: 1, label: 'Followers', description: 'Only your followers can receive tips' },
+                    { value: 2, label: 'Anyone', description: 'Anyone can receive tips (must be Farcaster user)' }
+                  ].map(({ value, label, description }) => (
+                    <div key={value} className="flex items-start space-x-3">
+                      <input
+                        type="radio"
+                        id={`audience-${value}`}
+                        name="audience"
+                        value={value}
+                        checked={selectedAudience === value}
+                        onChange={(e) => setSelectedAudience(parseInt(e.target.value))}
+                        className="w-4 h-4 text-accent mt-1"
+                      />
+                      <div className="flex-1">
+                        <label htmlFor={`audience-${value}`} className="font-medium text-gray-700">
+                          {label}
+                        </label>
+                        <p className="text-sm text-gray-600">{description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
 
               {/* Tipping amounts form */}
               <div className="space-y-4">
