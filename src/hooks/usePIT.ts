@@ -2,155 +2,110 @@ import { useBalance } from 'wagmi';
 import { useAccount } from 'wagmi';
 import { useState, useEffect } from 'react';
 
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+
 export const usePIT = () => {
   const { address } = useAccount();
-
-  // Read user config
-  const { data: userConfig } = useContractRead({
-    address: CONTRACTS.Ecion.address as `0x${string}`,
-    abi: CONTRACTS.Ecion.abi,
-    functionName: 'creatorConfigs',
-    args: address ? [address] : undefined,
-    enabled: !!address,
-  });
-
-  // Read user available balance (includes allowance check)
-  const { data: availableBalance } = useContractRead({
-    address: CONTRACTS.Ecion.address as `0x${string}`,
-    abi: CONTRACTS.Ecion.abi,
-    functionName: 'getCreatorAvailableBalance',
-    args: address ? [address] : undefined,
-    enabled: !!address,
-  });
+  const [userConfig, setUserConfig] = useState(null);
+  const [tokenBalance, setTokenBalance] = useState(null);
+  const [tokenAllowance, setTokenAllowance] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Get token balance in wallet
-  const { data: tokenBalance } = useBalance({
+  const { data: balanceData } = useBalance({
     address,
-    token: userConfig?.[0] as `0x${string}`,
-    enabled: !!address && !!userConfig?.[0],
+    token: userConfig?.tokenAddress as `0x${string}`,
+    enabled: !!address && !!userConfig?.tokenAddress,
   });
 
-  // Read token allowance
-  const { data: tokenAllowance } = useContractRead({
-    address: userConfig?.[0] as `0x${string}`,
-    abi: CONTRACTS.USDC.abi,
-    functionName: 'allowance',
-    args: address && userConfig ? [address, CONTRACTS.Ecion.address] : undefined,
-    enabled: !!address && !!userConfig?.[0],
-  });
+  useEffect(() => {
+    if (address) {
+      fetchUserConfig();
+    }
+  }, [address]);
 
-  // Set tipping config
-  const { config: setConfigPrepare } = usePrepareContractWrite({
-    address: CONTRACTS.Ecion.address as `0x${string}`,
-    abi: CONTRACTS.Ecion.abi,
-    functionName: 'setRewardConfig',
-  });
+  useEffect(() => {
+    if (balanceData) {
+      setTokenBalance(balanceData);
+    }
+  }, [balanceData]);
 
-  const { write: setTippingConfig, isLoading: isSettingConfig } = useContractWrite(setConfigPrepare);
+  const fetchUserConfig = async () => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/config/${address}`);
+      const data = await response.json();
+      setUserConfig(data.config);
+    } catch (error) {
+      console.error('Error fetching user config:', error);
+    }
+  };
 
-  // Approve token
-  const { config: approvePrepare } = usePrepareContractWrite({
-    address: userConfig?.[0] as `0x${string}`,
-    abi: CONTRACTS.USDC.abi,
-    functionName: 'approve',
-    enabled: !!userConfig?.[0],
-  });
+  const setTippingConfig = async (configData) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: address,
+          config: configData
+        })
+      });
+      
+      if (response.ok) {
+        await fetchUserConfig(); // Refresh config
+      }
+    } catch (error) {
+      console.error('Error setting config:', error);
+    }
+    setIsLoading(false);
+  };
 
-  const { write: approveToken, isLoading: isApproving } = useContractWrite(approvePrepare);
+  const approveToken = async (tokenAddress, amount) => {
+    // This would trigger a wallet transaction to approve tokens to backend wallet
+    // Implementation depends on your wallet integration
+    console.log('Approve token:', tokenAddress, amount);
+  };
 
-  // Revoke token allowance (set to 0)
-  const { config: revokeAllowancePrepare } = usePrepareContractWrite({
-    address: userConfig?.[0] as `0x${string}`,
-    abi: CONTRACTS.USDC.abi,
-    functionName: 'approve',
-    args: [CONTRACTS.Ecion.address, 0n], // Set allowance to 0
-    enabled: !!userConfig?.[0],
-  });
-
-  const { write: revokeTokenAllowance, isLoading: isRevokingAllowance } = useContractWrite(revokeAllowancePrepare);
-
-  // Update spending limit
-  const { config: updateLimitPrepare } = usePrepareContractWrite({
-    address: CONTRACTS.Ecion.address as `0x${string}`,
-    abi: CONTRACTS.Ecion.abi,
-    functionName: 'updateSpendingLimit',
-  });
-
-  const { write: updateSpendingLimit, isLoading: isUpdatingLimit } = useContractWrite(updateLimitPrepare);
-
-  // Revoke config
-  const { config: revokePrepare } = usePrepareContractWrite({
-    address: CONTRACTS.Ecion.address as `0x${string}`,
-    abi: CONTRACTS.Ecion.abi,
-    functionName: 'revokeConfig',
-  });
-
-  const { write: revokeConfig, isLoading: isRevoking } = useContractWrite(revokePrepare);
+  const revokeTokenAllowance = async (tokenAddress) => {
+    // This would trigger a wallet transaction to revoke allowance
+    console.log('Revoke allowance:', tokenAddress);
+  };
 
   return {
-    userConfig: userConfig ? {
-      token: userConfig[0],
-      likeAmount: userConfig[1],
-      replyAmount: userConfig[2],
-      recastAmount: userConfig[3],
-      quoteAmount: userConfig[4],
-      followAmount: userConfig[5],
-      spendingLimit: userConfig[6],
-      totalSpent: userConfig[7],
-      audience: userConfig[8],
-      minFollowerCount: userConfig[9],
-      likeEnabled: userConfig[10],
-      replyEnabled: userConfig[11],
-      recastEnabled: userConfig[12],
-      quoteEnabled: userConfig[13],
-      followEnabled: userConfig[14],
-      isActive: userConfig[15],
-    } : null,
-    availableBalance: availableBalance ? {
-      token: availableBalance[0],
-      balance: availableBalance[1],
-      allowance: availableBalance[2],
-      availableToReward: availableBalance[3],
-    } : null,
+    userConfig,
     tokenBalance,
     tokenAllowance,
     setTippingConfig,
     approveToken,
     revokeTokenAllowance,
-    updateSpendingLimit,
-    revokeConfig,
-    isSettingConfig,
-    isApproving,
-    isRevokingAllowance,
-    isUpdatingLimit,
-    isRevoking,
+    fetchUserConfig,
+    isSettingConfig: isLoading,
+    isApproving: false,
+    isRevokingAllowance: false,
+    isUpdatingLimit: false,
+    isRevoking: false,
   };
 };
 
 export const useHomepageData = () => {
-  const { data } = useContractRead({
-    address: CONTRACTS.Ecion.address as `0x${string}`,
-    abi: CONTRACTS.Ecion.abi,
-    functionName: 'getTopUsersByTipsReceived',
-    args: [0, 20], // Get top 20 users
-  });
+  const [homepageData, setHomepageData] = useState({ users: [], amounts: [] });
 
-  return {
-    users: data?.[0] || [],
-    amounts: data?.[1] || [],
-  };
+  useEffect(() => {
+    // Fetch homepage data from backend
+    // This would be implemented based on your backend endpoints
+  }, []);
+
+  return homepageData;
 };
 
 export const useLeaderboardData = () => {
-  const { data } = useContractRead({
-    address: CONTRACTS.Ecion.address as `0x${string}`,
-    abi: CONTRACTS.Ecion.abi,
-    functionName: 'getTopUsersByTipsGiven',
-    args: [0, 20], // Get top 20 tippers
-  });
+  const [leaderboardData, setLeaderboardData] = useState({ users: [], amounts: [] });
 
-  return {
-    users: data?.[0] || [],
-    amounts: data?.[1] || [],
-  };
+  useEffect(() => {
+    // Fetch leaderboard data from backend
+    // This would be implemented based on your backend endpoints
+  }, []);
+
+  return leaderboardData;
 };

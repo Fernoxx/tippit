@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { usePIT } from '@/hooks/usePIT';
 import { useAccount, useBalance, useContractRead, useContractWrite } from 'wagmi';
-import { CONTRACTS, formatAmount } from '@/utils/contracts';
-import { parseUnits } from 'viem';
+// Removed contract imports - using backend-only system
 import toast from 'react-hot-toast';
 import FarcasterAuth from '@/components/FarcasterAuth';
 import {
@@ -46,7 +45,7 @@ export default function Settings() {
   // Form states
   const [spendingLimit, setSpendingLimitValue] = useState('100');
   const [allowanceAmount, setAllowanceAmount] = useState('');
-  const [selectedToken, setSelectedToken] = useState(CONTRACTS.USDC.address);
+  const [selectedToken, setSelectedToken] = useState('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'); // USDC on Base
   const [customTokenAddress, setCustomTokenAddress] = useState('');
   const [tippingAmounts, setTippingAmounts] = useState({
     like: '0.01',
@@ -68,19 +67,19 @@ export default function Settings() {
   // Get current token balance
   const { data: currentTokenBalance } = useBalance({
     address,
-    token: (userConfig?.token || selectedToken) as `0x${string}`,
+    token: (userConfig?.tokenAddress || selectedToken) as `0x${string}`,
   });
 
   useEffect(() => {
     setMounted(true);
     if (userConfig) {
-      setSpendingLimitValue(formatAmount(userConfig.spendingLimit));
+      setSpendingLimitValue(userConfig.spendingLimit?.toString() || '100');
       setTippingAmounts({
-        like: formatAmount(userConfig.likeAmount),
-        reply: formatAmount(userConfig.replyAmount),
-        recast: formatAmount(userConfig.recastAmount),
-        quote: formatAmount(userConfig.quoteAmount),
-        follow: formatAmount(userConfig.followAmount),
+        like: userConfig.likeAmount?.toString() || '0.01',
+        reply: userConfig.replyAmount?.toString() || '0.025',
+        recast: userConfig.recastAmount?.toString() || '0.025',
+        quote: userConfig.quoteAmount?.toString() || '0.025',
+        follow: userConfig.followAmount?.toString() || '0',
       });
       setActionEnabled({
         like: userConfig.likeEnabled,
@@ -109,25 +108,22 @@ export default function Settings() {
   const handleSaveTippingConfig = async () => {
     try {
       const tokenAddress = selectedToken === 'custom' ? customTokenAddress : selectedToken;
-      const decimals = selectedToken === CONTRACTS.USDC.address ? CONTRACTS.USDC.decimals : 18; // Default to 18 for unknown tokens
       
       await setTippingConfig?.({
-        args: [
-          tokenAddress,
-          parseUnits(tippingAmounts.like, decimals),
-          parseUnits(tippingAmounts.reply, decimals),
-          parseUnits(tippingAmounts.recast, decimals),
-          parseUnits(tippingAmounts.quote, decimals),
-          parseUnits(tippingAmounts.follow, decimals),
-          parseUnits(spendingLimit, decimals),
-          selectedAudience,
-          minFollowerCount,
-          actionEnabled.like,
-          actionEnabled.reply,
-          actionEnabled.recast,
-          actionEnabled.quote,
-          actionEnabled.follow,
-        ],
+        tokenAddress,
+        likeAmount: tippingAmounts.like,
+        replyAmount: tippingAmounts.reply,
+        recastAmount: tippingAmounts.recast,
+        quoteAmount: tippingAmounts.quote,
+        followAmount: tippingAmounts.follow,
+        spendingLimit,
+        audience: selectedAudience,
+        minFollowerCount,
+        likeEnabled: actionEnabled.like,
+        replyEnabled: actionEnabled.reply,
+        recastEnabled: actionEnabled.recast,
+        quoteEnabled: actionEnabled.quote,
+        followEnabled: actionEnabled.follow,
       });
       toast.success('Tipping configuration saved!');
     } catch (error) {
@@ -139,13 +135,9 @@ export default function Settings() {
     if (!allowanceAmount) return;
     
     try {
-      const tokenAddress = userConfig?.token || selectedToken;
-      const decimals = tokenAddress === CONTRACTS.USDC.address ? CONTRACTS.USDC.decimals : 18;
-      const amount = parseUnits(allowanceAmount, decimals);
+      const tokenAddress = selectedToken === 'custom' ? customTokenAddress : selectedToken;
       
-      await approveToken?.({
-        args: [CONTRACTS.Ecion.address, amount],
-      });
+      await approveToken?.(tokenAddress, allowanceAmount);
       toast.success('Allowance approved successfully!');
       setAllowanceAmount('');
     } catch (error) {
@@ -155,8 +147,9 @@ export default function Settings() {
 
   const handleUpdateSpendingLimit = async () => {
     try {
-      await updateSpendingLimit?.({
-        args: [parseUnits(spendingLimit, CONTRACTS.USDC.decimals)],
+      await setTippingConfig?.({
+        ...userConfig,
+        spendingLimit: spendingLimit
       });
       toast.success('Spending limit updated!');
     } catch (error) {
@@ -165,9 +158,10 @@ export default function Settings() {
   };
 
   const handleRevokeTokenAllowance = async () => {
-    if (confirm('Are you sure you want to revoke your token allowance? This will prevent the contract from spending your tokens.')) {
+    if (confirm('Are you sure you want to revoke your token allowance? This will prevent the backend from spending your tokens.')) {
       try {
-        await revokeTokenAllowance?.();
+        const tokenAddress = selectedToken === 'custom' ? customTokenAddress : selectedToken;
+        await revokeTokenAllowance?.(tokenAddress);
         toast.success('Token allowance revoked');
       } catch (error) {
         toast.error('Failed to revoke token allowance');

@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useHomepageData, useLeaderboardData } from '@/hooks/usePIT';
-import { formatAmount, CONTRACTS } from '@/utils/contracts';
+import { formatAmount } from '@/utils/contracts';
 import { Heart, Zap, Users, TrendingUp, Info } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { useState, useEffect } from 'react';

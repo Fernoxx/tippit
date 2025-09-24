@@ -126,7 +126,7 @@ export default async function handler(
       );
       
       // Forward to backend for batch processing
-      const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
       const processResponse = await fetch(
         `${backendUrl}/webhook/neynar`,
         {
