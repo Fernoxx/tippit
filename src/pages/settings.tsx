@@ -503,33 +503,60 @@ export default function Settings() {
               {/* Token Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Token: Paste your token address
+                  Token: Search your token or paste your token address
                 </label>
                 <div className="space-y-3">
-                  <input
-                    type="text"
-                    value={selectedToken === 'custom' ? customTokenAddress : selectedToken}
-                    onChange={(e) => {
-                      if (e.target.value === CONTRACTS.USDC.address) {
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={selectedToken === 'custom' ? customTokenAddress : selectedToken}
+                      onChange={(e) => {
+                        if (e.target.value === CONTRACTS.USDC.address) {
+                          setSelectedToken(CONTRACTS.USDC.address);
+                        } else {
+                          setSelectedToken('custom');
+                          setCustomTokenAddress(e.target.value);
+                        }
+                      }}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-accent focus:outline-none"
+                      placeholder="0x... (Token contract address)"
+                    />
+                    <button
+                      onClick={() => {
                         setSelectedToken(CONTRACTS.USDC.address);
-                      } else {
-                        setSelectedToken('custom');
-                        setCustomTokenAddress(e.target.value);
-                      }
-                    }}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-accent focus:outline-none"
-                    placeholder="0x... (Token contract address)"
-                  />
-                  <button
-                    onClick={() => {
-                      setSelectedToken(CONTRACTS.USDC.address);
-                      setCustomTokenAddress('');
-                    }}
-                    className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    <DollarSign className="w-4 h-4" />
-                    <span>Choose USDC</span>
-                  </button>
+                        setCustomTokenAddress('');
+                      }}
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center space-x-2 px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                    >
+                      <DollarSign className="w-3 h-3" />
+                      <span>USDC</span>
+                    </button>
+                  </div>
+                  
+                  {/* Token Info Display */}
+                  {selectedToken && selectedToken !== 'custom' && (
+                    <div className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg">
+                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                        <DollarSign className="w-4 h-4 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-800">USD Coin</p>
+                        <p className="text-sm text-gray-600">USDC</p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {selectedToken === 'custom' && customTokenAddress && (
+                    <div className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg">
+                      <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                        <span className="text-gray-600 text-xs">TKN</span>
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-800">Custom Token</p>
+                        <p className="text-sm text-gray-600 font-mono">{customTokenAddress.slice(0, 8)}...{customTokenAddress.slice(-6)}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
