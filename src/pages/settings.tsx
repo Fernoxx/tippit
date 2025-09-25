@@ -368,20 +368,6 @@ export default function Settings() {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center"
-      >
-        <div className="flex items-center justify-center mb-4">
-          <SettingsIcon className="w-8 h-8 text-accent mr-3" />
-          <h1 className="text-2xl font-bold text-accent">Settings</h1>
-        </div>
-        <p className="text-xl text-gray-700">
-          Configure your reverse tipping preferences
-        </p>
-      </motion.div>
 
       {/* Farcaster Connection */}
       <FarcasterAuth />
