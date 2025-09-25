@@ -18,27 +18,53 @@ export const useFarcasterMiniapp = () => {
   useEffect(() => {
     const initializeFarcaster = async () => {
       try {
-        // Check if we're in a Farcaster miniapp
-        if (typeof window !== 'undefined' && window.location.search.includes('farcaster')) {
-          setIsMiniapp(true);
+        // Check if we're in a Farcaster miniapp environment
+        if (typeof window !== 'undefined') {
+          // Check for Farcaster miniapp context
+          const isFarcasterMiniapp = window.location.search.includes('farcaster') || 
+                                   window.location.hostname.includes('farcaster') ||
+                                   (window as any).farcaster;
           
-          // Import Farcaster SDK dynamically
-          const { sdk } = await import('@farcaster/miniapp-sdk');
-          
-          // Get user context
-          const context = await sdk.context;
-          
-          // Extract real user data
-          if (context?.user) {
-            setCurrentUser({
-              fid: context.user.fid || 0,           // Real FID (e.g., 242597)
-              username: context.user.username || 'unknown', // Real username (e.g., "ferno")
-              displayName: context.user.displayName || 'Unknown User', // Real name
-              pfpUrl: context.user.pfpUrl || '',     // Profile picture
-              verifiedAddresses: {
-                ethAddresses: (context.user as any).verifiedAddresses?.ethAddresses || []
+          if (isFarcasterMiniapp) {
+            setIsMiniapp(true);
+            
+            try {
+              // Import Farcaster SDK dynamically
+              const { sdk } = await import('@farcaster/miniapp-sdk');
+              
+              // Get user context
+              const context = await sdk.context;
+              
+              // Extract real user data
+              if (context?.user) {
+                setCurrentUser({
+                  fid: context.user.fid || 0,
+                  username: context.user.username || 'unknown',
+                  displayName: context.user.displayName || 'Unknown User',
+                  pfpUrl: context.user.pfpUrl || '',
+                  verifiedAddresses: {
+                    ethAddresses: (context.user as any).verifiedAddresses?.ethAddresses || []
+                  }
+                });
               }
-            });
+            } catch (sdkError) {
+              console.log('Farcaster SDK not available, using fallback');
+              // Fallback: try to get user data from URL params or localStorage
+              const urlParams = new URLSearchParams(window.location.search);
+              const fid = urlParams.get('fid');
+              const username = urlParams.get('username');
+              const displayName = urlParams.get('displayName');
+              
+              if (fid) {
+                setCurrentUser({
+                  fid: parseInt(fid),
+                  username: username || 'unknown',
+                  displayName: displayName || 'Unknown User',
+                  pfpUrl: '',
+                  verifiedAddresses: { ethAddresses: [] }
+                });
+              }
+            }
           }
         }
       } catch (error) {
