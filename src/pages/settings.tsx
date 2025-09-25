@@ -124,6 +124,8 @@ export default function Settings() {
         recastEnabled: actionEnabled.recast,
         quoteEnabled: actionEnabled.quote,
         followEnabled: actionEnabled.follow,
+        isActive: true,
+        totalSpent: userConfig?.totalSpent || '0',
       });
       toast.success('Tipping configuration saved!');
     } catch (error) {
