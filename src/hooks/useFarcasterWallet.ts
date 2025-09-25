@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useConnect, useAccount, useDisconnect } from 'wagmi';
 import toast from 'react-hot-toast';
 
 export const useFarcasterWallet = () => {
@@ -7,15 +6,14 @@ export const useFarcasterWallet = () => {
   const [isInFarcaster, setIsInFarcaster] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [isInitialized, setIsInitialized] = useState(false);
-
-  const { connectAsync, connectors } = useConnect();
-  const { address, isConnected } = useAccount();
-  const { disconnect } = useDisconnect();
+  const [isConnected, setIsConnected] = useState(false);
+  const [address, setAddress] = useState<string | null>(null);
 
   // Initialize Farcaster SDK FIRST - this is critical
   const initFarcaster = async () => {
     try {
       const { sdk } = await import('@farcaster/miniapp-sdk');
+      console.log('Farcaster SDK loaded:', !!sdk);
       
       // Check if we're in a miniapp environment
       const isInMiniApp = await sdk.isInMiniApp();
@@ -24,6 +22,7 @@ export const useFarcasterWallet = () => {
       if (isInMiniApp) {
         // MUST call ready() first to dismiss splash screen
         await sdk.actions.ready();
+        console.log('SDK ready() called');
         
         // Get user context
         const context = await sdk.context;
@@ -32,6 +31,7 @@ export const useFarcasterWallet = () => {
         if (context?.user) {
           setUserProfile(context.user);
           setIsInFarcaster(true);
+          console.log('User profile set:', context.user);
         }
         
         setSdkInstance(sdk);
@@ -64,7 +64,6 @@ export const useFarcasterWallet = () => {
       console.log('Attempting to connect wallet...');
       console.log('isInFarcaster:', isInFarcaster);
       console.log('sdkInstance:', !!sdkInstance);
-      console.log('Available connectors:', connectors.map(c => ({ id: c.id, name: c.name })));
       
       // Check if we're in Farcaster environment
       if (!isInFarcaster || !sdkInstance) {
@@ -73,36 +72,33 @@ export const useFarcasterWallet = () => {
         return;
       }
       
-      // Find the Farcaster connector
-      const farcasterConnector = connectors.find(connector => 
-        connector.id === 'farcasterMiniApp' || 
-        connector.id === 'farcaster' ||
-        connector.name?.includes('Farcaster')
-      );
+      // Use Farcaster SDK signIn action
+      console.log('Calling sdk.actions.signIn...');
+      const signInResult = await sdkInstance.actions.signIn();
+      console.log('Sign in result:', signInResult);
       
-      console.log('Found Farcaster connector:', farcasterConnector);
-      
-      if (!farcasterConnector) {
-        throw new Error('Farcaster connector not found...');
+      if (signInResult && signInResult.address) {
+        setAddress(signInResult.address);
+        setIsConnected(true);
+        toast.success('Wallet connected successfully!');
+        console.log('Wallet connected with address:', signInResult.address);
+      } else {
+        throw new Error('Sign in failed - no address returned');
       }
       
-      // Connect using wagmi connectAsync
-      const result = await connectAsync({ connector: farcasterConnector });
-      
-      toast.success('Wallet connected successfully!');
-      return result;
+      return signInResult;
     } catch (error: any) {
       console.error('Wallet connection failed:', error);
       
       // User-friendly error messages
-      if (error.message?.includes('User rejected')) {
+      if (error.message?.includes('User rejected') || error.message?.includes('cancelled')) {
         toast.error('Connection cancelled by user');
       } else if (error.message?.includes('Farcaster mobile app')) {
         toast.error('Please open this app in Farcaster mobile app');
-      } else if (error.message?.includes('connector not found')) {
-        toast.error('Farcaster wallet not available');
+      } else if (error.message?.includes('Sign in failed')) {
+        toast.error('Failed to sign in with wallet');
       } else {
-        toast.error('Failed to connect wallet');
+        toast.error('Failed to connect wallet: ' + error.message);
       }
       
       throw error;
@@ -111,7 +107,8 @@ export const useFarcasterWallet = () => {
 
   const disconnectWallet = async () => {
     try {
-      await disconnect();
+      setAddress(null);
+      setIsConnected(false);
       toast.success('Wallet disconnected');
     } catch (error) {
       console.error('Disconnect failed:', error);
