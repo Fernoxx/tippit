@@ -40,9 +40,6 @@ export const useFarcasterMiniapp = () => {
               }
             });
           }
-          
-          // Call ready() to hide loading screen
-          await sdk.ready();
         }
       } catch (error) {
         console.error('Farcaster miniapp initialization failed:', error);
