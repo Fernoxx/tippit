@@ -51,25 +51,6 @@ export default function Home() {
           </div>
         )}
         
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <div className="bg-gray-50 rounded-lg p-6 text-center">
-            <div className="text-2xl font-bold text-gray-900 mb-1">{tipsReceivedUsers.length}</div>
-            <div className="text-sm text-gray-600">Active Creators</div>
-          </div>
-          
-          <div className="bg-gray-50 rounded-lg p-6 text-center">
-            <div className="text-2xl font-bold text-gray-900 mb-1">
-              {tipsReceivedAmounts.length > 0 ? formatAmount(tipsReceivedAmounts[0]) : '0'} USDC
-            </div>
-            <div className="text-sm text-gray-600">Top Tip Amount</div>
-          </div>
-          
-          <div className="bg-gray-50 rounded-lg p-6 text-center">
-            <div className="text-2xl font-bold text-gray-900 mb-1">{timeFilter}</div>
-            <div className="text-sm text-gray-600">Time Period</div>
-          </div>
-        </div>
 
         {/* Top Tippers */}
         <div className="mb-12">
