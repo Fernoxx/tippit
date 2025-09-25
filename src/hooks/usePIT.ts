@@ -62,14 +62,31 @@ export const usePIT = () => {
   };
 
   const approveToken = async (tokenAddress, amount) => {
-    // This would trigger a wallet transaction to approve tokens to backend wallet
-    // Implementation depends on your wallet integration
-    console.log('Approve token:', tokenAddress, amount);
+    // This triggers a wallet transaction to approve EXACT amount to backend wallet
+    // Amount should be the exact USDC amount user wants to approve (not unlimited)
+    console.log('Approve EXACT amount:', amount, 'USDC to backend wallet');
+    
+    // In a real implementation, this would:
+    // 1. Open wallet popup
+    // 2. Call token.approve(backendWalletAddress, parseUnits(amount, 6))
+    // 3. Wait for transaction confirmation
+    // 4. Update UI
+    
+    // For now, just log the exact amount
+    console.log(`User approves ${amount} USDC to backend wallet: ${process.env.NEXT_PUBLIC_BACKEND_WALLET_ADDRESS}`);
   };
 
   const revokeTokenAllowance = async (tokenAddress) => {
-    // This would trigger a wallet transaction to revoke allowance
-    console.log('Revoke allowance:', tokenAddress);
+    // This triggers a wallet transaction to revoke allowance (set to 0)
+    console.log('Revoke allowance for token:', tokenAddress);
+    
+    // In a real implementation, this would:
+    // 1. Open wallet popup  
+    // 2. Call token.approve(backendWalletAddress, 0)
+    // 3. Wait for transaction confirmation
+    // 4. Update UI
+    
+    console.log(`User revokes allowance for ${tokenAddress} from backend wallet: ${process.env.NEXT_PUBLIC_BACKEND_WALLET_ADDRESS}`);
   };
 
   return {

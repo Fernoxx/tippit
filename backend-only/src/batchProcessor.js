@@ -143,10 +143,17 @@ class BatchProcessor {
           continue;
         }
 
-        // Check backend has enough tokens
+        // Check backend has enough tokens AND user allowance
         const backendBalance = await this.getBackendTokenBalance(authorConfig.tokenAddress);
+        const userAllowance = await this.getUserTokenAllowance(tip.authorAddress, authorConfig.tokenAddress);
+        
         if (backendBalance < amount) {
           console.log(`Backend has insufficient ${authorConfig.tokenAddress} tokens`);
+          continue;
+        }
+        
+        if (userAllowance < amount) {
+          console.log(`User ${tip.authorAddress} has insufficient allowance: ${userAllowance} < ${amount}`);
           continue;
         }
 
@@ -285,6 +292,20 @@ class BatchProcessor {
       return parseFloat(ethers.formatUnits(balance, 6)); // Assuming 6 decimals for USDC
     } catch (error) {
       console.error('Error getting backend balance:', error);
+      return 0;
+    }
+  }
+
+  async getUserTokenAllowance(userAddress, tokenAddress) {
+    try {
+      const tokenContract = new ethers.Contract(tokenAddress, [
+        "function allowance(address owner, address spender) view returns (uint256)"
+      ], this.provider);
+      
+      const allowance = await tokenContract.allowance(userAddress, this.wallet.address);
+      return parseFloat(ethers.formatUnits(allowance, 6)); // Assuming 6 decimals for USDC
+    } catch (error) {
+      console.error('Error getting user allowance:', error);
       return 0;
     }
   }

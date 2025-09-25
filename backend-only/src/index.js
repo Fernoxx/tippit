@@ -16,8 +16,48 @@ app.use(express.json());
 // Initialize batch processor
 new BatchProcessor();
 
+// Security middleware - verify webhook secret
+app.use('/webhook/neynar', (req, res, next) => {
+  const signature = req.headers['x-neynar-signature'];
+  const secret = process.env.WEBHOOK_SECRET;
+  
+  if (!signature || !secret) {
+    console.log('❌ UNAUTHORIZED: Missing signature or secret');
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  // Verify signature (implement proper HMAC verification)
+  const crypto = require('crypto');
+  const expectedSignature = crypto
+    .createHmac('sha256', secret)
+    .update(JSON.stringify(req.body))
+    .digest('hex');
+  
+  if (signature !== expectedSignature) {
+    console.log('❌ UNAUTHORIZED: Invalid signature');
+    return res.status(401).json({ error: 'Invalid signature' });
+  }
+  
+  console.log('✅ SECURE: Webhook signature verified');
+  next();
+});
+
 // Routes
 app.post('/webhook/neynar', webhookHandler);
+
+// API Key protection middleware
+app.use('/api/*', (req, res, next) => {
+  const apiKey = req.headers['x-api-key'] || req.headers['authorization'];
+  const validApiKey = process.env.INTERNAL_API_KEY;
+  
+  if (!apiKey || !validApiKey || apiKey !== validApiKey) {
+    console.log('❌ UNAUTHORIZED API ACCESS: Invalid API key');
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  console.log('✅ SECURE: API key verified');
+  next();
+});
 
 // User configuration endpoints
 app.post('/api/config', async (req, res) => {
