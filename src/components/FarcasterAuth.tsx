@@ -61,9 +61,9 @@ export default function FarcasterAuth() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              {(displayUser.pfp?.url || displayUser.pfpUrl) ? (
+              {(displayUser as any).pfp?.url || (displayUser as any).pfpUrl ? (
                 <img
-                  src={displayUser.pfp?.url || displayUser.pfpUrl}
+                  src={(displayUser as any).pfp?.url || (displayUser as any).pfpUrl}
                   alt={displayUser.displayName}
                   className="w-12 h-12 rounded-full"
                 />
