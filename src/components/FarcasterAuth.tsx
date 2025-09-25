@@ -13,7 +13,6 @@ export default function FarcasterAuth() {
 
   // Use miniapp user if available, otherwise use Neynar user
   const displayUser = currentUser || user;
-  const isLoading = isLoadingMiniapp || isLoadingNeynar;
 
   // Backend-only system - no contract mapping needed
   // FID mapping is handled automatically by the backend
