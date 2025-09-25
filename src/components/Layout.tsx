@@ -60,28 +60,25 @@ export default function Layout({ children }: LayoutProps) {
   }, [router.pathname]);
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="min-h-screen bg-yellow-50 flex flex-col">
       {/* Header with Logo */}
       <header className="border-b border-gray-100">
         <div className="max-w-4xl mx-auto px-4">
-          <div className="flex justify-center items-center h-16">
-            <div className="flex items-center space-x-3">
-              <Image
-                src="/ecion.png"
-                alt="Ecion Logo"
-                width={32}
-                height={32}
-                className="w-8 h-8"
-              />
-              <span className="text-xl font-semibold text-gray-900">Ecion</span>
-            </div>
+          <div className="flex justify-center items-center h-20">
+            <Image
+              src="/ecion.png"
+              alt="Ecion Logo"
+              width={64}
+              height={64}
+              className="w-16 h-16"
+            />
           </div>
         </div>
       </header>
 
       {/* Main Content with Swipe Support */}
       <main 
-        className="flex-1 overflow-hidden"
+        className="flex-1 overflow-y-auto pb-20"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -89,8 +86,8 @@ export default function Layout({ children }: LayoutProps) {
         {children}
       </main>
 
-      {/* Bottom Navigation */}
-      <nav className="border-t border-gray-100 bg-white">
+      {/* Bottom Navigation - Fixed at bottom */}
+      <nav className="fixed bottom-0 left-0 right-0 border-t border-gray-100 bg-white z-50">
         <div className="max-w-4xl mx-auto px-4">
           <div className="flex items-center justify-around h-16">
             {pages.map((page, index) => {
