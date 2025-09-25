@@ -73,7 +73,7 @@ export default function Home() {
           >
             <Heart className="w-12 h-12 text-accent mx-auto mb-3" />
             <h3 className="text-3xl font-bold text-accent">
-              {amounts.length > 0 ? formatAmount(amounts[0]) : '0'} USDC
+              {tipsReceivedAmounts.length > 0 ? formatAmount(tipsReceivedAmounts[0]) : '0'} USDC
             </h3>
             <p className="text-gray-600">Top Tip per Like</p>
           </motion.div>
@@ -138,7 +138,7 @@ export default function Home() {
                 </div>
                 <div className="text-right">
                   <p className={`text-2xl font-bold ${index === 0 ? '' : 'text-accent'}`}>
-                    {formatAmount(amounts[index])} USDC
+                    {formatAmount(tipsGivenAmounts[index])} USDC
                   </p>
                   <p className={`text-sm ${index === 0 ? 'text-white/80' : 'text-gray-600'}`}>
                     per like
