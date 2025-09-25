@@ -67,20 +67,6 @@ export default function Leaderboard() {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center"
-      >
-        <div className="flex items-center justify-center mb-4">
-          <Trophy className="w-16 h-16 text-accent mr-4" />
-          <h1 className="text-5xl font-bold text-accent">Leaderboard</h1>
-        </div>
-        <p className="text-xl text-gray-700">
-          Top earners in the Ecion ecosystem
-        </p>
-      </motion.div>
 
       {/* Time Filter */}
       <div className="flex justify-center mb-6">
