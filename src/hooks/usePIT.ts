@@ -24,7 +24,7 @@ interface UserConfig {
   totalSpent: string;
 }
 
-export const usePIT = () => {
+export const useEcion = () => {
   const { address } = useAccount();
   const [userConfig, setUserConfig] = useState<UserConfig | null>(null);
   const [tokenBalance, setTokenBalance] = useState<any>(null);

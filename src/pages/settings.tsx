@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { usePIT } from '@/hooks/usePIT';
+import { useEcion } from '@/hooks/usePIT';
 import { useAccount, useBalance } from 'wagmi';
 // Removed contract imports - using backend-only system
 import { formatAmount } from '@/utils/contracts';
@@ -37,7 +37,7 @@ export default function Settings() {
     isRevokingAllowance,
     isUpdatingLimit,
     isRevoking,
-  } = usePIT();
+  } = useEcion();
 
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<'amounts' | 'criteria' | 'allowance'>('amounts');

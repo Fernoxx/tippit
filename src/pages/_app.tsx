@@ -11,8 +11,8 @@ import Layout from '@/components/Layout';
 const { chains, publicClient } = configureChains([base], [publicProvider()]);
 
 const { connectors } = getDefaultWallets({
-  appName: 'PIT - Post Incentive Tipping',
-  projectId: 'pit-farcaster-tipping', // Dummy project ID
+  appName: 'Ecion - Reverse Tipping',
+  projectId: 'ecion-farcaster-tipping', // Dummy project ID
   chains,
 });
 

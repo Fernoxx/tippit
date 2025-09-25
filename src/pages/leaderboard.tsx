@@ -76,7 +76,7 @@ export default function Leaderboard() {
           <h1 className="text-5xl font-bold text-accent">Leaderboard</h1>
         </div>
         <p className="text-xl text-gray-700">
-          Top earners in the PIT ecosystem
+          Top earners in the Ecion ecosystem
         </p>
       </motion.div>
 

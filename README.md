@@ -1,6 +1,6 @@
-# PIT - Post Incentive Tipping
+# Ecion - Reverse Tipping
 
-PIT is a reverse tipping application for Farcaster where users get tipped for engaging with posts. Unlike traditional tipping where you tip content creators, in PIT, content creators set up tips that are automatically sent to users who like, reply, recast, quote, or follow them.
+Ecion is a reverse tipping application for Farcaster where users get tipped for engaging with posts. Unlike traditional tipping where you tip content creators, in Ecion, content creators set up tips that are automatically sent to users who like, reply, recast, quote, or follow them.
 
 ## Features
 
@@ -17,7 +17,7 @@ PIT is a reverse tipping application for Farcaster where users get tipped for en
 
 ### Smart Contracts
 
-1. **PITTipping.sol**: Main contract handling tipping logic using token allowances
+1. **Backend-only system**: No smart contracts needed - all logic handled by backend
    - No custody of user funds - tips transfer directly from author to interactor
    - Support for any ERC20 token on Base chain
    - Emergency withdraw for mistakenly sent tokens
@@ -45,7 +45,7 @@ PIT is a reverse tipping application for Farcaster where users get tipped for en
 1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd pit-app
+cd ecion-app
 ```
 
 2. Install dependencies:
@@ -106,7 +106,7 @@ vercel
    - Choose your tipping token (USDC or any ERC20 on Base)
    - Set spending limit (maximum amount to spend)
    - Set tip amounts for each interaction type
-   - Approve token allowance for the PIT contract
+   - Approve token allowance for the Ecion backend wallet
 3. Your posts will now automatically tip users who interact with them
 
 ### For Users (Earners)
@@ -125,7 +125,7 @@ vercel
 
 ## Contract Addresses (To be deployed)
 
-- PITTipping: `0x...`
+- Backend Wallet: `0x...`
 - FarcasterOracle: `0x...`
 - USDC (Base): `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`
 
