@@ -14,6 +14,7 @@ export const useFarcasterWallet = () => {
     try {
       const { sdk } = await import('@farcaster/miniapp-sdk');
       console.log('Farcaster SDK loaded:', !!sdk);
+      console.log('SDK object:', sdk);
       
       // Always set the SDK instance first
       setSdkInstance(sdk);
@@ -22,12 +23,16 @@ export const useFarcasterWallet = () => {
       const isInMiniApp = await sdk.isInMiniApp();
       console.log('Is in Farcaster miniapp:', isInMiniApp);
       
-      if (isInMiniApp) {
-        // MUST call ready() first to dismiss splash screen
+      // Always call ready() first - this is critical
+      try {
         await sdk.actions.ready();
-        console.log('SDK ready() called');
-        
-        // Get user context
+        console.log('SDK ready() called successfully');
+      } catch (readyError) {
+        console.log('SDK ready() error (might be normal):', readyError);
+      }
+      
+      // Try to get user context
+      try {
         const context = await sdk.context;
         console.log('Farcaster context:', context);
         
@@ -35,36 +40,17 @@ export const useFarcasterWallet = () => {
           setUserProfile(context.user);
           setIsInFarcaster(true);
           console.log('User profile set:', context.user);
+        } else {
+          console.log('No user in context');
         }
-        
-        setIsInFarcaster(true);
-      } else {
-        console.log('Not in Farcaster miniapp - but SDK is available');
-        // Even if not detected as miniapp, try to get context
-        try {
-          const context = await sdk.context;
-          console.log('Farcaster context (fallback):', context);
-          
-          if (context?.user) {
-            setUserProfile(context.user);
-            setIsInFarcaster(true);
-            console.log('User profile set from fallback:', context.user);
-          }
-        } catch (contextError) {
-          console.log('Context not available:', contextError);
-          // For development/testing - create a mock user
-          setUserProfile({
-            fid: 12345,
-            username: 'testuser',
-            displayName: 'Test User',
-            pfpUrl: '',
-            verifiedAddresses: { ethAddresses: [] }
-          });
-          setIsInFarcaster(false);
-        }
+      } catch (contextError) {
+        console.log('Context error:', contextError);
       }
       
+      // Set as initialized regardless
       setIsInitialized(true);
+      console.log('SDK initialization complete');
+      
     } catch (error) {
       console.error('Farcaster SDK initialization failed:', error);
       setIsInitialized(true);
@@ -80,6 +66,7 @@ export const useFarcasterWallet = () => {
       console.log('Attempting to connect wallet...');
       console.log('isInFarcaster:', isInFarcaster);
       console.log('sdkInstance:', !!sdkInstance);
+      console.log('sdkInstance.actions:', sdkInstance?.actions);
       
       // Check if SDK is available
       if (!sdkInstance) {
@@ -88,16 +75,17 @@ export const useFarcasterWallet = () => {
         return;
       }
       
-      // Try to call ready() first if not already called
-      try {
-        await sdkInstance.actions.ready();
-        console.log('SDK ready() called in connectWallet');
-      } catch (readyError) {
-        console.log('Ready() already called or not needed:', readyError);
+      // Check if actions are available
+      if (!sdkInstance.actions) {
+        console.log('SDK actions not available');
+        toast.error('Farcaster SDK actions not available');
+        return;
       }
       
       // Use Farcaster SDK signIn action
       console.log('Calling sdk.actions.signIn...');
+      console.log('signIn function:', sdkInstance.actions.signIn);
+      
       const signInResult = await sdkInstance.actions.signIn();
       console.log('Sign in result:', signInResult);
       
@@ -113,10 +101,17 @@ export const useFarcasterWallet = () => {
       return signInResult;
     } catch (error: any) {
       console.error('Wallet connection failed:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
       
       // User-friendly error messages
       if (error.message?.includes('User rejected') || error.message?.includes('cancelled')) {
         toast.error('Connection cancelled by user');
+      } else if (error.message?.includes('nonce')) {
+        toast.error('SDK initialization error - please refresh and try again');
       } else if (error.message?.includes('Farcaster mobile app')) {
         toast.error('Please open this app in Farcaster mobile app');
       } else if (error.message?.includes('Sign in failed')) {
