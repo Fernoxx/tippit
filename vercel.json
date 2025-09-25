@@ -18,12 +18,15 @@
   "env": {
     "NEXT_PUBLIC_NEYNAR_API_KEY": "@neynar_api_key",
     "NEXT_PUBLIC_BACKEND_URL": "@backend_url",
-    "NEXT_PUBLIC_BACKEND_WALLET_ADDRESS": "@backend_wallet_address"
+    "NEXT_PUBLIC_BACKEND_WALLET_ADDRESS": "@backend_wallet_address",
+    "WEBHOOK_SECRET": "@webhook_secret"
   },
   "build": {
     "env": {
       "NEXT_PUBLIC_NEYNAR_API_KEY": "@neynar_api_key",
-      "NEXT_PUBLIC_BACKEND_URL": "@backend_url"
+      "NEXT_PUBLIC_BACKEND_URL": "@backend_url",
+      "NEXT_PUBLIC_BACKEND_WALLET_ADDRESS": "@backend_wallet_address",
+      "WEBHOOK_SECRET": "@webhook_secret"
     }
   }
 }
