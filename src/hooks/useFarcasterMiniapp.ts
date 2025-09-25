@@ -31,10 +31,10 @@ export const useFarcasterMiniapp = () => {
           // Extract real user data
           if (context?.user) {
             setCurrentUser({
-              fid: context.user.fid,           // Real FID (e.g., 242597)
-              username: context.user.username, // Real username (e.g., "ferno")
-              displayName: context.user.displayName, // Real name
-              pfpUrl: context.user.pfpUrl,     // Profile picture
+              fid: context.user.fid || 0,           // Real FID (e.g., 242597)
+              username: context.user.username || 'unknown', // Real username (e.g., "ferno")
+              displayName: context.user.displayName || 'Unknown User', // Real name
+              pfpUrl: context.user.pfpUrl || '',     // Profile picture
               verifiedAddresses: {
                 ethAddresses: (context.user as any).verifiedAddresses?.ethAddresses || []
               }
