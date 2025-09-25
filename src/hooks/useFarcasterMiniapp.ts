@@ -5,13 +5,9 @@ interface FarcasterUser {
   username: string;
   displayName: string;
   pfpUrl: string;
-  verifiedAddresses: {
+  verifiedAddresses?: {
     ethAddresses: string[];
   };
-}
-
-interface FarcasterContext {
-  user: FarcasterUser;
 }
 
 export const useFarcasterMiniapp = () => {
@@ -30,7 +26,7 @@ export const useFarcasterMiniapp = () => {
           const { sdk } = await import('@farcaster/miniapp-sdk');
           
           // Get user context
-          const context: FarcasterContext = await sdk.context;
+          const context = await sdk.context;
           
           // Extract real user data
           if (context?.user) {
@@ -40,7 +36,7 @@ export const useFarcasterMiniapp = () => {
               displayName: context.user.displayName, // Real name
               pfpUrl: context.user.pfpUrl,     // Profile picture
               verifiedAddresses: {
-                ethAddresses: context.user.verifiedAddresses?.ethAddresses || []
+                ethAddresses: (context.user as any).verifiedAddresses?.ethAddresses || []
               }
             });
           }
