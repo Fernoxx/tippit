@@ -106,24 +106,29 @@ class BatchProcessor {
         // Get user data (follower count + Neynar score in one API call)
         const userData = await getUserData(tip.interactorFid);
         
-        // Check follower count
+        // Check follower count - MUST meet minimum
         if (userData.followerCount < authorConfig.minFollowerCount) {
-          console.log(`Interactor ${tip.interactorFid} has ${userData.followerCount} followers, required: ${authorConfig.minFollowerCount}`);
+          console.log(`❌ FOLLOWER CHECK FAILED: Interactor ${tip.interactorFid} has ${userData.followerCount} followers, but caster requires ${authorConfig.minFollowerCount} followers minimum`);
           continue;
         }
+        console.log(`✅ FOLLOWER CHECK PASSED: Interactor ${tip.interactorFid} has ${userData.followerCount} followers (required: ${authorConfig.minFollowerCount})`);
 
-        // Check Neynar score
+        // Check Neynar score - MUST meet minimum
         if (userData.neynarScore < authorConfig.minNeynarScore) {
-          console.log(`Interactor ${tip.interactorFid} has Neynar score ${userData.neynarScore}, required: ${authorConfig.minNeynarScore}`);
+          console.log(`❌ NEYNAR SCORE CHECK FAILED: Interactor ${tip.interactorFid} has Neynar score ${userData.neynarScore}, but caster requires ${authorConfig.minNeynarScore} minimum`);
           continue;
         }
+        console.log(`✅ NEYNAR SCORE CHECK PASSED: Interactor ${tip.interactorFid} has Neynar score ${userData.neynarScore} (required: ${authorConfig.minNeynarScore})`);
 
-        // Check audience criteria
+        // Check audience criteria - MUST be in allowed audience
         const meetsAudience = await checkAudienceCriteria(tip.authorFid, tip.interactorFid, authorConfig.audience);
         if (!meetsAudience) {
-          console.log(`Interactor ${tip.interactorFid} doesn't meet audience criteria`);
+          const audienceText = authorConfig.audience === 0 ? 'Following' : authorConfig.audience === 1 ? 'Followers' : 'Anyone';
+          console.log(`❌ AUDIENCE CHECK FAILED: Interactor ${tip.interactorFid} is not in caster's ${audienceText} list`);
           continue;
         }
+        const audienceText = authorConfig.audience === 0 ? 'Following' : authorConfig.audience === 1 ? 'Followers' : 'Anyone';
+        console.log(`✅ AUDIENCE CHECK PASSED: Interactor ${tip.interactorFid} is in caster's ${audienceText} list`);
 
         // Get tip amount
         const amount = this.getTipAmount(authorConfig, tip.actionType);

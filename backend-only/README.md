@@ -32,6 +32,38 @@ Minute 3: Collect 80 tips → Send 1 transaction with 80 transfers
 - Gas used: 578,721 (15.23% of 3.8M limit)
 - Function: `multiTransfer(address[] recipients, uint256[] amounts)`
 
+### 4. Validation Examples (ALL MUST PASS)
+```
+Caster Settings:
+- Follower Count: 50 minimum
+- Neynar Score: 0.7 minimum  
+- Audience: "Following" only
+
+Engager A (FID: 123):
+- Followers: 60 ✅ (60 >= 50)
+- Neynar Score: 0.8 ✅ (0.8 >= 0.7)
+- In caster's Following: YES ✅
+→ RESULT: GETS TIP! 💰
+
+Engager B (FID: 456):
+- Followers: 20 ❌ (20 < 50)
+- Neynar Score: 0.9 ✅ (0.9 >= 0.7)
+- In caster's Following: YES ✅
+→ RESULT: NO TIP (follower count too low)
+
+Engager C (FID: 789):
+- Followers: 100 ✅ (100 >= 50)
+- Neynar Score: 0.6 ❌ (0.6 < 0.7)
+- In caster's Following: YES ✅
+→ RESULT: NO TIP (Neynar score too low)
+
+Engager D (FID: 999):
+- Followers: 80 ✅ (80 >= 50)
+- Neynar Score: 0.8 ✅ (0.8 >= 0.7)
+- In caster's Following: NO ❌
+→ RESULT: NO TIP (not in Following list)
+```
+
 ## Setup
 
 ### 1. Environment Variables

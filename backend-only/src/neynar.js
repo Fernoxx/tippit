@@ -21,7 +21,9 @@ async function getFollowerCount(fid) {
 
 async function checkAudienceCriteria(authorFid, interactorFid, audience) {
   try {
-    if (audience === 2) { // Anyone
+    // Audience 2 = Anyone (no restrictions)
+    if (audience === 2) {
+      console.log(`Audience check: Anyone allowed - ${interactorFid} can get tip`);
       return true;
     }
     
@@ -31,17 +33,27 @@ async function checkAudienceCriteria(authorFid, interactorFid, audience) {
       },
     });
     
-    const data = await response.json();
-    
-    if (audience === 0) { // Following - check if interactor is in author's following
-      return data.following?.some(user => user.fid === interactorFid) || false;
-    } else if (audience === 1) { // Followers - check if interactor is in author's followers
-      return data.followers?.some(user => user.fid === interactorFid) || false;
+    if (!response.ok) {
+      console.error(`Failed to fetch follows for FID ${authorFid}: ${response.status}`);
+      return false;
     }
     
+    const data = await response.json();
+    
+    if (audience === 0) { // Following - ONLY users the caster follows can get tips
+      const isFollowing = data.following?.some(user => user.fid === interactorFid) || false;
+      console.log(`Audience check: Following - ${interactorFid} is ${isFollowing ? 'in' : 'NOT in'} caster's following list`);
+      return isFollowing;
+    } else if (audience === 1) { // Followers - ONLY caster's followers can get tips
+      const isFollower = data.followers?.some(user => user.fid === interactorFid) || false;
+      console.log(`Audience check: Followers - ${interactorFid} is ${isFollower ? 'a' : 'NOT a'} follower of caster`);
+      return isFollower;
+    }
+    
+    console.log(`Invalid audience value: ${audience}`);
     return false;
   } catch (error) {
-    console.error('Error checking audience criteria:', error);
+    console.error(`Error checking audience criteria for ${interactorFid}:`, error);
     return false;
   }
 }
