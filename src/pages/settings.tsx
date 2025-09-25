@@ -29,6 +29,7 @@ export default function Settings() {
     setTippingConfig,
     approveToken,
     revokeTokenAllowance,
+    revokeConfig,
     isSettingConfig,
     isApproving,
     isRevokingAllowance,

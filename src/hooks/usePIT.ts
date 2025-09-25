@@ -109,6 +109,23 @@ export const usePIT = () => {
     console.log(`User revokes allowance for ${tokenAddress} from backend wallet: ${process.env.NEXT_PUBLIC_BACKEND_WALLET_ADDRESS}`);
   };
 
+  const revokeConfig = async () => {
+    // This deactivates the user's tipping configuration
+    if (!address) return;
+    
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/config/${address}`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        setUserConfig(null);
+      }
+    } catch (error) {
+      console.error('Error revoking config:', error);
+    }
+  };
+
   return {
     userConfig,
     tokenBalance,
@@ -116,6 +133,7 @@ export const usePIT = () => {
     setTippingConfig,
     approveToken,
     revokeTokenAllowance,
+    revokeConfig,
     fetchUserConfig,
     isSettingConfig: isLoading,
     isApproving: false,
