@@ -78,9 +78,54 @@ async function getCastByHash(hash) {
   }
 }
 
+async function getNeynarScore(fid) {
+  try {
+    const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`, {
+      headers: {
+        'api_key': process.env.NEYNAR_API_KEY,
+      },
+    });
+    
+    const data = await response.json();
+    if (data.users && data.users[0]) {
+      // Neynar score is in power_badge field (0.0 to 1.0)
+      return data.users[0].power_badge || 0;
+    }
+    return 0;
+  } catch (error) {
+    console.error('Error fetching Neynar score:', error);
+    return 0;
+  }
+}
+
+async function getUserData(fid) {
+  try {
+    const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`, {
+      headers: {
+        'api_key': process.env.NEYNAR_API_KEY,
+      },
+    });
+    
+    const data = await response.json();
+    if (data.users && data.users[0]) {
+      const user = data.users[0];
+      return {
+        followerCount: user.follower_count || 0,
+        neynarScore: user.power_badge || 0
+      };
+    }
+    return { followerCount: 0, neynarScore: 0 };
+  } catch (error) {
+    console.error('Error fetching user data:', error);
+    return { followerCount: 0, neynarScore: 0 };
+  }
+}
+
 module.exports = {
   getFollowerCount,
   checkAudienceCriteria,
   getUserByFid,
-  getCastByHash
+  getCastByHash,
+  getNeynarScore,
+  getUserData
 };

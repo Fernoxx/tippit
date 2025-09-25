@@ -52,6 +52,16 @@ class Database {
     await fs.writeFile(this.usersFile, JSON.stringify(users, null, 2));
   }
 
+  async updateUserConfig(userAddress, config) {
+    const existing = await this.getUserConfig(userAddress);
+    const updated = {
+      ...existing,
+      ...config,
+      updatedAt: Date.now()
+    };
+    await this.setUserConfig(userAddress, updated);
+  }
+
   async getAllActiveUsers() {
     const data = await fs.readFile(this.usersFile, 'utf8');
     const users = JSON.parse(data);

@@ -14,6 +14,7 @@ Backend-only tipping system that works exactly like Noice but with additional fe
 ✅ **Toggle switches** (like/reply/recast on/off)
 ✅ **Audience filtering** (Following/Followers/Anyone)
 ✅ **Follower barriers** (min 25-1000 followers)
+✅ **Neynar Score filtering** (min 0.0-1.0 score)
 ✅ **Any token support** (USDC, ETH, DAI, etc.)
 ✅ **Batch processing** (100+ tips in 1 minute)
 ✅ **Spending limits** (max per user)

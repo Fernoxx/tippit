@@ -1,6 +1,6 @@
 const { ethers } = require('ethers');
 const database = require('./database');
-const { getFollowerCount, checkAudienceCriteria } = require('./neynar');
+const { getFollowerCount, checkAudienceCriteria, getUserData } = require('./neynar');
 
 class BatchProcessor {
   constructor() {
@@ -103,10 +103,18 @@ class BatchProcessor {
           continue;
         }
 
+        // Get user data (follower count + Neynar score in one API call)
+        const userData = await getUserData(tip.interactorFid);
+        
         // Check follower count
-        const followerCount = await getFollowerCount(tip.interactorFid);
-        if (followerCount < authorConfig.minFollowerCount) {
-          console.log(`Interactor ${tip.interactorFid} has ${followerCount} followers, required: ${authorConfig.minFollowerCount}`);
+        if (userData.followerCount < authorConfig.minFollowerCount) {
+          console.log(`Interactor ${tip.interactorFid} has ${userData.followerCount} followers, required: ${authorConfig.minFollowerCount}`);
+          continue;
+        }
+
+        // Check Neynar score
+        if (userData.neynarScore < authorConfig.minNeynarScore) {
+          console.log(`Interactor ${tip.interactorFid} has Neynar score ${userData.neynarScore}, required: ${authorConfig.minNeynarScore}`);
           continue;
         }
 

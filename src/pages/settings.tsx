@@ -63,6 +63,7 @@ export default function Settings() {
   });
   const [selectedAudience, setSelectedAudience] = useState(2); // Default to "Anyone" (2)
   const [minFollowerCount, setMinFollowerCount] = useState(25); // Default 25 followers
+  const [minNeynarScore, setMinNeynarScore] = useState(0.5); // Default 0.5 Neynar score
 
   // Get current token balance
   const { data: currentTokenBalance } = useBalance({
@@ -90,6 +91,7 @@ export default function Settings() {
       });
       setSelectedAudience(userConfig.audience);
       setMinFollowerCount(Number(userConfig.minFollowerCount));
+      setMinNeynarScore(Number(userConfig.minNeynarScore));
     }
   }, [userConfig]);
 
@@ -119,6 +121,7 @@ export default function Settings() {
         spendingLimit,
         audience: selectedAudience,
         minFollowerCount,
+        minNeynarScore,
         likeEnabled: actionEnabled.like,
         replyEnabled: actionEnabled.reply,
         recastEnabled: actionEnabled.recast,
@@ -471,6 +474,31 @@ export default function Settings() {
                 </div>
                 <p className="text-sm text-gray-600 mt-2">
                   Only users with at least {minFollowerCount} followers can receive tips
+                </p>
+              </div>
+
+              {/* Minimum Neynar Score */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Minimum Neynar Score
+                </label>
+                <div className="flex items-center space-x-4">
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    value={minNeynarScore}
+                    onChange={(e) => setMinNeynarScore(parseFloat(e.target.value))}
+                    className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <div className="w-20 text-center">
+                    <span className="text-lg font-bold text-accent">{minNeynarScore}</span>
+                    <p className="text-xs text-gray-500">score</p>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-600 mt-2">
+                  Only users with at least {minNeynarScore} Neynar score can receive tips
                 </p>
               </div>
 
