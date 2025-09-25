@@ -1,16 +1,31 @@
-import { useFarcasterMiniapp } from '@/hooks/useFarcasterMiniapp';
+import { useFarcasterWallet } from '@/hooks/useFarcasterWallet';
 import { User, CheckCircle, XCircle } from 'lucide-react';
 
 export default function FarcasterAuth() {
   const { 
-    currentUser, 
+    address, 
+    isConnected, 
+    connectWallet, 
+    disconnectWallet, 
     isLoading, 
+    currentUser, 
     isMiniapp 
-  } = useFarcasterMiniapp();
+  } = useFarcasterWallet();
 
   const handleConnect = async () => {
-    // For now, just show a message since we're using SDK directly
-    alert('Farcaster connection will be available when running as a miniapp');
+    try {
+      await connectWallet();
+    } catch (error) {
+      // Error handling is done in the hook
+    }
+  };
+
+  const handleDisconnect = async () => {
+    try {
+      await disconnectWallet();
+    } catch (error) {
+      // Error handling is done in the hook
+    }
   };
 
   return (
@@ -19,7 +34,7 @@ export default function FarcasterAuth() {
         Farcaster Connection
       </h3>
       
-      {currentUser ? (
+      {isConnected && currentUser ? (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -51,12 +66,19 @@ export default function FarcasterAuth() {
               <p className="font-mono font-semibold">{currentUser.fid || 'N/A'}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-600">Status</p>
+              <p className="text-sm text-gray-600">Wallet</p>
               <p className="text-sm font-medium text-green-600">
-                Connected
+                {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Connected'}
               </p>
             </div>
           </div>
+          
+          <button
+            onClick={handleDisconnect}
+            className="w-full bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+          >
+            Disconnect
+          </button>
         </div>
       ) : (
         <div className="text-center py-4">
@@ -68,7 +90,7 @@ export default function FarcasterAuth() {
             disabled={isLoading}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
-            {isLoading ? 'Connecting...' : 'Connect Farcaster'}
+            {isLoading ? 'Connecting...' : 'Connect Wallet'}
           </button>
         </div>
       )}
