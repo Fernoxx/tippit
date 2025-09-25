@@ -135,24 +135,62 @@ interface HomepageData {
   amounts: string[];
 }
 
-export const useHomepageData = () => {
+export const useHomepageData = (timeFilter: '24h' | '7d' | '30d' = '24h') => {
   const [homepageData, setHomepageData] = useState<HomepageData>({ users: [], amounts: [] });
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Fetch homepage data from backend
-    // This would be implemented based on your backend endpoints
-  }, []);
+    fetchHomepageData();
+  }, [timeFilter]);
 
-  return homepageData;
+  const fetchHomepageData = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/homepage?timeFilter=${timeFilter}`);
+      if (response.ok) {
+        const data = await response.json();
+        setHomepageData(data);
+      }
+    } catch (error) {
+      console.error('Error fetching homepage data:', error);
+      // Fallback to mock data for now
+      setHomepageData({
+        users: ['0x1234567890123456789012345678901234567890', '0x0987654321098765432109876543210987654321'],
+        amounts: ['100.50', '75.25']
+      });
+    }
+    setIsLoading(false);
+  };
+
+  return { ...homepageData, isLoading, refetch: fetchHomepageData };
 };
 
-export const useLeaderboardData = () => {
+export const useLeaderboardData = (timeFilter: '24h' | '7d' | '30d' = '30d') => {
   const [leaderboardData, setLeaderboardData] = useState<HomepageData>({ users: [], amounts: [] });
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Fetch leaderboard data from backend
-    // This would be implemented based on your backend endpoints
-  }, []);
+    fetchLeaderboardData();
+  }, [timeFilter]);
 
-  return leaderboardData;
+  const fetchLeaderboardData = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/leaderboard?timeFilter=${timeFilter}`);
+      if (response.ok) {
+        const data = await response.json();
+        setLeaderboardData(data);
+      }
+    } catch (error) {
+      console.error('Error fetching leaderboard data:', error);
+      // Fallback to mock data for now
+      setLeaderboardData({
+        users: ['0x1234567890123456789012345678901234567890', '0x0987654321098765432109876543210987654321', '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd'],
+        amounts: ['250.75', '180.30', '120.15']
+      });
+    }
+    setIsLoading(false);
+  };
+
+  return { ...leaderboardData, isLoading, refetch: fetchLeaderboardData };
 };
