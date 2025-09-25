@@ -225,7 +225,7 @@ export default function Settings() {
           <div className="text-right">
             <p className="text-sm text-gray-600">Token Balance</p>
             <p className="text-2xl font-bold text-accent">
-              {currentTokenBalance ? formatAmount(currentTokenBalance.value, currentTokenBalance.decimals) : '0'} {currentTokenBalance?.symbol || 'TOKEN'}
+              {currentTokenBalance ? formatAmount(currentTokenBalance.value) : '0'} {currentTokenBalance?.symbol || 'TOKEN'}
             </p>
           </div>
         </div>
