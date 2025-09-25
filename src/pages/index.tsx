@@ -14,26 +14,7 @@ export default function Home() {
   if (!mounted) return null;
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <div className="border-b border-gray-100">
-        <div className="max-w-4xl mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">E</span>
-              </div>
-              <h1 className="text-xl font-semibold text-gray-900">Ecion</h1>
-            </div>
-            <div className="text-sm text-gray-500">
-              Get paid for engaging
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Hero Section */}
         <div className="text-center py-12">
           <h2 className="text-3xl font-bold text-gray-900 mb-4">
@@ -117,7 +98,6 @@ export default function Home() {
             Get Started
           </button>
         </div>
-      </div>
     </div>
   );
 }
