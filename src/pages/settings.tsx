@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { usePIT } from '@/hooks/usePIT';
 import { useAccount, useBalance } from 'wagmi';
 // Removed contract imports - using backend-only system
+import { formatAmount } from '@/utils/contracts';
 import toast from 'react-hot-toast';
 import FarcasterAuth from '@/components/FarcasterAuth';
 import {
