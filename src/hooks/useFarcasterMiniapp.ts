@@ -32,6 +32,13 @@ export const useFarcasterMiniapp = () => {
               // Import Farcaster SDK dynamically
               const { sdk } = await import('@farcaster/miniapp-sdk');
               
+              // Check if we're in a miniapp
+              const isInMiniApp = await sdk.isInMiniApp();
+              if (!isInMiniApp) {
+                console.log('Not in Farcaster miniapp');
+                return;
+              }
+              
               // Get user context
               const context = await sdk.context;
               
@@ -47,6 +54,10 @@ export const useFarcasterMiniapp = () => {
                   }
                 });
               }
+              
+              // IMPORTANT: Call ready() to dismiss splash screen
+              await sdk.actions.ready();
+              
             } catch (sdkError) {
               console.log('Farcaster SDK not available, using fallback');
               // Fallback: try to get user data from URL params or localStorage
