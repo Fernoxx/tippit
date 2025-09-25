@@ -65,9 +65,8 @@ export default function FarcasterAuth() {
   const isLoading = isLoadingNeynar || isLoadingMiniapp || isConnecting;
 
   return (
-    <div className="bg-white rounded-2xl p-6 card-shadow">
-      <h3 className="text-xl font-bold text-accent mb-4 flex items-center">
-        <User className="w-6 h-6 mr-2" />
+    <div className="bg-white border border-gray-200 rounded-lg p-4">
+      <h3 className="text-sm font-medium text-gray-900 mb-3">
         Farcaster Connection
       </h3>
       
@@ -118,7 +117,7 @@ export default function FarcasterAuth() {
           <button
             onClick={connectFarcaster}
             disabled={isLoading}
-            className="btn-primary"
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
             {isLoading ? 'Connecting...' : 'Connect Farcaster'}
           </button>
