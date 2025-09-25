@@ -62,7 +62,31 @@ export default function Layout({ children }: LayoutProps) {
   }, [router.pathname]);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-yellow-50 flex flex-col">
+      {/* Header with Logo and FID */}
+      <header className="border-b border-gray-100">
+        <div className="max-w-4xl mx-auto px-4">
+          <div className="flex justify-center items-center h-20 relative">
+            <Image
+              src="/ecion.png"
+              alt="Ecion Logo"
+              width={64}
+              height={64}
+              className="w-16 h-16"
+            />
+            {/* FID Display with Green Dot */}
+            {isConnected && currentUser?.fid && (
+              <div className="absolute right-4 flex items-center space-x-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="text-sm font-medium text-gray-700">
+                  FID: {currentUser.fid}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+
       {/* Main Content with Swipe Support */}
       <main 
         className="flex-1 overflow-y-auto pb-20"
@@ -73,9 +97,9 @@ export default function Layout({ children }: LayoutProps) {
         {children}
       </main>
 
-      {/* Bottom Navigation - Fixed at bottom with clean minimal design */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
-        <div className="max-w-md mx-auto">
+      {/* Bottom Navigation - Fixed at bottom with 50% transparency and icons only */}
+      <nav className="fixed bottom-0 left-0 right-0 border-t border-gray-100 bg-white/50 backdrop-blur-sm z-50">
+        <div className="max-w-4xl mx-auto px-4">
           <div className="flex items-center justify-around h-16">
             {pages.map((page, index) => {
               const Icon = page.icon;
@@ -86,7 +110,7 @@ export default function Layout({ children }: LayoutProps) {
                   href={page.href}
                   className={`flex items-center justify-center w-full h-full transition-colors ${
                     isActive
-                      ? 'text-gray-900'
+                      ? 'text-blue-600'
                       : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >

@@ -17,6 +17,7 @@ import {
   AlertCircle,
   Check,
   X,
+  Settings as SettingsIcon,
 } from 'lucide-react';
 
 export default function Settings() {
@@ -365,19 +366,79 @@ export default function Settings() {
   ];
 
   return (
-    <div className="max-w-md mx-auto px-4 py-6 bg-gray-50 min-h-full">
+    <div className="space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 bg-gray-800 rounded-full"></div>
-          <span className="text-lg font-medium">Settings</span>
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="text-center"
+      >
+        <div className="flex items-center justify-center mb-4">
+          <SettingsIcon className="w-8 h-8 text-accent mr-3" />
+          <h1 className="text-2xl font-bold text-accent">Settings</h1>
         </div>
-      </div>
+        <p className="text-xl text-gray-700">
+          Configure your reverse tipping preferences
+        </p>
+      </motion.div>
+
+      {/* Farcaster Connection */}
+      <FarcasterAuth />
+
+      {/* Wallet Info */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white rounded-2xl p-6 card-shadow"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <Wallet className="w-8 h-8 text-accent" />
+            <div>
+              <p className="text-sm text-gray-600">Connected Wallet</p>
+              <p className="font-mono font-semibold">
+                {address.slice(0, 6)}...{address.slice(-4)}
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        {userConfig && tokenBalance && tokenAllowance && (
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <p className="text-sm text-gray-600">Allowance</p>
+                <p className="text-lg font-bold text-accent">
+                  {formatAmount(tokenAllowance)}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Available to Tip</p>
+                <p className="text-lg font-bold text-green-600">
+                  {formatAmount(tokenBalance)}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Total Spent</p>
+                <p className="text-lg font-bold text-gray-700">
+                  {formatAmount(userConfig.totalSpent)}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Status</p>
+                <p className={`text-lg font-bold ${userConfig.isActive ? 'text-green-600' : 'text-red-600'}`}>
+                  {userConfig.isActive ? 'Active' : 'Inactive'}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </motion.div>
 
       {/* Settings Cards */}
-      <div className="space-y-3">
+      <div className="space-y-4">
         {settingsCards.map((card) => (
-          <div key={card.id} className="bg-white rounded-lg overflow-hidden">
+          <div key={card.id} className="bg-white rounded-lg overflow-hidden card-shadow">
             <button
               onClick={() => setExpandedCard(expandedCard === card.id ? null : card.id)}
               className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
@@ -402,7 +463,7 @@ export default function Settings() {
       {/* Common Questions */}
       <div className="mt-8">
         <h3 className="text-sm font-medium text-gray-700 mb-3">Common Questions</h3>
-        <div className="bg-white rounded-lg overflow-hidden">
+        <div className="bg-white rounded-lg overflow-hidden card-shadow">
           <button
             onClick={() => setExpandedCard(expandedCard === 'faq' ? null : 'faq')}
             className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
