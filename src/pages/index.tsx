@@ -63,7 +63,7 @@ export default function Home() {
             className="bg-white rounded-2xl p-6 card-shadow"
           >
             <Users className="w-12 h-12 text-accent mx-auto mb-3" />
-            <h3 className="text-3xl font-bold text-accent">{users.length}</h3>
+            <h3 className="text-3xl font-bold text-accent">{tipsReceivedUsers.length}</h3>
             <p className="text-gray-600">Active Tippers</p>
           </motion.div>
           
@@ -102,13 +102,13 @@ export default function Home() {
           animate="visible"
           className="space-y-4"
         >
-          {users.length === 0 ? (
+          {tipsGivenUsers.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
               <p className="text-xl">No active tippers yet!</p>
               <p className="mt-2">Be the first to set up reverse tipping</p>
             </div>
           ) : (
-            users.map((user, index) => (
+            tipsGivenUsers.map((user, index) => (
               <motion.div
                 key={user}
                 variants={itemVariants}
