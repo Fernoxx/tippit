@@ -17,18 +17,37 @@ export const useFarcasterWallet = () => {
     try {
       const { sdk } = await import('@farcaster/miniapp-sdk');
       
-      // MUST call ready() first to dismiss splash screen
-      await sdk.actions.ready();
+      // Check if we're in a miniapp environment
+      const isInMiniApp = await sdk.isInMiniApp();
+      console.log('Is in Farcaster miniapp:', isInMiniApp);
       
-      // Get user context
-      const context = await sdk.context;
-      
-      if (context?.user) {
-        setUserProfile(context.user);
-        setIsInFarcaster(true);
+      if (isInMiniApp) {
+        // MUST call ready() first to dismiss splash screen
+        await sdk.actions.ready();
+        
+        // Get user context
+        const context = await sdk.context;
+        console.log('Farcaster context:', context);
+        
+        if (context?.user) {
+          setUserProfile(context.user);
+          setIsInFarcaster(true);
+        }
+        
+        setSdkInstance(sdk);
+      } else {
+        console.log('Not in Farcaster miniapp - using fallback mode');
+        // For development/testing - create a mock user
+        setUserProfile({
+          fid: 12345,
+          username: 'testuser',
+          displayName: 'Test User',
+          pfpUrl: '',
+          verifiedAddresses: { ethAddresses: [] }
+        });
+        setIsInFarcaster(false);
       }
       
-      setSdkInstance(sdk);
       setIsInitialized(true);
     } catch (error) {
       console.error('Farcaster SDK initialization failed:', error);
@@ -42,9 +61,16 @@ export const useFarcasterWallet = () => {
 
   const connectWallet = async () => {
     try {
+      console.log('Attempting to connect wallet...');
+      console.log('isInFarcaster:', isInFarcaster);
+      console.log('sdkInstance:', !!sdkInstance);
+      console.log('Available connectors:', connectors.map(c => ({ id: c.id, name: c.name })));
+      
       // Check if we're in Farcaster environment
       if (!isInFarcaster || !sdkInstance) {
-        throw new Error('This miniapp must be used within Farcaster mobile app.');
+        console.log('Not in Farcaster miniapp - showing development message');
+        toast.error('This app works best in Farcaster mobile app. For testing, you can use it in development mode.');
+        return;
       }
       
       // Find the Farcaster connector
@@ -53,6 +79,8 @@ export const useFarcasterWallet = () => {
         connector.id === 'farcaster' ||
         connector.name?.includes('Farcaster')
       );
+      
+      console.log('Found Farcaster connector:', farcasterConnector);
       
       if (!farcasterConnector) {
         throw new Error('Farcaster connector not found...');
