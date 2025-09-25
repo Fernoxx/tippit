@@ -19,24 +19,39 @@ export default function FarcasterAuth() {
   const connectFarcaster = async () => {
     setIsConnecting(true);
     try {
-      // Open Neynar sign-in flow via backend
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/neynar/auth-url`);
-      const data = await response.json();
+      // Check if backend is available
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
       
-      window.open(
-        data.authUrl,
-        'farcaster-signin',
-        'width=500,height=700'
-      );
-      
-      // Listen for callback
-      window.addEventListener('message', (event) => {
-        if (event.origin === window.location.origin && event.data.type === 'farcaster-auth-success') {
-          toast.success('Farcaster account connected!');
-          window.location.reload();
+      if (backendUrl) {
+        // Use backend for Neynar sign-in
+        const response = await fetch(`${backendUrl}/api/neynar/auth-url`);
+        const data = await response.json();
+        
+        window.open(
+          data.authUrl,
+          'farcaster-signin',
+          'width=500,height=700'
+        );
+        
+        // Listen for callback
+        window.addEventListener('message', (event) => {
+          if (event.origin === window.location.origin && event.data.type === 'farcaster-auth-success') {
+            toast.success('Farcaster account connected!');
+            window.location.reload();
+          }
+        });
+      } else {
+        // Fallback: Direct Neynar sign-in (for development)
+        const neynarApiKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
+        if (neynarApiKey) {
+          const authUrl = `https://app.neynar.com/signin?api_key=${neynarApiKey}&redirect_uri=${encodeURIComponent(window.location.origin)}`;
+          window.open(authUrl, 'farcaster-signin', 'width=500,height=700');
+        } else {
+          toast.error('Backend not configured. Please set up the backend first.');
         }
-      });
+      }
     } catch (error) {
+      console.error('Farcaster connection error:', error);
       toast.error('Failed to connect Farcaster');
     } finally {
       setIsConnecting(false);
