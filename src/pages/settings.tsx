@@ -148,6 +148,8 @@ export default function Settings() {
   };
 
   const handleUpdateSpendingLimit = async () => {
+    if (!userConfig) return;
+    
     try {
       await setTippingConfig?.({
         ...userConfig,
