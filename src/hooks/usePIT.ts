@@ -1,4 +1,4 @@
-import { useBalance, FetchBalanceResult } from 'wagmi';
+import { useBalance } from 'wagmi';
 import { useAccount } from 'wagmi';
 import { useState, useEffect } from 'react';
 
@@ -27,7 +27,7 @@ interface UserConfig {
 export const usePIT = () => {
   const { address } = useAccount();
   const [userConfig, setUserConfig] = useState<UserConfig | null>(null);
-  const [tokenBalance, setTokenBalance] = useState<FetchBalanceResult | null>(null);
+  const [tokenBalance, setTokenBalance] = useState<any>(null);
   const [tokenAllowance, setTokenAllowance] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 

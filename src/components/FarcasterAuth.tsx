@@ -1,13 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useAccount } from 'wagmi';
 import { useNeynar } from '@/hooks/useNeynar';
+import { useFarcasterMiniapp } from '@/hooks/useFarcasterMiniapp';
 import toast from 'react-hot-toast';
 import { User, CheckCircle, XCircle } from 'lucide-react';
 
 export default function FarcasterAuth() {
   const { address } = useAccount();
   const { user, isLoading: isLoadingNeynar } = useNeynar();
+  const { currentUser, isLoading: isLoadingMiniapp, isMiniapp } = useFarcasterMiniapp();
   const [isConnecting, setIsConnecting] = useState(false);
+
+  // Use miniapp user if available, otherwise use Neynar user
+  const displayUser = currentUser || user;
+  const isLoading = isLoadingMiniapp || isLoadingNeynar;
 
   // Backend-only system - no contract mapping needed
   // FID mapping is handled automatically by the backend
@@ -43,7 +49,7 @@ export default function FarcasterAuth() {
 
   if (!address) return null;
 
-  const isLoading = isLoadingNeynar || isConnecting;
+  const isLoading = isLoadingNeynar || isLoadingMiniapp || isConnecting;
 
   return (
     <div className="bg-white rounded-2xl p-6 card-shadow">
@@ -52,24 +58,27 @@ export default function FarcasterAuth() {
         Farcaster Connection
       </h3>
       
-      {user ? (
+      {displayUser ? (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              {user.pfp?.url ? (
+              {(displayUser.pfp?.url || displayUser.pfpUrl) ? (
                 <img
-                  src={user.pfp.url}
-                  alt={user.displayName}
+                  src={displayUser.pfp?.url || displayUser.pfpUrl}
+                  alt={displayUser.displayName}
                   className="w-12 h-12 rounded-full"
                 />
               ) : (
                 <div className="w-12 h-12 bg-accent rounded-full flex items-center justify-center text-white font-bold">
-                  {user.displayName[0]}
+                  {displayUser.displayName[0]}
                 </div>
               )}
               <div>
-                <p className="font-semibold">{user.displayName}</p>
-                <p className="text-sm text-gray-600">@{user.username}</p>
+                <p className="font-semibold">{displayUser.displayName}</p>
+                <p className="text-sm text-gray-600">@{displayUser.username}</p>
+                {isMiniapp && (
+                  <p className="text-xs text-green-600">✓ Farcaster Miniapp</p>
+                )}
               </div>
             </div>
             <CheckCircle className="w-6 h-6 text-green-500" />
