@@ -23,8 +23,8 @@ import {
 } from 'lucide-react';
 
 export default function Settings() {
-  const { address } = useEcion();
   const {
+    address,
     userConfig,
     tokenBalance,
     tokenAllowance,
