@@ -12,47 +12,70 @@ export const useFarcasterWallet = () => {
   // Initialize Farcaster SDK FIRST - this is critical
   const initFarcaster = async () => {
     try {
-      const { sdk } = await import('@farcaster/miniapp-sdk');
-      console.log('Farcaster SDK loaded:', !!sdk);
-      console.log('SDK object:', sdk);
+      console.log('Starting Farcaster SDK initialization...');
       
-      // Always set the SDK instance first
+      // Import SDK
+      const { sdk } = await import('@farcaster/miniapp-sdk');
+      console.log('Farcaster SDK imported:', !!sdk);
+      console.log('SDK structure:', {
+        hasActions: !!sdk.actions,
+        hasContext: !!sdk.context,
+        hasIsInMiniApp: !!sdk.isInMiniApp,
+        actionsKeys: sdk.actions ? Object.keys(sdk.actions) : 'no actions'
+      });
+      
+      // Set SDK instance
       setSdkInstance(sdk);
       
       // Check if we're in a miniapp environment
       const isInMiniApp = await sdk.isInMiniApp();
       console.log('Is in Farcaster miniapp:', isInMiniApp);
       
-      // Always call ready() first - this is critical
-      try {
-        await sdk.actions.ready();
-        console.log('SDK ready() called successfully');
-      } catch (readyError) {
-        console.log('SDK ready() error (might be normal):', readyError);
+      // Wait a bit for SDK to be fully ready
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Call ready() - this is critical for proper initialization
+      if (sdk.actions && sdk.actions.ready) {
+        try {
+          await sdk.actions.ready();
+          console.log('SDK ready() called successfully');
+        } catch (readyError) {
+          console.log('SDK ready() error:', readyError);
+          // Don't fail initialization if ready() fails
+        }
+      } else {
+        console.log('SDK actions.ready not available');
       }
       
       // Try to get user context
-      try {
-        const context = await sdk.context;
-        console.log('Farcaster context:', context);
-        
-        if (context?.user) {
-          setUserProfile(context.user);
-          setIsInFarcaster(true);
-          console.log('User profile set:', context.user);
-        } else {
-          console.log('No user in context');
+      if (sdk.context) {
+        try {
+          const context = await sdk.context;
+          console.log('Farcaster context:', context);
+          
+          if (context?.user) {
+            setUserProfile(context.user);
+            setIsInFarcaster(true);
+            console.log('User profile set:', context.user);
+          } else {
+            console.log('No user in context');
+          }
+        } catch (contextError) {
+          console.log('Context error:', contextError);
         }
-      } catch (contextError) {
-        console.log('Context error:', contextError);
       }
       
-      // Set as initialized regardless
+      // Set as initialized
       setIsInitialized(true);
       console.log('SDK initialization complete');
       
     } catch (error) {
       console.error('Farcaster SDK initialization failed:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
       setIsInitialized(true);
     }
   };
