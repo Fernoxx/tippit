@@ -43,7 +43,7 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState<'amounts' | 'criteria' | 'allowance'>('amounts');
   
   // Form states
-  const [spendingLimit, setSpendingLimitValue] = useState('100');
+  const [spendingLimit, setSpendingLimitValue] = useState('0');
   const [allowanceAmount, setAllowanceAmount] = useState('');
   const [selectedToken, setSelectedToken] = useState('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'); // USDC on Base
   const [customTokenAddress, setCustomTokenAddress] = useState('');
@@ -70,7 +70,7 @@ export default function Settings() {
   useEffect(() => {
     setMounted(true);
     if (userConfig) {
-      setSpendingLimitValue(userConfig.spendingLimit?.toString() || '100');
+      setSpendingLimitValue(userConfig.spendingLimit?.toString() || '0');
       setTippingAmounts({
         like: userConfig.likeAmount?.toString() || '0.01',
         reply: userConfig.replyAmount?.toString() || '0.025',
@@ -192,8 +192,8 @@ export default function Settings() {
         className="text-center"
       >
         <div className="flex items-center justify-center mb-4">
-          <SettingsIcon className="w-16 h-16 text-accent mr-4" />
-          <h1 className="text-5xl font-bold text-accent">Settings</h1>
+          <SettingsIcon className="w-8 h-8 text-accent mr-3" />
+          <h1 className="text-2xl font-bold text-accent">Settings</h1>
         </div>
         <p className="text-xl text-gray-700">
           Configure your reverse tipping preferences
@@ -218,12 +218,6 @@ export default function Settings() {
                 {address.slice(0, 6)}...{address.slice(-4)}
               </p>
             </div>
-          </div>
-          <div className="text-right">
-            <p className="text-sm text-gray-600">Token Balance</p>
-            <p className="text-2xl font-bold text-accent">
-              {tokenBalance ? formatAmount(tokenBalance.value?.toString() || '0') : '0'} {tokenBalance?.symbol || 'TOKEN'}
-            </p>
           </div>
         </div>
         
