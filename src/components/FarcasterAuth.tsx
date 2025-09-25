@@ -86,11 +86,13 @@ export default function FarcasterAuth() {
           <div className="flex items-center justify-between pt-4 border-t">
             <div>
               <p className="text-sm text-gray-600">FID</p>
-              <p className="font-mono font-semibold">{user.fid}</p>
+              <p className="font-mono font-semibold">{displayUser.fid}</p>
             </div>
             <div>
               <p className="text-sm text-gray-600">Connected</p>
-              <p className="text-sm font-medium text-green-600">via Neynar</p>
+              <p className="text-sm font-medium text-green-600">
+                {isMiniapp ? 'via Farcaster' : 'via Neynar'}
+              </p>
             </div>
           </div>
         </div>
