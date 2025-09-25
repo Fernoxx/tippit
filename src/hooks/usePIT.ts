@@ -1,4 +1,4 @@
-import { useBalance } from 'wagmi';
+import { useBalance, FetchBalanceResult } from 'wagmi';
 import { useAccount } from 'wagmi';
 import { useState, useEffect } from 'react';
 
@@ -27,8 +27,8 @@ interface UserConfig {
 export const usePIT = () => {
   const { address } = useAccount();
   const [userConfig, setUserConfig] = useState<UserConfig | null>(null);
-  const [tokenBalance, setTokenBalance] = useState(null);
-  const [tokenAllowance, setTokenAllowance] = useState(null);
+  const [tokenBalance, setTokenBalance] = useState<FetchBalanceResult | null>(null);
+  const [tokenAllowance, setTokenAllowance] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   // Get token balance in wallet
