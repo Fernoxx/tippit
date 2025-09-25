@@ -15,6 +15,9 @@ export const useFarcasterWallet = () => {
       const { sdk } = await import('@farcaster/miniapp-sdk');
       console.log('Farcaster SDK loaded:', !!sdk);
       
+      // Always set the SDK instance first
+      setSdkInstance(sdk);
+      
       // Check if we're in a miniapp environment
       const isInMiniApp = await sdk.isInMiniApp();
       console.log('Is in Farcaster miniapp:', isInMiniApp);
@@ -34,18 +37,31 @@ export const useFarcasterWallet = () => {
           console.log('User profile set:', context.user);
         }
         
-        setSdkInstance(sdk);
+        setIsInFarcaster(true);
       } else {
-        console.log('Not in Farcaster miniapp - using fallback mode');
-        // For development/testing - create a mock user
-        setUserProfile({
-          fid: 12345,
-          username: 'testuser',
-          displayName: 'Test User',
-          pfpUrl: '',
-          verifiedAddresses: { ethAddresses: [] }
-        });
-        setIsInFarcaster(false);
+        console.log('Not in Farcaster miniapp - but SDK is available');
+        // Even if not detected as miniapp, try to get context
+        try {
+          const context = await sdk.context;
+          console.log('Farcaster context (fallback):', context);
+          
+          if (context?.user) {
+            setUserProfile(context.user);
+            setIsInFarcaster(true);
+            console.log('User profile set from fallback:', context.user);
+          }
+        } catch (contextError) {
+          console.log('Context not available:', contextError);
+          // For development/testing - create a mock user
+          setUserProfile({
+            fid: 12345,
+            username: 'testuser',
+            displayName: 'Test User',
+            pfpUrl: '',
+            verifiedAddresses: { ethAddresses: [] }
+          });
+          setIsInFarcaster(false);
+        }
       }
       
       setIsInitialized(true);
@@ -65,11 +81,19 @@ export const useFarcasterWallet = () => {
       console.log('isInFarcaster:', isInFarcaster);
       console.log('sdkInstance:', !!sdkInstance);
       
-      // Check if we're in Farcaster environment
-      if (!isInFarcaster || !sdkInstance) {
-        console.log('Not in Farcaster miniapp - showing development message');
-        toast.error('This app works best in Farcaster mobile app. For testing, you can use it in development mode.');
+      // Check if SDK is available
+      if (!sdkInstance) {
+        console.log('SDK not available');
+        toast.error('Farcaster SDK not loaded');
         return;
+      }
+      
+      // Try to call ready() first if not already called
+      try {
+        await sdkInstance.actions.ready();
+        console.log('SDK ready() called in connectWallet');
+      } catch (readyError) {
+        console.log('Ready() already called or not needed:', readyError);
       }
       
       // Use Farcaster SDK signIn action
