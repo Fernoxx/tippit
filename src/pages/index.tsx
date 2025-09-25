@@ -14,7 +14,7 @@ export default function Home() {
   if (!mounted) return null;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="max-w-4xl mx-auto px-4 py-8 bg-yellow-50 min-h-full">
         {/* Hero Section */}
         <div className="text-center py-12">
           <h2 className="text-3xl font-bold text-gray-900 mb-4">
