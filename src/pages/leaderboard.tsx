@@ -193,8 +193,7 @@ export default function Leaderboard() {
         
         {users.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
-            <Trophy className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-            <p className="text-xl">No tips received yet!</p>
+            <p className="text-lg">No tips received yet!</p>
             <p className="mt-2">Start engaging to earn tips</p>
           </div>
         ) : (
