@@ -15,6 +15,7 @@ import {
   Repeat,
   Quote,
   UserPlus,
+  Users,
   Wallet,
   AlertCircle,
   Check,
@@ -225,7 +226,7 @@ export default function Settings() {
           <div className="text-right">
             <p className="text-sm text-gray-600">Token Balance</p>
             <p className="text-2xl font-bold text-accent">
-              {currentTokenBalance ? formatAmount(currentTokenBalance.value) : '0'} {currentTokenBalance?.symbol || 'TOKEN'}
+              {currentTokenBalance ? formatAmount(currentTokenBalance.value.toString()) : '0'} {currentTokenBalance?.symbol || 'TOKEN'}
             </p>
           </div>
         </div>
@@ -591,7 +592,7 @@ export default function Settings() {
                   Token Allowance
                 </label>
                 <p className="text-sm text-gray-600 mb-3">
-                  Current allowance: {tokenAllowance ? formatAmount(tokenAllowance as bigint) : '0'} {currentTokenBalance?.symbol || 'TOKEN'}
+                  Current allowance: {tokenAllowance ? formatAmount(tokenAllowance.toString()) : '0'} {currentTokenBalance?.symbol || 'TOKEN'}
                 </p>
                 <div className="flex space-x-2">
                   <input
@@ -610,7 +611,7 @@ export default function Settings() {
                   </button>
                   <button
                     onClick={handleRevokeTokenAllowance}
-                    disabled={isRevokingAllowance || !tokenAllowance || tokenAllowance === 0n}
+                    disabled={isRevokingAllowance || !tokenAllowance || tokenAllowance === '0'}
                     className="bg-red-600 text-white px-4 py-3 rounded-xl font-semibold hover:bg-red-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
                   >
                     {isRevokingAllowance ? 'Revoking...' : 'Revoke Allowance'}
