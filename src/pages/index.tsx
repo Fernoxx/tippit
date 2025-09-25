@@ -2,13 +2,13 @@ import { motion } from 'framer-motion';
 import { useHomepageData, useLeaderboardData } from '@/hooks/usePIT';
 import { formatAmount } from '@/utils/contracts';
 import { Heart, Zap, Users, TrendingUp, Info } from 'lucide-react';
-import { useAccount } from 'wagmi';
+// Removed wagmi - using Farcaster-only wallet connection
 import { useState, useEffect } from 'react';
 
 export default function Home() {
   const { users: tipsReceivedUsers, amounts: tipsReceivedAmounts } = useHomepageData();
   const { users: tipsGivenUsers, amounts: tipsGivenAmounts } = useLeaderboardData();
-  const { address } = useAccount();
+  // Address will be handled by Farcaster miniapp context
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<'following' | 'followers' | 'anyone'>('anyone');
 
@@ -151,7 +151,7 @@ export default function Home() {
       </div>
 
       {/* CTA Section */}
-      {!address && (
+      {(
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

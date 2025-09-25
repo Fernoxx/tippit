@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useEcion } from '@/hooks/usePIT';
-import { useAccount, useBalance } from 'wagmi';
+// Removed wagmi dependencies - using Farcaster-only wallet connection
 // Removed contract imports - using backend-only system
 import { formatAmount } from '@/utils/contracts';
 import toast from 'react-hot-toast';
@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 
 export default function Settings() {
-  const { address } = useAccount();
+  const { address } = useEcion();
   const {
     userConfig,
     tokenBalance,
@@ -65,11 +65,7 @@ export default function Settings() {
   const [minFollowerCount, setMinFollowerCount] = useState(25); // Default 25 followers
   const [minNeynarScore, setMinNeynarScore] = useState(0.5); // Default 0.5 Neynar score
 
-  // Get current token balance
-  const { data: currentTokenBalance } = useBalance({
-    address,
-    token: (userConfig?.tokenAddress || selectedToken) as `0x${string}`,
-  });
+  // Token balance will be fetched from backend via useEcion hook
 
   useEffect(() => {
     setMounted(true);
@@ -226,7 +222,7 @@ export default function Settings() {
           <div className="text-right">
             <p className="text-sm text-gray-600">Token Balance</p>
             <p className="text-2xl font-bold text-accent">
-              {currentTokenBalance ? formatAmount(currentTokenBalance.value.toString()) : '0'} {currentTokenBalance?.symbol || 'TOKEN'}
+              {tokenBalance ? formatAmount(tokenBalance.value?.toString() || '0') : '0'} {tokenBalance?.symbol || 'TOKEN'}
             </p>
           </div>
         </div>
@@ -592,7 +588,7 @@ export default function Settings() {
                   Token Allowance
                 </label>
                 <p className="text-sm text-gray-600 mb-3">
-                  Current allowance: {tokenAllowance ? formatAmount(tokenAllowance.toString()) : '0'} {currentTokenBalance?.symbol || 'TOKEN'}
+                  Current allowance: {tokenAllowance ? formatAmount(tokenAllowance.toString()) : '0'} {tokenBalance?.symbol || 'TOKEN'}
                 </p>
                 <div className="flex space-x-2">
                   <input

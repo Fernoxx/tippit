@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useAccount } from 'wagmi';
 import { useNeynar } from '@/hooks/useNeynar';
 import { useFarcasterMiniapp } from '@/hooks/useFarcasterMiniapp';
 import toast from 'react-hot-toast';
 import { User, CheckCircle, XCircle } from 'lucide-react';
 
 export default function FarcasterAuth() {
-  const { address } = useAccount();
+  // Address will be handled by Farcaster miniapp context
   const { user, isLoading: isLoadingNeynar } = useNeynar();
   const { currentUser, isLoading: isLoadingMiniapp, isMiniapp } = useFarcasterMiniapp();
   const [isConnecting, setIsConnecting] = useState(false);
@@ -46,7 +45,7 @@ export default function FarcasterAuth() {
 
   // No disconnect needed - based on wallet connection
 
-  if (!address) return null;
+  // Always show the auth component
 
   const isLoading = isLoadingNeynar || isLoadingMiniapp || isConnecting;
 

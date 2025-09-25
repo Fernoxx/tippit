@@ -1,9 +1,9 @@
 import { ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { Home, Trophy, Settings, Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
+import FarcasterAuth from './FarcasterAuth';
 
 interface LayoutProps {
   children: ReactNode;
@@ -59,7 +59,7 @@ export default function Layout({ children }: LayoutProps) {
               })}
             </nav>
 
-            <ConnectButton />
+            <FarcasterAuth />
           </div>
         </div>
       </header>

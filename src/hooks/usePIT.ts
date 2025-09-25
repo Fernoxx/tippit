@@ -1,5 +1,3 @@
-import { useBalance } from 'wagmi';
-import { useAccount } from 'wagmi';
 import { useState, useEffect } from 'react';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
@@ -25,30 +23,43 @@ interface UserConfig {
 }
 
 export const useEcion = () => {
-  const { address } = useAccount();
+  const [address, setAddress] = useState<string | null>(null);
   const [userConfig, setUserConfig] = useState<UserConfig | null>(null);
   const [tokenBalance, setTokenBalance] = useState<any>(null);
   const [tokenAllowance, setTokenAllowance] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Get token balance in wallet
-  const { data: balanceData } = useBalance({
-    address,
-    token: userConfig?.tokenAddress as `0x${string}`,
-    enabled: !!address && !!userConfig?.tokenAddress,
-  });
+  useEffect(() => {
+    // Get address from Farcaster miniapp context or localStorage
+    const getAddress = async () => {
+      try {
+        // Try to get from Farcaster miniapp first
+        if (typeof window !== 'undefined' && (window as any).farcaster) {
+          const farcaster = (window as any).farcaster;
+          if (farcaster.user?.verifiedAddresses?.[0]) {
+            setAddress(farcaster.user.verifiedAddresses[0]);
+            return;
+          }
+        }
+        
+        // Fallback to localStorage
+        const savedAddress = localStorage.getItem('ecion_user_address');
+        if (savedAddress) {
+          setAddress(savedAddress);
+        }
+      } catch (error) {
+        console.error('Error getting address:', error);
+      }
+    };
+
+    getAddress();
+  }, []);
 
   useEffect(() => {
     if (address) {
       fetchUserConfig();
     }
   }, [address]);
-
-  useEffect(() => {
-    if (balanceData) {
-      setTokenBalance(balanceData);
-    }
-  }, [balanceData]);
 
   const fetchUserConfig = async () => {
     try {
@@ -127,6 +138,7 @@ export const useEcion = () => {
   };
 
   return {
+    address,
     userConfig,
     tokenBalance,
     tokenAllowance,

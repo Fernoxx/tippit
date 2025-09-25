@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useAccount } from 'wagmi';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
@@ -21,7 +20,7 @@ interface FarcasterUser {
 }
 
 export const useNeynar = () => {
-  const { address } = useAccount();
+  // Address will be provided by Farcaster miniapp context
   const [user, setUser] = useState<FarcasterUser | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -85,16 +84,7 @@ export const useNeynar = () => {
     }
   };
 
-  // Load user data when address changes
-  useEffect(() => {
-    if (address) {
-      setIsLoading(true);
-      getUserByAddress(address).then((userData) => {
-        setUser(userData);
-        setIsLoading(false);
-      });
-    }
-  }, [address]);
+  // User data will be loaded when needed via getUserByAddress function
 
   return {
     user,
