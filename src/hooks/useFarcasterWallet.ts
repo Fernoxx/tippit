@@ -10,7 +10,7 @@ export const useFarcasterWallet = () => {
   const [isInFarcaster, setIsInFarcaster] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
 
-  // Check if we're in Farcaster miniapp
+  // Check if we're in Farcaster miniapp and call ready()
   useEffect(() => {
     const checkFarcaster = async () => {
       try {
@@ -19,6 +19,14 @@ export const useFarcasterWallet = () => {
         setIsInFarcaster(isMini);
         
         if (isMini) {
+          // CRITICAL: Call ready() to dismiss splash screen
+          try {
+            await sdk.actions.ready();
+            console.log('SDK ready() called successfully');
+          } catch (readyError) {
+            console.log('SDK ready() error:', readyError);
+          }
+          
           // Get user context if in miniapp
           try {
             const context = await sdk.context;

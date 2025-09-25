@@ -97,6 +97,56 @@ app.get('/api/config/:userAddress', async (req, res) => {
   }
 });
 
+// Approve token endpoint
+app.post('/api/approve', async (req, res) => {
+  try {
+    const { userAddress, tokenAddress, amount } = req.body;
+    
+    if (!userAddress || !tokenAddress || !amount) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    // For now, just return success - the actual approval happens on frontend
+    // In a real implementation, you might want to track approvals in the database
+    console.log(`User ${userAddress} approved ${amount} of token ${tokenAddress}`);
+    
+    res.json({ 
+      success: true, 
+      message: `Approved ${amount} tokens`,
+      userAddress,
+      tokenAddress,
+      amount
+    });
+  } catch (error) {
+    console.error('Approve error:', error);
+    res.status(500).json({ error: 'Failed to process approval' });
+  }
+});
+
+// Revoke token endpoint
+app.post('/api/revoke', async (req, res) => {
+  try {
+    const { userAddress, tokenAddress } = req.body;
+    
+    if (!userAddress || !tokenAddress) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    // For now, just return success - the actual revocation happens on frontend
+    console.log(`User ${userAddress} revoked token ${tokenAddress}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Token allowance revoked',
+      userAddress,
+      tokenAddress
+    });
+  } catch (error) {
+    console.error('Revoke error:', error);
+    res.status(500).json({ error: 'Failed to process revocation' });
+  }
+});
+
 // Neynar API proxy endpoints (keeps API key secure on backend)
 app.get('/api/neynar/user/by-address/:address', async (req, res) => {
   try {
