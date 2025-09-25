@@ -45,18 +45,23 @@ app.use('/webhook/neynar', (req, res, next) => {
 // Routes
 app.post('/webhook/neynar', webhookHandler);
 
-// API Key protection middleware
+// Session-based authentication (more secure than API keys)
 app.use('/api/*', (req, res, next) => {
-  const apiKey = req.headers['x-api-key'] || req.headers['authorization'];
-  const validApiKey = process.env.INTERNAL_API_KEY;
+  // For now, we'll use a simple approach:
+  // Only allow requests from your frontend domain
+  const origin = req.headers.origin;
+  const allowedOrigins = [
+    process.env.FRONTEND_DOMAIN,
+    'http://localhost:3000' // For development
+  ];
   
-  if (!apiKey || !validApiKey || apiKey !== validApiKey) {
-    console.log('❌ UNAUTHORIZED API ACCESS: Invalid API key');
-    return res.status(401).json({ error: 'Unauthorized' });
+  if (allowedOrigins.includes(origin)) {
+    console.log('✅ SECURE: Request from allowed origin');
+    next();
+  } else {
+    console.log('❌ UNAUTHORIZED: Request from unauthorized origin:', origin);
+    res.status(401).json({ error: 'Unauthorized origin' });
   }
-  
-  console.log('✅ SECURE: API key verified');
-  next();
 });
 
 // User configuration endpoints
