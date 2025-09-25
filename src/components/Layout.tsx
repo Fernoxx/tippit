@@ -24,18 +24,20 @@ export default function Layout({ children }: LayoutProps) {
       <div className="absolute inset-0 wavy-bg opacity-20"></div>
       
       {/* Header */}
-      <header className="relative z-10 border-b-4 border-accent bg-white/90 backdrop-blur-sm">
+      <header className="relative z-10 bg-white/95 backdrop-blur-md border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-20">
-            <Link href="/" className="flex items-center space-x-3">
+          <div className="flex items-center justify-between h-16">
+            <Link href="/" className="flex items-center space-x-3 group">
               <motion.div
-                whileHover={{ rotate: 360 }}
-                transition={{ duration: 0.5 }}
-                className="bg-accent p-3 rounded-xl"
+                whileHover={{ scale: 1.1 }}
+                transition={{ duration: 0.2 }}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 p-2.5 rounded-xl shadow-lg"
               >
-                <Zap className="w-8 h-8 text-white" />
+                <Zap className="w-6 h-6 text-white" />
               </motion.div>
-              <h1 className="text-3xl font-bold text-accent">Ecion</h1>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                Ecion
+              </h1>
             </Link>
 
             <nav className="hidden md:flex items-center space-x-8">
@@ -48,8 +50,8 @@ export default function Layout({ children }: LayoutProps) {
                     href={item.href}
                     className={`flex items-center space-x-2 px-4 py-2 rounded-xl transition-all duration-200 ${
                       isActive
-                        ? 'bg-accent text-white'
-                        : 'text-accent hover:bg-accent/10'
+                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                        : 'text-gray-700 hover:bg-gray-100 hover:text-blue-600'
                     }`}
                   >
                     <Icon className="w-5 h-5" />
