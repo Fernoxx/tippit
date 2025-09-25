@@ -4,9 +4,29 @@ import { useState, useEffect } from 'react';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
+interface UserConfig {
+  tokenAddress: string;
+  likeAmount: string;
+  replyAmount: string;
+  recastAmount: string;
+  quoteAmount: string;
+  followAmount: string;
+  spendingLimit: string;
+  audience: number;
+  minFollowerCount: number;
+  minNeynarScore: number;
+  likeEnabled: boolean;
+  replyEnabled: boolean;
+  recastEnabled: boolean;
+  quoteEnabled: boolean;
+  followEnabled: boolean;
+  isActive: boolean;
+  totalSpent: string;
+}
+
 export const usePIT = () => {
   const { address } = useAccount();
-  const [userConfig, setUserConfig] = useState(null);
+  const [userConfig, setUserConfig] = useState<UserConfig | null>(null);
   const [tokenBalance, setTokenBalance] = useState(null);
   const [tokenAllowance, setTokenAllowance] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -105,8 +125,13 @@ export const usePIT = () => {
   };
 };
 
+interface HomepageData {
+  users: string[];
+  amounts: string[];
+}
+
 export const useHomepageData = () => {
-  const [homepageData, setHomepageData] = useState({ users: [], amounts: [] });
+  const [homepageData, setHomepageData] = useState<HomepageData>({ users: [], amounts: [] });
 
   useEffect(() => {
     // Fetch homepage data from backend
@@ -117,7 +142,7 @@ export const useHomepageData = () => {
 };
 
 export const useLeaderboardData = () => {
-  const [leaderboardData, setLeaderboardData] = useState({ users: [], amounts: [] });
+  const [leaderboardData, setLeaderboardData] = useState<HomepageData>({ users: [], amounts: [] });
 
   useEffect(() => {
     // Fetch leaderboard data from backend

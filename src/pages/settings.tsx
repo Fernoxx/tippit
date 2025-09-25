@@ -533,8 +533,8 @@ export default function Settings() {
                       type="text"
                       value={selectedToken === 'custom' ? customTokenAddress : selectedToken}
                       onChange={(e) => {
-                        if (e.target.value === CONTRACTS.USDC.address) {
-                          setSelectedToken(CONTRACTS.USDC.address);
+                        if (e.target.value === '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913') {
+                          setSelectedToken('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913');
                         } else {
                           setSelectedToken('custom');
                           setCustomTokenAddress(e.target.value);
@@ -545,7 +545,7 @@ export default function Settings() {
                     />
                     <button
                       onClick={() => {
-                        setSelectedToken(CONTRACTS.USDC.address);
+                        setSelectedToken('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913');
                         setCustomTokenAddress('');
                       }}
                       className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center space-x-2 px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"

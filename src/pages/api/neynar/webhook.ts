@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { ethers } from 'ethers';
-import { CONTRACTS } from '@/utils/contracts';
 import crypto from 'crypto';
 
 // Verify webhook signature from Neynar
