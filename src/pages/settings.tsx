@@ -24,14 +24,11 @@ export default function Settings() {
   const { address } = useAccount();
   const {
     userConfig,
-    availableBalance,
     tokenBalance,
     tokenAllowance,
     setTippingConfig,
     approveToken,
     revokeTokenAllowance,
-    updateSpendingLimit,
-    revokeConfig,
     isSettingConfig,
     isApproving,
     isRevokingAllowance,
@@ -227,19 +224,19 @@ export default function Settings() {
           </div>
         </div>
         
-        {userConfig && availableBalance && (
+        {userConfig && tokenBalance && tokenAllowance && (
           <div className="mt-4 pt-4 border-t border-gray-200">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <p className="text-sm text-gray-600">Allowance</p>
                 <p className="text-lg font-bold text-accent">
-                  {formatAmount(availableBalance.allowance)}
+                  {formatAmount(tokenAllowance)}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-gray-600">Available to Tip</p>
                 <p className="text-lg font-bold text-green-600">
-                  {formatAmount(availableBalance.availableToReward)}
+                  {formatAmount(tokenBalance)}
                 </p>
               </div>
               <div>
