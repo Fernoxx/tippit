@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useAccount } from 'wagmi';
-import { useContractWrite } from 'wagmi';
-import { CONTRACTS } from '@/utils/contracts';
 import { useNeynar } from '@/hooks/useNeynar';
 import toast from 'react-hot-toast';
 import { User, CheckCircle, XCircle } from 'lucide-react';
@@ -11,21 +9,8 @@ export default function FarcasterAuth() {
   const { user, isLoading: isLoadingNeynar } = useNeynar();
   const [isConnecting, setIsConnecting] = useState(false);
 
-  // Map FID to address in oracle contract
-  const { write: mapFID } = useContractWrite({
-    address: CONTRACTS.FarcasterOracle.address as `0x${string}`,
-    abi: CONTRACTS.FarcasterOracle.abi,
-    functionName: 'mapFIDToAddress',
-  });
-
-  // Auto-map FID when user data is loaded
-  useEffect(() => {
-    if (user && address && mapFID) {
-      mapFID({
-        args: [user.fid, address],
-      });
-    }
-  }, [user, address, mapFID]);
+  // Backend-only system - no contract mapping needed
+  // FID mapping is handled automatically by the backend
 
   const connectFarcaster = async () => {
     setIsConnecting(true);

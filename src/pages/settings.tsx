@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { usePIT } from '@/hooks/usePIT';
-import { useAccount, useBalance, useContractRead, useContractWrite } from 'wagmi';
+import { useAccount, useBalance } from 'wagmi';
 // Removed contract imports - using backend-only system
 import toast from 'react-hot-toast';
 import FarcasterAuth from '@/components/FarcasterAuth';
