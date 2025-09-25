@@ -30,9 +30,12 @@ export default function FarcasterAuth() {
   const connectFarcaster = async () => {
     setIsConnecting(true);
     try {
-      // Open Neynar sign-in flow
+      // Open Neynar sign-in flow via backend
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/neynar/auth-url`);
+      const data = await response.json();
+      
       window.open(
-        `https://neynar.com/sign-in?api_key=${process.env.NEXT_PUBLIC_NEYNAR_API_KEY}&redirect_url=${window.location.origin}/api/auth/callback`,
+        data.authUrl,
         'farcaster-signin',
         'width=500,height=700'
       );

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 
-const NEYNAR_API_URL = 'https://api.neynar.com/v2';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
 interface FarcasterUser {
   fid: number;
@@ -25,17 +25,10 @@ export const useNeynar = () => {
   const [user, setUser] = useState<FarcasterUser | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Get user by verified Ethereum address
+  // Get user by verified Ethereum address (via backend)
   const getUserByAddress = async (ethAddress: string) => {
     try {
-      const response = await fetch(
-        `${NEYNAR_API_URL}/farcaster/user/by-verification?address=${ethAddress}`,
-        {
-          headers: {
-            'api_key': process.env.NEXT_PUBLIC_NEYNAR_API_KEY!,
-          },
-        }
-      );
+      const response = await fetch(`${BACKEND_URL}/api/neynar/user/by-address/${ethAddress}`);
 
       if (!response.ok) {
         throw new Error('User not found');
@@ -49,17 +42,10 @@ export const useNeynar = () => {
     }
   };
 
-  // Get user interactions (likes, recasts, etc.)
+  // Get user interactions (likes, recasts, etc.) via backend
   const getUserInteractions = async (fid: number, castHash: string) => {
     try {
-      const response = await fetch(
-        `${NEYNAR_API_URL}/farcaster/cast?hash=${castHash}`,
-        {
-          headers: {
-            'api_key': process.env.NEXT_PUBLIC_NEYNAR_API_KEY!,
-          },
-        }
-      );
+      const response = await fetch(`${BACKEND_URL}/api/neynar/cast/${castHash}`);
 
       const data = await response.json();
       return {

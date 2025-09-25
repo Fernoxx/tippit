@@ -97,6 +97,53 @@ app.get('/api/config/:userAddress', async (req, res) => {
   }
 });
 
+// Neynar API proxy endpoints (keeps API key secure on backend)
+app.get('/api/neynar/user/by-address/:address', async (req, res) => {
+  try {
+    const { address } = req.params;
+    const response = await fetch(
+      `https://api.neynar.com/v2/farcaster/user/by-verification?address=${address}`,
+      {
+        headers: { 'api_key': process.env.NEYNAR_API_KEY }
+      }
+    );
+    
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('Neynar user fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch user' });
+  }
+});
+
+app.get('/api/neynar/cast/:hash', async (req, res) => {
+  try {
+    const { hash } = req.params;
+    const response = await fetch(
+      `https://api.neynar.com/v2/farcaster/cast?hash=${hash}`,
+      {
+        headers: { 'api_key': process.env.NEYNAR_API_KEY }
+      }
+    );
+    
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('Neynar cast fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch cast' });
+  }
+});
+
+app.get('/api/neynar/auth-url', async (req, res) => {
+  try {
+    const authUrl = `https://neynar.com/sign-in?api_key=${process.env.NEYNAR_API_KEY}&redirect_url=${req.headers.origin}/api/auth/callback`;
+    res.json({ authUrl });
+  } catch (error) {
+    console.error('Auth URL generation error:', error);
+    res.status(500).json({ error: 'Failed to generate auth URL' });
+  }
+});
+
 // Tip history endpoints
 app.get('/api/history/:userAddress', async (req, res) => {
   try {
