@@ -60,7 +60,7 @@ export const usePIT = () => {
     }
   };
 
-  const setTippingConfig = async (configData) => {
+  const setTippingConfig = async (configData: UserConfig) => {
     setIsLoading(true);
     try {
       const response = await fetch(`${BACKEND_URL}/api/config`, {
@@ -81,7 +81,7 @@ export const usePIT = () => {
     setIsLoading(false);
   };
 
-  const approveToken = async (tokenAddress, amount) => {
+  const approveToken = async (tokenAddress: string, amount: string) => {
     // This triggers a wallet transaction to approve EXACT amount to backend wallet
     // Amount should be the exact USDC amount user wants to approve (not unlimited)
     console.log('Approve EXACT amount:', amount, 'USDC to backend wallet');
@@ -96,7 +96,7 @@ export const usePIT = () => {
     console.log(`User approves ${amount} USDC to backend wallet: ${process.env.NEXT_PUBLIC_BACKEND_WALLET_ADDRESS}`);
   };
 
-  const revokeTokenAllowance = async (tokenAddress) => {
+  const revokeTokenAllowance = async (tokenAddress: string) => {
     // This triggers a wallet transaction to revoke allowance (set to 0)
     console.log('Revoke allowance for token:', tokenAddress);
     
