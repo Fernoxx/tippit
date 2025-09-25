@@ -1,15 +1,30 @@
 import { useHomepageData, useLeaderboardData } from '@/hooks/usePIT';
+import { useFarcasterWallet } from '@/hooks/useFarcasterWallet';
 import { formatAmount } from '@/utils/contracts';
 import { useState, useEffect } from 'react';
 
 export default function Home() {
   const { users: tipsReceivedUsers, amounts: tipsReceivedAmounts } = useHomepageData();
   const { users: tipsGivenUsers, amounts: tipsGivenAmounts } = useLeaderboardData();
+  const { connectWallet, isLoading, isConnected, currentUser } = useFarcasterWallet();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const handleGetStarted = async () => {
+    console.log('Get Started button clicked!');
+    console.log('isLoading:', isLoading);
+    console.log('isConnected:', isConnected);
+    console.log('currentUser:', currentUser);
+    
+    try {
+      await connectWallet();
+    } catch (error) {
+      console.error('Connect wallet error:', error);
+    }
+  };
 
   if (!mounted) return null;
 
@@ -23,8 +38,12 @@ export default function Home() {
           <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">
             Set up automatic tips for likes, replies, and follows. Your audience gets paid for engaging with your content.
           </p>
-          <button className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors">
-            Get Started
+          <button 
+            onClick={handleGetStarted}
+            disabled={isLoading}
+            className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+          >
+            {isLoading ? 'Connecting...' : 'Get Started'}
           </button>
         </div>
         
@@ -88,16 +107,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* CTA Section */}
-        <div className="bg-blue-50 rounded-lg p-8 text-center">
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">Ready to start earning?</h3>
-          <p className="text-gray-600 mb-6">
-            Connect your Farcaster account and start getting rewarded for engaging with content
-          </p>
-          <button className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors">
-            Get Started
-          </button>
-        </div>
     </div>
   );
 }
