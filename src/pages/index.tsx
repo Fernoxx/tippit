@@ -22,10 +22,10 @@ export default function Home() {
         {!isConnected && (
           <div className="text-center py-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Reward your audience
+              Ecion allows you to send crypto programmatically each time someone likes, comments, follows or quote casts your posts on Farcaster
             </h2>
             <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">
-              Set up automatic tips for likes, replies, and follows. Your audience gets paid for engaging with your content.
+              With Ecion you can boost your casts by tipping engagers for their interactions easily.
             </p>
           </div>
         )}
@@ -54,12 +54,12 @@ export default function Home() {
 
         {/* Top Tippers */}
         <div className="mb-12">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Tippers</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Engager Tippers</h3>
           <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
             {tipsGivenUsers.length === 0 ? (
               <div className="text-center py-12 text-gray-500">
-                <p className="text-lg">No active tippers yet!</p>
-                <p className="text-sm mt-1">Be the first to set up reverse tipping</p>
+                <p className="text-lg">No active engager tippers yet!</p>
+                <p className="text-sm mt-1">Be the first to set up reverse tipping for your engagers</p>
               </div>
             ) : (
               tipsGivenUsers.map((user, index) => (
