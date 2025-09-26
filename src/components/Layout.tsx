@@ -12,8 +12,6 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const router = useRouter();
   const [currentPage, setCurrentPage] = useState(0);
-  const [touchStart, setTouchStart] = useState(0);
-  const [touchEnd, setTouchEnd] = useState(0);
   const { isConnected, currentUser } = useFarcasterWallet();
 
   const pages = [
@@ -22,36 +20,6 @@ export default function Layout({ children }: LayoutProps) {
     { href: '/settings', icon: Settings, label: 'Settings' },
   ];
 
-  // Handle swipe gestures
-  const handleTouchStart = (e: React.TouchEvent) => {
-    setTouchStart(e.targetTouches[0].clientX);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    setTouchEnd(e.targetTouches[0].clientX);
-  };
-
-  const handleTouchEnd = () => {
-    if (!touchStart || !touchEnd) return;
-    
-    const distance = touchStart - touchEnd;
-    const isLeftSwipe = distance > 50;
-    const isRightSwipe = distance < -50;
-
-    if (isLeftSwipe && currentPage < pages.length - 1) {
-      // Swipe left - go to next page
-      const nextPage = currentPage + 1;
-      setCurrentPage(nextPage);
-      router.push(pages[nextPage].href);
-    }
-    
-    if (isRightSwipe && currentPage > 0) {
-      // Swipe right - go to previous page
-      const prevPage = currentPage - 1;
-      setCurrentPage(prevPage);
-      router.push(pages[prevPage].href);
-    }
-  };
 
   // Update current page when route changes
   useEffect(() => {
@@ -90,9 +58,7 @@ export default function Layout({ children }: LayoutProps) {
       {/* Main Content with Swipe Support */}
       <main 
         className="flex-1 overflow-y-auto pb-20"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
+        style={{ touchAction: 'pan-y' }}
       >
         {children}
       </main>

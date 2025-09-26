@@ -224,7 +224,6 @@ export default function Settings() {
               : 'text-gray-600 hover:text-gray-900'
           }`}
         >
-          <DollarSign className="w-4 h-4 inline mr-2" />
           Set Tipping Amount
         </button>
         <button
@@ -235,7 +234,6 @@ export default function Settings() {
               : 'text-gray-600 hover:text-gray-900'
           }`}
         >
-          <Shield className="w-4 h-4 inline mr-2" />
           Set Criteria
         </button>
         <button
@@ -246,7 +244,6 @@ export default function Settings() {
               : 'text-gray-600 hover:text-gray-900'
           }`}
         >
-          <Users className="w-4 h-4 inline mr-2" />
           Approve Allowance
         </button>
       </div>

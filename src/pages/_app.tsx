@@ -24,6 +24,7 @@ function AutoConnect({ children }: { children: React.ReactNode }) {
           const mini = connectors.find(c => c.id === 'farcaster');
           if (mini) {
             console.log('⚡ Auto-connecting via Farcaster MiniApp connector');
+            // Auto-connect silently without showing success toast
             connect({ connector: mini });
           }
         }
