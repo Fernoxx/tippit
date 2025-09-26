@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useFarcasterWallet } from './useFarcasterWallet';
+import { toast } from 'react-hot-toast';
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001').replace(/\/$/, '');
 
@@ -47,8 +48,17 @@ export const useEcion = () => {
   };
 
   const setTippingConfig = async (configData: UserConfig) => {
+    if (!address) {
+      toast.error('Please connect your wallet first');
+      return;
+    }
+
     setIsLoading(true);
     try {
+      console.log('Saving config for address:', address);
+      console.log('Config data:', configData);
+      console.log('Backend URL:', BACKEND_URL);
+      
       const response = await fetch(`${BACKEND_URL}/api/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -58,11 +68,21 @@ export const useEcion = () => {
         })
       });
       
+      console.log('Response status:', response.status);
+      
       if (response.ok) {
+        const result = await response.json();
+        console.log('Config saved successfully:', result);
+        toast.success('Configuration saved successfully!');
         await fetchUserConfig(); // Refresh config
+      } else {
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        toast.error(`Failed to save configuration: ${response.status}`);
       }
     } catch (error) {
       console.error('Error setting config:', error);
+      toast.error('Failed to save configuration: ' + error.message);
     }
     setIsLoading(false);
   };

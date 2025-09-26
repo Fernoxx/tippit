@@ -18,17 +18,24 @@ export default function Home() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 bg-yellow-50 min-h-full">
-        {/* Hero Section - Only show if wallet not connected */}
-        {!isConnected && (
-          <div className="text-center py-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Tip Your Audience
-            </h2>
-            <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">
-              With Ecion you can boost your casts by tipping engagers for their interactions easily.
-            </p>
-          </div>
-        )}
+        {/* Hero Section */}
+        <div className="text-center py-12">
+          <h2 className="text-3xl font-bold text-gray-900 mb-4">
+            Tip Your Audience
+          </h2>
+          <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">
+            With Ecion you can boost your casts by tipping engagers for their interactions easily.
+          </p>
+          {!isConnected && (
+            <button 
+              onClick={handleGetStarted}
+              disabled={isLoading}
+              className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+            >
+              {isLoading ? 'Connecting...' : 'Get Started'}
+            </button>
+          )}
+        </div>
         
         {/* Time Filter for Top Content */}
         {isConnected && (
