@@ -22,7 +22,7 @@ export default function Home() {
         {!isConnected && (
           <div className="text-center py-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Ecion allows you to send crypto programmatically each time someone likes, comments, follows or quote casts your posts on Farcaster
+              Tip Your Audience
             </h2>
             <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">
               With Ecion you can boost your casts by tipping engagers for their interactions easily.
