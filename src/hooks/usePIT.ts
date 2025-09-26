@@ -80,7 +80,7 @@ export const useEcion = () => {
         console.error('Error response:', errorText);
         toast.error(`Failed to save configuration: ${response.status}`);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error setting config:', error);
       toast.error('Failed to save configuration: ' + error.message);
     }
