@@ -3,22 +3,18 @@ import { motion } from 'framer-motion';
 import { useEcion } from '@/hooks/usePIT';
 import { formatAmount } from '@/utils/contracts';
 import toast from 'react-hot-toast';
-import FarcasterAuth from '@/components/FarcasterAuth';
 import {
-  ChevronDown,
+  Settings as SettingsIcon,
   DollarSign,
   Shield,
+  Users,
   Heart,
   MessageCircle,
   Repeat,
   Quote,
   UserPlus,
-  Users,
-  Wallet,
-  AlertCircle,
   Check,
   X,
-  Settings as SettingsIcon,
 } from 'lucide-react';
 
 export default function Settings() {
@@ -39,7 +35,7 @@ export default function Settings() {
   } = useEcion();
 
   const [mounted, setMounted] = useState(false);
-  const [expandedCard, setExpandedCard] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'amounts' | 'criteria' | 'allowance'>('amounts');
   
   // Form states
   const [spendingLimit, setSpendingLimitValue] = useState('0');
@@ -53,18 +49,18 @@ export default function Settings() {
     quote: '0.025',
     follow: '0',
   });
-  const [actionEnabled, setActionEnabled] = useState({
+  const [tippingToggles, setTippingToggles] = useState({
     like: true,
     reply: true,
     recast: true,
     quote: true,
     follow: false,
   });
-  const [selectedAudience, setSelectedAudience] = useState(2); // Default to "Anyone" (2)
-  const [minFollowerCount, setMinFollowerCount] = useState(25); // Default 25 followers
-  const [minNeynarScore, setMinNeynarScore] = useState(0.5); // Default 0.5 Neynar score
-
-  // Token balance will be fetched from backend via useEcion hook
+  const [criteria, setCriteria] = useState({
+    audience: 0, // 0: Following, 1: Followers, 2: Anyone
+    minFollowerCount: 25,
+    minNeynarScore: 0.5,
+  });
 
   useEffect(() => {
     setMounted(true);
@@ -77,406 +73,435 @@ export default function Settings() {
         quote: userConfig.quoteAmount?.toString() || '0.025',
         follow: userConfig.followAmount?.toString() || '0',
       });
-      setActionEnabled({
-        like: userConfig.likeEnabled,
-        reply: userConfig.replyEnabled,
-        recast: userConfig.recastEnabled,
-        quote: userConfig.quoteEnabled,
-        follow: userConfig.followEnabled,
+      setTippingToggles({
+        like: userConfig.likeEnabled ?? true,
+        reply: userConfig.replyEnabled ?? true,
+        recast: userConfig.recastEnabled ?? true,
+        quote: userConfig.quoteEnabled ?? true,
+        follow: userConfig.followEnabled ?? false,
       });
-      setSelectedAudience(userConfig.audience);
-      setMinFollowerCount(Number(userConfig.minFollowerCount));
-      setMinNeynarScore(Number(userConfig.minNeynarScore));
+      setCriteria({
+        audience: userConfig.audience || 0,
+        minFollowerCount: userConfig.minFollowerCount || 25,
+        minNeynarScore: userConfig.minNeynarScore || 0.5,
+      });
     }
   }, [userConfig]);
 
-  if (!mounted) return null;
-
-  if (!address) {
-    return (
-      <div className="text-center py-12">
-        <AlertCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-        <h2 className="text-xl font-medium text-gray-900 mb-2">Connect Your Wallet</h2>
-        <p className="text-gray-600">Please connect your wallet to access settings</p>
-      </div>
-    );
-  }
-
   const handleSaveTippingConfig = async () => {
+    if (!address) {
+      toast.error('Please connect your wallet first');
+      return;
+    }
+
     try {
-      const tokenAddress = selectedToken === 'custom' ? customTokenAddress : selectedToken;
-      
-      await setTippingConfig?.({
-        tokenAddress,
+      await setTippingConfig({
+        tokenAddress: selectedToken,
         likeAmount: tippingAmounts.like,
         replyAmount: tippingAmounts.reply,
         recastAmount: tippingAmounts.recast,
         quoteAmount: tippingAmounts.quote,
         followAmount: tippingAmounts.follow,
-        spendingLimit,
-        audience: selectedAudience,
-        minFollowerCount,
-        minNeynarScore,
-        likeEnabled: actionEnabled.like,
-        replyEnabled: actionEnabled.reply,
-        recastEnabled: actionEnabled.recast,
-        quoteEnabled: actionEnabled.quote,
-        followEnabled: actionEnabled.follow,
+        spendingLimit: spendingLimit,
+        audience: criteria.audience,
+        minFollowerCount: criteria.minFollowerCount,
+        minNeynarScore: criteria.minNeynarScore,
+        likeEnabled: tippingToggles.like,
+        replyEnabled: tippingToggles.reply,
+        recastEnabled: tippingToggles.recast,
+        quoteEnabled: tippingToggles.quote,
+        followEnabled: tippingToggles.follow,
         isActive: true,
-        totalSpent: userConfig?.totalSpent || '0',
+        totalSpent: userConfig?.totalSpent || '0'
       });
       toast.success('Tipping configuration saved!');
-    } catch (error) {
-      toast.error('Failed to save configuration');
+    } catch (error: any) {
+      toast.error('Failed to save configuration: ' + error.message);
     }
   };
 
   const handleApproveAllowance = async () => {
-    if (!allowanceAmount) return;
-    
+    if (!address) {
+      toast.error('Please connect your wallet first');
+      return;
+    }
+
+    if (!allowanceAmount || allowanceAmount === '0') {
+      toast.error('Please enter an allowance amount');
+      return;
+    }
+
     try {
-      const tokenAddress = selectedToken === 'custom' ? customTokenAddress : selectedToken;
-      
-      await approveToken?.(tokenAddress, allowanceAmount);
-      toast.success('Allowance approved successfully!');
-      setAllowanceAmount('');
-    } catch (error) {
-      toast.error('Failed to approve allowance');
+      await approveToken(selectedToken, allowanceAmount);
+    } catch (error: any) {
+      toast.error('Failed to approve allowance: ' + error.message);
     }
   };
 
-  const handleUpdateSpendingLimit = async () => {
-    if (!userConfig) return;
-    
+  const handleRevokeAllowance = async () => {
+    if (!address) {
+      toast.error('Please connect your wallet first');
+      return;
+    }
+
     try {
-      await setTippingConfig?.({
-        ...userConfig,
-        spendingLimit: spendingLimit
-      });
-      toast.success('Spending limit updated!');
-    } catch (error) {
-      toast.error('Failed to update spending limit');
+      await revokeTokenAllowance(selectedToken);
+    } catch (error: any) {
+      toast.error('Failed to revoke allowance: ' + error.message);
     }
   };
 
-  const handleRevokeTokenAllowance = async () => {
-    if (confirm('Are you sure you want to revoke your token allowance? This will prevent the backend from spending your tokens.')) {
+  const handleRevokeConfig = async () => {
+    if (!address) {
+      toast.error('Please connect your wallet first');
+      return;
+    }
+
+    if (confirm('Are you sure you want to deactivate your tipping configuration?')) {
       try {
-        const tokenAddress = selectedToken === 'custom' ? customTokenAddress : selectedToken;
-        await revokeTokenAllowance?.(tokenAddress);
-        toast.success('Token allowance revoked');
-      } catch (error) {
-        toast.error('Failed to revoke token allowance');
+        await revokeConfig();
+        toast.success('Tipping configuration deactivated');
+      } catch (error: any) {
+        toast.error('Failed to deactivate configuration: ' + error.message);
       }
     }
   };
 
-  const handleRevoke = async () => {
-    if (confirm('Are you sure you want to revoke your tipping configuration?')) {
-      try {
-        await revokeConfig?.();
-        toast.success('Configuration revoked');
-      } catch (error) {
-        toast.error('Failed to revoke configuration');
-      }
-    }
-  };
+  if (!mounted) return null;
 
-  const settingsCards = [
-    {
-      id: 'tipping',
-      title: 'Configure Tipping',
-      icon: DollarSign,
-      content: (
-        <div className="space-y-4">
-          <div className="space-y-3">
-            {[
-              { key: 'like', icon: Heart, label: 'Per Like' },
-              { key: 'reply', icon: MessageCircle, label: 'Per Reply' },
-              { key: 'recast', icon: Repeat, label: 'Per Recast' },
-              { key: 'quote', icon: Quote, label: 'Per Quote Cast' },
-              { key: 'follow', icon: UserPlus, label: 'Per Follow' },
-            ].map(({ key, icon: Icon, label }) => (
-              <div key={key} className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Icon className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm">{label}</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="number"
-                    step="0.001"
-                    value={tippingAmounts[key as keyof typeof tippingAmounts]}
-                    onChange={(e) =>
-                      setTippingAmounts({
-                        ...tippingAmounts,
-                        [key]: e.target.value,
-                      })
-                    }
-                    className="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:border-gray-500"
-                  />
-                  <span className="text-xs text-gray-500">USDC</span>
-                </div>
-              </div>
-            ))}
+  if (!address) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8 bg-yellow-50 min-h-full">
+        <div className="text-center py-12">
+          <SettingsIcon className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Connect Your Wallet</h1>
+          <p className="text-gray-600 mb-8">Please connect your Farcaster wallet to configure tipping settings.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto px-4 py-8 bg-yellow-50 min-h-full">
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="text-center"
+      >
+        <div className="flex items-center justify-center mb-4">
+          <SettingsIcon className="w-8 h-8 text-accent mr-3" />
+          <h1 className="text-2xl font-bold text-accent">Settings</h1>
+        </div>
+        <p className="text-xl text-gray-700">
+          Configure your reverse tipping preferences
+        </p>
+      </motion.div>
+
+      {/* Connected Wallet Info */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="bg-white rounded-2xl p-6 card-shadow mb-8"
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-gray-600">Connected Wallet</p>
+            <p className="font-mono font-semibold">
+              {address.slice(0, 6)}...{address.slice(-4)}
+            </p>
           </div>
-          <div className="pt-4 border-t border-gray-200">
+        </div>
+      </motion.div>
+
+      {/* Tab Navigation */}
+      <div className="flex space-x-1 mb-8 bg-gray-100 p-1 rounded-lg">
+        <button
+          onClick={() => setActiveTab('amounts')}
+          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+            activeTab === 'amounts'
+              ? 'bg-white text-accent shadow-sm'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          <DollarSign className="w-4 h-4 inline mr-2" />
+          Set Tipping Amount
+        </button>
+        <button
+          onClick={() => setActiveTab('criteria')}
+          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+            activeTab === 'criteria'
+              ? 'bg-white text-accent shadow-sm'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          <Shield className="w-4 h-4 inline mr-2" />
+          Set Criteria
+        </button>
+        <button
+          onClick={() => setActiveTab('allowance')}
+          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+            activeTab === 'allowance'
+              ? 'bg-white text-accent shadow-sm'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          <Users className="w-4 h-4 inline mr-2" />
+          Approve Allowance
+        </button>
+      </div>
+
+      {/* Tab Content */}
+      <motion.div
+        key={activeTab}
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.2 }}
+      >
+        {/* Set Tipping Amount Tab */}
+        {activeTab === 'amounts' && (
+          <div className="bg-white rounded-2xl p-8 card-shadow">
+            <h2 className="text-xl font-bold text-gray-900 mb-6">Set Tipping Amounts</h2>
+            
+            <div className="space-y-6">
+              {[
+                { key: 'like', label: 'Like', icon: Heart, default: '0.01' },
+                { key: 'reply', label: 'Reply', icon: MessageCircle, default: '0.025' },
+                { key: 'recast', label: 'Recast', icon: Repeat, default: '0.025' },
+                { key: 'quote', label: 'Quote Cast', icon: Quote, default: '0.025' },
+                { key: 'follow', label: 'Follow', icon: UserPlus, default: '0' },
+              ].map(({ key, label, icon: Icon, default: defaultAmount }) => (
+                <div key={key} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <Icon className="w-5 h-5 text-gray-600" />
+                    <span className="font-medium">{label}</span>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <input
+                      type="number"
+                      step="0.001"
+                      min="0"
+                      value={tippingAmounts[key as keyof typeof tippingAmounts]}
+                      onChange={(e) => setTippingAmounts(prev => ({ ...prev, [key]: e.target.value }))}
+                      className="w-24 px-3 py-1 border border-gray-300 rounded text-sm"
+                      placeholder={defaultAmount}
+                    />
+                    <span className="text-sm text-gray-600">USDC</span>
+                    <button
+                      onClick={() => setTippingToggles(prev => ({ ...prev, [key]: !prev[key as keyof typeof tippingToggles] }))}
+                      className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                        tippingToggles[key as keyof typeof tippingToggles]
+                          ? 'bg-green-500 text-white'
+                          : 'bg-gray-200 text-gray-600'
+                      }`}
+                    >
+                      {tippingToggles[key as keyof typeof tippingToggles] ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-8 pt-6 border-t border-gray-200">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-gray-700">Maximum Spending Limit (USDC)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  value={spendingLimit}
+                  onChange={(e) => setSpendingLimitValue(e.target.value)}
+                  className="w-32 px-3 py-2 border border-gray-300 rounded text-sm"
+                  placeholder="0"
+                />
+              </div>
+            </div>
+
             <button
               onClick={handleSaveTippingConfig}
               disabled={isSettingConfig}
-              className="w-full bg-gray-900 text-white py-2 px-4 rounded text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
+              className="w-full mt-6 bg-accent text-white py-3 px-4 rounded-lg font-medium hover:bg-accent/90 transition-colors disabled:opacity-50"
             >
               {isSettingConfig ? 'Saving...' : 'Save Configuration'}
             </button>
           </div>
-        </div>
-      )
-    },
-    {
-      id: 'programmatic',
-      title: 'Allow Programmatic Tipping',
-      icon: Shield,
-      content: (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm">Enable automatic tipping</span>
+        )}
+
+        {/* Set Criteria Tab */}
+        {activeTab === 'criteria' && (
+          <div className="bg-white rounded-2xl p-8 card-shadow">
+            <h2 className="text-xl font-bold text-gray-900 mb-6">Set Tipping Criteria</h2>
+            
+            <div className="space-y-6">
+              {/* Audience Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">Who can receive tips?</label>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { value: 0, label: 'Following', desc: 'Only users you follow' },
+                    { value: 1, label: 'Followers', desc: 'Only your followers' },
+                    { value: 2, label: 'Anyone', desc: 'Any Farcaster user' },
+                  ].map(({ value, label, desc }) => (
+                    <button
+                      key={value}
+                      onClick={() => setCriteria(prev => ({ ...prev, audience: value }))}
+                      className={`p-4 border-2 rounded-lg text-center transition-colors ${
+                        criteria.audience === value
+                          ? 'border-accent bg-accent/5 text-accent'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="font-medium">{label}</div>
+                      <div className="text-xs text-gray-600 mt-1">{desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Minimum Follower Count */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Minimum Follower Count: {criteria.minFollowerCount}
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="1000"
+                  step="25"
+                  value={criteria.minFollowerCount}
+                  onChange={(e) => setCriteria(prev => ({ ...prev, minFollowerCount: parseInt(e.target.value) }))}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>0</span>
+                  <span>1000</span>
+                </div>
+              </div>
+
+              {/* Minimum Neynar Score */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Minimum Neynar Score: {criteria.minNeynarScore.toFixed(1)}
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={criteria.minNeynarScore}
+                  onChange={(e) => setCriteria(prev => ({ ...prev, minNeynarScore: parseFloat(e.target.value) }))}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>0.0</span>
+                  <span>1.0</span>
+                </div>
+              </div>
+            </div>
+
             <button
-              onClick={() => setActionEnabled({ ...actionEnabled, like: !actionEnabled.like })}
-              className={`w-10 h-5 rounded-full transition-colors ${
-                actionEnabled.like ? 'bg-green-500' : 'bg-gray-300'
-              }`}
+              onClick={handleSaveTippingConfig}
+              disabled={isSettingConfig}
+              className="w-full mt-6 bg-accent text-white py-3 px-4 rounded-lg font-medium hover:bg-accent/90 transition-colors disabled:opacity-50"
             >
-              <div
-                className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform ${
-                  actionEnabled.like ? 'translate-x-5' : 'translate-x-0.5'
-                }`}
-              />
+              {isSettingConfig ? 'Saving...' : 'Save Criteria'}
             </button>
           </div>
-          <p className="text-xs text-gray-500">
-            Allow the system to automatically tip users based on your configured criteria
-          </p>
-        </div>
-      )
-    },
-    {
-      id: 'wallet',
-      title: 'Configure ETH Tipping Wallet',
-      icon: Wallet,
-      content: (
-        <div className="space-y-3">
-          <div className="p-3 bg-gray-50 rounded">
-            <p className="text-xs text-gray-600 mb-1">Current Wallet</p>
-            <p className="text-sm font-medium">
-              {address.slice(0, 6)}...{address.slice(-4)}
-            </p>
-          </div>
-          <div className="space-y-2">
-            <label className="block text-xs text-gray-600">Spending Limit (USDC)</label>
-            <input
-              type="number"
-              value={spendingLimit}
-              onChange={(e) => setSpendingLimitValue(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-gray-500"
-              placeholder="100"
-            />
-          </div>
-          <button
-            onClick={handleUpdateSpendingLimit}
-            disabled={isUpdatingLimit}
-            className="w-full bg-gray-900 text-white py-2 px-4 rounded text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
-          >
-            {isUpdatingLimit ? 'Updating...' : 'Update Limit'}
-          </button>
-        </div>
-      )
-    },
-    {
-      id: 'super',
-      title: 'Configure Super Tip',
-      icon: DollarSign,
-      content: (
-        <div className="space-y-3">
-          <div className="space-y-2">
-            <label className="block text-xs text-gray-600">Super Tip Amount (USDC)</label>
-            <input
-              type="number"
-              step="0.1"
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-gray-500"
-              placeholder="1.0"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="block text-xs text-gray-600">Trigger Conditions</label>
-            <div className="space-y-1">
-              <label className="flex items-center space-x-2">
-                <input type="checkbox" className="w-3 h-3" />
-                <span className="text-xs">High engagement posts</span>
-              </label>
-              <label className="flex items-center space-x-2">
-                <input type="checkbox" className="w-3 h-3" />
-                <span className="text-xs">Viral content</span>
-              </label>
-            </div>
-          </div>
-        </div>
-      )
-    },
-    {
-      id: 'delegate',
-      title: 'Delegate Tipping',
-      icon: Users,
-      content: (
-        <div className="space-y-3">
-          <div className="space-y-2">
-            <label className="block text-xs text-gray-600">Delegate Address</label>
-            <input
-              type="text"
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-gray-500"
-              placeholder="0x... (Optional)"
-            />
-          </div>
-          <p className="text-xs text-gray-500">
-            Allow another address to manage your tipping configuration
-          </p>
-        </div>
-      )
-    },
-    {
-      id: 'connected',
-      title: 'Configure Connected Wallets',
-      icon: Wallet,
-      content: (
-        <div className="space-y-3">
-          <div className="space-y-2">
-            <p className="text-xs text-gray-600">Connected Wallets</p>
-            <div className="space-y-1">
-              <div className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                <span className="text-sm font-medium">
-                  {address.slice(0, 6)}...{address.slice(-4)}
-                </span>
-                <button className="text-xs text-red-600 hover:text-red-800">
-                  Disconnect
+        )}
+
+        {/* Approve Allowance Tab */}
+        {activeTab === 'allowance' && (
+          <div className="bg-white rounded-2xl p-8 card-shadow">
+            <h2 className="text-xl font-bold text-gray-900 mb-6">Approve Token Allowance</h2>
+            
+            <div className="space-y-6">
+              {/* Token Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Token</label>
+                <div className="flex space-x-3">
+                  <input
+                    type="text"
+                    value={customTokenAddress}
+                    onChange={(e) => setCustomTokenAddress(e.target.value)}
+                    placeholder="Paste token address or search"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded text-sm"
+                  />
+                  <button
+                    onClick={() => {
+                      setSelectedToken('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913');
+                      setCustomTokenAddress('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913');
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                  >
+                    Choose USDC
+                  </button>
+                </div>
+                {selectedToken === '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' && (
+                  <p className="text-sm text-gray-600 mt-2">USDC on Base</p>
+                )}
+              </div>
+
+              {/* Allowance Amount */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Allowance Amount (USDC)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  value={allowanceAmount}
+                  onChange={(e) => setAllowanceAmount(e.target.value)}
+                  placeholder="Enter amount to approve"
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                />
+              </div>
+
+              {/* Current Allowance */}
+              {tokenAllowance && (
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <p className="text-sm text-gray-600">Current Allowance</p>
+                  <p className="text-lg font-semibold">{formatAmount(tokenAllowance)} USDC</p>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex space-x-3">
+                <button
+                  onClick={handleApproveAllowance}
+                  disabled={isApproving || !allowanceAmount}
+                  className="flex-1 bg-green-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+                >
+                  {isApproving ? 'Approving...' : 'Approve'}
                 </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )
-    }
-  ];
-
-  return (
-    <div className="space-y-8">
-
-      {/* Farcaster Connection */}
-      <FarcasterAuth />
-
-      {/* Wallet Info */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="bg-white rounded-2xl p-6 card-shadow"
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <Wallet className="w-8 h-8 text-accent" />
-            <div>
-              <p className="text-sm text-gray-600">Connected Wallet</p>
-              <p className="font-mono font-semibold">
-                {address.slice(0, 6)}...{address.slice(-4)}
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        {userConfig && tokenBalance && tokenAllowance && (
-          <div className="mt-4 pt-4 border-t border-gray-200">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <p className="text-sm text-gray-600">Allowance</p>
-                <p className="text-lg font-bold text-accent">
-                  {formatAmount(tokenAllowance)}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Available to Tip</p>
-                <p className="text-lg font-bold text-green-600">
-                  {formatAmount(tokenBalance)}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Total Spent</p>
-                <p className="text-lg font-bold text-gray-700">
-                  {formatAmount(userConfig.totalSpent)}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Status</p>
-                <p className={`text-lg font-bold ${userConfig.isActive ? 'text-green-600' : 'text-red-600'}`}>
-                  {userConfig.isActive ? 'Active' : 'Inactive'}
-                </p>
+                <button
+                  onClick={handleRevokeAllowance}
+                  disabled={isRevokingAllowance || !tokenAllowance || tokenAllowance === '0'}
+                  className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
+                >
+                  {isRevokingAllowance ? 'Revoking...' : 'Revoke'}
+                </button>
               </div>
             </div>
           </div>
         )}
       </motion.div>
 
-      {/* Settings Cards */}
-      <div className="space-y-4">
-        {settingsCards.map((card) => (
-          <div key={card.id} className="bg-white rounded-lg overflow-hidden card-shadow">
-            <button
-              onClick={() => setExpandedCard(expandedCard === card.id ? null : card.id)}
-              className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
-            >
-              <span className="font-medium text-gray-900">{card.title}</span>
-              <ChevronDown 
-                className={`w-4 h-4 text-gray-500 transition-transform ${
-                  expandedCard === card.id ? 'rotate-180' : ''
-                }`} 
-              />
-            </button>
-            
-            {expandedCard === card.id && (
-              <div className="px-4 pb-4 border-t border-gray-100">
-                {card.content}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* Common Questions */}
-      <div className="mt-8">
-        <h3 className="text-sm font-medium text-gray-700 mb-3">Common Questions</h3>
-        <div className="bg-white rounded-lg overflow-hidden card-shadow">
+      {/* Deactivate Configuration */}
+      {userConfig && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="mt-8 text-center"
+        >
           <button
-            onClick={() => setExpandedCard(expandedCard === 'faq' ? null : 'faq')}
-            className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+            onClick={handleRevokeConfig}
+            disabled={isRevoking}
+            className="text-red-600 hover:text-red-700 text-sm font-medium transition-colors disabled:opacity-50"
           >
-            <span className="font-medium text-gray-900">How Tipping Works on Base vs Farcaster</span>
-            <ChevronDown 
-              className={`w-4 h-4 text-gray-500 transition-transform ${
-                expandedCard === 'faq' ? 'rotate-180' : ''
-              }`} 
-            />
+            {isRevoking ? 'Deactivating...' : 'Deactivate Tipping Configuration'}
           </button>
-          
-          {expandedCard === 'faq' && (
-            <div className="px-4 pb-4 border-t border-gray-100">
-              <div className="text-sm text-gray-600 space-y-2">
-                <p>Base and Farcaster use different tipping mechanisms:</p>
-                <ul className="list-disc list-inside space-y-1 ml-4">
-                  <li>Base: Direct ETH/USDC transfers</li>
-                  <li>Farcaster: In-app tipping system</li>
-                </ul>
-                <p>Our platform bridges both systems for seamless tipping.</p>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+        </motion.div>
+      )}
     </div>
   );
 }
