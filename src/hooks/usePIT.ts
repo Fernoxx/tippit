@@ -282,10 +282,42 @@ export const useEcion = () => {
   };
 };
 
+interface CastEmbed {
+  url?: string;
+  metadata?: any;
+}
+
+interface CastReactions {
+  likes_count?: number;
+  recasts_count?: number;
+}
+
+interface CastReplies {
+  count?: number;
+}
+
+interface CastTipper {
+  userAddress: string;
+  username?: string;
+  displayName?: string;
+  pfpUrl?: string;
+  fid?: number;
+}
+
+interface Cast {
+  hash: string;
+  text: string;
+  timestamp: string;
+  embeds?: CastEmbed[];
+  reactions?: CastReactions;
+  replies?: CastReplies;
+  tipper?: CastTipper;
+}
+
 interface HomepageData {
   users: string[];
   amounts: string[];
-  casts?: any[];
+  casts?: Cast[];
 }
 
 interface LeaderboardUser {

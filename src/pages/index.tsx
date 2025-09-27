@@ -3,6 +3,38 @@ import { useFarcasterWallet } from '@/hooks/useFarcasterWallet';
 import { formatAmount } from '@/utils/contracts';
 import { useState, useEffect } from 'react';
 
+interface CastEmbed {
+  url?: string;
+  metadata?: any;
+}
+
+interface CastReactions {
+  likes_count?: number;
+  recasts_count?: number;
+}
+
+interface CastReplies {
+  count?: number;
+}
+
+interface CastTipper {
+  userAddress: string;
+  username?: string;
+  displayName?: string;
+  pfpUrl?: string;
+  fid?: number;
+}
+
+interface Cast {
+  hash: string;
+  text: string;
+  timestamp: string;
+  embeds?: CastEmbed[];
+  reactions?: CastReactions;
+  replies?: CastReplies;
+  tipper?: CastTipper;
+}
+
 export default function Home() {
   const [timeFilter, setTimeFilter] = useState<'24h' | '7d' | '30d'>('24h');
   const { casts, users: tipsReceivedUsers, amounts: tipsReceivedAmounts } = useHomepageData(timeFilter);
@@ -77,7 +109,7 @@ export default function Home() {
                 <p className="text-sm mt-1">Users need to approve USDC and configure tipping to appear here</p>
               </div>
             ) : (
-              casts.map((cast, index) => (
+              casts.map((cast: Cast, index: number) => (
                 <div
                   key={cast.hash}
                   className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
@@ -121,7 +153,7 @@ export default function Home() {
                     {/* Cast Images */}
                     {cast.embeds && cast.embeds.length > 0 && (
                       <div className="mt-3 grid grid-cols-2 gap-2">
-                        {cast.embeds.slice(0, 4).map((embed, embedIndex) => (
+                        {cast.embeds.slice(0, 4).map((embed: CastEmbed, embedIndex: number) => (
                           embed.url && embed.url.match(/\.(jpeg|jpg|gif|png)$/i) && (
                             <img
                               key={embedIndex}
