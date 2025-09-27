@@ -53,25 +53,15 @@ app.use('/api/*', (req, res, next) => {
   const allowedOrigins = [
     process.env.FRONTEND_DOMAIN,
     'http://localhost:3000', // For development
-    'https://ecion.vercel.app', // Production domain
-    'https://tippit-git-main-fernoxxs-projects.vercel.app', // Vercel git deployments
-    'https://tippit-fernoxxs-projects.vercel.app', // Vercel project deployments
-    'https://tippit.vercel.app', // Alternative production domain
-    'https://www.tippit.vercel.app' // With www
+    'https://ecion.vercel.app' // Production domain only
   ];
-  
-  console.log('🔍 REQUEST FROM ORIGIN:', origin);
   
   if (allowedOrigins.includes(origin)) {
     console.log('✅ SECURE: Request from allowed origin:', origin);
     next();
   } else {
     console.log('❌ UNAUTHORIZED: Request from unauthorized origin:', origin);
-    console.log('📋 Allowed origins:', allowedOrigins);
-    // Temporarily allow all origins for debugging
-    console.log('⚠️ TEMPORARILY ALLOWING ALL ORIGINS FOR DEBUGGING');
-    next();
-    // res.status(401).json({ error: 'Unauthorized origin' });
+    res.status(401).json({ error: 'Unauthorized origin' });
   }
 });
 
@@ -253,6 +243,50 @@ app.get('/api/neynar/auth-url', async (req, res) => {
   } catch (error) {
     console.error('Auth URL generation error:', error);
     res.status(500).json({ error: 'Failed to generate auth URL' });
+  }
+});
+
+// Homepage endpoint - Recent casts from approved users
+app.get('/api/homepage', async (req, res) => {
+  try {
+    const { timeFilter = '24h' } = req.query;
+    
+    // Get users with active configurations and token approvals
+    const activeUsers = await database.getActiveUsers();
+    
+    // For now, return wallet addresses - later we'll fetch their casts
+    // TODO: Fetch recent casts from Neynar API for these users
+    const recentCasts = [];
+    
+    res.json({ 
+      casts: recentCasts,
+      users: activeUsers.slice(0, 10), // Top 10 active users
+      amounts: activeUsers.map(() => '0') // Placeholder amounts
+    });
+  } catch (error) {
+    console.error('Homepage fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch homepage data' });
+  }
+});
+
+// Leaderboard endpoints  
+app.get('/api/leaderboard', async (req, res) => {
+  try {
+    const { timeFilter = '30d' } = req.query;
+    
+    // Get top tippers and earners with amounts
+    const topTippers = await database.getTopTippers(timeFilter);
+    const topEarners = await database.getTopEarners(timeFilter);
+    
+    res.json({
+      tippers: topTippers,
+      earners: topEarners,
+      users: topTippers.map(t => t.userAddress),
+      amounts: topTippers.map(t => t.totalAmount)
+    });
+  } catch (error) {
+    console.error('Leaderboard fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch leaderboard data' });
   }
 });
 

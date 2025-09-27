@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 
 export default function Leaderboard() {
   const [timeFilter, setTimeFilter] = useState<'24h' | '7d' | '30d'>('30d');
-  const { users, amounts } = useLeaderboardData(timeFilter);
+  const { tippers, earners, users, amounts } = useLeaderboardData(timeFilter);
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<'tipped' | 'earned'>('earned');
 
@@ -114,7 +114,7 @@ export default function Leaderboard() {
       </div>
 
       {/* Podium for top 3 */}
-      {users.length >= 3 && activeTab === 'earned' && (
+      {(activeTab === 'earned' ? earners : tippers).length >= 3 && (
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -129,10 +129,12 @@ export default function Leaderboard() {
             >
               <Medal className="w-12 h-12 text-white mx-auto mb-2" />
               <p className="text-white font-bold text-sm mb-1">
-                {users[1].slice(0, 6)}...{users[1].slice(-4)}
+                {(activeTab === 'earned' ? earners : tippers)[1]?.displayName || 
+                 (activeTab === 'earned' ? earners : tippers)[1]?.username || 
+                 `${(activeTab === 'earned' ? earners : tippers)[1]?.userAddress.slice(0, 6)}...${(activeTab === 'earned' ? earners : tippers)[1]?.userAddress.slice(-4)}`}
               </p>
               <p className="text-white text-2xl font-bold">
-                {formatAmount(amounts[1])} USDC
+                {(activeTab === 'earned' ? earners : tippers)[1]?.totalAmount.toFixed(2)} USDC
               </p>
             </motion.div>
             <div className="bg-gray-400 h-32 rounded-b-2xl flex items-center justify-center">
@@ -148,10 +150,12 @@ export default function Leaderboard() {
             >
               <Crown className="w-16 h-16 text-white mx-auto mb-2" />
               <p className="text-white font-bold text-sm mb-1">
-                {users[0].slice(0, 6)}...{users[0].slice(-4)}
+                {(activeTab === 'earned' ? earners : tippers)[0]?.displayName || 
+                 (activeTab === 'earned' ? earners : tippers)[0]?.username || 
+                 `${(activeTab === 'earned' ? earners : tippers)[0]?.userAddress.slice(0, 6)}...${(activeTab === 'earned' ? earners : tippers)[0]?.userAddress.slice(-4)}`}
               </p>
               <p className="text-white text-3xl font-bold">
-                {formatAmount(amounts[0])} USDC
+                {(activeTab === 'earned' ? earners : tippers)[0]?.totalAmount.toFixed(2)} USDC
               </p>
             </motion.div>
             <div className="bg-yellow-500 h-40 rounded-b-2xl flex items-center justify-center">
@@ -167,10 +171,12 @@ export default function Leaderboard() {
             >
               <Award className="w-12 h-12 text-white mx-auto mb-2" />
               <p className="text-white font-bold text-sm mb-1">
-                {users[2].slice(0, 6)}...{users[2].slice(-4)}
+                {(activeTab === 'earned' ? earners : tippers)[2]?.displayName || 
+                 (activeTab === 'earned' ? earners : tippers)[2]?.username || 
+                 `${(activeTab === 'earned' ? earners : tippers)[2]?.userAddress.slice(0, 6)}...${(activeTab === 'earned' ? earners : tippers)[2]?.userAddress.slice(-4)}`}
               </p>
               <p className="text-white text-2xl font-bold">
-                {formatAmount(amounts[2])} USDC
+                {(activeTab === 'earned' ? earners : tippers)[2]?.totalAmount.toFixed(2)} USDC
               </p>
             </motion.div>
             <div className="bg-orange-500 h-24 rounded-b-2xl flex items-center justify-center">
@@ -188,19 +194,19 @@ export default function Leaderboard() {
         className="bg-white rounded-2xl p-8 card-shadow"
       >
         <h2 className="text-2xl font-bold text-accent mb-6">
-          {activeTab === 'tipped' ? 'Tippers' : 'All Rankings'}
+          {activeTab === 'tipped' ? 'Tippers' : 'Earners'}
         </h2>
         
-        {users.length === 0 ? (
+        {(activeTab === 'earned' ? earners : tippers).length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             <p className="text-lg">No tips received yet!</p>
             <p className="mt-2">Start engaging to earn tips</p>
           </div>
         ) : (
           <div className="space-y-3">
-            {users.map((user, index) => (
+            {(activeTab === 'earned' ? earners : tippers).map((user, index) => (
               <motion.div
-                key={user}
+                key={user.userAddress}
                 variants={itemVariants}
                 whileHover={{ x: 10 }}
                 className={`flex items-center justify-between p-4 rounded-xl transition-all duration-200 ${getRankStyle(
@@ -211,21 +217,36 @@ export default function Leaderboard() {
                   <div className="flex items-center justify-center w-12">
                     {getRankIcon(index)}
                   </div>
-                  <div>
-                    <p
-                      className={`font-semibold ${
-                        index < 3 ? '' : 'text-gray-800'
-                      }`}
-                    >
-                      {user.slice(0, 6)}...{user.slice(-4)}
-                    </p>
-                    <p
-                      className={`text-sm ${
-                        index < 3 ? 'text-white/80' : 'text-gray-600'
-                      }`}
-                    >
-                      Rank #{index + 1}
-                    </p>
+                  <div className="flex items-center space-x-3">
+                    {user.pfpUrl ? (
+                      <img
+                        src={user.pfpUrl}
+                        alt={user.displayName || user.username}
+                        className="w-10 h-10 rounded-full"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
+                        <span className="text-sm font-bold text-gray-600">
+                          {(user.displayName || user.username || user.userAddress)?.[0]?.toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+                    <div>
+                      <p
+                        className={`font-semibold ${
+                          index < 3 ? '' : 'text-gray-800'
+                        }`}
+                      >
+                        {user.displayName || user.username || `${user.userAddress.slice(0, 6)}...${user.userAddress.slice(-4)}`}
+                      </p>
+                      <p
+                        className={`text-sm ${
+                          index < 3 ? 'text-white/80' : 'text-gray-600'
+                        }`}
+                      >
+                        {user.username ? `@${user.username}` : `Rank #${index + 1}`}
+                      </p>
+                    </div>
                   </div>
                 </div>
                 <div className="text-right">
@@ -234,7 +255,7 @@ export default function Leaderboard() {
                       index < 3 ? '' : 'text-accent'
                     }`}
                   >
-                    {formatAmount(amounts[index])} USDC
+                    {user.totalAmount.toFixed(2)} USDC
                   </p>
                   <p
                     className={`text-sm ${

@@ -124,6 +124,80 @@ class Database {
       balance: config.balance || 0
     };
   }
+
+  // Homepage and leaderboard functions
+  async getActiveUsers() {
+    const data = await fs.readFile(this.usersFile, 'utf8');
+    const users = JSON.parse(data);
+    return Object.keys(users).filter(addr => {
+      const user = users[addr];
+      return user && user.isActive;
+    });
+  }
+
+  async getTopTippers(timeFilter = '30d') {
+    const data = await fs.readFile(this.tipHistoryFile, 'utf8');
+    const history = JSON.parse(data);
+    
+    // Filter by time
+    const now = Date.now();
+    const timeMs = timeFilter === '24h' ? 24 * 60 * 60 * 1000 :
+                   timeFilter === '7d' ? 7 * 24 * 60 * 60 * 1000 :
+                   30 * 24 * 60 * 60 * 1000;
+    
+    const filtered = history.filter(tip => 
+      tip.processedAt > (now - timeMs)
+    );
+    
+    // Group by sender and sum amounts
+    const tippers = {};
+    filtered.forEach(tip => {
+      const addr = tip.fromAddress?.toLowerCase();
+      if (addr) {
+        if (!tippers[addr]) {
+          tippers[addr] = { userAddress: addr, totalAmount: 0, tipCount: 0 };
+        }
+        tippers[addr].totalAmount += parseFloat(tip.amount || 0);
+        tippers[addr].tipCount += 1;
+      }
+    });
+    
+    return Object.values(tippers)
+      .sort((a, b) => b.totalAmount - a.totalAmount)
+      .slice(0, 50);
+  }
+
+  async getTopEarners(timeFilter = '30d') {
+    const data = await fs.readFile(this.tipHistoryFile, 'utf8');
+    const history = JSON.parse(data);
+    
+    // Filter by time
+    const now = Date.now();
+    const timeMs = timeFilter === '24h' ? 24 * 60 * 60 * 1000 :
+                   timeFilter === '7d' ? 7 * 24 * 60 * 60 * 1000 :
+                   30 * 24 * 60 * 60 * 1000;
+    
+    const filtered = history.filter(tip => 
+      tip.processedAt > (now - timeMs)
+    );
+    
+    // Group by receiver and sum amounts
+    const earners = {};
+    filtered.forEach(tip => {
+      const addr = tip.toAddress?.toLowerCase();
+      if (addr) {
+        if (!earners[addr]) {
+          earners[addr] = { userAddress: addr, totalAmount: 0, tipCount: 0 };
+        }
+        earners[addr].totalAmount += parseFloat(tip.amount || 0);
+        earners[addr].tipCount += 1;
+      }
+    });
+    
+    return Object.values(earners)
+      .sort((a, b) => b.totalAmount - a.totalAmount)
+      .slice(0, 50);
+  }
 }
 
 module.exports = new Database();

@@ -244,6 +244,24 @@ export const useEcion = () => {
 interface HomepageData {
   users: string[];
   amounts: string[];
+  casts?: any[];
+}
+
+interface LeaderboardUser {
+  userAddress: string;
+  totalAmount: number;
+  tipCount: number;
+  username?: string;
+  displayName?: string;
+  pfpUrl?: string;
+  fid?: number;
+}
+
+interface LeaderboardData {
+  tippers: LeaderboardUser[];
+  earners: LeaderboardUser[];
+  users: string[];
+  amounts: string[];
 }
 
 export const useHomepageData = (timeFilter: '24h' | '7d' | '30d' = '24h') => {
@@ -277,7 +295,12 @@ export const useHomepageData = (timeFilter: '24h' | '7d' | '30d' = '24h') => {
 };
 
 export const useLeaderboardData = (timeFilter: '24h' | '7d' | '30d' = '30d') => {
-  const [leaderboardData, setLeaderboardData] = useState<HomepageData>({ users: [], amounts: [] });
+  const [leaderboardData, setLeaderboardData] = useState<LeaderboardData>({ 
+    tippers: [], 
+    earners: [], 
+    users: [], 
+    amounts: [] 
+  });
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -290,17 +313,59 @@ export const useLeaderboardData = (timeFilter: '24h' | '7d' | '30d' = '30d') => 
       const response = await fetch(`${BACKEND_URL}/api/leaderboard?timeFilter=${timeFilter}`);
       if (response.ok) {
         const data = await response.json();
-        setLeaderboardData(data);
+        
+        // Fetch user profiles from Neynar for tippers and earners
+        const enrichedTippers = await enrichUsersWithProfiles(data.tippers || []);
+        const enrichedEarners = await enrichUsersWithProfiles(data.earners || []);
+        
+        setLeaderboardData({
+          tippers: enrichedTippers,
+          earners: enrichedEarners,
+          users: data.users || [],
+          amounts: data.amounts || []
+        });
       }
     } catch (error) {
       console.error('Error fetching leaderboard data:', error);
       // Fallback to mock data for now
       setLeaderboardData({
-        users: ['0x1234567890123456789012345678901234567890', '0x0987654321098765432109876543210987654321', '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd'],
+        tippers: [],
+        earners: [],
+        users: ['0x1234567890123456789012345678901234567890', '0x0987654321098765432109876543210987654321', '0xabcdefabcdefabcdefabcdefabcdefabcd'],
         amounts: ['250.75', '180.30', '120.15']
       });
     }
     setIsLoading(false);
+  };
+
+  const enrichUsersWithProfiles = async (users: LeaderboardUser[]) => {
+    const enriched = [];
+    for (const user of users) {
+      try {
+        // Try to get Neynar profile data
+        const response = await fetch(`${BACKEND_URL}/api/neynar/user/by-address/${user.userAddress}`);
+        if (response.ok) {
+          const data = await response.json();
+          const neynarUser = data.users?.[0];
+          if (neynarUser) {
+            enriched.push({
+              ...user,
+              username: neynarUser.username,
+              displayName: neynarUser.display_name,
+              pfpUrl: neynarUser.pfp_url,
+              fid: neynarUser.fid
+            });
+            continue;
+          }
+        }
+      } catch (error) {
+        console.log('Could not fetch profile for', user.userAddress);
+      }
+      
+      // Fallback if no profile found
+      enriched.push(user);
+    }
+    return enriched;
   };
 
   return { ...leaderboardData, isLoading, refetch: fetchLeaderboardData };
