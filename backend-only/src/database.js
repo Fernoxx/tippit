@@ -135,6 +135,16 @@ class Database {
     });
   }
 
+  async getActiveUsersWithApprovals() {
+    const data = await fs.readFile(this.usersFile, 'utf8');
+    const users = JSON.parse(data);
+    return Object.keys(users).filter(addr => {
+      const user = users[addr];
+      // User must be active AND have approved tokens (we assume they have if they have a config)
+      return user && user.isActive && user.tokenAddress;
+    });
+  }
+
   async getTopTippers(timeFilter = '30d') {
     const data = await fs.readFile(this.tipHistoryFile, 'utf8');
     const history = JSON.parse(data);

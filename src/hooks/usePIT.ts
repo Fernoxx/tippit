@@ -265,7 +265,7 @@ interface LeaderboardData {
 }
 
 export const useHomepageData = (timeFilter: '24h' | '7d' | '30d' = '24h') => {
-  const [homepageData, setHomepageData] = useState<HomepageData>({ users: [], amounts: [] });
+  const [homepageData, setHomepageData] = useState<HomepageData>({ users: [], amounts: [], casts: [] });
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -278,14 +278,19 @@ export const useHomepageData = (timeFilter: '24h' | '7d' | '30d' = '24h') => {
       const response = await fetch(`${BACKEND_URL}/api/homepage?timeFilter=${timeFilter}`);
       if (response.ok) {
         const data = await response.json();
-        setHomepageData(data);
+        setHomepageData({
+          users: data.users || [],
+          amounts: data.amounts || [],
+          casts: data.casts || []
+        });
       }
     } catch (error) {
       console.error('Error fetching homepage data:', error);
-      // Fallback to mock data for now
+      // Fallback to empty data
       setHomepageData({
-        users: ['0x1234567890123456789012345678901234567890', '0x0987654321098765432109876543210987654321'],
-        amounts: ['100.50', '75.25']
+        users: [],
+        amounts: [],
+        casts: []
       });
     }
     setIsLoading(false);

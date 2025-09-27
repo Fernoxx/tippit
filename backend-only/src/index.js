@@ -90,7 +90,31 @@ app.post('/api/config', async (req, res) => {
 
 app.get('/api/config/:userAddress', async (req, res) => {
   try {
-    const config = await database.getUserConfig(req.params.userAddress);
+    let config = await database.getUserConfig(req.params.userAddress);
+    
+    // If no config exists, return default configuration
+    if (!config) {
+      config = {
+        tokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // USDC on Base
+        likeAmount: '0.01',
+        replyAmount: '0.025',
+        recastAmount: '0.025',
+        quoteAmount: '0.025',
+        followAmount: '0',
+        spendingLimit: '999999',
+        audience: 0, // Following only
+        minFollowerCount: 25,
+        minNeynarScore: 0.5,
+        likeEnabled: true,
+        replyEnabled: true,
+        recastEnabled: true,
+        quoteEnabled: true,
+        followEnabled: false,
+        isActive: false, // Not active until user saves
+        totalSpent: '0'
+      };
+    }
+    
     res.json({ config });
   } catch (error) {
     console.error('Config fetch error:', error);
@@ -252,16 +276,66 @@ app.get('/api/homepage', async (req, res) => {
     const { timeFilter = '24h' } = req.query;
     
     // Get users with active configurations and token approvals
-    const activeUsers = await database.getActiveUsers();
+    const activeUsers = await database.getActiveUsersWithApprovals();
     
-    // For now, return wallet addresses - later we'll fetch their casts
-    // TODO: Fetch recent casts from Neynar API for these users
-    const recentCasts = [];
+    // Fetch recent casts for each approved user
+    const userCasts = [];
+    
+    for (const userAddress of activeUsers.slice(0, 10)) { // Top 10 users
+      try {
+        // Get user's Farcaster profile first
+        const userResponse = await fetch(
+          `https://api.neynar.com/v2/farcaster/user/by-verification?address=${userAddress}`,
+          {
+            headers: { 'api_key': process.env.NEYNAR_API_KEY }
+          }
+        );
+        
+        if (userResponse.ok) {
+          const userData = await userResponse.json();
+          const farcasterUser = userData.users?.[0];
+          
+          if (farcasterUser) {
+            // Fetch user's recent casts (last 2)
+            const castsResponse = await fetch(
+              `https://api.neynar.com/v2/farcaster/feed/user/casts?fid=${farcasterUser.fid}&limit=2`,
+              {
+                headers: { 'api_key': process.env.NEYNAR_API_KEY }
+              }
+            );
+            
+            if (castsResponse.ok) {
+              const castsData = await castsResponse.json();
+              const casts = castsData.casts || [];
+              
+              // Add user info to each cast
+              const enrichedCasts = casts.map(cast => ({
+                ...cast,
+                tipper: {
+                  userAddress,
+                  username: farcasterUser.username,
+                  displayName: farcasterUser.display_name,
+                  pfpUrl: farcasterUser.pfp_url,
+                  fid: farcasterUser.fid
+                }
+              }));
+              
+              userCasts.push(...enrichedCasts);
+            }
+          }
+        }
+      } catch (error) {
+        console.log(`Could not fetch casts for user ${userAddress}:`, error.message);
+      }
+    }
+    
+    // Sort by timestamp (most recent first)
+    userCasts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     
     res.json({ 
-      casts: recentCasts,
-      users: activeUsers.slice(0, 10), // Top 10 active users
-      amounts: activeUsers.map(() => '0') // Placeholder amounts
+      casts: userCasts,
+      users: activeUsers.slice(0, 10),
+      amounts: activeUsers.map(() => '0')
     });
   } catch (error) {
     console.error('Homepage fetch error:', error);

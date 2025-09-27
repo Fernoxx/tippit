@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 
 export default function Home() {
   const [timeFilter, setTimeFilter] = useState<'24h' | '7d' | '30d'>('24h');
-  const { users: tipsReceivedUsers, amounts: tipsReceivedAmounts } = useHomepageData(timeFilter);
+  const { casts, users: tipsReceivedUsers, amounts: tipsReceivedAmounts } = useHomepageData(timeFilter);
   const { users: tipsGivenUsers, amounts: tipsGivenAmounts } = useLeaderboardData(timeFilter);
   const { connectWallet, isLoading, isConnected, currentUser } = useFarcasterWallet();
   const [mounted, setMounted] = useState(false);
@@ -67,39 +67,88 @@ export default function Home() {
         )}
         
 
-        {/* Top Tippers */}
+        {/* Recent Casts from Tippers */}
         <div className="mb-12">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Tippers</h3>
-          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-            {tipsGivenUsers.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <p className="text-lg">No active tippers yet!</p>
-                <p className="text-sm mt-1">Be the first to set up tipping for your engagers</p>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Casts from Tippers</h3>
+          <div className="space-y-4">
+            {!casts || casts.length === 0 ? (
+              <div className="bg-white border border-gray-200 rounded-lg p-12 text-center text-gray-500">
+                <p className="text-lg">No recent casts from tippers yet!</p>
+                <p className="text-sm mt-1">Users need to approve USDC and configure tipping to appear here</p>
               </div>
             ) : (
-              tipsGivenUsers.map((user, index) => (
+              casts.map((cast, index) => (
                 <div
-                  key={user}
-                  className={`flex items-center justify-between p-4 ${
-                    index !== tipsGivenUsers.length - 1 ? 'border-b border-gray-100' : ''
-                  }`}
+                  key={cast.hash}
+                  className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
                 >
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-sm font-medium text-gray-600">
-                      {index + 1}
-                    </div>
+                  {/* User Info */}
+                  <div className="flex items-center space-x-3 mb-4">
+                    {cast.tipper?.pfpUrl ? (
+                      <img
+                        src={cast.tipper.pfpUrl}
+                        alt={cast.tipper.displayName || cast.tipper.username}
+                        className="w-12 h-12 rounded-full"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center">
+                        <span className="text-lg font-bold text-gray-600">
+                          {(cast.tipper?.displayName || cast.tipper?.username || 'U')[0].toUpperCase()}
+                        </span>
+                      </div>
+                    )}
                     <div>
-                      <p className="font-medium text-gray-900">
-                        {user.slice(0, 6)}...{user.slice(-4)}
+                      <p className="font-semibold text-gray-900">
+                        {cast.tipper?.displayName || cast.tipper?.username || 'Anonymous Tipper'}
                       </p>
-                      <p className="text-sm text-gray-500">Farcaster User</p>
+                      <p className="text-sm text-gray-500">
+                        @{cast.tipper?.username || 'unknown'} • {new Date(cast.timestamp).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="ml-auto">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        💰 Active Tipper
+                      </span>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-gray-900">
-                      {formatAmount(tipsGivenAmounts[index])} USDC
+
+                  {/* Cast Content */}
+                  <div className="mb-4">
+                    <p className="text-gray-900 leading-relaxed">
+                      {cast.text}
                     </p>
-                    <p className="text-sm text-gray-500">per interaction</p>
+                    
+                    {/* Cast Images */}
+                    {cast.embeds && cast.embeds.length > 0 && (
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        {cast.embeds.slice(0, 4).map((embed, embedIndex) => (
+                          embed.url && embed.url.match(/\.(jpeg|jpg|gif|png)$/i) && (
+                            <img
+                              key={embedIndex}
+                              src={embed.url}
+                              alt="Cast embed"
+                              className="rounded-lg max-h-48 w-full object-cover"
+                            />
+                          )
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Cast Stats */}
+                  <div className="flex items-center space-x-6 text-sm text-gray-500">
+                    <span className="flex items-center space-x-1">
+                      <span>💬</span>
+                      <span>{cast.replies?.count || 0}</span>
+                    </span>
+                    <span className="flex items-center space-x-1">
+                      <span>🔄</span>
+                      <span>{cast.reactions?.recasts_count || 0}</span>
+                    </span>
+                    <span className="flex items-center space-x-1">
+                      <span>❤️</span>
+                      <span>{cast.reactions?.likes_count || 0}</span>
+                    </span>
                   </div>
                 </div>
               ))
