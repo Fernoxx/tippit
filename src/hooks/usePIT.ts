@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useFarcasterWallet } from './useFarcasterWallet';
 import { toast } from 'react-hot-toast';
+import { useWriteContract, useReadContract } from 'wagmi';
+import { parseUnits, formatUnits } from 'viem';
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001').replace(/\/$/, '');
+const BACKEND_WALLET_ADDRESS = process.env.NEXT_PUBLIC_BACKEND_WALLET_ADDRESS || '0x0000000000000000000000000000000000000000';
 
 interface UserConfig {
   tokenAddress: string;
@@ -30,6 +33,10 @@ export const useEcion = () => {
   const [tokenBalance, setTokenBalance] = useState<any>(null);
   const [tokenAllowance, setTokenAllowance] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
+  const [isRevokingAllowance, setIsRevokingAllowance] = useState(false);
+  
+  const { writeContract } = useWriteContract();
 
   useEffect(() => {
     if (address) {
@@ -88,31 +95,114 @@ export const useEcion = () => {
   };
 
   const approveToken = async (tokenAddress: string, amount: string) => {
-    // This triggers a wallet transaction to approve EXACT amount to backend wallet
-    // Amount should be the exact USDC amount user wants to approve (not unlimited)
-    console.log('Approve EXACT amount:', amount, 'USDC to backend wallet');
-    
-    // In a real implementation, this would:
-    // 1. Open wallet popup
-    // 2. Call token.approve(backendWalletAddress, parseUnits(amount, 6))
-    // 3. Wait for transaction confirmation
-    // 4. Update UI
-    
-    // For now, just log the exact amount
-    console.log(`User approves ${amount} USDC to backend wallet: ${process.env.NEXT_PUBLIC_BACKEND_WALLET_ADDRESS}`);
+    if (!address) {
+      toast.error('Please connect your wallet first');
+      return;
+    }
+
+    setIsApproving(true);
+    try {
+      console.log('Approving EXACT amount:', amount, 'tokens to backend wallet');
+      console.log('Backend wallet address:', BACKEND_WALLET_ADDRESS);
+      
+      const tokenDecimals = tokenAddress.toLowerCase() === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913' ? 6 : 18;
+      const amountWei = parseUnits(amount, tokenDecimals);
+      
+      const result = await writeContract({
+        address: tokenAddress as `0x${string}`,
+        abi: [
+          {
+            "constant": false,
+            "inputs": [
+              {"name": "_spender", "type": "address"},
+              {"name": "_value", "type": "uint256"}
+            ],
+            "name": "approve",
+            "outputs": [{"name": "", "type": "bool"}],
+            "type": "function"
+          }
+        ],
+        functionName: 'approve',
+        args: [BACKEND_WALLET_ADDRESS as `0x${string}`, amountWei],
+      });
+      
+      toast.success(`Approved ${amount} tokens to backend wallet!`);
+      console.log('Approval transaction:', result);
+      
+      // Refresh allowance after approval
+      await fetchTokenAllowance(tokenAddress);
+      
+    } catch (error: any) {
+      console.error('Approval failed:', error);
+      if (error.message?.includes('User rejected')) {
+        toast.error('Transaction cancelled by user');
+      } else {
+        toast.error('Failed to approve tokens: ' + error.message);
+      }
+    }
+    setIsApproving(false);
   };
 
   const revokeTokenAllowance = async (tokenAddress: string) => {
-    // This triggers a wallet transaction to revoke allowance (set to 0)
-    console.log('Revoke allowance for token:', tokenAddress);
+    if (!address) {
+      toast.error('Please connect your wallet first');
+      return;
+    }
+
+    setIsRevokingAllowance(true);
+    try {
+      console.log('Revoking allowance for token:', tokenAddress);
+      
+      const result = await writeContract({
+        address: tokenAddress as `0x${string}`,
+        abi: [
+          {
+            "constant": false,
+            "inputs": [
+              {"name": "_spender", "type": "address"},
+              {"name": "_value", "type": "uint256"}
+            ],
+            "name": "approve",
+            "outputs": [{"name": "", "type": "bool"}],
+            "type": "function"
+          }
+        ],
+        functionName: 'approve',
+        args: [BACKEND_WALLET_ADDRESS as `0x${string}`, 0n],
+      });
+      
+      toast.success('Token allowance revoked successfully!');
+      console.log('Revoke transaction:', result);
+      
+      // Refresh allowance after revocation
+      await fetchTokenAllowance(tokenAddress);
+      
+    } catch (error: any) {
+      console.error('Revocation failed:', error);
+      if (error.message?.includes('User rejected')) {
+        toast.error('Transaction cancelled by user');
+      } else {
+        toast.error('Failed to revoke allowance: ' + error.message);
+      }
+    }
+    setIsRevokingAllowance(false);
+  };
+
+  const fetchTokenAllowance = async (tokenAddress: string) => {
+    if (!address) return;
     
-    // In a real implementation, this would:
-    // 1. Open wallet popup  
-    // 2. Call token.approve(backendWalletAddress, 0)
-    // 3. Wait for transaction confirmation
-    // 4. Update UI
-    
-    console.log(`User revokes allowance for ${tokenAddress} from backend wallet: ${process.env.NEXT_PUBLIC_BACKEND_WALLET_ADDRESS}`);
+    try {
+      const tokenDecimals = tokenAddress.toLowerCase() === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913' ? 6 : 18;
+      
+      // Use wagmi to read allowance
+      const response = await fetch(`${BACKEND_URL}/api/allowance/${address}/${tokenAddress}`);
+      if (response.ok) {
+        const data = await response.json();
+        setTokenAllowance(data.allowance);
+      }
+    } catch (error) {
+      console.error('Error fetching token allowance:', error);
+    }
   };
 
   const revokeConfig = async () => {
@@ -142,9 +232,10 @@ export const useEcion = () => {
     revokeTokenAllowance,
     revokeConfig,
     fetchUserConfig,
+    fetchTokenAllowance,
     isSettingConfig: isLoading,
-    isApproving: false,
-    isRevokingAllowance: false,
+    isApproving,
+    isRevokingAllowance,
     isUpdatingLimit: false,
     isRevoking: false,
   };

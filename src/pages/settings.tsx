@@ -4,7 +4,6 @@ import { useEcion } from '@/hooks/usePIT';
 import { formatAmount } from '@/utils/contracts';
 import toast from 'react-hot-toast';
 import {
-  Settings as SettingsIcon,
   DollarSign,
   Shield,
   Users,
@@ -15,7 +14,10 @@ import {
   UserPlus,
   Check,
   X,
+  ChevronDown,
 } from 'lucide-react';
+
+const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001').replace(/\/$/, '');
 
 export default function Settings() {
   const {
@@ -27,6 +29,7 @@ export default function Settings() {
     approveToken,
     revokeTokenAllowance,
     revokeConfig,
+    fetchTokenAllowance,
     isSettingConfig,
     isApproving,
     isRevokingAllowance,
@@ -41,7 +44,10 @@ export default function Settings() {
   const [spendingLimit, setSpendingLimitValue] = useState('0');
   const [allowanceAmount, setAllowanceAmount] = useState('');
   const [selectedToken, setSelectedToken] = useState('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'); // USDC on Base
-  const [customTokenAddress, setCustomTokenAddress] = useState('');
+  const [customTokenAddress, setCustomTokenAddress] = useState('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913');
+  const [tokenName, setTokenName] = useState('USDC');
+  const [showTokenDropdown, setShowTokenDropdown] = useState(false);
+  const [isValidToken, setIsValidToken] = useState(true);
   const [tippingAmounts, setTippingAmounts] = useState({
     like: '0.01',
     reply: '0.025',
@@ -85,8 +91,86 @@ export default function Settings() {
         minFollowerCount: userConfig.minFollowerCount || 25,
         minNeynarScore: userConfig.minNeynarScore || 0.5,
       });
+      if (userConfig.tokenAddress) {
+        setSelectedToken(userConfig.tokenAddress);
+        setCustomTokenAddress(userConfig.tokenAddress);
+      }
     }
   }, [userConfig]);
+
+  const lookupTokenName = async (tokenAddress: string) => {
+    try {
+      // Check if it's USDC on Base
+      if (tokenAddress.toLowerCase() === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913') {
+        setTokenName('USDC');
+        setIsValidToken(true);
+        return 'USDC';
+      }
+      
+      // Use a free token lookup service
+      try {
+        // Try CoinGecko for Base network tokens
+        const response = await fetch(`https://api.coingecko.com/api/v3/coins/base/contract/${tokenAddress}`);
+        if (response.ok) {
+          const data = await response.json();
+          const name = data.symbol?.toUpperCase() || 'Unknown Token';
+          setTokenName(name);
+          setIsValidToken(true);
+          return name;
+        }
+      } catch (cgError) {
+        console.log('CoinGecko lookup failed, trying fallback...');
+      }
+      
+      // Fallback: Try to get token info from contract directly using our backend
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/token-info/${tokenAddress}`);
+        if (response.ok) {
+          const data = await response.json();
+          const name = data.symbol || 'Unknown Token';
+          setTokenName(name);
+          setIsValidToken(name !== 'Unknown Token');
+          return name;
+        }
+      } catch (backendError) {
+        console.log('Backend token lookup failed');
+      }
+      
+      setTokenName('Invalid Token');
+      setIsValidToken(false);
+      return 'Invalid Token';
+    } catch (error) {
+      console.error('Token lookup failed:', error);
+      setTokenName('Invalid Token');
+      setIsValidToken(false);
+      return 'Invalid Token';
+    }
+  };
+
+  const handleTokenAddressChange = async (newAddress: string) => {
+    setCustomTokenAddress(newAddress);
+    if (newAddress && newAddress.length === 42 && newAddress.startsWith('0x')) {
+      setSelectedToken(newAddress);
+      await lookupTokenName(newAddress);
+      await fetchTokenAllowance(newAddress);
+    }
+  };
+
+  // Fetch allowance on component mount and token change
+  useEffect(() => {
+    if (address && selectedToken) {
+      fetchTokenAllowance(selectedToken);
+    }
+  }, [address, selectedToken]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => setShowTokenDropdown(false);
+    if (showTokenDropdown) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [showTokenDropdown]);
 
   const handleSaveTippingConfig = async () => {
     if (!address) {
@@ -173,7 +257,6 @@ export default function Settings() {
     return (
       <div className="max-w-4xl mx-auto px-4 py-8 bg-yellow-50 min-h-full">
         <div className="text-center py-12">
-          <SettingsIcon className="w-16 h-16 mx-auto mb-4 text-gray-400" />
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Connect Your Wallet</h1>
           <p className="text-gray-600 mb-8">Please connect your Farcaster wallet to configure tipping settings.</p>
         </div>
@@ -188,10 +271,6 @@ export default function Settings() {
         animate={{ opacity: 1, y: 0 }}
         className="text-center"
       >
-        <div className="flex items-center justify-center mb-4">
-          <SettingsIcon className="w-8 h-8 text-accent mr-3" />
-          <h1 className="text-2xl font-bold text-accent">Settings</h1>
-        </div>
         <p className="text-xl text-gray-700">
           Configure your reverse tipping preferences
         </p>
@@ -342,14 +421,14 @@ export default function Settings() {
                     <button
                       key={value}
                       onClick={() => setCriteria(prev => ({ ...prev, audience: value }))}
-                      className={`p-4 border-2 rounded-lg text-center transition-colors ${
+                      className={`p-3 border-2 rounded-lg text-center transition-colors ${
                         criteria.audience === value
                           ? 'border-accent bg-accent/5 text-accent'
                           : 'border-gray-200 hover:border-gray-300'
                       }`}
                     >
-                      <div className="font-medium">{label}</div>
-                      <div className="text-xs text-gray-600 mt-1">{desc}</div>
+                      <div className="font-medium text-sm leading-tight">{label}</div>
+                      <div className="text-xs text-gray-600 mt-1 leading-tight">{desc}</div>
                     </button>
                   ))}
                 </div>
@@ -378,13 +457,13 @@ export default function Settings() {
               {/* Minimum Neynar Score */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Minimum Neynar Score: {criteria.minNeynarScore.toFixed(1)}
+                  Minimum Neynar Score: {criteria.minNeynarScore.toFixed(2)}
                 </label>
                 <input
                   type="range"
                   min="0"
                   max="1"
-                  step="0.1"
+                  step="0.05"
                   value={criteria.minNeynarScore}
                   onChange={(e) => setCriteria(prev => ({ ...prev, minNeynarScore: parseFloat(e.target.value) }))}
                   className="w-full"
@@ -415,32 +494,49 @@ export default function Settings() {
               {/* Token Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Token</label>
-                <div className="flex space-x-3">
+                <div className="relative">
                   <input
                     type="text"
                     value={customTokenAddress}
-                    onChange={(e) => setCustomTokenAddress(e.target.value)}
-                    placeholder="Paste token address or search"
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded text-sm"
+                    onChange={(e) => handleTokenAddressChange(e.target.value)}
+                    placeholder="Token address"
+                    className={`w-full px-3 py-2 pr-20 border rounded text-sm ${
+                      isValidToken ? 'border-gray-300' : 'border-red-300 bg-red-50'
+                    }`}
                   />
                   <button
-                    onClick={() => {
-                      setSelectedToken('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913');
-                      setCustomTokenAddress('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913');
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowTokenDropdown(!showTokenDropdown);
                     }}
-                    className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 px-2 py-1 text-sm text-gray-600 hover:text-gray-900 flex items-center"
                   >
-                    Choose USDC
+                    {tokenName} <ChevronDown className="w-3 h-3 ml-1" />
                   </button>
+                  
+                  {showTokenDropdown && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg">
+                      <button
+                        onClick={() => {
+                          handleTokenAddressChange('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913');
+                          setShowTokenDropdown(false);
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex justify-between items-center"
+                      >
+                        <span>USDC (Base)</span>
+                        <span className="text-xs text-gray-500">0x833...913</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
-                {selectedToken === '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' && (
-                  <p className="text-sm text-gray-600 mt-2">USDC on Base</p>
-                )}
+                <p className={`text-sm mt-2 ${isValidToken ? 'text-gray-600' : 'text-red-600'}`}>
+                  {isValidToken ? `${tokenName} on Base` : 'Invalid token address'}
+                </p>
               </div>
 
               {/* Allowance Amount */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Allowance Amount (USDC)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Allowance Amount ({tokenName})</label>
                 <input
                   type="number"
                   step="0.1"
@@ -456,7 +552,7 @@ export default function Settings() {
               {tokenAllowance && (
                 <div className="p-4 bg-gray-50 rounded-lg">
                   <p className="text-sm text-gray-600">Current Allowance</p>
-                  <p className="text-lg font-semibold">{formatAmount(tokenAllowance)} USDC</p>
+                  <p className="text-lg font-semibold">{formatAmount(tokenAllowance)} {tokenName}</p>
                 </div>
               )}
 
@@ -464,7 +560,7 @@ export default function Settings() {
               <div className="flex space-x-3">
                 <button
                   onClick={handleApproveAllowance}
-                  disabled={isApproving || !allowanceAmount}
+                  disabled={isApproving || !allowanceAmount || !isValidToken}
                   className="flex-1 bg-green-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
                 >
                   {isApproving ? 'Approving...' : 'Approve'}

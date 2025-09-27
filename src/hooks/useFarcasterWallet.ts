@@ -55,7 +55,7 @@ export const useFarcasterWallet = () => {
       if (farcasterConnector) {
         await connect({ connector: farcasterConnector });
         console.log('✅ Connected to Farcaster wallet');
-        toast.success('Wallet connected successfully!');
+        toast.success('Connected!', { duration: 2000 });
       } else {
         throw new Error('Farcaster connector not found');
       }
@@ -80,7 +80,7 @@ export const useFarcasterWallet = () => {
     try {
       await disconnect();
       setUserProfile(null);
-      toast.success('Wallet disconnected');
+      toast.success('Disconnected', { duration: 1500 });
     } catch (error) {
       console.error('Disconnect error:', error);
       toast.error('Failed to disconnect wallet');
@@ -95,7 +95,12 @@ export const useFarcasterWallet = () => {
         const isMini = await sdk.isInMiniApp();
         if (isMini && !isConnected) {
           console.log('Auto-connecting to Farcaster...');
-          connectWallet();
+          // Auto-connect without showing toast to avoid duplicate messages
+          const farcasterConnector = connectors.find(c => c.id === 'farcaster');
+          if (farcasterConnector) {
+            await connect({ connector: farcasterConnector });
+            console.log('✅ Auto-connected to Farcaster wallet');
+          }
         }
       } catch (e) {
         // Not in miniapp, ignore

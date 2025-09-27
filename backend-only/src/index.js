@@ -97,6 +97,57 @@ app.get('/api/config/:userAddress', async (req, res) => {
   }
 });
 
+// Token allowance endpoint
+app.get('/api/allowance/:userAddress/:tokenAddress', async (req, res) => {
+  try {
+    const { userAddress, tokenAddress } = req.params;
+    const { ethers } = require('ethers');
+    
+    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const backendWallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY, provider);
+    
+    const tokenContract = new ethers.Contract(tokenAddress, [
+      "function allowance(address owner, address spender) view returns (uint256)"
+    ], provider);
+    
+    const allowance = await tokenContract.allowance(userAddress, backendWallet.address);
+    const tokenDecimals = tokenAddress.toLowerCase() === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913' ? 6 : 18;
+    const formattedAllowance = ethers.formatUnits(allowance, tokenDecimals);
+    
+    res.json({ allowance: formattedAllowance });
+  } catch (error) {
+    console.error('Allowance fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch allowance' });
+  }
+});
+
+// Token info endpoint
+app.get('/api/token-info/:tokenAddress', async (req, res) => {
+  try {
+    const { tokenAddress } = req.params;
+    const { ethers } = require('ethers');
+    
+    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    
+    const tokenContract = new ethers.Contract(tokenAddress, [
+      "function name() view returns (string)",
+      "function symbol() view returns (string)",
+      "function decimals() view returns (uint8)"
+    ], provider);
+    
+    const [name, symbol, decimals] = await Promise.all([
+      tokenContract.name(),
+      tokenContract.symbol(),
+      tokenContract.decimals()
+    ]);
+    
+    res.json({ name, symbol, decimals: Number(decimals) });
+  } catch (error) {
+    console.error('Token info fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch token info' });
+  }
+});
+
 // Approve token endpoint
 app.post('/api/approve', async (req, res) => {
   try {
