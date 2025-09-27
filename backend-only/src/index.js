@@ -390,6 +390,22 @@ app.get('/api/backend-wallet', (req, res) => {
   }
 });
 
+// Debug endpoint to check pending tips
+app.get('/api/debug/pending-tips', async (req, res) => {
+  try {
+    const pendingTips = await database.getPendingTips();
+    const activeUsers = await database.getActiveUsers();
+    res.json({
+      pendingTips,
+      pendingCount: pendingTips.length,
+      activeUsers,
+      activeUserCount: activeUsers.length
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ 

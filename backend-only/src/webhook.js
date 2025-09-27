@@ -100,8 +100,15 @@ async function parseWebhookEvent(event) {
 // Main webhook handler
 async function webhookHandler(req, res) {
   try {
+    console.log('🔔 Webhook received:', {
+      type: req.body.type,
+      timestamp: new Date().toISOString(),
+      data: JSON.stringify(req.body, null, 2)
+    });
+    
     // Verify webhook signature
     if (!verifyWebhookSignature(req)) {
+      console.log('❌ Webhook signature verification failed');
       return res.status(401).json({ error: 'Invalid signature' });
     }
     

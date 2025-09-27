@@ -19,6 +19,7 @@ class BatchProcessor {
     }, this.batchIntervalMs);
     
     console.log(`🔄 Batch processor started - processing every ${this.batchIntervalMs / 1000}s`);
+    console.log(`💰 Backend wallet address: ${this.wallet.address}`);
   }
 
   async processBatch() {
