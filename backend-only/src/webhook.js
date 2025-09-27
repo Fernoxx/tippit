@@ -33,31 +33,37 @@ async function parseWebhookEvent(event) {
   
   switch (event.type) {
     case 'reaction.created':
-      if (event.data.reactionType === 'like') {
+      // reaction_type: 1 = like, 2 = recast
+      if (event.data.reaction_type === 1) {
         interactionType = 'like';
-      } else if (event.data.reactionType === 'recast') {
+      } else if (event.data.reaction_type === 2) {
         interactionType = 'recast';
       }
       authorFid = event.data.cast?.author?.fid;
-      interactorFid = event.data.author?.fid;
+      interactorFid = event.data.user?.fid; // Fixed: user, not author
       castHash = event.data.cast?.hash || '';
       break;
       
     case 'cast.created':
+      // event.data is the full Cast object
       // Check if it's a reply to another cast
-      if (event.data.cast?.parentHash) {
+      if (event.data.parent_hash) {
         interactionType = 'reply';
-        const parentCast = await getCastByHash(event.data.cast.parentHash);
+        const parentCast = await getCastByHash(event.data.parent_hash);
         if (parentCast) {
           authorFid = parentCast.author.fid;
           castHash = parentCast.hash;
         }
-      } else if (event.data.cast?.parentCastId) {
+      } else if (event.data.embeds?.some(embed => embed.cast_id)) {
         interactionType = 'quote';
-        const parentCast = await getCastByHash(event.data.cast.parentCastId.hash);
-        if (parentCast) {
-          authorFid = parentCast.author.fid;
-          castHash = parentCast.hash;
+        // Find the quoted cast in embeds
+        const quotedEmbed = event.data.embeds.find(embed => embed.cast_id);
+        if (quotedEmbed) {
+          const parentCast = await getCastByHash(quotedEmbed.cast_id.hash);
+          if (parentCast) {
+            authorFid = parentCast.author.fid;
+            castHash = parentCast.hash;
+          }
         }
       }
       interactorFid = event.data.author?.fid;
@@ -65,8 +71,8 @@ async function parseWebhookEvent(event) {
       
     case 'follow.created':
       interactionType = 'follow';
-      authorFid = event.data.targetUser?.fid;
-      interactorFid = event.data.author?.fid;
+      authorFid = event.data.target_user?.fid; // Fixed: target_user, not targetUser
+      interactorFid = event.data.user?.fid; // Fixed: user, not author
       break;
   }
   
