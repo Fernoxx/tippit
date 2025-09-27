@@ -5,7 +5,24 @@ import { useWriteContract, useReadContract } from 'wagmi';
 import { parseUnits, formatUnits } from 'viem';
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001').replace(/\/$/, '');
-const BACKEND_WALLET_ADDRESS = process.env.NEXT_PUBLIC_BACKEND_WALLET_ADDRESS || '0x0000000000000000000000000000000000000000';
+
+// Fetch backend wallet address dynamically
+let BACKEND_WALLET_ADDRESS = '0x0000000000000000000000000000000000000000';
+
+const fetchBackendWalletAddress = async () => {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/backend-wallet`);
+    if (response.ok) {
+      const data = await response.json();
+      BACKEND_WALLET_ADDRESS = data.address;
+      console.log('✅ Backend wallet address loaded:', BACKEND_WALLET_ADDRESS);
+      return data.address;
+    }
+  } catch (error) {
+    console.error('Failed to fetch backend wallet address:', error);
+  }
+  return BACKEND_WALLET_ADDRESS;
+};
 
 interface UserConfig {
   tokenAddress: string;
@@ -42,6 +59,8 @@ export const useEcion = () => {
     if (address) {
       fetchUserConfig();
     }
+    // Preload backend wallet address
+    fetchBackendWalletAddress();
   }, [address]);
 
   const fetchUserConfig = async () => {
@@ -102,8 +121,17 @@ export const useEcion = () => {
 
     setIsApproving(true);
     try {
+      // Fetch the latest backend wallet address
+      const backendWallet = await fetchBackendWalletAddress();
+      
+      if (backendWallet === '0x0000000000000000000000000000000000000000') {
+        toast.error('Backend wallet address not available. Please try again.');
+        setIsApproving(false);
+        return;
+      }
+      
       console.log('Approving EXACT amount:', amount, 'tokens to backend wallet');
-      console.log('Backend wallet address:', BACKEND_WALLET_ADDRESS);
+      console.log('Backend wallet address:', backendWallet);
       
       const tokenDecimals = tokenAddress.toLowerCase() === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913' ? 6 : 18;
       const amountWei = parseUnits(amount, tokenDecimals);
@@ -123,7 +151,7 @@ export const useEcion = () => {
           }
         ],
         functionName: 'approve',
-        args: [BACKEND_WALLET_ADDRESS as `0x${string}`, amountWei],
+        args: [backendWallet as `0x${string}`, amountWei],
       });
       
       toast.success(`Approved ${amount} tokens to backend wallet!`);
@@ -136,6 +164,8 @@ export const useEcion = () => {
       console.error('Approval failed:', error);
       if (error.message?.includes('User rejected')) {
         toast.error('Transaction cancelled by user');
+      } else if (error.message?.includes('zero address')) {
+        toast.error('Backend wallet address not configured. Please contact support.');
       } else {
         toast.error('Failed to approve tokens: ' + error.message);
       }
@@ -151,6 +181,15 @@ export const useEcion = () => {
 
     setIsRevokingAllowance(true);
     try {
+      // Fetch the latest backend wallet address
+      const backendWallet = await fetchBackendWalletAddress();
+      
+      if (backendWallet === '0x0000000000000000000000000000000000000000') {
+        toast.error('Backend wallet address not available. Please try again.');
+        setIsRevokingAllowance(false);
+        return;
+      }
+      
       console.log('Revoking allowance for token:', tokenAddress);
       
       const result = await writeContract({
@@ -168,7 +207,7 @@ export const useEcion = () => {
           }
         ],
         functionName: 'approve',
-        args: [BACKEND_WALLET_ADDRESS as `0x${string}`, 0n],
+        args: [backendWallet as `0x${string}`, 0n],
       });
       
       toast.success('Token allowance revoked successfully!');
@@ -181,6 +220,8 @@ export const useEcion = () => {
       console.error('Revocation failed:', error);
       if (error.message?.includes('User rejected')) {
         toast.error('Transaction cancelled by user');
+      } else if (error.message?.includes('zero address')) {
+        toast.error('Backend wallet address not configured. Please contact support.');
       } else {
         toast.error('Failed to revoke allowance: ' + error.message);
       }

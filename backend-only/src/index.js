@@ -375,6 +375,21 @@ app.get('/api/history/:userAddress', async (req, res) => {
   }
 });
 
+// Backend wallet address endpoint
+app.get('/api/backend-wallet', (req, res) => {
+  try {
+    const { ethers } = require('ethers');
+    const wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY);
+    res.json({ 
+      address: wallet.address,
+      network: 'Base'
+    });
+  } catch (error) {
+    console.error('Backend wallet fetch error:', error);
+    res.status(500).json({ error: 'Failed to get backend wallet address' });
+  }
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ 
