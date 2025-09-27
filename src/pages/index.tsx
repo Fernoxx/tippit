@@ -69,12 +69,12 @@ export default function Home() {
 
         {/* Top Tippers */}
         <div className="mb-12">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Engager Tippers</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Tippers</h3>
           <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
             {tipsGivenUsers.length === 0 ? (
               <div className="text-center py-12 text-gray-500">
-                <p className="text-lg">No active engager tippers yet!</p>
-                <p className="text-sm mt-1">Be the first to set up reverse tipping for your engagers</p>
+                <p className="text-lg">No active tippers yet!</p>
+                <p className="text-sm mt-1">Be the first to set up tipping for your engagers</p>
               </div>
             ) : (
               tipsGivenUsers.map((user, index) => (

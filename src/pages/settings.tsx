@@ -270,7 +270,7 @@ export default function Settings() {
         className="text-center"
       >
         <p className="text-xl text-gray-700">
-          Configure your reverse tipping preferences
+          Configure your tipping preferences
         </p>
       </motion.div>
 

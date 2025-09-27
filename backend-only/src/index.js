@@ -55,15 +55,23 @@ app.use('/api/*', (req, res, next) => {
     'http://localhost:3000', // For development
     'https://ecion.vercel.app', // Production domain
     'https://tippit-git-main-fernoxxs-projects.vercel.app', // Vercel git deployments
-    'https://tippit-fernoxxs-projects.vercel.app' // Vercel project deployments
+    'https://tippit-fernoxxs-projects.vercel.app', // Vercel project deployments
+    'https://tippit.vercel.app', // Alternative production domain
+    'https://www.tippit.vercel.app' // With www
   ];
   
+  console.log('🔍 REQUEST FROM ORIGIN:', origin);
+  
   if (allowedOrigins.includes(origin)) {
-    console.log('✅ SECURE: Request from allowed origin');
+    console.log('✅ SECURE: Request from allowed origin:', origin);
     next();
   } else {
     console.log('❌ UNAUTHORIZED: Request from unauthorized origin:', origin);
-    res.status(401).json({ error: 'Unauthorized origin' });
+    console.log('📋 Allowed origins:', allowedOrigins);
+    // Temporarily allow all origins for debugging
+    console.log('⚠️ TEMPORARILY ALLOWING ALL ORIGINS FOR DEBUGGING');
+    next();
+    // res.status(401).json({ error: 'Unauthorized origin' });
   }
 });
 

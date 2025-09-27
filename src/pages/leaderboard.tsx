@@ -188,7 +188,7 @@ export default function Leaderboard() {
         className="bg-white rounded-2xl p-8 card-shadow"
       >
         <h2 className="text-2xl font-bold text-accent mb-6">
-          {activeTab === 'tipped' ? 'Top Tippers' : 'All Rankings'}
+          {activeTab === 'tipped' ? 'Tippers' : 'All Rankings'}
         </h2>
         
         {users.length === 0 ? (
