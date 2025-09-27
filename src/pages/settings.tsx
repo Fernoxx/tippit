@@ -41,7 +41,6 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState<'amounts' | 'criteria' | 'allowance'>('amounts');
   
   // Form states
-  const [spendingLimit, setSpendingLimitValue] = useState('0');
   const [allowanceAmount, setAllowanceAmount] = useState('');
   const [selectedToken, setSelectedToken] = useState('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'); // USDC on Base
   const [customTokenAddress, setCustomTokenAddress] = useState('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913');
@@ -71,7 +70,6 @@ export default function Settings() {
   useEffect(() => {
     setMounted(true);
     if (userConfig) {
-      setSpendingLimitValue(userConfig.spendingLimit?.toString() || '0');
       setTippingAmounts({
         like: userConfig.likeAmount?.toString() || '0.01',
         reply: userConfig.replyAmount?.toString() || '0.025',
@@ -186,7 +184,7 @@ export default function Settings() {
         recastAmount: tippingAmounts.recast,
         quoteAmount: tippingAmounts.quote,
         followAmount: tippingAmounts.follow,
-        spendingLimit: spendingLimit,
+        spendingLimit: '999999', // No limit - controlled by token approvals
         audience: criteria.audience,
         minFollowerCount: criteria.minFollowerCount,
         minNeynarScore: criteria.minNeynarScore,
@@ -378,20 +376,6 @@ export default function Settings() {
               ))}
             </div>
 
-            <div className="mt-8 pt-6 border-t border-gray-200">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-gray-700">Maximum Spending Limit (USDC)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  value={spendingLimit}
-                  onChange={(e) => setSpendingLimitValue(e.target.value)}
-                  className="w-32 px-3 py-2 border border-gray-300 rounded text-sm"
-                  placeholder="0"
-                />
-              </div>
-            </div>
 
             <button
               onClick={handleSaveTippingConfig}

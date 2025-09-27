@@ -52,7 +52,10 @@ app.use('/api/*', (req, res, next) => {
   const origin = req.headers.origin;
   const allowedOrigins = [
     process.env.FRONTEND_DOMAIN,
-    'http://localhost:3000' // For development
+    'http://localhost:3000', // For development
+    'https://ecion.vercel.app', // Production domain
+    'https://tippit-git-main-fernoxxs-projects.vercel.app', // Vercel git deployments
+    'https://tippit-fernoxxs-projects.vercel.app' // Vercel project deployments
   ];
   
   if (allowedOrigins.includes(origin)) {
