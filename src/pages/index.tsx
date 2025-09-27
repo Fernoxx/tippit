@@ -14,6 +14,14 @@ export default function Home() {
     setMounted(true);
   }, []);
 
+  const handleGetStarted = async () => {
+    try {
+      await connectWallet();
+    } catch (error) {
+      console.error('Failed to connect wallet:', error);
+    }
+  };
+
   if (!mounted) return null;
 
   return (
