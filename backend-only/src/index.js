@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 require('dotenv').config();
 
 const webhookHandler = require('./webhook');
@@ -471,11 +472,42 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Serve frontend static files if in production
+if (process.env.NODE_ENV === 'production') {
+  // Serve Next.js static files
+  const frontendPath = path.join(__dirname, '../../.next/static');
+  const publicPath = path.join(__dirname, '../../public');
+  
+  app.use('/_next/static', express.static(frontendPath));
+  app.use('/public', express.static(publicPath));
+  
+  // Serve frontend on all other routes
+  app.get('*', (req, res) => {
+    // If it's an API route, let it pass through
+    if (req.path.startsWith('/api') || req.path.startsWith('/webhook')) {
+      return res.status(404).json({ error: 'API endpoint not found' });
+    }
+    
+    // Serve Next.js app
+    const nextPath = path.join(__dirname, '../../.next/server/pages/index.html');
+    res.sendFile(nextPath, (err) => {
+      if (err) {
+        res.status(500).send('Frontend not available');
+      }
+    });
+  });
+  
+  console.log('🌐 Serving frontend and backend from same Railway service');
+}
+
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Ecion Backend running on port ${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV}`);
   console.log(`⏰ Batch interval: ${process.env.BATCH_INTERVAL_MINUTES || 1} minutes`);
+  if (process.env.NODE_ENV === 'production') {
+    console.log(`🌐 Frontend also served from this Railway service`);
+  }
 });
 
 module.exports = app;
