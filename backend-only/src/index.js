@@ -496,13 +496,23 @@ app.get('/api/debug/pending-tips', async (req, res) => {
     const activeUsers = await database.getActiveUsers();
     const allConfigs = await database.getAllUserConfigs();
     
-    // Test Neynar API access
+    // Test Neynar API access with multiple endpoints
     let neynarApiStatus = 'Unknown';
     try {
-      const testResponse = await fetch('https://api.neynar.com/v2/farcaster/user/by-fid?fid=1', {
+      // Try the most basic endpoint first
+      const testResponse = await fetch('https://api.neynar.com/v2/farcaster/user/by-fid?fid=3', {
         headers: { 'api_key': process.env.NEYNAR_API_KEY }
       });
-      neynarApiStatus = testResponse.ok ? 'Working' : `Error: ${testResponse.status}`;
+      
+      if (testResponse.ok) {
+        neynarApiStatus = 'Working';
+      } else {
+        // Try alternative endpoint
+        const altResponse = await fetch('https://api.neynar.com/v1/farcaster/user?fid=3', {
+          headers: { 'api_key': process.env.NEYNAR_API_KEY }
+        });
+        neynarApiStatus = altResponse.ok ? 'Working (v1)' : `Error: v2=${testResponse.status}, v1=${altResponse.status}`;
+      }
     } catch (error) {
       neynarApiStatus = `Failed: ${error.message}`;
     }
