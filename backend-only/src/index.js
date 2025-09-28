@@ -42,6 +42,43 @@ app.use('/webhook/neynar', (req, res, next) => {
   next();
 });
 
+// Add basic logging for all webhook attempts
+app.use('/webhook/neynar', (req, res, next) => {
+  console.log('🚨 WEBHOOK HIT:', {
+    method: req.method,
+    headers: Object.keys(req.headers),
+    hasBody: !!req.body,
+    timestamp: new Date().toISOString()
+  });
+  next();
+});
+
+// Test endpoint to simulate a webhook
+app.post('/api/test-webhook', async (req, res) => {
+  console.log('🧪 TEST WEBHOOK CALLED');
+  
+  // Simulate a like event
+  const testEvent = {
+    type: 'reaction.created',
+    data: {
+      reaction_type: 1, // like
+      user: { fid: 12345 }, // fake interactor
+      cast: {
+        hash: 'test-hash',
+        author: { fid: 67890 } // fake cast author
+      }
+    }
+  };
+  
+  try {
+    const result = await webhookHandler({ body: testEvent, headers: {} }, res);
+    console.log('🧪 Test webhook result:', result);
+  } catch (error) {
+    console.error('🧪 Test webhook error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Routes
 app.post('/webhook/neynar', webhookHandler);
 
