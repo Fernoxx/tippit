@@ -471,7 +471,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Serve frontend static files if in production
+// Serve frontend static files if in production (AFTER all API routes)
 if (process.env.NODE_ENV === 'production') {
   try {
     // Check if frontend build exists
@@ -486,13 +486,8 @@ if (process.env.NODE_ENV === 'production') {
     app.use('/_next', express.static(path.join(frontendBuildPath)));
     app.use('/public', express.static(publicPath));
     
-    // Simple fallback for frontend routes
+    // Simple fallback for frontend routes (LAST ROUTE)
     app.get('*', (req, res) => {
-      // Skip API and webhook routes
-      if (req.path.startsWith('/api') || req.path.startsWith('/webhook')) {
-        return res.status(404).json({ error: 'API endpoint not found' });
-      }
-      
       // For now, serve a simple HTML page until Next.js is properly configured
       res.send(`
         <!DOCTYPE html>
@@ -518,6 +513,7 @@ if (process.env.NODE_ENV === 'production') {
                  <strong>Webhooks:</strong> Ready</p>
               <a href="/health" class="btn">Check Health</a>
               <a href="/api/debug/pending-tips" class="btn">Debug Info</a>
+              <a href="/api/test-webhook" class="btn">Test Webhook</a>
               <p><em>Note: Full Next.js frontend deployment coming soon...</em></p>
             </div>
           </div>
