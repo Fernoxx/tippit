@@ -102,8 +102,16 @@ app.post('/api/test-webhook', async (req, res) => {
   }
 });
 
-// Manual webhook registration endpoint
+// Manual webhook registration endpoint (both GET and POST)
+app.get('/api/register-webhook', async (req, res) => {
+  await registerWebhook(req, res);
+});
+
 app.post('/api/register-webhook', async (req, res) => {
+  await registerWebhook(req, res);
+});
+
+async function registerWebhook(req, res) {
   try {
     console.log('🔗 Attempting to register webhook with Neynar...');
     
@@ -149,7 +157,7 @@ app.post('/api/register-webhook', async (req, res) => {
       details: error.message 
     });
   }
-});
+}
 
 // Routes
 app.post('/webhook/neynar', webhookHandler);
