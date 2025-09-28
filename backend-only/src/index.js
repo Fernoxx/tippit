@@ -36,8 +36,9 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Initialize batch processor
-new BatchProcessor();
+// Initialize batch processor - DISABLED FOR NOW
+// new BatchProcessor();
+console.log('⏸️ Batch processor DISABLED - will enable when webhooks are working');
 
 // Security middleware - verify webhook secret
 app.use('/webhook/neynar', (req, res, next) => {
@@ -159,8 +160,16 @@ async function registerWebhook(req, res) {
   }
 }
 
-// Routes
-app.post('/webhook/neynar', webhookHandler);
+// Routes - WEBHOOK DISABLED FOR NOW
+// app.post('/webhook/neynar', webhookHandler);
+app.post('/webhook/neynar', (req, res) => {
+  console.log('⏸️ Webhook received but processing DISABLED');
+  res.status(200).json({ 
+    success: true, 
+    message: 'Webhook received but processing disabled',
+    timestamp: new Date().toISOString()
+  });
+});
 
 // API request logging (CORS is handled by cors middleware above)
 app.use('/api/*', (req, res, next) => {
