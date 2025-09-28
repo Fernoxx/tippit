@@ -1,5 +1,8 @@
 const crypto = require('crypto');
-const database = require('./database');
+// Use PostgreSQL database instead of file storage
+const database = process.env.DATABASE_URL ? 
+  require('./database-pg') : 
+  require('./database');
 const { getUserByFid, getCastByHash } = require('./neynar');
 
 // Verify webhook signature from Neynar

@@ -4,7 +4,10 @@ require('dotenv').config();
 
 const webhookHandler = require('./webhook');
 const BatchProcessor = require('./batchProcessor');
-const database = require('./database');
+// Use PostgreSQL database instead of file storage
+const database = process.env.DATABASE_URL ? 
+  require('./database-pg') : 
+  require('./database');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
