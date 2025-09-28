@@ -102,6 +102,55 @@ app.post('/api/test-webhook', async (req, res) => {
   }
 });
 
+// Manual webhook registration endpoint
+app.post('/api/register-webhook', async (req, res) => {
+  try {
+    console.log('🔗 Attempting to register webhook with Neynar...');
+    
+    const webhookData = {
+      url: `https://${req.get('host')}/webhook/neynar`,
+      events: ['reaction.created', 'cast.created', 'follow.created'],
+      secret: process.env.WEBHOOK_SECRET
+    };
+    
+    console.log('📝 Webhook registration data:', webhookData);
+    
+    // Try to register webhook via Neynar API
+    const response = await fetch('https://api.neynar.com/v2/webhooks', {
+      method: 'POST',
+      headers: {
+        'api_key': process.env.NEYNAR_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(webhookData)
+    });
+    
+    const result = await response.text();
+    console.log('🔗 Neynar webhook registration response:', response.status, result);
+    
+    if (response.ok) {
+      res.json({ 
+        success: true, 
+        message: 'Webhook registered successfully',
+        webhookUrl: webhookData.url,
+        result: JSON.parse(result)
+      });
+    } else {
+      res.status(response.status).json({ 
+        error: 'Webhook registration failed',
+        status: response.status,
+        response: result
+      });
+    }
+  } catch (error) {
+    console.error('❌ Webhook registration error:', error);
+    res.status(500).json({ 
+      error: 'Failed to register webhook',
+      details: error.message 
+    });
+  }
+});
+
 // Routes
 app.post('/webhook/neynar', webhookHandler);
 
