@@ -327,7 +327,7 @@ app.get('/api/neynar/user/by-address/:address', async (req, res) => {
   try {
     const { address } = req.params;
     const response = await fetch(
-      `https://api.neynar.com/v2/farcaster/user/by-verification?address=${address}`,
+      `https://api.neynar.com/v2/farcaster/user/bulk-by-address?addresses=${address}`,
       {
         headers: { 'api_key': process.env.NEYNAR_API_KEY }
       }
@@ -345,7 +345,7 @@ app.get('/api/neynar/cast/:hash', async (req, res) => {
   try {
     const { hash } = req.params;
     const response = await fetch(
-      `https://api.neynar.com/v2/farcaster/cast?hash=${hash}`,
+      `https://api.neynar.com/v2/farcaster/cast?identifier=${hash}&type=hash`,
       {
         headers: { 'api_key': process.env.NEYNAR_API_KEY }
       }
@@ -496,22 +496,19 @@ app.get('/api/debug/pending-tips', async (req, res) => {
     const activeUsers = await database.getActiveUsers();
     const allConfigs = await database.getAllUserConfigs();
     
-    // Test Neynar API access with multiple endpoints
+    // Test Neynar API access with correct endpoint
     let neynarApiStatus = 'Unknown';
     try {
-      // Try the most basic endpoint first
-      const testResponse = await fetch('https://api.neynar.com/v2/farcaster/user/by-fid?fid=3', {
+      // Use the correct Neynar API endpoint
+      const testResponse = await fetch('https://api.neynar.com/v2/farcaster/user/bulk?fids=3', {
         headers: { 'api_key': process.env.NEYNAR_API_KEY }
       });
       
       if (testResponse.ok) {
         neynarApiStatus = 'Working';
       } else {
-        // Try alternative endpoint
-        const altResponse = await fetch('https://api.neynar.com/v1/farcaster/user?fid=3', {
-          headers: { 'api_key': process.env.NEYNAR_API_KEY }
-        });
-        neynarApiStatus = altResponse.ok ? 'Working (v1)' : `Error: v2=${testResponse.status}, v1=${altResponse.status}`;
+        const errorText = await testResponse.text();
+        neynarApiStatus = `Error: ${testResponse.status} - ${errorText}`;
       }
     } catch (error) {
       neynarApiStatus = `Failed: ${error.message}`;
