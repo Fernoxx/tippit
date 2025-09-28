@@ -440,17 +440,32 @@ app.get('/api/backend-wallet', (req, res) => {
   }
 });
 
-// Debug endpoint to check pending tips
+// Debug endpoint to check pending tips and API access
 app.get('/api/debug/pending-tips', async (req, res) => {
   try {
     const pendingTips = await database.getPendingTips();
     const activeUsers = await database.getActiveUsers();
     const allConfigs = await database.getAllUserConfigs();
+    
+    // Test Neynar API access
+    let neynarApiStatus = 'Unknown';
+    try {
+      const testResponse = await fetch('https://api.neynar.com/v2/farcaster/user/by-fid?fid=1', {
+        headers: { 'api_key': process.env.NEYNAR_API_KEY }
+      });
+      neynarApiStatus = testResponse.ok ? 'Working' : `Error: ${testResponse.status}`;
+    } catch (error) {
+      neynarApiStatus = `Failed: ${error.message}`;
+    }
+    
     res.json({
       pendingTips,
       pendingCount: pendingTips.length,
       activeUsers,
       activeUserCount: activeUsers.length,
+      neynarApiStatus,
+      hasNeynarApiKey: !!process.env.NEYNAR_API_KEY,
+      hasWebhookSecret: !!process.env.WEBHOOK_SECRET,
       allConfigs: Object.keys(allConfigs).map(addr => ({
         address: addr,
         isActive: allConfigs[addr].isActive,
