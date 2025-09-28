@@ -395,11 +395,17 @@ app.get('/api/debug/pending-tips', async (req, res) => {
   try {
     const pendingTips = await database.getPendingTips();
     const activeUsers = await database.getActiveUsers();
+    const allConfigs = await database.getAllUserConfigs();
     res.json({
       pendingTips,
       pendingCount: pendingTips.length,
       activeUsers,
-      activeUserCount: activeUsers.length
+      activeUserCount: activeUsers.length,
+      allConfigs: Object.keys(allConfigs).map(addr => ({
+        address: addr,
+        isActive: allConfigs[addr].isActive,
+        hasTokenAddress: !!allConfigs[addr].tokenAddress
+      }))
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

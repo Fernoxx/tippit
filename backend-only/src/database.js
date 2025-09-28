@@ -68,6 +68,11 @@ class Database {
     return Object.values(users).filter(user => user.isActive);
   }
 
+  async getAllUserConfigs() {
+    const data = await fs.readFile(this.usersFile, 'utf8');
+    return JSON.parse(data);
+  }
+
   // Pending tips
   async addPendingTip(tip) {
     const data = await fs.readFile(this.pendingTipsFile, 'utf8');

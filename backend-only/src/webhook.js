@@ -7,6 +7,13 @@ function verifyWebhookSignature(req) {
   const signature = req.headers['x-neynar-signature'];
   const webhookSecret = process.env.WEBHOOK_SECRET;
   
+  console.log('🔐 Signature verification:', {
+    hasSignature: !!signature,
+    hasSecret: !!webhookSecret,
+    signature: signature ? signature.substring(0, 10) + '...' : 'none',
+    secretLength: webhookSecret ? webhookSecret.length : 0
+  });
+  
   if (!signature || !webhookSecret) {
     console.log('❌ Missing signature or secret');
     return false;
@@ -17,6 +24,12 @@ function verifyWebhookSignature(req) {
   const expectedSignature = hmac.digest('hex');
   
   const isValid = signature === expectedSignature;
+  console.log('🔐 Signature check:', {
+    received: signature.substring(0, 10) + '...',
+    expected: expectedSignature.substring(0, 10) + '...',
+    isValid
+  });
+  
   if (!isValid) {
     console.log('❌ Invalid webhook signature');
   }
@@ -113,8 +126,11 @@ async function webhookHandler(req, res) {
     });
     
     // Verify webhook signature
-    if (!verifyWebhookSignature(req)) {
+    const isValidSignature = verifyWebhookSignature(req);
+    if (!isValidSignature) {
       console.log('❌ Webhook signature verification failed');
+      // TEMPORARY: Log the event anyway to see if we're getting data
+      console.log('📝 Event data despite failed signature:', JSON.stringify(req.body, null, 2));
       return res.status(401).json({ error: 'Invalid signature' });
     }
     
