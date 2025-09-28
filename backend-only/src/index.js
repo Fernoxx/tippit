@@ -4,10 +4,20 @@ require('dotenv').config();
 
 const webhookHandler = require('./webhook');
 const BatchProcessor = require('./batchProcessor');
-// Use PostgreSQL database instead of file storage
-const database = process.env.DATABASE_URL ? 
-  require('./database-pg') : 
-  require('./database');
+// Use PostgreSQL database if available, fallback to file storage
+let database;
+try {
+  if (process.env.DATABASE_URL) {
+    database = require('./database-pg');
+    console.log('🗄️ Using PostgreSQL database');
+  } else {
+    database = require('./database');
+    console.log('📁 Using file-based database');
+  }
+} catch (error) {
+  console.log('⚠️ PostgreSQL not available, using file storage:', error.message);
+  database = require('./database');
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;

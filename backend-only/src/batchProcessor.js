@@ -1,8 +1,15 @@
 const { ethers } = require('ethers');
-// Use PostgreSQL database instead of file storage
-const database = process.env.DATABASE_URL ? 
-  require('./database-pg') : 
-  require('./database');
+// Use PostgreSQL database if available, fallback to file storage
+let database;
+try {
+  if (process.env.DATABASE_URL) {
+    database = require('./database-pg');
+  } else {
+    database = require('./database');
+  }
+} catch (error) {
+  database = require('./database');
+}
 const { getFollowerCount, checkAudienceCriteria, getUserData } = require('./neynar');
 
 class BatchProcessor {
