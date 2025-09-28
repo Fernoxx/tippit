@@ -23,8 +23,17 @@ try {
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware
-app.use(cors());
+// Middleware - Configure CORS properly
+app.use(cors({
+  origin: [
+    'https://ecion.vercel.app',
+    'http://localhost:3000',
+    process.env.FRONTEND_DOMAIN
+  ].filter(Boolean),
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-neynar-signature']
+}));
 app.use(express.json());
 
 // Initialize batch processor
@@ -96,24 +105,14 @@ app.post('/api/test-webhook', async (req, res) => {
 // Routes
 app.post('/webhook/neynar', webhookHandler);
 
-// Session-based authentication (more secure than API keys)
+// API request logging (CORS is handled by cors middleware above)
 app.use('/api/*', (req, res, next) => {
-  // For now, we'll use a simple approach:
-  // Only allow requests from your frontend domain
-  const origin = req.headers.origin;
-  const allowedOrigins = [
-    process.env.FRONTEND_DOMAIN,
-    'http://localhost:3000', // For development
-    'https://ecion.vercel.app' // Production domain only
-  ];
-  
-  if (allowedOrigins.includes(origin)) {
-    console.log('✅ SECURE: Request from allowed origin:', origin);
-    next();
-  } else {
-    console.log('❌ UNAUTHORIZED: Request from unauthorized origin:', origin);
-    res.status(401).json({ error: 'Unauthorized origin' });
-  }
+  console.log('📡 API Request:', {
+    method: req.method,
+    path: req.path,
+    origin: req.headers.origin
+  });
+  next();
 });
 
 // User configuration endpoints
