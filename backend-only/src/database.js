@@ -3,10 +3,13 @@ const path = require('path');
 
 class Database {
   constructor() {
-    this.dataDir = path.join(__dirname, '../data');
+    // Use Railway volume mount or fallback to local
+    this.dataDir = process.env.RAILWAY_VOLUME_MOUNT_PATH || path.join(__dirname, '../data');
     this.usersFile = path.join(this.dataDir, 'users.json');
     this.pendingTipsFile = path.join(this.dataDir, 'pendingTips.json');
     this.tipHistoryFile = path.join(this.dataDir, 'tipHistory.json');
+    
+    console.log('📁 Database directory:', this.dataDir);
     this.init();
   }
 
@@ -37,9 +40,16 @@ class Database {
 
   // User configurations
   async getUserConfig(userAddress) {
-    const data = await fs.readFile(this.usersFile, 'utf8');
-    const users = JSON.parse(data);
-    return users[userAddress.toLowerCase()] || null;
+    try {
+      const data = await fs.readFile(this.usersFile, 'utf8');
+      const users = JSON.parse(data);
+      const config = users[userAddress.toLowerCase()] || null;
+      console.log(`📖 Retrieved config for ${userAddress}:`, !!config);
+      return config;
+    } catch (error) {
+      console.error('📖 Error reading user config:', error.message);
+      return null;
+    }
   }
 
   async setUserConfig(userAddress, config) {
