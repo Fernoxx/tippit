@@ -62,9 +62,19 @@ async function parseWebhookEvent(event) {
       } else if (event.data.reaction_type === 2) {
         interactionType = 'recast';
       }
-      authorFid = event.data.cast?.author?.fid;
-      interactorFid = event.data.user?.fid; // Fixed: user, not author
-      castHash = event.data.cast?.hash || '';
+      
+      // Check if the cast being liked/recasted is an original cast (not a reply)
+      const cast = event.data.cast;
+      if (cast?.parent_hash) {
+        console.log('❌ Skipping reaction to reply cast - only original casts get tips for reactions');
+        return null;
+      }
+      
+      authorFid = cast?.author?.fid;
+      interactorFid = event.data.user?.fid;
+      castHash = cast?.hash || '';
+      
+      console.log(`✅ Reaction to original cast: ${interactionType} by FID ${interactorFid} on cast by FID ${authorFid}`);
       break;
       
     case 'cast.created':
