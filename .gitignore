@@ -42,4 +42,5 @@ typechain-types
 
 # Editor
 .vscode
-.idea
+.idea*.core
+core
