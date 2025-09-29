@@ -39,6 +39,24 @@ app.use(express.json());
 // Initialize batch processor
 new BatchProcessor();
 
+// Initialize Neynar Kafka stream (if configured)
+if (process.env.NEYNAR_KAFKA_BROKER && process.env.NEYNAR_KAFKA_USERNAME) {
+  try {
+    const NeynarKafkaStream = require('./kafka-stream');
+    const kafkaStream = new NeynarKafkaStream();
+    kafkaStream.connect().then(() => {
+      console.log('🚀 Neynar Kafka stream connected and processing events');
+    }).catch(error => {
+      console.log('⚠️ Kafka stream not available:', error.message);
+      console.log('💡 Using webhook fallback (if configured)');
+    });
+  } catch (error) {
+    console.log('⚠️ Kafka stream not configured, using webhook fallback');
+  }
+} else {
+  console.log('💡 Kafka stream not configured - add NEYNAR_KAFKA_BROKER and NEYNAR_KAFKA_USERNAME to enable');
+}
+
 // Security middleware - verify webhook secret
 app.use('/webhook/neynar', (req, res, next) => {
   const signature = req.headers['x-neynar-signature'];
