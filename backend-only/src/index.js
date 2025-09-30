@@ -191,16 +191,20 @@ app.post('/api/create-webhook-direct', async (req, res) => {
     console.log('📡 Webhook URL:', webhookUrl);
     
     // Create webhook with no filters initially
-    const response = await fetch('https://api.neynar.com/webhooks', {
+    const response = await fetch('https://api.neynar.com/v2/farcaster/webhook/', {
       method: 'POST',
       headers: {
         'api_key': process.env.NEYNAR_API_KEY,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        target_url: webhookUrl,
-        event_types: ['cast.created', 'reaction.created', 'follow.created'],
-        filters: {}
+        name: "Ecion Farcaster Events Webhook",
+        url: webhookUrl,
+        subscription: {
+          "cast.created": {},
+          "reaction.created": {},
+          "follow.created": {}
+        }
       })
     });
     
@@ -364,17 +368,19 @@ async function registerWebhook(req, res) {
     console.log('📝 Webhook registration data:', webhookData);
     
     // Try to register webhook via Neynar API
-    const response = await fetch('https://api.neynar.com/webhooks', {
+    const response = await fetch('https://api.neynar.com/v2/farcaster/webhook/', {
       method: 'POST',
       headers: {
         'api_key': process.env.NEYNAR_API_KEY,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        target_url: webhookData.url,
-        event_types: ['cast.created', 'reaction.created', 'follow.created'],
-        filters: {
-          // No filters - capture all events
+        name: "Ecion Farcaster Events Webhook",
+        url: webhookData.url,
+        subscription: {
+          "cast.created": {},
+          "reaction.created": {},
+          "follow.created": {}
         }
       })
     });
@@ -467,17 +473,21 @@ app.post('/api/config', async (req, res) => {
               
               // Update webhook with new FID
               const webhookUrl = `https://${req.get('host')}/webhook/neynar`;
-              const webhookResponse = await fetch(`https://api.neynar.com/webhooks/${webhookId}`, {
+              const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook/${webhookId}`, {
                 method: 'PUT',
                 headers: {
                   'api_key': process.env.NEYNAR_API_KEY,
                   'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                  target_url: webhookUrl,
-                  event_types: ['cast.created', 'reaction.created', 'follow.created'],
-                  filters: {
-                    cast_authors: updatedFids
+                  name: "Ecion Farcaster Events Webhook",
+                  url: webhookUrl,
+                  subscription: {
+                    "cast.created": {
+                      author_fids: updatedFids
+                    },
+                    "reaction.created": {},
+                    "follow.created": {}
                   }
                 })
               });
