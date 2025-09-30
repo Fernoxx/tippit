@@ -216,7 +216,7 @@ app.post('/api/create-webhook-direct', async (req, res) => {
       console.log("✅ Webhook created successfully:", webhookData);
       
       // Store webhook ID for future updates
-      await database.setWebhookId(webhookData.id);
+      await database.setWebhookId(webhookData.webhook.webhook_id);
       
       res.json({
         success: true,
