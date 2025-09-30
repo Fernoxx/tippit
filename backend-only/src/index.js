@@ -152,18 +152,11 @@ app.post('/api/create-webhook-sdk', async (req, res) => {
     const webhookUrl = `https://${req.get('host')}/webhook/neynar`;
     console.log('📡 Webhook URL:', webhookUrl);
     
-    const webhook = await client.publishWebhook({
-      name: "Ecion Farcaster Events Webhook",
-      url: webhookUrl,
-      subscription: {
-        // Capture ALL reaction.created events (no filters)
-        "reaction.created": {},
-        
-        // Capture ALL cast.created events (no filters) 
-        "cast.created": {},
-        
-        // Capture ALL follow.created events (no filters)
-        "follow.created": {},
+    const webhook = await client.createWebhook({
+      target_url: webhookUrl,
+      event_types: ['cast.created', 'reaction.created', 'follow.created'],
+      filters: {
+        // No filters - capture all events
       },
     });
     
@@ -208,12 +201,10 @@ async function registerWebhook(req, res) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        name: "Ecion Farcaster Events Webhook",
-        url: webhookData.url,
-        subscription: {
-          "reaction.created": {},
-          "cast.created": {},
-          "follow.created": {}
+        target_url: webhookData.url,
+        event_types: ['cast.created', 'reaction.created', 'follow.created'],
+        filters: {
+          // No filters - capture all events
         }
       })
     });
