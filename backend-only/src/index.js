@@ -175,10 +175,10 @@ app.get('/api/test-api', async (req, res) => {
   }
 });
 
-// New endpoint to create webhook using direct API calls (no SDK)
+// Create initial webhook with no filters (captures all events)
 app.post('/api/create-webhook-direct', async (req, res) => {
   try {
-    console.log('🔗 Creating webhook using direct API calls...');
+    console.log('🔗 Creating initial webhook (no filters)...');
     
     if (!process.env.NEYNAR_API_KEY) {
       return res.status(500).json({
@@ -190,7 +190,7 @@ app.post('/api/create-webhook-direct', async (req, res) => {
     const webhookUrl = `https://${req.get('host')}/webhook/neynar`;
     console.log('📡 Webhook URL:', webhookUrl);
     
-    // Use direct API call instead of SDK
+    // Create webhook with no filters initially
     const response = await fetch('https://api.neynar.com/v2/webhooks', {
       method: 'POST',
       headers: {
@@ -211,9 +211,12 @@ app.post('/api/create-webhook-direct', async (req, res) => {
       const webhookData = JSON.parse(result);
       console.log("✅ Webhook created successfully:", webhookData);
       
+      // Store webhook ID for future updates
+      await database.setWebhookId(webhookData.id);
+      
       res.json({
         success: true,
-        message: 'Webhook created successfully using direct API',
+        message: 'Webhook created successfully (no filters)',
         webhook: webhookData
       });
     } else {
@@ -233,6 +236,117 @@ app.post('/api/create-webhook-direct', async (req, res) => {
       error: 'Failed to create webhook',
       details: error.message,
       stack: error.stack
+    });
+  }
+});
+
+// Add user FID to webhook filter
+app.post('/api/add-user-to-webhook', async (req, res) => {
+  try {
+    console.log('🔗 Adding user FID to webhook filter...');
+    
+    const { fid } = req.body;
+    
+    if (!fid) {
+      return res.status(400).json({
+        success: false,
+        error: 'FID is required'
+      });
+    }
+    
+    if (!process.env.NEYNAR_API_KEY) {
+      return res.status(500).json({
+        success: false,
+        error: 'NEYNAR_API_KEY not set'
+      });
+    }
+    
+    // Get current webhook ID
+    const webhookId = await database.getWebhookId();
+    if (!webhookId) {
+      return res.status(404).json({
+        success: false,
+        error: 'Webhook not found. Create webhook first.'
+      });
+    }
+    
+    // Get current tracked FIDs
+    const trackedFids = await database.getTrackedFids();
+    const updatedFids = [...new Set([...trackedFids, parseInt(fid)])]; // Remove duplicates
+    
+    console.log('📝 Adding FID:', fid, 'to tracked FIDs:', updatedFids);
+    
+    // Update webhook with new FID filter
+    const webhookUrl = `https://${req.get('host')}/webhook/neynar`;
+    const response = await fetch(`https://api.neynar.com/v2/webhooks/${webhookId}`, {
+      method: 'PUT',
+      headers: {
+        'api_key': process.env.NEYNAR_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        target_url: webhookUrl,
+        event_types: ['cast.created', 'reaction.created', 'follow.created'],
+        filters: {
+          cast_authors: updatedFids
+        }
+      })
+    });
+    
+    const result = await response.text();
+    console.log('🔗 Webhook update response:', response.status, result);
+    
+    if (response.ok) {
+      // Save updated FIDs to database
+      await database.setTrackedFids(updatedFids);
+      
+      const webhookData = JSON.parse(result);
+      console.log("✅ User added to webhook filter:", webhookData);
+      
+      res.json({
+        success: true,
+        message: `FID ${fid} added to webhook filter`,
+        trackedFids: updatedFids,
+        webhook: webhookData
+      });
+    } else {
+      res.status(response.status).json({
+        success: false,
+        error: 'Failed to update webhook',
+        status: response.status,
+        response: result
+      });
+    }
+    
+  } catch (error) {
+    console.error("❌ Error adding user to webhook:", error);
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to add user to webhook',
+      details: error.message
+    });
+  }
+});
+
+// Get current tracked FIDs
+app.get('/api/tracked-fids', async (req, res) => {
+  try {
+    const trackedFids = await database.getTrackedFids();
+    const webhookId = await database.getWebhookId();
+    
+    res.json({
+      success: true,
+      trackedFids: trackedFids,
+      webhookId: webhookId
+    });
+  } catch (error) {
+    console.error("❌ Error getting tracked FIDs:", error);
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get tracked FIDs',
+      details: error.message
     });
   }
 });

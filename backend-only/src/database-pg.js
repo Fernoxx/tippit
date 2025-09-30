@@ -51,6 +51,15 @@ class PostgresDatabase {
         )
       `);
       
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS webhook_config (
+          id SERIAL PRIMARY KEY,
+          webhook_id TEXT,
+          tracked_fids INTEGER[],
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      
       console.log('✅ Database tables initialized');
     } catch (error) {
       console.error('❌ Database initialization error:', error);
@@ -293,6 +302,59 @@ class PostgresDatabase {
       }));
     } catch (error) {
       console.error('Error getting top earners:', error);
+      return [];
+    }
+  }
+  
+  // Webhook configuration methods
+  async setWebhookId(webhookId) {
+    try {
+      await this.pool.query(`
+        INSERT INTO webhook_config (webhook_id, tracked_fids) 
+        VALUES ($1, $2)
+        ON CONFLICT (id) DO UPDATE SET 
+          webhook_id = EXCLUDED.webhook_id,
+          updated_at = NOW()
+      `, [webhookId, []]);
+    } catch (error) {
+      console.error('Error setting webhook ID:', error);
+    }
+  }
+  
+  async getWebhookId() {
+    try {
+      const result = await this.pool.query(`
+        SELECT webhook_id FROM webhook_config ORDER BY updated_at DESC LIMIT 1
+      `);
+      return result.rows[0]?.webhook_id || null;
+    } catch (error) {
+      console.error('Error getting webhook ID:', error);
+      return null;
+    }
+  }
+  
+  async setTrackedFids(fids) {
+    try {
+      await this.pool.query(`
+        INSERT INTO webhook_config (webhook_id, tracked_fids) 
+        VALUES ($1, $2)
+        ON CONFLICT (id) DO UPDATE SET 
+          tracked_fids = EXCLUDED.tracked_fids,
+          updated_at = NOW()
+      `, [await this.getWebhookId(), fids]);
+    } catch (error) {
+      console.error('Error setting tracked FIDs:', error);
+    }
+  }
+  
+  async getTrackedFids() {
+    try {
+      const result = await this.pool.query(`
+        SELECT tracked_fids FROM webhook_config ORDER BY updated_at DESC LIMIT 1
+      `);
+      return result.rows[0]?.tracked_fids || [];
+    } catch (error) {
+      console.error('Error getting tracked FIDs:', error);
       return [];
     }
   }
