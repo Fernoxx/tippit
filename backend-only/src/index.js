@@ -191,7 +191,7 @@ app.post('/api/create-webhook-direct', async (req, res) => {
     console.log('📡 Webhook URL:', webhookUrl);
     
     // Create webhook with no filters initially
-    const response = await fetch('https://api.neynar.com/v2/webhooks', {
+    const response = await fetch('https://api.neynar.com/webhooks', {
       method: 'POST',
       headers: {
         'api_key': process.env.NEYNAR_API_KEY,
@@ -364,7 +364,7 @@ async function registerWebhook(req, res) {
     console.log('📝 Webhook registration data:', webhookData);
     
     // Try to register webhook via Neynar API
-    const response = await fetch('https://api.neynar.com/v2/webhooks', {
+    const response = await fetch('https://api.neynar.com/webhooks', {
       method: 'POST',
       headers: {
         'api_key': process.env.NEYNAR_API_KEY,
@@ -467,7 +467,7 @@ app.post('/api/config', async (req, res) => {
               
               // Update webhook with new FID
               const webhookUrl = `https://${req.get('host')}/webhook/neynar`;
-              const webhookResponse = await fetch(`https://api.neynar.com/v2/webhooks/${webhookId}`, {
+              const webhookResponse = await fetch(`https://api.neynar.com/webhooks/${webhookId}`, {
                 method: 'PUT',
                 headers: {
                   'api_key': process.env.NEYNAR_API_KEY,
