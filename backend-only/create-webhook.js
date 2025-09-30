@@ -16,15 +16,12 @@ async function createWebhook() {
   try {
     console.log('🔗 Creating webhook with Neynar SDK...');
     
-    // Get your Railway backend URL
-    const webhookUrl = process.env.RAILWAY_PUBLIC_DOMAIN || process.env.WEBHOOK_URL;
-    
-    if (!webhookUrl) {
-      throw new Error("RAILWAY_PUBLIC_DOMAIN or WEBHOOK_URL must be set");
-    }
+    // For now, use a placeholder URL - you'll need to replace this with your actual Railway URL
+    const webhookUrl = process.env.RAILWAY_PUBLIC_DOMAIN || process.env.WEBHOOK_URL || 'https://your-railway-app.up.railway.app';
     
     const fullWebhookUrl = `${webhookUrl}/webhook/neynar`;
     console.log('📡 Webhook URL:', fullWebhookUrl);
+    console.log('⚠️  Make sure to update the webhook URL with your actual Railway domain!');
     
     const webhook = await client.publishWebhook({
       name: "Ecion Farcaster Events Webhook",

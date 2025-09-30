@@ -129,6 +129,57 @@ app.post('/api/register-webhook', async (req, res) => {
   await registerWebhook(req, res);
 });
 
+// New endpoint to create webhook using Neynar SDK
+app.post('/api/create-webhook-sdk', async (req, res) => {
+  try {
+    console.log('🔗 Creating webhook using Neynar SDK...');
+    
+    const { NeynarAPIClient, Configuration } = require("@neynar/nodejs-sdk");
+    
+    const config = new Configuration({
+      apiKey: process.env.NEYNAR_API_KEY,
+    });
+    
+    const client = new NeynarAPIClient(config);
+    
+    const webhookUrl = `https://${req.get('host')}/webhook/neynar`;
+    console.log('📡 Webhook URL:', webhookUrl);
+    
+    const webhook = await client.publishWebhook({
+      name: "Ecion Farcaster Events Webhook",
+      url: webhookUrl,
+      subscription: {
+        // Capture ALL reaction.created events (no filters)
+        "reaction.created": {},
+        
+        // Capture ALL cast.created events (no filters) 
+        "cast.created": {},
+        
+        // Capture ALL follow.created events (no filters)
+        "follow.created": {},
+      },
+    });
+    
+    console.log("✅ Webhook created successfully:", webhook);
+    
+    res.json({
+      success: true,
+      message: 'Webhook created successfully using SDK',
+      webhook: webhook
+    });
+    
+  } catch (error) {
+    console.error("❌ Error creating webhook:", error);
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create webhook',
+      details: error.message,
+      response: error.response?.data
+    });
+  }
+});
+
 async function registerWebhook(req, res) {
   try {
     console.log('🔗 Attempting to register webhook with Neynar...');
