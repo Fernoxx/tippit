@@ -134,6 +134,13 @@ app.post('/api/create-webhook-sdk', async (req, res) => {
   try {
     console.log('🔗 Creating webhook using Neynar SDK...');
     
+    if (!process.env.NEYNAR_API_KEY) {
+      return res.status(500).json({
+        success: false,
+        error: 'NEYNAR_API_KEY not set'
+      });
+    }
+    
     const { NeynarAPIClient, Configuration } = require("@neynar/nodejs-sdk");
     
     const config = new Configuration({
@@ -175,7 +182,8 @@ app.post('/api/create-webhook-sdk', async (req, res) => {
       success: false,
       error: 'Failed to create webhook',
       details: error.message,
-      response: error.response?.data
+      response: error.response?.data,
+      stack: error.stack
     });
   }
 });
@@ -199,7 +207,15 @@ async function registerWebhook(req, res) {
         'api_key': process.env.NEYNAR_API_KEY,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(webhookData)
+      body: JSON.stringify({
+        name: "Ecion Farcaster Events Webhook",
+        url: webhookData.url,
+        subscription: {
+          "reaction.created": {},
+          "cast.created": {},
+          "follow.created": {}
+        }
+      })
     });
     
     const result = await response.text();
