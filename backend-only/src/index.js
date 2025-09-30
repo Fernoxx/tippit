@@ -434,6 +434,77 @@ app.post('/api/config', async (req, res) => {
       totalSpent: '0'
     });
     
+    // Automatically add user's FID to webhook filter
+    try {
+      console.log('🔍 Getting user FID for webhook filter...');
+      
+      // Get user's Farcaster FID from their address
+      const userResponse = await fetch(
+        `https://api.neynar.com/v2/farcaster/user/bulk-by-address?addresses=${userAddress}`,
+        {
+          headers: { 'api_key': process.env.NEYNAR_API_KEY }
+        }
+      );
+      
+      if (userResponse.ok) {
+        const userData = await userResponse.json();
+        const farcasterUser = userData[userAddress]?.[0];
+        
+        if (farcasterUser && farcasterUser.fid) {
+          const userFid = farcasterUser.fid;
+          console.log('✅ Found user FID:', userFid);
+          
+          // Add FID to webhook filter automatically
+          const webhookId = await database.getWebhookId();
+          if (webhookId) {
+            const trackedFids = await database.getTrackedFids();
+            
+            // Check if FID is already tracked
+            if (!trackedFids.includes(userFid)) {
+              const updatedFids = [...trackedFids, userFid];
+              
+              console.log('📡 Adding FID to webhook filter:', userFid);
+              
+              // Update webhook with new FID
+              const webhookUrl = `https://${req.get('host')}/webhook/neynar`;
+              const webhookResponse = await fetch(`https://api.neynar.com/v2/webhooks/${webhookId}`, {
+                method: 'PUT',
+                headers: {
+                  'api_key': process.env.NEYNAR_API_KEY,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  target_url: webhookUrl,
+                  event_types: ['cast.created', 'reaction.created', 'follow.created'],
+                  filters: {
+                    cast_authors: updatedFids
+                  }
+                })
+              });
+              
+              if (webhookResponse.ok) {
+                // Save updated FIDs
+                await database.setTrackedFids(updatedFids);
+                console.log('✅ User FID added to webhook filter successfully!');
+              } else {
+                const errorText = await webhookResponse.text();
+                console.error('❌ Failed to update webhook:', errorText);
+              }
+            } else {
+              console.log('ℹ️ User FID already tracked in webhook');
+            }
+          } else {
+            console.log('⚠️ No webhook ID found. Create webhook first.');
+          }
+        } else {
+          console.log('⚠️ No Farcaster account found for this address');
+        }
+      }
+    } catch (webhookError) {
+      // Don't fail the config save if webhook update fails
+      console.error('⚠️ Webhook filter update failed (non-critical):', webhookError.message);
+    }
+    
     res.json({ success: true });
   } catch (error) {
     console.error('Config update error:', error);
