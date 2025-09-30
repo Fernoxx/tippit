@@ -60,6 +60,17 @@ class PostgresDatabase {
         )
       `);
       
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS user_casts (
+          id SERIAL PRIMARY KEY,
+          user_fid INTEGER NOT NULL,
+          cast_hash TEXT NOT NULL,
+          is_main_cast BOOLEAN DEFAULT true,
+          created_at TIMESTAMP DEFAULT NOW(),
+          UNIQUE(user_fid, cast_hash)
+        )
+      `);
+      
       console.log('✅ Database tables initialized');
     } catch (error) {
       console.error('❌ Database initialization error:', error);
@@ -360,6 +371,57 @@ class PostgresDatabase {
     } catch (error) {
       console.error('Error getting tracked FIDs:', error);
       return [];
+    }
+  }
+  
+  // User casts management methods
+  async addUserCast(userFid, castHash, isMainCast = true) {
+    try {
+      await this.pool.query(`
+        INSERT INTO user_casts (user_fid, cast_hash, is_main_cast)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (user_fid, cast_hash) DO NOTHING
+      `, [userFid, castHash, isMainCast]);
+      
+      // Keep only last 3 main casts for each user
+      await this.pool.query(`
+        DELETE FROM user_casts 
+        WHERE user_fid = $1 AND is_main_cast = true
+        AND id NOT IN (
+          SELECT id FROM user_casts 
+          WHERE user_fid = $1 AND is_main_cast = true
+          ORDER BY created_at DESC 
+          LIMIT 3
+        )
+      `, [userFid]);
+    } catch (error) {
+      console.error('Error adding user cast:', error);
+    }
+  }
+  
+  async getEligibleCasts(userFid) {
+    try {
+      const result = await this.pool.query(`
+        SELECT cast_hash FROM user_casts 
+        WHERE user_fid = $1 AND is_main_cast = true
+        ORDER BY created_at DESC 
+        LIMIT 3
+      `, [userFid]);
+      
+      return result.rows.map(row => row.cast_hash);
+    } catch (error) {
+      console.error('Error getting eligible casts:', error);
+      return [];
+    }
+  }
+  
+  async isCastEligibleForTips(userFid, castHash) {
+    try {
+      const eligibleCasts = await this.getEligibleCasts(userFid);
+      return eligibleCasts.includes(castHash);
+    } catch (error) {
+      console.error('Error checking cast eligibility:', error);
+      return false;
     }
   }
 }

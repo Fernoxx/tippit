@@ -401,21 +401,26 @@ app.post('/api/manual-add-fid', async (req, res) => {
     
     // Update webhook with FID
     const webhookUrl = `https://${req.get('host')}/webhook/neynar`;
-    const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook/${webhookId}`, {
+    const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook`, {
       method: 'PUT',
       headers: {
         'api_key': process.env.NEYNAR_API_KEY,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
+        webhook_id: webhookId,
         name: "Ecion Farcaster Events Webhook",
         url: webhookUrl,
         subscription: {
           "cast.created": {
             author_fids: [parseInt(fid)]
           },
-          "reaction.created": {},
-          "follow.created": {}
+          "reaction.created": {
+            parent_author_fids: [parseInt(fid)]
+          },
+          "follow.created": {
+            target_fids: [parseInt(fid)]
+          }
         }
       })
     });
@@ -567,21 +572,26 @@ app.post('/api/config', async (req, res) => {
               
               // Update webhook with new FID
               const webhookUrl = `https://${req.get('host')}/webhook/neynar`;
-              const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook/${webhookId}`, {
+              const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook`, {
                 method: 'PUT',
                 headers: {
                   'api_key': process.env.NEYNAR_API_KEY,
                   'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
+                  webhook_id: webhookId,
                   name: "Ecion Farcaster Events Webhook",
                   url: webhookUrl,
                   subscription: {
                     "cast.created": {
                       author_fids: updatedFids
                     },
-                    "reaction.created": {},
-                    "follow.created": {}
+                    "reaction.created": {
+                      parent_author_fids: updatedFids
+                    },
+                    "follow.created": {
+                      target_fids: updatedFids
+                    }
                   }
                 })
               });
