@@ -385,6 +385,70 @@ app.post('/api/set-webhook-id', async (req, res) => {
   }
 });
 
+// Manual endpoint to add FID to webhook (for testing)
+app.post('/api/manual-add-fid', async (req, res) => {
+  try {
+    const { fid, webhookId } = req.body;
+    
+    if (!fid || !webhookId) {
+      return res.status(400).json({
+        success: false,
+        error: 'fid and webhookId are required'
+      });
+    }
+    
+    console.log('🔗 Manually adding FID to webhook:', fid, webhookId);
+    
+    // Update webhook with FID
+    const webhookUrl = `https://${req.get('host')}/webhook/neynar`;
+    const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook/${webhookId}`, {
+      method: 'PUT',
+      headers: {
+        'api_key': process.env.NEYNAR_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: "Ecion Farcaster Events Webhook",
+        url: webhookUrl,
+        subscription: {
+          "cast.created": {
+            author_fids: [parseInt(fid)]
+          },
+          "reaction.created": {},
+          "follow.created": {}
+        }
+      })
+    });
+    
+    const result = await webhookResponse.text();
+    console.log('🔗 Manual webhook update response:', webhookResponse.status, result);
+    
+    if (webhookResponse.ok) {
+      res.json({
+        success: true,
+        message: `FID ${fid} added to webhook ${webhookId}`,
+        response: JSON.parse(result)
+      });
+    } else {
+      res.status(webhookResponse.status).json({
+        success: false,
+        error: 'Failed to update webhook',
+        status: webhookResponse.status,
+        response: result
+      });
+    }
+    
+  } catch (error) {
+    console.error("❌ Error manually adding FID:", error);
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to add FID to webhook',
+      details: error.message
+    });
+  }
+});
+
 async function registerWebhook(req, res) {
   try {
     console.log('🔗 Attempting to register webhook with Neynar...');
