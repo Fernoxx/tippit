@@ -129,10 +129,10 @@ app.post('/api/register-webhook', async (req, res) => {
   await registerWebhook(req, res);
 });
 
-// Test endpoint to check SDK availability
-app.get('/api/test-sdk', async (req, res) => {
+// Test endpoint to check Neynar API connectivity
+app.get('/api/test-api', async (req, res) => {
   try {
-    console.log('🧪 Testing Neynar SDK...');
+    console.log('🧪 Testing Neynar API connectivity...');
     
     if (!process.env.NEYNAR_API_KEY) {
       return res.status(500).json({
@@ -141,31 +141,36 @@ app.get('/api/test-sdk', async (req, res) => {
       });
     }
     
-    const { NeynarAPIClient, Configuration } = require("@neynar/nodejs-sdk");
-    
-    const config = new Configuration({
-      apiKey: process.env.NEYNAR_API_KEY,
+    // Test a simple API call using direct HTTP
+    const response = await fetch('https://api.neynar.com/v2/farcaster/user/bulk?fids=3', {
+      headers: {
+        'api_key': process.env.NEYNAR_API_KEY
+      }
     });
     
-    const client = new NeynarAPIClient(config);
-    
-    // Test a simple API call
-    const user = await client.lookupUserByFid(3);
-    
-    res.json({
-      success: true,
-      message: 'SDK is working',
-      user: user
-    });
+    if (response.ok) {
+      const user = await response.json();
+      res.json({
+        success: true,
+        message: 'Neynar API is working',
+        user: user
+      });
+    } else {
+      res.status(response.status).json({
+        success: false,
+        error: 'API test failed',
+        status: response.status,
+        response: await response.text()
+      });
+    }
     
   } catch (error) {
-    console.error("❌ Error testing SDK:", error);
+    console.error("❌ Error testing API:", error);
     
     res.status(500).json({
       success: false,
-      error: 'SDK test failed',
-      details: error.message,
-      stack: error.stack
+      error: 'API test failed',
+      details: error.message
     });
   }
 });
