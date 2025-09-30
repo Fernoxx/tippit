@@ -385,6 +385,119 @@ app.post('/api/set-webhook-id', async (req, res) => {
   }
 });
 
+// Bulk add all existing users to webhook filter
+app.post('/api/add-all-users-to-webhook', async (req, res) => {
+  try {
+    console.log('🔗 Adding ALL existing users to webhook filter...');
+    
+    if (!process.env.NEYNAR_API_KEY) {
+      return res.status(500).json({
+        success: false,
+        error: 'NEYNAR_API_KEY not set'
+      });
+    }
+    
+    // Get all users with active configs
+    const activeUsers = await database.getActiveUsersWithApprovals();
+    console.log('👥 Found active users:', activeUsers);
+    
+    const allFids = [];
+    
+    // Get FID for each user
+    for (const userAddress of activeUsers) {
+      try {
+        const userResponse = await fetch(
+          `https://api.neynar.com/v2/farcaster/user/bulk-by-address?addresses=${userAddress}`,
+          {
+            headers: { 'api_key': process.env.NEYNAR_API_KEY }
+          }
+        );
+        
+        if (userResponse.ok) {
+          const userData = await userResponse.json();
+          const farcasterUser = userData[userAddress]?.[0];
+          
+          if (farcasterUser && farcasterUser.fid) {
+            allFids.push(farcasterUser.fid);
+            console.log('✅ Found FID for user:', userAddress, '→', farcasterUser.fid);
+          }
+        }
+      } catch (error) {
+        console.log('⚠️ Could not get FID for user:', userAddress, error.message);
+      }
+    }
+    
+    if (allFids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No FIDs found for active users'
+      });
+    }
+    
+    console.log('📊 All FIDs to add:', allFids);
+    
+    // Update webhook with ALL FIDs
+    const webhookUrl = `https://${req.get('host')}/webhook/neynar`;
+    const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook`, {
+      method: 'PUT',
+      headers: {
+        'api_key': process.env.NEYNAR_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        webhook_id: '01K6EFR9566V9A7CQ7GEQZ5C3Q', // Hardcoded for now
+        name: "Ecion Farcaster Events Webhook",
+        url: webhookUrl,
+        subscription: {
+          "cast.created": {
+            author_fids: allFids
+          },
+          "reaction.created": {
+            parent_author_fids: allFids
+          },
+          "follow.created": {
+            target_fids: allFids
+          }
+        }
+      })
+    });
+    
+    const result = await webhookResponse.text();
+    console.log('🔗 Bulk webhook update response:', webhookResponse.status, result);
+    
+    if (webhookResponse.ok) {
+      // Save all FIDs to database
+      await database.setTrackedFids(allFids);
+      
+      const webhookData = JSON.parse(result);
+      console.log("✅ ALL users added to webhook filter:", allFids);
+      
+      res.json({
+        success: true,
+        message: `Added ${allFids.length} users to webhook filter`,
+        fids: allFids,
+        webhook: webhookData
+      });
+    } else {
+      res.status(webhookResponse.status).json({
+        success: false,
+        error: 'Failed to update webhook with all users',
+        status: webhookResponse.status,
+        response: result
+      });
+    }
+    
+  } catch (error) {
+    console.error("❌ Error adding all users to webhook:", error);
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to add all users to webhook',
+      details: error.message
+    });
+  }
+});
+
 // Manual endpoint to add FID to webhook (for testing)
 app.post('/api/manual-add-fid', async (req, res) => {
   try {
