@@ -170,10 +170,10 @@ app.get('/api/test-sdk', async (req, res) => {
   }
 });
 
-// New endpoint to create webhook using Neynar SDK
-app.post('/api/create-webhook-sdk', async (req, res) => {
+// New endpoint to create webhook using direct API calls (no SDK)
+app.post('/api/create-webhook-direct', async (req, res) => {
   try {
-    console.log('🔗 Creating webhook using Neynar SDK...');
+    console.log('🔗 Creating webhook using direct API calls...');
     
     if (!process.env.NEYNAR_API_KEY) {
       return res.status(500).json({
@@ -182,44 +182,43 @@ app.post('/api/create-webhook-sdk', async (req, res) => {
       });
     }
     
-    const { NeynarAPIClient, Configuration } = require("@neynar/nodejs-sdk");
-    
-    const config = new Configuration({
-      apiKey: process.env.NEYNAR_API_KEY,
-    });
-    
-    const client = new NeynarAPIClient(config);
-    
     const webhookUrl = `https://${req.get('host')}/webhook/neynar`;
     console.log('📡 Webhook URL:', webhookUrl);
     
-    // Try different method names based on SDK version
-    let webhook;
-    try {
-      webhook = await client.createWebhook({
+    // Use direct API call instead of SDK
+    const response = await fetch('https://api.neynar.com/v2/webhooks', {
+      method: 'POST',
+      headers: {
+        'api_key': process.env.NEYNAR_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
         target_url: webhookUrl,
         event_types: ['cast.created', 'reaction.created', 'follow.created'],
         filters: {}
+      })
+    });
+    
+    const result = await response.text();
+    console.log('🔗 Neynar webhook creation response:', response.status, result);
+    
+    if (response.ok) {
+      const webhookData = JSON.parse(result);
+      console.log("✅ Webhook created successfully:", webhookData);
+      
+      res.json({
+        success: true,
+        message: 'Webhook created successfully using direct API',
+        webhook: webhookData
       });
-    } catch (methodError) {
-      console.log('createWebhook failed, trying publishWebhook...');
-      webhook = await client.publishWebhook({
-        url: webhookUrl,
-        subscription: {
-          "cast.created": {},
-          "reaction.created": {},
-          "follow.created": {}
-        }
+    } else {
+      res.status(response.status).json({
+        success: false,
+        error: 'Webhook creation failed',
+        status: response.status,
+        response: result
       });
     }
-    
-    console.log("✅ Webhook created successfully:", webhook);
-    
-    res.json({
-      success: true,
-      message: 'Webhook created successfully using SDK',
-      webhook: webhook
-    });
     
   } catch (error) {
     console.error("❌ Error creating webhook:", error);
@@ -228,7 +227,6 @@ app.post('/api/create-webhook-sdk', async (req, res) => {
       success: false,
       error: 'Failed to create webhook',
       details: error.message,
-      response: error.response?.data,
       stack: error.stack
     });
   }

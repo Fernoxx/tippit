@@ -2,6 +2,9 @@
 
 echo "🏗️ Building Ecion App for Railway Deployment"
 
+# Set Node.js version for Railway
+export NODE_VERSION=19.9.0
+
 # Install frontend dependencies
 echo "📦 Installing frontend dependencies..."
 npm ci
