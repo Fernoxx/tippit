@@ -355,6 +355,36 @@ app.get('/api/tracked-fids', async (req, res) => {
   }
 });
 
+// Manual endpoint to set webhook ID (for debugging)
+app.post('/api/set-webhook-id', async (req, res) => {
+  try {
+    const { webhookId } = req.body;
+    
+    if (!webhookId) {
+      return res.status(400).json({
+        success: false,
+        error: 'webhookId is required'
+      });
+    }
+    
+    await database.setWebhookId(webhookId);
+    
+    res.json({
+      success: true,
+      message: 'Webhook ID set successfully',
+      webhookId: webhookId
+    });
+  } catch (error) {
+    console.error("❌ Error setting webhook ID:", error);
+    
+    res.status(500).json({
+      success: false,
+      error: 'Failed to set webhook ID',
+      details: error.message
+    });
+  }
+});
+
 async function registerWebhook(req, res) {
   try {
     console.log('🔗 Attempting to register webhook with Neynar...');

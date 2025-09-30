@@ -309,6 +309,7 @@ class PostgresDatabase {
   // Webhook configuration methods
   async setWebhookId(webhookId) {
     try {
+      console.log('💾 Saving webhook ID to database:', webhookId);
       await this.pool.query(`
         INSERT INTO webhook_config (webhook_id, tracked_fids) 
         VALUES ($1, $2)
@@ -316,8 +317,9 @@ class PostgresDatabase {
           webhook_id = EXCLUDED.webhook_id,
           updated_at = NOW()
       `, [webhookId, []]);
+      console.log('✅ Webhook ID saved successfully');
     } catch (error) {
-      console.error('Error setting webhook ID:', error);
+      console.error('❌ Error setting webhook ID:', error);
     }
   }
   
@@ -326,9 +328,11 @@ class PostgresDatabase {
       const result = await this.pool.query(`
         SELECT webhook_id FROM webhook_config ORDER BY updated_at DESC LIMIT 1
       `);
-      return result.rows[0]?.webhook_id || null;
+      const webhookId = result.rows[0]?.webhook_id || null;
+      console.log('🔍 Retrieved webhook ID from database:', webhookId);
+      return webhookId;
     } catch (error) {
-      console.error('Error getting webhook ID:', error);
+      console.error('❌ Error getting webhook ID:', error);
       return null;
     }
   }
