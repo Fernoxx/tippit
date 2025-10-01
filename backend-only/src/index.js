@@ -716,7 +716,10 @@ app.post('/api/config', async (req, res) => {
       if (userResponse.ok) {
         const userData = await userResponse.json();
         console.log('🔍 API Response data:', JSON.stringify(userData, null, 2));
-        const farcasterUser = userData[userAddress]?.[0];
+        
+        // Find user data by case-insensitive address lookup
+        const userAddressLower = userAddress.toLowerCase();
+        const farcasterUser = userData[userAddressLower]?.[0];
         
         if (farcasterUser && farcasterUser.fid) {
           const userFid = farcasterUser.fid;
