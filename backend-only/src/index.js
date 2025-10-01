@@ -921,7 +921,7 @@ app.get('/api/neynar/auth-url', async (req, res) => {
   }
 });
 
-// Homepage endpoint - Recent casts from approved users
+// Homepage endpoint - Recent MAIN CASTS ONLY from approved users (no replies)
 app.get('/api/homepage', async (req, res) => {
   try {
     const { timeFilter = '24h' } = req.query;
@@ -947,9 +947,9 @@ app.get('/api/homepage', async (req, res) => {
           const farcasterUser = userData[userAddress]?.[0];
           
           if (farcasterUser) {
-            // Fetch user's recent casts (last 2)
+            // Fetch user's recent casts (last 5 to filter main casts only)
             const castsResponse = await fetch(
-              `https://api.neynar.com/v2/farcaster/feed/user/casts?fid=${farcasterUser.fid}&limit=2`,
+              `https://api.neynar.com/v2/farcaster/feed/user/casts?fid=${farcasterUser.fid}&limit=5`,
               {
                 headers: { 'api_key': process.env.NEYNAR_API_KEY }
               }
@@ -959,8 +959,18 @@ app.get('/api/homepage', async (req, res) => {
               const castsData = await castsResponse.json();
               const casts = castsData.casts || [];
               
+              // Filter to only show MAIN CASTS (not replies) posted after now
+              const cutoffTime = new Date().toISOString();
+              const mainCasts = casts.filter(cast => {
+                // Only main casts (no parent)
+                const isMainCast = !cast.parent_author || !cast.parent_hash;
+                // Only casts posted after cutoff time
+                const isRecent = new Date(cast.timestamp) > new Date(cutoffTime);
+                return isMainCast && isRecent;
+              }).slice(0, 2); // Take only the 2 most recent main casts
+              
               // Add user info to each cast
-              const enrichedCasts = casts.map(cast => ({
+              const enrichedCasts = mainCasts.map(cast => ({
                 ...cast,
                 tipper: {
                   userAddress,
