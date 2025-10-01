@@ -121,12 +121,9 @@ export default function Home() {
                         @{cast.tipper?.username || 'unknown'} • {new Date(cast.timestamp).toLocaleDateString()}
                       </p>
                     </div>
-                    <div className="ml-auto flex flex-col items-end space-y-1">
+                    <div className="ml-auto">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                         Active Tipper
-                      </span>
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        🎯 Click to Engage & Earn
                       </span>
                     </div>
                   </div>
