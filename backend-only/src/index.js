@@ -662,7 +662,14 @@ async function registerWebhook(req, res) {
 }
 
 // Routes - WEBHOOK ENABLED WITH EXTRA LOGGING
-app.post('/webhook/neynar', webhookHandler);
+app.post('/webhook/neynar', (req, res) => {
+  console.log('🔔 WEBHOOK EVENT RECEIVED:', {
+    type: req.body?.type,
+    timestamp: new Date().toISOString(),
+    hasData: !!req.body?.data
+  });
+  webhookHandler(req, res);
+});
 
 // API request logging (CORS is handled by cors middleware above)
 app.use('/api/*', (req, res, next) => {
