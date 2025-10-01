@@ -47,6 +47,24 @@ export default function Settings() {
   const [tokenName, setTokenName] = useState('USDC');
   const [showTokenDropdown, setShowTokenDropdown] = useState(false);
   const [isValidToken, setIsValidToken] = useState(true);
+  const [amountErrors, setAmountErrors] = useState<{[key: string]: string}>({});
+  
+  // Validate tip amount (minimum $0.01)
+  const validateAmount = (value: string, key: string) => {
+    const numValue = parseFloat(value);
+    if (numValue < 0.01) {
+      setAmountErrors(prev => ({ ...prev, [key]: 'Must be $0.01 or more' }));
+      return false;
+    } else {
+      setAmountErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[key];
+        return newErrors;
+      });
+      return true;
+    }
+  };
+  
   const [tippingAmounts, setTippingAmounts] = useState({
     like: '0.01',
     reply: '0.025',
@@ -173,6 +191,13 @@ export default function Settings() {
   const handleSaveTippingConfig = async () => {
     if (!address) {
       toast.error('Please connect your wallet first', { duration: 2000 });
+      return;
+    }
+
+    // Check for validation errors
+    const hasErrors = Object.keys(amountErrors).some(key => amountErrors[key]);
+    if (hasErrors) {
+      toast.error('Please fix tip amount errors before saving', { duration: 2000 });
       return;
     }
 
@@ -354,10 +379,15 @@ export default function Settings() {
                     <input
                       type="number"
                       step="0.001"
-                      min="0"
+                      min="0.01"
                       value={tippingAmounts[key as keyof typeof tippingAmounts]}
-                      onChange={(e) => setTippingAmounts(prev => ({ ...prev, [key]: e.target.value }))}
-                      className="w-24 px-3 py-1 border border-gray-300 rounded text-sm"
+                      onChange={(e) => {
+                        setTippingAmounts(prev => ({ ...prev, [key]: e.target.value }));
+                        validateAmount(e.target.value, key);
+                      }}
+                      className={`w-24 px-3 py-1 border rounded text-sm ${
+                        amountErrors[key] ? 'border-red-500' : 'border-gray-300'
+                      }`}
                       placeholder={defaultAmount}
                     />
                     <span className="text-sm text-gray-600">USDC</span>
@@ -372,6 +402,11 @@ export default function Settings() {
                       {tippingToggles[key as keyof typeof tippingToggles] ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
                     </button>
                   </div>
+                  {amountErrors[key] && (
+                    <div className="text-red-500 text-xs mt-1">
+                      {amountErrors[key]}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
