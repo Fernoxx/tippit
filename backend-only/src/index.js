@@ -972,12 +972,10 @@ app.get('/api/neynar/auth-url', async (req, res) => {
 // Homepage endpoint - Recent MAIN CASTS ONLY from approved users (no replies)
 app.get('/api/homepage', async (req, res) => {
   try {
-    console.log('🏠 Homepage request received');
     const { timeFilter = '24h' } = req.query;
     
     // Get users with active configurations and token approvals
     const activeUsers = await database.getActiveUsersWithApprovals();
-    console.log('👥 Active users found:', activeUsers);
     
     // Fetch recent casts for each approved user
     const userCasts = [];
@@ -995,26 +993,21 @@ app.get('/api/homepage', async (req, res) => {
           }
         );
         
-        console.log(`🔍 Fetching user data for ${userAddress}, status: ${userResponse.status}`);
         if (userResponse.ok) {
           const userData = await userResponse.json();
-          console.log(`📊 User data response:`, JSON.stringify(userData, null, 2));
           const farcasterUser = userData[userAddress]?.[0];
           
           if (farcasterUser) {
-            console.log(`✅ Found Farcaster user: ${farcasterUser.username} (FID: ${farcasterUser.fid})`);
-            // Fetch user's recent casts (last 5 to filter main casts only)
+            // Fetch user's recent casts (last 3 to filter main casts only)
             const castsResponse = await fetch(
-              `https://api.neynar.com/v2/farcaster/feed/user/casts?fid=${farcasterUser.fid}&limit=5`,
+              `https://api.neynar.com/v2/farcaster/feed/user/casts?fid=${farcasterUser.fid}&limit=3`,
               {
                 headers: { 'x-api-key': process.env.NEYNAR_API_KEY }
               }
             );
             
-            console.log(`📝 Fetching casts for FID ${farcasterUser.fid}, status: ${castsResponse.status}`);
             if (castsResponse.ok) {
               const castsData = await castsResponse.json();
-              console.log(`📊 Casts data response:`, JSON.stringify(castsData, null, 2));
               const casts = castsData.casts || [];
               
               // Filter to only show MAIN CASTS (not replies) - NO CUTOFF DATE
@@ -1024,7 +1017,7 @@ app.get('/api/homepage', async (req, res) => {
                 // Additional check: ensure parent_author.fid is null or undefined
                 const hasNoParentAuthor = !cast.parent_author || cast.parent_author.fid === null || cast.parent_author.fid === undefined;
                 return isMainCast && hasNoParentAuthor;
-              }).slice(0, 3); // Take only the 3 most recent main casts per user
+              }).slice(0, 1); // Take only the 1 most recent main cast per user
               
               // Add user info and clickable URL to each cast
               const enrichedCasts = mainCasts.map(cast => ({

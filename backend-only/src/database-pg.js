@@ -391,7 +391,7 @@ class PostgresDatabase {
           SELECT id FROM user_casts 
           WHERE user_fid = $1 AND is_main_cast = true
           ORDER BY created_at DESC 
-          LIMIT 3
+          LIMIT 1
         )
       `, [userFid]);
     } catch (error) {
