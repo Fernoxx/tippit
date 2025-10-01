@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useFarcasterWallet } from './useFarcasterWallet';
 import { toast } from 'react-hot-toast';
-import { useWriteContract, useReadContract, waitForTransaction } from 'wagmi';
+import { useWriteContract, useReadContract } from 'wagmi';
 import { parseUnits, formatUnits } from 'viem';
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001').replace(/\/$/, '');
@@ -155,9 +155,10 @@ export const useEcion = () => {
       
       console.log('Approval transaction:', result);
       
-      // Wait for transaction to be mined, then refresh allowance
-      await waitForTransaction({ hash: result });
-      await fetchTokenAllowance(tokenAddress);
+      // Wait a moment for transaction to be mined, then refresh allowance
+      setTimeout(async () => {
+        await fetchTokenAllowance(tokenAddress);
+      }, 2000);
       
     } catch (error: any) {
       console.error('Approval failed:', error);
@@ -211,10 +212,11 @@ export const useEcion = () => {
       
       console.log('Revoke transaction:', result);
       
-      // Wait for transaction to be mined, then refresh allowance
-      await waitForTransaction({ hash: result });
+      // Wait a moment for transaction to be mined, then refresh allowance
+      setTimeout(async () => {
+        await fetchTokenAllowance(tokenAddress);
+      }, 2000);
       toast.success('Token allowance revoked successfully!', { duration: 2000 });
-      await fetchTokenAllowance(tokenAddress);
       
     } catch (error: any) {
       console.error('Revocation failed:', error);
