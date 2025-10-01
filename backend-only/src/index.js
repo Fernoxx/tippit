@@ -498,6 +498,48 @@ app.post('/api/add-all-users-to-webhook', async (req, res) => {
   }
 });
 
+// Set specific FIDs in webhook filter (replace all)
+app.post('/api/set-webhook-fids', async (req, res) => {
+  try {
+    const { fids } = req.body;
+    if (!fids || !Array.isArray(fids)) {
+      return res.status(400).json({ error: 'fids array is required' });
+    }
+    
+    const webhookId = await database.getWebhookId();
+    if (!webhookId) {
+      return res.status(400).json({ error: 'No webhook ID found' });
+    }
+    
+    const webhookUrl = `https://${req.get('host')}/webhook/neynar`;
+    const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook`, {
+      method: 'PUT',
+      headers: { 'api_key': process.env.NEYNAR_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        webhook_id: webhookId,
+        name: "Ecion Farcaster Events Webhook",
+        url: webhookUrl,
+        subscription: {
+          "cast.created": { author_fids: fids },
+          "reaction.created": { parent_author_fids: fids },
+          "follow.created": { target_fids: fids }
+        }
+      })
+    });
+    
+    if (webhookResponse.ok) {
+      await database.setTrackedFids(fids);
+      res.json({ success: true, message: `Set ${fids.length} FIDs in webhook filter`, fids: fids });
+    } else {
+      const errorText = await webhookResponse.text();
+      res.status(500).json({ error: 'Failed to update webhook', details: errorText });
+    }
+  } catch (error) {
+    console.error('Set webhook FIDs error:', error);
+    res.status(500).json({ error: 'Failed to set webhook filter' });
+  }
+});
+
 // Manual endpoint to add FID to webhook (for testing)
 app.post('/api/manual-add-fid', async (req, res) => {
   try {
