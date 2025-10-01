@@ -731,7 +731,7 @@ app.post('/api/config', async (req, res) => {
               
               // Update webhook with new FID
               const webhookUrl = `https://${req.get('host')}/webhook/neynar`;
-              const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook`, {
+              const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook/`, {
                 method: 'PUT',
                 headers: {
                   'x-api-key': process.env.NEYNAR_API_KEY,
