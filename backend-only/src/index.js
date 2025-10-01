@@ -695,12 +695,17 @@ app.post('/api/config', async (req, res) => {
       console.log('🔍 Getting user FID for webhook filter...');
       
       // Get user's Farcaster FID from their address
+      console.log('🔍 API Key available:', !!process.env.NEYNAR_API_KEY);
+      console.log('🔍 Looking up address:', userAddress);
+      
       const userResponse = await fetch(
-        `https://api.neynar.com/v2/farcaster/user/bulk-by-address?addresses=${userAddress}`,
+        `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${userAddress}`,
         {
-          headers: { 'api_key': process.env.NEYNAR_API_KEY }
+          headers: { 'x-api-key': process.env.NEYNAR_API_KEY }
         }
       );
+      
+      console.log('🔍 API Response status:', userResponse.status);
       
       // Check if API requires payment
       if (userResponse.status === 402) {
@@ -710,6 +715,7 @@ app.post('/api/config', async (req, res) => {
       
       if (userResponse.ok) {
         const userData = await userResponse.json();
+        console.log('🔍 API Response data:', JSON.stringify(userData, null, 2));
         const farcasterUser = userData[userAddress]?.[0];
         
         if (farcasterUser && farcasterUser.fid) {
