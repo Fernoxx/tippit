@@ -340,6 +340,18 @@ app.get('/api/tracked-fids', async (req, res) => {
 });
 
 // Manual endpoint to set webhook ID (for debugging)
+// Delete specific user config
+app.delete('/api/config/:userAddress', async (req, res) => {
+  try {
+    const userAddress = req.params.userAddress.toLowerCase();
+    await database.pool.query('DELETE FROM user_configs WHERE LOWER(user_address) = $1', [userAddress]);
+    res.json({ success: true, message: `Deleted config for ${userAddress}` });
+  } catch (error) {
+    console.error('Delete config error:', error);
+    res.status(500).json({ error: 'Failed to delete config' });
+  }
+});
+
 app.post('/api/set-webhook-id', async (req, res) => {
   try {
     const { webhookId } = req.body;
