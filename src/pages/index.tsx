@@ -77,33 +77,11 @@ export default function Home() {
             </button>
           )}
         </div>
-        
-        {/* Time Filter for Top Content */}
-        {isConnected && (
-          <div className="flex justify-center mb-6">
-            <div className="flex space-x-2 bg-white rounded-lg p-1 shadow-sm">
-              {(['24h', '7d', '30d'] as const).map((period) => (
-                <button
-                  key={period}
-                  onClick={() => setTimeFilter(period)}
-                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                    timeFilter === period
-                      ? 'bg-accent text-white'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  {period}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-        
 
         {/* Recent Casts from Tippers */}
-        <div className="mb-12">
+        <div className="mb-8">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Casts from Tippers</h3>
-          <div className="space-y-4">
+          <div className="space-y-3">
             {!casts || casts.length === 0 ? (
               <div className="bg-white border border-gray-200 rounded-lg p-12 text-center text-gray-500">
                 <p className="text-lg">No recent casts from tippers yet!</p>
@@ -121,7 +99,7 @@ export default function Home() {
                   }}
                 >
                   {/* User Info */}
-                  <div className="flex items-center space-x-3 mb-4">
+                  <div className="flex items-center space-x-3 mb-3">
                     {cast.tipper?.pfpUrl ? (
                       <img
                         src={cast.tipper.pfpUrl}
@@ -145,7 +123,7 @@ export default function Home() {
                     </div>
                     <div className="ml-auto flex flex-col items-end space-y-1">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        💰 Active Tipper
+                        Active Tipper
                       </span>
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                         🎯 Click to Engage & Earn
@@ -154,7 +132,7 @@ export default function Home() {
                   </div>
 
                   {/* Cast Content */}
-                  <div className="mb-4">
+                  <div className="mb-3">
                     <p className="text-gray-900 leading-relaxed">
                       {cast.text}
                     </p>
