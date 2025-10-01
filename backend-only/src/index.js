@@ -959,13 +959,13 @@ app.get('/api/homepage', async (req, res) => {
               const castsData = await castsResponse.json();
               const casts = castsData.casts || [];
               
-              // Filter to only show MAIN CASTS (not replies) posted after now
-              const cutoffTime = new Date().toISOString();
+              // Filter to only show MAIN CASTS (not replies) posted after October 1, 2025 00:00 UTC
+              const cutoffTime = new Date('2025-10-01T00:00:00.000Z');
               const mainCasts = casts.filter(cast => {
-                // Only main casts (no parent)
-                const isMainCast = !cast.parent_author || !cast.parent_hash;
+                // Only main casts (no parent_hash and no parent_author with fid)
+                const isMainCast = !cast.parent_hash && (!cast.parent_author || cast.parent_author.fid === null);
                 // Only casts posted after cutoff time
-                const isRecent = new Date(cast.timestamp) > new Date(cutoffTime);
+                const isRecent = new Date(cast.timestamp) > cutoffTime;
                 return isMainCast && isRecent;
               }).slice(0, 2); // Take only the 2 most recent main casts
               
