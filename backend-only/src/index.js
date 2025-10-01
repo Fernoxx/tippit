@@ -992,11 +992,14 @@ app.get('/api/homepage', async (req, res) => {
           }
         );
         
+        console.log(`🔍 Fetching user data for ${userAddress}, status: ${userResponse.status}`);
         if (userResponse.ok) {
           const userData = await userResponse.json();
+          console.log(`📊 User data response:`, JSON.stringify(userData, null, 2));
           const farcasterUser = userData.result?.user;
           
           if (farcasterUser) {
+            console.log(`✅ Found Farcaster user: ${farcasterUser.username} (FID: ${farcasterUser.fid})`);
             // Fetch user's recent casts (last 5 to filter main casts only)
             const castsResponse = await fetch(
               `https://api.neynar.com/v2/farcaster/feed/user/casts?fid=${farcasterUser.fid}&limit=5`,
@@ -1005,12 +1008,14 @@ app.get('/api/homepage', async (req, res) => {
               }
             );
             
+            console.log(`📝 Fetching casts for FID ${farcasterUser.fid}, status: ${castsResponse.status}`);
             if (castsResponse.ok) {
               const castsData = await castsResponse.json();
+              console.log(`📊 Casts data response:`, JSON.stringify(castsData, null, 2));
               const casts = castsData.casts || [];
               
-              // Filter to only show MAIN CASTS (not replies) posted after October 1, 2025 00:00 UTC
-              const cutoffTime = new Date('2025-10-01T00:00:00.000Z');
+              // Filter to only show MAIN CASTS (not replies) posted after October 1, 2024 00:00 UTC
+              const cutoffTime = new Date('2024-10-01T00:00:00.000Z');
               const mainCasts = casts.filter(cast => {
                 // Only main casts (no parent_hash and no parent_author with valid fid)
                 const isMainCast = !cast.parent_hash && (!cast.parent_author || !cast.parent_author.fid || cast.parent_author.fid === null);
