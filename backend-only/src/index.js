@@ -719,7 +719,12 @@ app.post('/api/config', async (req, res) => {
         
         // Find user data by case-insensitive address lookup
         const userAddressLower = userAddress.toLowerCase();
+        console.log('🔍 Looking for address key:', userAddressLower);
+        console.log('🔍 Available keys in response:', Object.keys(userData));
+        
         const farcasterUser = userData[userAddressLower]?.[0];
+        console.log('🔍 Found farcasterUser:', !!farcasterUser);
+        console.log('🔍 FarcasterUser data:', farcasterUser);
         
         if (farcasterUser && farcasterUser.fid) {
           const userFid = farcasterUser.fid;
