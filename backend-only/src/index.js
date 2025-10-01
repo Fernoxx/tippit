@@ -734,12 +734,14 @@ app.post('/api/config', async (req, res) => {
           if (webhookId) {
             const trackedFids = await database.getTrackedFids();
             
-            // Only add FID if not already tracked (don't overwrite existing filters)
-            if (!trackedFids.includes(userFid)) {
-              const updatedFids = [...trackedFids, userFid];
-              
-              console.log('📡 Adding new FID to webhook filter:', userFid);
-              console.log('📡 Updated FIDs list:', updatedFids);
+            // Always ensure FID is in webhook filter (force update to sync with Neynar)
+            const updatedFids = trackedFids.includes(userFid) 
+              ? trackedFids 
+              : [...trackedFids, userFid];
+            
+            console.log('📡 Ensuring FID is in webhook filter:', userFid);
+            console.log('📡 Current tracked FIDs:', trackedFids);
+            console.log('📡 FIDs to send to webhook:', updatedFids);
             
               const webhookPayload = {
                 webhook_id: webhookId,
@@ -785,9 +787,6 @@ app.post('/api/config', async (req, res) => {
                 const errorText = await webhookResponse.text();
                 console.error('❌ Failed to update webhook:', webhookResponse.status, errorText);
               }
-            } else {
-              console.log('ℹ️ User FID already tracked in webhook - no update needed');
-            }
           } else {
             console.log('⚠️ No webhook ID found. Create webhook first.');
           }
