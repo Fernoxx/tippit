@@ -972,10 +972,12 @@ app.get('/api/neynar/auth-url', async (req, res) => {
 // Homepage endpoint - Recent MAIN CASTS ONLY from approved users (no replies)
 app.get('/api/homepage', async (req, res) => {
   try {
+    console.log('🏠 Homepage request received');
     const { timeFilter = '24h' } = req.query;
     
     // Get users with active configurations and token approvals
     const activeUsers = await database.getActiveUsersWithApprovals();
+    console.log('👥 Active users found:', activeUsers);
     
     // Fetch recent casts for each approved user
     const userCasts = [];
