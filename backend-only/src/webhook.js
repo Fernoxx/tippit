@@ -156,6 +156,24 @@ async function webhookHandler(req, res) {
     
     console.log('✅ Valid webhook received:', req.body.type);
     
+    // Handle cast.created events to track user's latest casts
+    if (req.body.type === 'cast.created') {
+      const castData = req.body.data;
+      const authorFid = castData.author?.fid;
+      const castHash = castData.hash;
+      
+      if (authorFid && castHash) {
+        // Check if this is a main cast (not a reply)
+        const isMainCast = !castData.parent_hash && (!castData.parent_author || !castData.parent_author.fid || castData.parent_author.fid === null);
+        
+        if (isMainCast) {
+          console.log(`📝 New main cast from FID ${authorFid}: ${castHash}`);
+          // Add this cast to user's eligible casts (database will handle keeping only latest 3)
+          await database.addUserCast(authorFid, castHash, true);
+        }
+      }
+    }
+    
     // Parse the event
     const interaction = await parseWebhookEvent(req.body);
     
@@ -185,6 +203,19 @@ async function webhookHandler(req, res) {
         processed: false,
         reason: `${interaction.interactionType} not enabled`
       });
+    }
+    
+    // Check if cast is eligible for tips (only latest 3 main casts)
+    if (interaction.castHash) {
+      const isCastEligible = await database.isCastEligibleForTips(interaction.authorFid, interaction.castHash);
+      if (!isCastEligible) {
+        console.log(`🚫 Cast ${interaction.castHash} not eligible for tips (not in latest 3 main casts)`);
+        return res.status(200).json({
+          success: true,
+          processed: false,
+          reason: 'Cast not eligible for tips (not in latest 3 main casts)'
+        });
+      }
     }
     
     // Add to pending tips

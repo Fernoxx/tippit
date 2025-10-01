@@ -969,11 +969,12 @@ app.get('/api/homepage', async (req, res) => {
                 // Additional check: ensure parent_author.fid is null or undefined
                 const hasNoParentAuthor = !cast.parent_author || cast.parent_author.fid === null || cast.parent_author.fid === undefined;
                 return isMainCast && isRecent && hasNoParentAuthor;
-              }).slice(0, 2); // Take only the 2 most recent main casts
+              }).slice(0, 3); // Take only the 3 most recent main casts per user
               
-              // Add user info to each cast
+              // Add user info and clickable URL to each cast
               const enrichedCasts = mainCasts.map(cast => ({
                 ...cast,
+                farcasterUrl: `https://warpcast.com/${farcasterUser.username}/${cast.hash}`,
                 tipper: {
                   userAddress,
                   username: farcasterUser.username,
