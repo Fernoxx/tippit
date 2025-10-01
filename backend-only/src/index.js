@@ -706,6 +706,12 @@ app.post('/api/config', async (req, res) => {
         }
       );
       
+      // Check if API requires payment
+      if (userResponse.status === 402) {
+        console.log('⚠️ Neynar API requires payment for address lookup. Skipping FID lookup.');
+        return;
+      }
+      
       if (userResponse.ok) {
         const userData = await userResponse.json();
         const farcasterUser = userData[userAddress]?.[0];
