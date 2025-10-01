@@ -962,8 +962,8 @@ app.get('/api/homepage', async (req, res) => {
               // Filter to only show MAIN CASTS (not replies) posted after October 1, 2025 00:00 UTC
               const cutoffTime = new Date('2025-10-01T00:00:00.000Z');
               const mainCasts = casts.filter(cast => {
-                // Only main casts (no parent_hash and no parent_author with fid)
-                const isMainCast = !cast.parent_hash && (!cast.parent_author || cast.parent_author.fid === null);
+                // Only main casts (no parent_hash and no parent_author with valid fid)
+                const isMainCast = !cast.parent_hash && (!cast.parent_author || !cast.parent_author.fid || cast.parent_author.fid === null);
                 // Only casts posted after cutoff time
                 const isRecent = new Date(cast.timestamp) > cutoffTime;
                 return isMainCast && isRecent;
