@@ -774,6 +774,11 @@ app.post('/api/config', async (req, res) => {
               
               console.log('🔍 Webhook update response status:', webhookResponse.status);
               
+              if (webhookResponse.ok) {
+                const responseData = await webhookResponse.json();
+                console.log('🔍 Webhook update response data:', JSON.stringify(responseData, null, 2));
+              }
+              
               if (!webhookResponse.ok) {
                 const errorText = await webhookResponse.text();
                 console.error('❌ Webhook update failed:', errorText);
