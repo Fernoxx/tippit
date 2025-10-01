@@ -407,7 +407,7 @@ app.post('/api/add-all-users-to-webhook', async (req, res) => {
     for (const userAddress of activeUsers) {
       try {
         const userResponse = await fetch(
-          `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${userAddress}`,
+          `https://api.neynar.com/v2/farcaster/user/by-verification?address=${userAddress}`,
           {
             headers: { 'x-api-key': process.env.NEYNAR_API_KEY }
           }
@@ -415,7 +415,7 @@ app.post('/api/add-all-users-to-webhook', async (req, res) => {
         
         if (userResponse.ok) {
           const userData = await userResponse.json();
-          const farcasterUser = userData[userAddress]?.[0];
+          const farcasterUser = userData.result?.user;
           
           if (farcasterUser && farcasterUser.fid) {
             allFids.push(farcasterUser.fid);
@@ -700,7 +700,7 @@ app.post('/api/config', async (req, res) => {
       
       // Get user's Farcaster FID from their address
       const userResponse = await fetch(
-        `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${userAddress}`,
+        `https://api.neynar.com/v2/farcaster/user/by-verification?address=${userAddress}`,
         {
           headers: { 'x-api-key': process.env.NEYNAR_API_KEY }
         }
@@ -714,7 +714,7 @@ app.post('/api/config', async (req, res) => {
       
       if (userResponse.ok) {
         const userData = await userResponse.json();
-        const farcasterUser = userData[userAddress]?.[0];
+        const farcasterUser = userData.result?.user;
         
         if (farcasterUser && farcasterUser.fid) {
           const userFid = farcasterUser.fid;
@@ -927,7 +927,7 @@ app.get('/api/neynar/user/by-address/:address', async (req, res) => {
   try {
     const { address } = req.params;
     const response = await fetch(
-      `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${address}`,
+      `https://api.neynar.com/v2/farcaster/user/by-verification?address=${address}`,
       {
         headers: { 'x-api-key': process.env.NEYNAR_API_KEY }
       }
@@ -984,7 +984,7 @@ app.get('/api/homepage', async (req, res) => {
       try {
         // Get user's Farcaster profile first
         const userResponse = await fetch(
-          `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${userAddress}`,
+          `https://api.neynar.com/v2/farcaster/user/by-verification?address=${userAddress}`,
           {
             headers: { 'x-api-key': process.env.NEYNAR_API_KEY }
           }
@@ -992,7 +992,7 @@ app.get('/api/homepage', async (req, res) => {
         
         if (userResponse.ok) {
           const userData = await userResponse.json();
-          const farcasterUser = userData[userAddress]?.[0];
+          const farcasterUser = userData.result?.user;
           
           if (farcasterUser) {
             // Fetch user's recent casts (last 5 to filter main casts only)
