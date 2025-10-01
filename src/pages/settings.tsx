@@ -172,7 +172,7 @@ export default function Settings() {
 
   const handleSaveTippingConfig = async () => {
     if (!address) {
-      toast.error('Please connect your wallet first');
+      toast.error('Please connect your wallet first', { duration: 2000 });
       return;
     }
 
@@ -196,55 +196,55 @@ export default function Settings() {
         isActive: true,
         totalSpent: userConfig?.totalSpent || '0'
       });
-      toast.success('Tipping configuration saved!');
+      toast.success('Tipping configuration saved!', { duration: 2000 });
     } catch (error: any) {
-      toast.error('Failed to save configuration: ' + error.message);
+      toast.error('Failed to save configuration: ' + error.message, { duration: 2000 });
     }
   };
 
   const handleApproveAllowance = async () => {
     if (!address) {
-      toast.error('Please connect your wallet first');
+      toast.error('Please connect your wallet first', { duration: 2000 });
       return;
     }
 
     if (!allowanceAmount || allowanceAmount === '0') {
-      toast.error('Please enter an allowance amount');
+      toast.error('Please enter an allowance amount', { duration: 2000 });
       return;
     }
 
     try {
       await approveToken(selectedToken, allowanceAmount);
     } catch (error: any) {
-      toast.error('Failed to approve allowance: ' + error.message);
+      toast.error('Failed to approve allowance: ' + error.message, { duration: 2000 });
     }
   };
 
   const handleRevokeAllowance = async () => {
     if (!address) {
-      toast.error('Please connect your wallet first');
+      toast.error('Please connect your wallet first', { duration: 2000 });
       return;
     }
 
     try {
       await revokeTokenAllowance(selectedToken);
     } catch (error: any) {
-      toast.error('Failed to revoke allowance: ' + error.message);
+      toast.error('Failed to revoke allowance: ' + error.message, { duration: 2000 });
     }
   };
 
   const handleRevokeConfig = async () => {
     if (!address) {
-      toast.error('Please connect your wallet first');
+      toast.error('Please connect your wallet first', { duration: 2000 });
       return;
     }
 
     if (confirm('Are you sure you want to deactivate your tipping configuration?')) {
       try {
         await revokeConfig();
-        toast.success('Tipping configuration deactivated');
+        toast.success('Tipping configuration deactivated', { duration: 2000 });
       } catch (error: any) {
-        toast.error('Failed to deactivate configuration: ' + error.message);
+        toast.error('Failed to deactivate configuration: ' + error.message, { duration: 2000 });
       }
     }
   };

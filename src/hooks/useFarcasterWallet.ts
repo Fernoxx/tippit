@@ -64,11 +64,11 @@ export const useFarcasterWallet = () => {
       
       // User-friendly error messages
       if (error.message?.includes('User rejected') || error.message?.includes('cancelled')) {
-        toast.error('Connection cancelled by user');
+        toast.error('Connection cancelled by user', { duration: 2000 });
       } else if (error.message?.includes('Farcaster mobile app')) {
-        toast.error('Please open this app in Farcaster mobile app');
+        toast.error('Please open this app in Farcaster mobile app', { duration: 2000 });
       } else {
-        toast.error('Failed to connect wallet: ' + error.message);
+        toast.error('Failed to connect wallet: ' + error.message, { duration: 2000 });
       }
       
       throw error;
@@ -83,7 +83,7 @@ export const useFarcasterWallet = () => {
       toast.success('Disconnected', { duration: 1500 });
     } catch (error) {
       console.error('Disconnect error:', error);
-      toast.error('Failed to disconnect wallet');
+      toast.error('Failed to disconnect wallet', { duration: 2000 });
     }
   };
 

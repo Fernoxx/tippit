@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useFarcasterWallet } from './useFarcasterWallet';
 import { toast } from 'react-hot-toast';
-import { useWriteContract, useReadContract } from 'wagmi';
+import { useWriteContract, useReadContract, waitForTransaction } from 'wagmi';
 import { parseUnits, formatUnits } from 'viem';
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001').replace(/\/$/, '');
@@ -75,7 +75,7 @@ export const useEcion = () => {
 
   const setTippingConfig = async (configData: UserConfig) => {
     if (!address) {
-      toast.error('Please connect your wallet first');
+      toast.error('Please connect your wallet first', { duration: 2000 });
       return;
     }
 
@@ -99,23 +99,22 @@ export const useEcion = () => {
       if (response.ok) {
         const result = await response.json();
         console.log('Config saved successfully:', result);
-        toast.success('Configuration saved successfully!');
         await fetchUserConfig(); // Refresh config
       } else {
         const errorText = await response.text();
         console.error('Error response:', errorText);
-        toast.error(`Failed to save configuration: ${response.status}`);
+        toast.error(`Failed to save configuration: ${response.status}`, { duration: 2000 });
       }
     } catch (error: any) {
       console.error('Error setting config:', error);
-      toast.error('Failed to save configuration: ' + error.message);
+      toast.error('Failed to save configuration: ' + error.message, { duration: 2000 });
     }
     setIsLoading(false);
   };
 
   const approveToken = async (tokenAddress: string, amount: string) => {
     if (!address) {
-      toast.error('Please connect your wallet first');
+      toast.error('Please connect your wallet first', { duration: 2000 });
       return;
     }
 
@@ -125,7 +124,7 @@ export const useEcion = () => {
       const backendWallet = await fetchBackendWalletAddress();
       
       if (backendWallet === '0x0000000000000000000000000000000000000000') {
-        toast.error('Backend wallet address not available. Please try again.');
+        toast.error('Backend wallet address not available. Please try again.', { duration: 2000 });
         setIsApproving(false);
         return;
       }
@@ -154,20 +153,20 @@ export const useEcion = () => {
         args: [backendWallet as `0x${string}`, amountWei],
       });
       
-      toast.success(`Approved ${amount} tokens to backend wallet!`);
       console.log('Approval transaction:', result);
       
-      // Refresh allowance after approval
+      // Wait for transaction to be mined, then refresh allowance
+      await waitForTransaction({ hash: result });
       await fetchTokenAllowance(tokenAddress);
       
     } catch (error: any) {
       console.error('Approval failed:', error);
       if (error.message?.includes('User rejected')) {
-        toast.error('Transaction cancelled by user');
+        toast.error('Transaction cancelled by user', { duration: 2000 });
       } else if (error.message?.includes('zero address')) {
-        toast.error('Backend wallet address not configured. Please contact support.');
+        toast.error('Backend wallet address not configured. Please contact support.', { duration: 2000 });
       } else {
-        toast.error('Failed to approve tokens: ' + error.message);
+        toast.error('Failed to approve tokens: ' + error.message, { duration: 2000 });
       }
     }
     setIsApproving(false);
@@ -175,7 +174,7 @@ export const useEcion = () => {
 
   const revokeTokenAllowance = async (tokenAddress: string) => {
     if (!address) {
-      toast.error('Please connect your wallet first');
+      toast.error('Please connect your wallet first', { duration: 2000 });
       return;
     }
 
@@ -185,7 +184,7 @@ export const useEcion = () => {
       const backendWallet = await fetchBackendWalletAddress();
       
       if (backendWallet === '0x0000000000000000000000000000000000000000') {
-        toast.error('Backend wallet address not available. Please try again.');
+        toast.error('Backend wallet address not available. Please try again.', { duration: 2000 });
         setIsRevokingAllowance(false);
         return;
       }
@@ -210,20 +209,21 @@ export const useEcion = () => {
         args: [backendWallet as `0x${string}`, 0n],
       });
       
-      toast.success('Token allowance revoked successfully!');
       console.log('Revoke transaction:', result);
       
-      // Refresh allowance after revocation
+      // Wait for transaction to be mined, then refresh allowance
+      await waitForTransaction({ hash: result });
+      toast.success('Token allowance revoked successfully!', { duration: 2000 });
       await fetchTokenAllowance(tokenAddress);
       
     } catch (error: any) {
       console.error('Revocation failed:', error);
       if (error.message?.includes('User rejected')) {
-        toast.error('Transaction cancelled by user');
+        toast.error('Transaction cancelled by user', { duration: 2000 });
       } else if (error.message?.includes('zero address')) {
-        toast.error('Backend wallet address not configured. Please contact support.');
+        toast.error('Backend wallet address not configured. Please contact support.', { duration: 2000 });
       } else {
-        toast.error('Failed to revoke allowance: ' + error.message);
+        toast.error('Failed to revoke allowance: ' + error.message, { duration: 2000 });
       }
     }
     setIsRevokingAllowance(false);
