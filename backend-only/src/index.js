@@ -696,12 +696,9 @@ app.post('/api/config', async (req, res) => {
       
       // Get user's Farcaster FID from their address
       const userResponse = await fetch(
-        `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${userAddress}`,
+        `https://api.neynar.com/v2/farcaster/user/by-verification?address=${userAddress}`,
         {
-          headers: { 
-            'x-api-key': process.env.NEYNAR_API_KEY,
-            'x-neynar-experimental': 'false'
-          }
+          headers: { 'x-api-key': process.env.NEYNAR_API_KEY }
         }
       );
       
@@ -713,7 +710,7 @@ app.post('/api/config', async (req, res) => {
       
       if (userResponse.ok) {
         const userData = await userResponse.json();
-        const farcasterUser = userData[userAddress]?.[0];
+        const farcasterUser = userData.result?.user;
         
         if (farcasterUser && farcasterUser.fid) {
           const userFid = farcasterUser.fid;
