@@ -986,9 +986,12 @@ app.get('/api/homepage', async (req, res) => {
       try {
         // Get user's Farcaster profile first
         const userResponse = await fetch(
-          `https://api.neynar.com/v2/farcaster/user/by-verification?address=${userAddress}`,
+          `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${userAddress}`,
           {
-            headers: { 'x-api-key': process.env.NEYNAR_API_KEY }
+            headers: { 
+              'x-api-key': process.env.NEYNAR_API_KEY,
+              'x-neynar-experimental': 'false'
+            }
           }
         );
         
@@ -996,7 +999,7 @@ app.get('/api/homepage', async (req, res) => {
         if (userResponse.ok) {
           const userData = await userResponse.json();
           console.log(`📊 User data response:`, JSON.stringify(userData, null, 2));
-          const farcasterUser = userData.result?.user;
+          const farcasterUser = userData[userAddress]?.[0];
           
           if (farcasterUser) {
             console.log(`✅ Found Farcaster user: ${farcasterUser.username} (FID: ${farcasterUser.fid})`);
