@@ -966,7 +966,9 @@ app.get('/api/homepage', async (req, res) => {
                 const isMainCast = !cast.parent_hash && (!cast.parent_author || !cast.parent_author.fid || cast.parent_author.fid === null);
                 // Only casts posted after cutoff time
                 const isRecent = new Date(cast.timestamp) > cutoffTime;
-                return isMainCast && isRecent;
+                // Additional check: ensure parent_author.fid is null or undefined
+                const hasNoParentAuthor = !cast.parent_author || cast.parent_author.fid === null || cast.parent_author.fid === undefined;
+                return isMainCast && isRecent && hasNoParentAuthor;
               }).slice(0, 2); // Take only the 2 most recent main casts
               
               // Add user info to each cast
