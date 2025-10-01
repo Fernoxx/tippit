@@ -752,8 +752,7 @@ app.post('/api/config', async (req, res) => {
                     author_fids: updatedFids
                   },
                   "reaction.created": {
-                    parent_author_fids: updatedFids,
-                    parent_hashes: []
+                    target_fids: updatedFids
                   },
                   "follow.created": {
                     target_fids: updatedFids
