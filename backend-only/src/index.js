@@ -727,48 +727,48 @@ app.post('/api/config', async (req, res) => {
           if (webhookId) {
             const trackedFids = await database.getTrackedFids();
             
-            // Check if FID is already tracked
-            if (!trackedFids.includes(userFid)) {
-              const updatedFids = [...trackedFids, userFid];
-              
-              console.log('📡 Adding FID to webhook filter:', userFid);
-              
-              // Update webhook with new FID
-              const webhookUrl = `https://${req.get('host')}/webhook/neynar`;
-              const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook/`, {
-                method: 'PUT',
-                headers: {
-                  'x-api-key': process.env.NEYNAR_API_KEY,
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                  webhook_id: webhookId,
-                  name: "Ecion Farcaster Events Webhook",
-                  url: webhookUrl,
-                  subscription: {
-                    "cast.created": {
-                      author_fids: updatedFids
-                    },
-                    "reaction.created": {
-                      parent_author_fids: updatedFids
-                    },
-                    "follow.created": {
-                      target_fids: updatedFids
-                    }
+            // Always update webhook to ensure FID is in the filter
+            const updatedFids = trackedFids.includes(userFid) 
+              ? trackedFids 
+              : [...trackedFids, userFid];
+            
+            console.log('📡 Updating webhook filter with FIDs:', updatedFids);
+            
+            // Update webhook with FIDs
+            const webhookUrl = `https://${req.get('host')}/webhook/neynar`;
+            const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook/`, {
+              method: 'PUT',
+              headers: {
+                'x-api-key': process.env.NEYNAR_API_KEY,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                webhook_id: webhookId,
+                name: "Ecion Farcaster Events Webhook",
+                url: webhookUrl,
+                subscription: {
+                  "cast.created": {
+                    author_fids: updatedFids
+                  },
+                  "reaction.created": {
+                    parent_author_fids: updatedFids
+                  },
+                  "follow.created": {
+                    target_fids: updatedFids
                   }
-                })
-              });
-              
-              if (webhookResponse.ok) {
-                // Save updated FIDs
-                await database.setTrackedFids(updatedFids);
-                console.log('✅ User FID added to webhook filter successfully!');
-              } else {
-                const errorText = await webhookResponse.text();
-                console.error('❌ Failed to update webhook:', errorText);
-              }
+                }
+              })
+            });
+            
+            console.log('🔍 Webhook update response status:', webhookResponse.status);
+            
+            if (webhookResponse.ok) {
+              // Save updated FIDs
+              await database.setTrackedFids(updatedFids);
+              console.log('✅ Webhook filter updated successfully with FIDs:', updatedFids);
             } else {
-              console.log('ℹ️ User FID already tracked in webhook');
+              const errorText = await webhookResponse.text();
+              console.error('❌ Failed to update webhook:', webhookResponse.status, errorText);
             }
           } else {
             console.log('⚠️ No webhook ID found. Create webhook first.');
