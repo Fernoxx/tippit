@@ -33,6 +33,7 @@ interface Cast {
   reactions?: CastReactions;
   replies?: CastReplies;
   tipper?: CastTipper;
+  farcasterUrl?: string;
 }
 
 export default function Home() {
@@ -112,7 +113,12 @@ export default function Home() {
               casts.map((cast: Cast, index: number) => (
                 <div
                   key={cast.hash}
-                  className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
+                  className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow cursor-pointer"
+                  onClick={() => {
+                    if (cast.farcasterUrl) {
+                      window.open(cast.farcasterUrl, '_blank');
+                    }
+                  }}
                 >
                   {/* User Info */}
                   <div className="flex items-center space-x-3 mb-4">
@@ -137,9 +143,12 @@ export default function Home() {
                         @{cast.tipper?.username || 'unknown'} • {new Date(cast.timestamp).toLocaleDateString()}
                       </p>
                     </div>
-                    <div className="ml-auto">
+                    <div className="ml-auto flex flex-col items-end space-y-1">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                         💰 Active Tipper
+                      </span>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        🎯 Click to Engage & Earn
                       </span>
                     </div>
                   </div>
