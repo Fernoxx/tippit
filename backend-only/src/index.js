@@ -936,7 +936,7 @@ app.get('/api/homepage', async (req, res) => {
       try {
         // Get user's Farcaster profile first
         const userResponse = await fetch(
-          `https://api.neynar.com/v2/farcaster/user/by-verification?address=${userAddress}`,
+          `https://api.neynar.com/v2/farcaster/user/bulk-by-address?addresses=${userAddress}`,
           {
             headers: { 'api_key': process.env.NEYNAR_API_KEY }
           }
@@ -944,7 +944,7 @@ app.get('/api/homepage', async (req, res) => {
         
         if (userResponse.ok) {
           const userData = await userResponse.json();
-          const farcasterUser = userData.users?.[0];
+          const farcasterUser = userData[userAddress]?.[0];
           
           if (farcasterUser) {
             // Fetch user's recent casts (last 2)

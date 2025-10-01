@@ -156,7 +156,7 @@ class PostgresDatabase {
   async getActiveUsersWithApprovals() {
     try {
       const result = await this.pool.query(`
-        SELECT user_address FROM user_configs 
+        SELECT DISTINCT LOWER(user_address) as user_address FROM user_configs 
         WHERE config->>'isActive' = 'true' 
         AND config->>'tokenAddress' IS NOT NULL
       `);
