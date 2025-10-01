@@ -1017,16 +1017,13 @@ app.get('/api/homepage', async (req, res) => {
               console.log(`📊 Casts data response:`, JSON.stringify(castsData, null, 2));
               const casts = castsData.casts || [];
               
-              // Filter to only show MAIN CASTS (not replies) posted after October 1, 2024 00:00 UTC
-              const cutoffTime = new Date('2024-10-01T00:00:00.000Z');
+              // Filter to only show MAIN CASTS (not replies) - NO CUTOFF DATE
               const mainCasts = casts.filter(cast => {
                 // Only main casts (no parent_hash and no parent_author with valid fid)
                 const isMainCast = !cast.parent_hash && (!cast.parent_author || !cast.parent_author.fid || cast.parent_author.fid === null);
-                // Only casts posted after cutoff time
-                const isRecent = new Date(cast.timestamp) > cutoffTime;
                 // Additional check: ensure parent_author.fid is null or undefined
                 const hasNoParentAuthor = !cast.parent_author || cast.parent_author.fid === null || cast.parent_author.fid === undefined;
-                return isMainCast && isRecent && hasNoParentAuthor;
+                return isMainCast && hasNoParentAuthor;
               }).slice(0, 3); // Take only the 3 most recent main casts per user
               
               // Add user info and clickable URL to each cast
