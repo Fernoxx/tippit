@@ -562,23 +562,6 @@ export default function Settings() {
         )}
       </motion.div>
 
-      {/* Deactivate Configuration */}
-      {userConfig && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="mt-8 text-center"
-        >
-          <button
-            onClick={handleRevokeConfig}
-            disabled={isRevoking}
-            className="text-red-600 hover:text-red-700 text-sm font-medium transition-colors disabled:opacity-50"
-          >
-            {isRevoking ? 'Deactivating...' : 'Deactivate Tipping Configuration'}
-          </button>
-        </motion.div>
-      )}
     </div>
   );
 }
