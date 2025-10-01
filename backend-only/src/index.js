@@ -727,56 +727,59 @@ app.post('/api/config', async (req, res) => {
           if (webhookId) {
             const trackedFids = await database.getTrackedFids();
             
-            // Always update webhook to ensure FID is in the filter
-            const updatedFids = trackedFids.includes(userFid) 
-              ? trackedFids 
-              : [...trackedFids, userFid];
+            // Only add FID if not already tracked (don't overwrite existing filters)
+            if (!trackedFids.includes(userFid)) {
+              const updatedFids = [...trackedFids, userFid];
+              
+              console.log('📡 Adding new FID to webhook filter:', userFid);
+              console.log('📡 Updated FIDs list:', updatedFids);
             
-            console.log('📡 Updating webhook filter with FIDs:', updatedFids);
-            
-            const webhookPayload = {
-              webhook_id: webhookId,
-              name: "Ecion Farcaster Events Webhook",
-              url: `https://${req.get('host')}/webhook/neynar`,
-              subscription: {
-                "cast.created": {
-                  author_fids: updatedFids
-                },
-                "reaction.created": {
-                  parent_author_fids: updatedFids
-                },
-                "follow.created": {
-                  target_fids: updatedFids
+              const webhookPayload = {
+                webhook_id: webhookId,
+                name: "Ecion Farcaster Events Webhook",
+                url: `https://${req.get('host')}/webhook/neynar`,
+                subscription: {
+                  "cast.created": {
+                    author_fids: updatedFids
+                  },
+                  "reaction.created": {
+                    parent_author_fids: updatedFids
+                  },
+                  "follow.created": {
+                    target_fids: updatedFids
+                  }
                 }
+              };
+              
+              console.log('📡 Webhook payload being sent:', JSON.stringify(webhookPayload, null, 2));
+              
+              // Update webhook with FIDs
+              const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook/`, {
+                method: 'PUT',
+                headers: {
+                  'x-api-key': process.env.NEYNAR_API_KEY,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(webhookPayload)
+              });
+              
+              console.log('🔍 Webhook update response status:', webhookResponse.status);
+              
+              if (!webhookResponse.ok) {
+                const errorText = await webhookResponse.text();
+                console.error('❌ Webhook update failed:', errorText);
               }
-            };
-            
-            console.log('📡 Webhook payload being sent:', JSON.stringify(webhookPayload, null, 2));
-            
-            // Update webhook with FIDs
-            const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook/`, {
-              method: 'PUT',
-              headers: {
-                'x-api-key': process.env.NEYNAR_API_KEY,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify(webhookPayload)
-            });
-            
-            console.log('🔍 Webhook update response status:', webhookResponse.status);
-            
-            if (!webhookResponse.ok) {
-              const errorText = await webhookResponse.text();
-              console.error('❌ Webhook update failed:', errorText);
-            }
-            
-            if (webhookResponse.ok) {
-              // Save updated FIDs
-              await database.setTrackedFids(updatedFids);
-              console.log('✅ Webhook filter updated successfully with FIDs:', updatedFids);
+              
+              if (webhookResponse.ok) {
+                // Save updated FIDs
+                await database.setTrackedFids(updatedFids);
+                console.log('✅ Webhook filter updated successfully with FIDs:', updatedFids);
+              } else {
+                const errorText = await webhookResponse.text();
+                console.error('❌ Failed to update webhook:', webhookResponse.status, errorText);
+              }
             } else {
-              const errorText = await webhookResponse.text();
-              console.error('❌ Failed to update webhook:', webhookResponse.status, errorText);
+              console.log('ℹ️ User FID already tracked in webhook - no update needed');
             }
           } else {
             console.log('⚠️ No webhook ID found. Create webhook first.');
