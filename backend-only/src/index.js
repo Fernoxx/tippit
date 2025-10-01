@@ -144,7 +144,7 @@ app.get('/api/test-api', async (req, res) => {
     // Test a simple API call using direct HTTP
     const response = await fetch('https://api.neynar.com/v2/farcaster/user/bulk?fids=3', {
       headers: {
-        'api_key': process.env.NEYNAR_API_KEY
+        'x-api-key': process.env.NEYNAR_API_KEY
       }
     });
     
@@ -194,7 +194,7 @@ app.post('/api/create-webhook-direct', async (req, res) => {
     const response = await fetch('https://api.neynar.com/v2/farcaster/webhook/', {
       method: 'POST',
       headers: {
-        'api_key': process.env.NEYNAR_API_KEY,
+        'x-api-key': process.env.NEYNAR_API_KEY,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -285,7 +285,7 @@ app.post('/api/add-user-to-webhook', async (req, res) => {
     const response = await fetch(`https://api.neynar.com/v2/webhooks/${webhookId}`, {
       method: 'PUT',
       headers: {
-        'api_key': process.env.NEYNAR_API_KEY,
+        'x-api-key': process.env.NEYNAR_API_KEY,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -407,15 +407,15 @@ app.post('/api/add-all-users-to-webhook', async (req, res) => {
     for (const userAddress of activeUsers) {
       try {
         const userResponse = await fetch(
-          `https://api.neynar.com/v2/farcaster/user/by-verification?address=${userAddress}`,
+          `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${userAddress}`,
           {
-            headers: { 'api_key': process.env.NEYNAR_API_KEY }
+            headers: { 'x-api-key': process.env.NEYNAR_API_KEY }
           }
         );
         
         if (userResponse.ok) {
           const userData = await userResponse.json();
-          const farcasterUser = userData.result?.user;
+          const farcasterUser = userData[userAddress]?.[0];
           
           if (farcasterUser && farcasterUser.fid) {
             allFids.push(farcasterUser.fid);
@@ -441,7 +441,7 @@ app.post('/api/add-all-users-to-webhook', async (req, res) => {
     const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook`, {
       method: 'PUT',
       headers: {
-        'api_key': process.env.NEYNAR_API_KEY,
+        'x-api-key': process.env.NEYNAR_API_KEY,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -514,7 +514,7 @@ app.post('/api/set-webhook-fids', async (req, res) => {
     const webhookUrl = `https://${req.get('host')}/webhook/neynar`;
     const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook`, {
       method: 'PUT',
-      headers: { 'api_key': process.env.NEYNAR_API_KEY, 'Content-Type': 'application/json' },
+      headers: { 'x-api-key': process.env.NEYNAR_API_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         webhook_id: webhookId,
         name: "Ecion Farcaster Events Webhook",
@@ -559,7 +559,7 @@ app.post('/api/manual-add-fid', async (req, res) => {
     const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook`, {
       method: 'PUT',
       headers: {
-        'api_key': process.env.NEYNAR_API_KEY,
+        'x-api-key': process.env.NEYNAR_API_KEY,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -625,7 +625,7 @@ async function registerWebhook(req, res) {
     const response = await fetch('https://api.neynar.com/v2/farcaster/webhook/', {
       method: 'POST',
       headers: {
-        'api_key': process.env.NEYNAR_API_KEY,
+        'x-api-key': process.env.NEYNAR_API_KEY,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -700,9 +700,9 @@ app.post('/api/config', async (req, res) => {
       
       // Get user's Farcaster FID from their address
       const userResponse = await fetch(
-        `https://api.neynar.com/v2/farcaster/user/by-verification?address=${userAddress}`,
+        `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${userAddress}`,
         {
-          headers: { 'api_key': process.env.NEYNAR_API_KEY }
+          headers: { 'x-api-key': process.env.NEYNAR_API_KEY }
         }
       );
       
@@ -714,7 +714,7 @@ app.post('/api/config', async (req, res) => {
       
       if (userResponse.ok) {
         const userData = await userResponse.json();
-        const farcasterUser = userData.result?.user;
+        const farcasterUser = userData[userAddress]?.[0];
         
         if (farcasterUser && farcasterUser.fid) {
           const userFid = farcasterUser.fid;
@@ -736,7 +736,7 @@ app.post('/api/config', async (req, res) => {
               const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook`, {
                 method: 'PUT',
                 headers: {
-                  'api_key': process.env.NEYNAR_API_KEY,
+                  'x-api-key': process.env.NEYNAR_API_KEY,
                   'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
@@ -927,9 +927,9 @@ app.get('/api/neynar/user/by-address/:address', async (req, res) => {
   try {
     const { address } = req.params;
     const response = await fetch(
-      `https://api.neynar.com/v2/farcaster/user/by-verification?address=${address}`,
+      `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${address}`,
       {
-        headers: { 'api_key': process.env.NEYNAR_API_KEY }
+        headers: { 'x-api-key': process.env.NEYNAR_API_KEY }
       }
     );
     
@@ -947,7 +947,7 @@ app.get('/api/neynar/cast/:hash', async (req, res) => {
     const response = await fetch(
       `https://api.neynar.com/v2/farcaster/cast?identifier=${hash}&type=hash`,
       {
-        headers: { 'api_key': process.env.NEYNAR_API_KEY }
+        headers: { 'x-api-key': process.env.NEYNAR_API_KEY }
       }
     );
     
@@ -984,22 +984,22 @@ app.get('/api/homepage', async (req, res) => {
       try {
         // Get user's Farcaster profile first
         const userResponse = await fetch(
-          `https://api.neynar.com/v2/farcaster/user/by-verification?address=${userAddress}`,
+          `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${userAddress}`,
           {
-            headers: { 'api_key': process.env.NEYNAR_API_KEY }
+            headers: { 'x-api-key': process.env.NEYNAR_API_KEY }
           }
         );
         
         if (userResponse.ok) {
           const userData = await userResponse.json();
-          const farcasterUser = userData.result?.user;
+          const farcasterUser = userData[userAddress]?.[0];
           
           if (farcasterUser) {
             // Fetch user's recent casts (last 5 to filter main casts only)
             const castsResponse = await fetch(
               `https://api.neynar.com/v2/farcaster/feed/user/casts?fid=${farcasterUser.fid}&limit=5`,
               {
-                headers: { 'api_key': process.env.NEYNAR_API_KEY }
+                headers: { 'x-api-key': process.env.NEYNAR_API_KEY }
               }
             );
             
@@ -1114,7 +1114,7 @@ app.get('/api/debug/pending-tips', async (req, res) => {
     try {
       // Use the correct Neynar API endpoint
       const testResponse = await fetch('https://api.neynar.com/v2/farcaster/user/bulk?fids=3', {
-        headers: { 'api_key': process.env.NEYNAR_API_KEY }
+        headers: { 'x-api-key': process.env.NEYNAR_API_KEY }
       });
       
       if (testResponse.ok) {
