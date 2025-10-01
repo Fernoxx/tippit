@@ -734,33 +734,41 @@ app.post('/api/config', async (req, res) => {
             
             console.log('📡 Updating webhook filter with FIDs:', updatedFids);
             
+            const webhookPayload = {
+              webhook_id: webhookId,
+              name: "Ecion Farcaster Events Webhook",
+              url: `https://${req.get('host')}/webhook/neynar`,
+              subscription: {
+                "cast.created": {
+                  author_fids: updatedFids
+                },
+                "reaction.created": {
+                  parent_author_fids: updatedFids
+                },
+                "follow.created": {
+                  target_fids: updatedFids
+                }
+              }
+            };
+            
+            console.log('📡 Webhook payload being sent:', JSON.stringify(webhookPayload, null, 2));
+            
             // Update webhook with FIDs
-            const webhookUrl = `https://${req.get('host')}/webhook/neynar`;
             const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook/`, {
               method: 'PUT',
               headers: {
                 'x-api-key': process.env.NEYNAR_API_KEY,
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({
-                webhook_id: webhookId,
-                name: "Ecion Farcaster Events Webhook",
-                url: webhookUrl,
-                subscription: {
-                  "cast.created": {
-                    author_fids: updatedFids
-                  },
-                  "reaction.created": {
-                    parent_author_fids: updatedFids
-                  },
-                  "follow.created": {
-                    target_fids: updatedFids
-                  }
-                }
-              })
+              body: JSON.stringify(webhookPayload)
             });
             
             console.log('🔍 Webhook update response status:', webhookResponse.status);
+            
+            if (!webhookResponse.ok) {
+              const errorText = await webhookResponse.text();
+              console.error('❌ Webhook update failed:', errorText);
+            }
             
             if (webhookResponse.ok) {
               // Save updated FIDs
