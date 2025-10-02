@@ -54,24 +54,36 @@ export const useEcion = () => {
   const [isRevokingAllowance, setIsRevokingAllowance] = useState(false);
   const [pendingTxHash, setPendingTxHash] = useState<string | null>(null);
   
-  const { writeContract } = useWriteContract();
+  const { writeContract, data: txHash, isPending: isTxPending, error: txError } = useWriteContract();
   
   // Wait for transaction confirmation
-  const { isLoading: isTxConfirming } = useWaitForTransactionReceipt({
-    hash: pendingTxHash as `0x${string}`,
-    onSuccess: async () => {
+  const { isLoading: isTxConfirming, isSuccess: isTxSuccess, isError: isTxError } = useWaitForTransactionReceipt({
+    hash: pendingTxHash as `0x${string}`
+  });
+
+  // Handle transaction hash from writeContract
+  useEffect(() => {
+    if (txHash) {
+      setPendingTxHash(txHash);
+    }
+  }, [txHash]);
+
+  // Handle transaction success/failure with useEffect
+  useEffect(() => {
+    if (isTxSuccess && pendingTxHash) {
       console.log('✅ Transaction confirmed, refreshing allowance...');
       if (userConfig?.tokenAddress) {
-        await fetchTokenAllowance(userConfig.tokenAddress);
+        fetchTokenAllowance(userConfig.tokenAddress);
       }
       setPendingTxHash(null);
-    },
-    onError: (error) => {
-      console.error('❌ Transaction failed:', error);
+    }
+    
+    if (isTxError && pendingTxHash) {
+      console.error('❌ Transaction failed');
       setPendingTxHash(null);
       toast.error('Transaction failed', { duration: 2000 });
     }
-  });
+  }, [isTxSuccess, isTxError, pendingTxHash, userConfig?.tokenAddress]);
 
   useEffect(() => {
     if (address) {
@@ -153,7 +165,7 @@ export const useEcion = () => {
       const tokenDecimals = tokenAddress.toLowerCase() === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913' ? 6 : 18;
       const amountWei = parseUnits(amount, tokenDecimals);
       
-      const result = await writeContract({
+      writeContract({
         address: tokenAddress as `0x${string}`,
         abi: [
           {
@@ -171,10 +183,7 @@ export const useEcion = () => {
         args: [backendWallet as `0x${string}`, amountWei],
       });
       
-      console.log('Approval transaction submitted:', result);
-      
-      // Set pending transaction hash to wait for confirmation
-      setPendingTxHash(result);
+      console.log('Approval transaction submitted');
       
     } catch (error: any) {
       console.error('Approval failed:', error);
@@ -208,7 +217,7 @@ export const useEcion = () => {
       
       console.log('Revoking allowance for token:', tokenAddress);
       
-      const result = await writeContract({
+      writeContract({
         address: tokenAddress as `0x${string}`,
         abi: [
           {
@@ -226,10 +235,7 @@ export const useEcion = () => {
         args: [backendWallet as `0x${string}`, 0n],
       });
       
-      console.log('Revoke transaction submitted:', result);
-      
-      // Set pending transaction hash to wait for confirmation
-      setPendingTxHash(result);
+      console.log('Revoke transaction submitted');
       toast.success('Token allowance revoked successfully!', { duration: 2000 });
       
     } catch (error: any) {
@@ -291,8 +297,8 @@ export const useEcion = () => {
     fetchUserConfig,
     fetchTokenAllowance,
     isSettingConfig: isLoading,
-    isApproving: isApproving || isTxConfirming,
-    isRevokingAllowance: isRevokingAllowance || isTxConfirming,
+    isApproving: isApproving || isTxPending || isTxConfirming,
+    isRevokingAllowance: isRevokingAllowance || isTxPending || isTxConfirming,
     isUpdatingLimit: false,
     isRevoking: false,
   };
