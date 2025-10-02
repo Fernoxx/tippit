@@ -168,7 +168,7 @@ async function webhookHandler(req, res) {
         
         if (isMainCast) {
           console.log(`📝 New main cast from FID ${authorFid}: ${castHash}`);
-          // Add this cast to user's eligible casts (database will handle keeping only latest 3)
+          // Add this cast to user's eligible casts (database will handle keeping only latest 1)
           await database.addUserCast(authorFid, castHash, true);
         }
       }
@@ -205,15 +205,15 @@ async function webhookHandler(req, res) {
       });
     }
     
-    // Check if cast is eligible for tips (only latest 3 main casts)
+    // Check if cast is eligible for tips (only latest main cast)
     if (interaction.castHash) {
       const isCastEligible = await database.isCastEligibleForTips(interaction.authorFid, interaction.castHash);
       if (!isCastEligible) {
-        console.log(`🚫 Cast ${interaction.castHash} not eligible for tips (not in latest 3 main casts)`);
+        console.log(`🚫 Cast ${interaction.castHash} not eligible for tips (not the latest main cast)`);
         return res.status(200).json({
           success: true,
           processed: false,
-          reason: 'Cast not eligible for tips (not in latest 3 main casts)'
+          reason: 'Cast not eligible for tips (not the latest main cast)'
         });
       }
     }

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useFarcasterWallet } from './useFarcasterWallet';
 import { toast } from 'react-hot-toast';
-import { useWriteContract, useReadContract } from 'wagmi';
+import { useWriteContract, useReadContract, useWaitForTransactionReceipt } from 'wagmi';
 import { parseUnits, formatUnits } from 'viem';
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001').replace(/\/$/, '');
@@ -52,8 +52,26 @@ export const useEcion = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
   const [isRevokingAllowance, setIsRevokingAllowance] = useState(false);
+  const [pendingTxHash, setPendingTxHash] = useState<string | null>(null);
   
   const { writeContract } = useWriteContract();
+  
+  // Wait for transaction confirmation
+  const { isLoading: isTxConfirming } = useWaitForTransactionReceipt({
+    hash: pendingTxHash as `0x${string}`,
+    onSuccess: async () => {
+      console.log('✅ Transaction confirmed, refreshing allowance...');
+      if (userConfig?.tokenAddress) {
+        await fetchTokenAllowance(userConfig.tokenAddress);
+      }
+      setPendingTxHash(null);
+    },
+    onError: (error) => {
+      console.error('❌ Transaction failed:', error);
+      setPendingTxHash(null);
+      toast.error('Transaction failed', { duration: 2000 });
+    }
+  });
 
   useEffect(() => {
     if (address) {
@@ -153,12 +171,10 @@ export const useEcion = () => {
         args: [backendWallet as `0x${string}`, amountWei],
       });
       
-      console.log('Approval transaction:', result);
+      console.log('Approval transaction submitted:', result);
       
-      // Wait a moment for transaction to be mined, then refresh allowance
-      setTimeout(async () => {
-        await fetchTokenAllowance(tokenAddress);
-      }, 2000);
+      // Set pending transaction hash to wait for confirmation
+      setPendingTxHash(result);
       
     } catch (error: any) {
       console.error('Approval failed:', error);
@@ -210,12 +226,10 @@ export const useEcion = () => {
         args: [backendWallet as `0x${string}`, 0n],
       });
       
-      console.log('Revoke transaction:', result);
+      console.log('Revoke transaction submitted:', result);
       
-      // Wait a moment for transaction to be mined, then refresh allowance
-      setTimeout(async () => {
-        await fetchTokenAllowance(tokenAddress);
-      }, 2000);
+      // Set pending transaction hash to wait for confirmation
+      setPendingTxHash(result);
       toast.success('Token allowance revoked successfully!', { duration: 2000 });
       
     } catch (error: any) {
@@ -277,8 +291,8 @@ export const useEcion = () => {
     fetchUserConfig,
     fetchTokenAllowance,
     isSettingConfig: isLoading,
-    isApproving,
-    isRevokingAllowance,
+    isApproving: isApproving || isTxConfirming,
+    isRevokingAllowance: isRevokingAllowance || isTxConfirming,
     isUpdatingLimit: false,
     isRevoking: false,
   };
