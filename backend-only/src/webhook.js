@@ -14,7 +14,7 @@ const { getUserByFid, getCastByHash } = require('./neynar');
 
 // Verify webhook signature from Neynar
 function verifyWebhookSignature(req) {
-  const signature = req.headers['x-neynar-signature'];
+  const signature = req.headers['x-neynar-signature'] || req.headers['X-Neynar-Signature'];
   const webhookSecret = process.env.WEBHOOK_SECRET;
   
   console.log('🔐 Signature verification:', {
@@ -29,7 +29,7 @@ function verifyWebhookSignature(req) {
     return false;
   }
   
-  const hmac = crypto.createHmac('sha256', webhookSecret);
+  const hmac = crypto.createHmac('sha512', webhookSecret);
   hmac.update(JSON.stringify(req.body));
   const expectedSignature = hmac.digest('hex');
   
@@ -145,18 +145,11 @@ async function webhookHandler(req, res) {
       data: JSON.stringify(req.body, null, 2)
     });
     
-    // TEMPORARY: Skip signature verification to test webhook events
-    console.log('🔔 Webhook event received (signature check disabled):', {
-      type: req.body.type,
-      timestamp: new Date().toISOString(),
-      hasData: !!req.body?.data
-    });
-    
     // Verify webhook signature
     const isValidSignature = verifyWebhookSignature(req);
     if (!isValidSignature) {
-      console.log('⚠️ Webhook signature verification failed, but processing anyway for testing');
-      // Continue processing for now to test if webhook events work
+      console.log('❌ Webhook signature verification failed');
+      return res.status(401).json({ error: 'Invalid signature' });
     }
     
     console.log('✅ Valid webhook received:', req.body.type);
