@@ -34,6 +34,10 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-neynar-signature']
 }));
+// Raw body parser for webhook signature verification
+app.use('/webhook/neynar', express.raw({ type: 'application/json' }));
+
+// JSON parser for other routes
 app.use(express.json());
 
 // Initialize batch processor

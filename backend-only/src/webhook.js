@@ -21,7 +21,9 @@ function verifyWebhookSignature(req) {
     hasSignature: !!signature,
     hasSecret: !!webhookSecret,
     signature: signature ? signature.substring(0, 10) + '...' : 'none',
-    secretLength: webhookSecret ? webhookSecret.length : 0
+    secretLength: webhookSecret ? webhookSecret.length : 0,
+    bodyType: typeof req.body,
+    bodyLength: req.body ? req.body.length : 0
   });
   
   if (!signature || !webhookSecret) {
@@ -29,8 +31,11 @@ function verifyWebhookSignature(req) {
     return false;
   }
   
+  // Use raw body for signature verification (as per Neynar docs)
+  const rawBody = Buffer.isBuffer(req.body) ? req.body.toString() : JSON.stringify(req.body);
+  
   const hmac = crypto.createHmac('sha512', webhookSecret);
-  hmac.update(JSON.stringify(req.body));
+  hmac.update(rawBody);
   const expectedSignature = hmac.digest('hex');
   
   const isValid = signature === expectedSignature;
@@ -139,10 +144,20 @@ async function parseWebhookEvent(event) {
 // Main webhook handler
 async function webhookHandler(req, res) {
   try {
+    // Parse the raw body to JSON for processing
+    let eventData;
+    if (Buffer.isBuffer(req.body)) {
+      eventData = JSON.parse(req.body.toString());
+    } else if (typeof req.body === 'string') {
+      eventData = JSON.parse(req.body);
+    } else {
+      eventData = req.body;
+    }
+    
     console.log('🔔 Webhook received:', {
-      type: req.body.type,
+      type: eventData.type,
       timestamp: new Date().toISOString(),
-      data: JSON.stringify(req.body, null, 2)
+      data: JSON.stringify(eventData, null, 2)
     });
     
     // Verify webhook signature
@@ -152,11 +167,11 @@ async function webhookHandler(req, res) {
       return res.status(401).json({ error: 'Invalid signature' });
     }
     
-    console.log('✅ Valid webhook received:', req.body.type);
+    console.log('✅ Valid webhook received:', eventData.type);
     
     // Handle cast.created events to track user's latest casts
-    if (req.body.type === 'cast.created') {
-      const castData = req.body.data;
+    if (eventData.type === 'cast.created') {
+      const castData = eventData.data;
       const authorFid = castData.author?.fid;
       const castHash = castData.hash;
       
@@ -173,7 +188,7 @@ async function webhookHandler(req, res) {
     }
     
     // Parse the event
-    const interaction = await parseWebhookEvent(req.body);
+    const interaction = await parseWebhookEvent(eventData);
     
     if (!interaction) {
       return res.status(200).json({ 
