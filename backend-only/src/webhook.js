@@ -132,8 +132,20 @@ async function parseWebhookEvent(event) {
   const authorUser = await getUserByFid(authorFid);
   const interactorUser = await getUserByFid(interactorFid);
   
-  const authorAddress = authorUser?.verified_addresses?.eth_addresses?.[0];
-  const interactorAddress = interactorUser?.verified_addresses?.eth_addresses?.[0];
+  // Get primary address (the address set as primary in Farcaster)
+  const authorAddress = authorUser?.verified_addresses?.primary?.eth_address || 
+                       authorUser?.verified_addresses?.eth_addresses?.[0];
+  const interactorAddress = interactorUser?.verified_addresses?.primary?.eth_address || 
+                           interactorUser?.verified_addresses?.eth_addresses?.[0];
+  
+  console.log('🔍 Address lookup:', {
+    authorFid,
+    authorAddress,
+    interactorFid, 
+    interactorAddress,
+    authorVerifiedAddresses: authorUser?.verified_addresses,
+    interactorVerifiedAddresses: interactorUser?.verified_addresses
+  });
   
   if (!authorAddress || !interactorAddress) {
     console.log('❌ No verified addresses found');
