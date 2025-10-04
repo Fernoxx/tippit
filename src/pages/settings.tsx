@@ -49,11 +49,11 @@ export default function Settings() {
   const [isValidToken, setIsValidToken] = useState(true);
   const [amountErrors, setAmountErrors] = useState<{[key: string]: string}>({});
   
-  // Validate tip amount (minimum $0.01)
+  // Validate tip amount (minimum $0.005)
   const validateAmount = (value: string, key: string) => {
     const numValue = parseFloat(value);
-    if (numValue < 0.01) {
-      setAmountErrors(prev => ({ ...prev, [key]: 'Must be $0.01 or more' }));
+    if (numValue < 0.005) {
+      setAmountErrors(prev => ({ ...prev, [key]: 'Must be $0.005 or more' }));
       return false;
     } else {
       setAmountErrors(prev => {
@@ -66,7 +66,7 @@ export default function Settings() {
   };
   
   const [tippingAmounts, setTippingAmounts] = useState({
-    like: '0.01',
+    like: '0.005',
     reply: '0.025',
     recast: '0.025',
     quote: '0.025',
@@ -89,7 +89,7 @@ export default function Settings() {
     setMounted(true);
     if (userConfig) {
       setTippingAmounts({
-        like: userConfig.likeAmount?.toString() || '0.01',
+        like: userConfig.likeAmount?.toString() || '0.005',
         reply: userConfig.replyAmount?.toString() || '0.025',
         recast: userConfig.recastAmount?.toString() || '0.025',
         quote: userConfig.quoteAmount?.toString() || '0.025',
@@ -364,7 +364,7 @@ export default function Settings() {
             
             <div className="space-y-6">
               {[
-                { key: 'like', label: 'Like', icon: Heart, default: '0.01' },
+                { key: 'like', label: 'Like', icon: Heart, default: '0.005' },
                 { key: 'reply', label: 'Reply', icon: MessageCircle, default: '0.025' },
                 { key: 'recast', label: 'Recast', icon: Repeat, default: '0.025' },
                 { key: 'quote', label: 'Quote Cast', icon: Quote, default: '0.025' },
@@ -379,7 +379,7 @@ export default function Settings() {
                     <input
                       type="number"
                       step="0.001"
-                      min="0.01"
+                      min="0.005"
                       value={tippingAmounts[key as keyof typeof tippingAmounts]}
                       onChange={(e) => {
                         setTippingAmounts(prev => ({ ...prev, [key]: e.target.value }));
