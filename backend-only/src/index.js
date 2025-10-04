@@ -1130,6 +1130,23 @@ app.get('/api/debug/user-casts/:fid', async (req, res) => {
   }
 });
 
+// Debug endpoint to manually add a cast
+app.post('/api/debug/add-cast', async (req, res) => {
+  try {
+    const { userFid, castHash, isMainCast = true } = req.body;
+    
+    await database.addUserCast(userFid, castHash, isMainCast);
+    
+    res.json({
+      success: true,
+      message: `Cast ${castHash} added for FID ${userFid}`
+    });
+  } catch (error) {
+    console.error('Error adding cast:', error);
+    res.status(500).json({ error: 'Failed to add cast' });
+  }
+});
+
 app.get('/api/debug/pending-tips', async (req, res) => {
   try {
     const pendingTips = await database.getPendingTips();
