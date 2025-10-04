@@ -4,7 +4,7 @@ async function getFollowerCount(fid) {
   try {
     const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`, {
       headers: {
-        'api_key': process.env.NEYNAR_API_KEY,
+        'x-api-key': process.env.NEYNAR_API_KEY,
       },
     });
     
@@ -27,25 +27,36 @@ async function checkAudienceCriteria(authorFid, interactorFid, audience) {
       return true;
     }
     
-    const response = await fetch(`https://api.neynar.com/v2/farcaster/follows?fid=${authorFid}`, {
-      headers: {
-        'api_key': process.env.NEYNAR_API_KEY,
-      },
-    });
-    
-    if (!response.ok) {
-      console.error(`Failed to fetch follows for FID ${authorFid}: ${response.status}`);
-      return false;
-    }
-    
-    const data = await response.json();
-    
     if (audience === 0) { // Following - ONLY users the caster follows can get tips
-      const isFollowing = data.following?.some(user => user.fid === interactorFid) || false;
+      const response = await fetch(`https://api.neynar.com/v2/farcaster/following/?fid=${authorFid}&limit=100`, {
+        headers: {
+          'x-api-key': process.env.NEYNAR_API_KEY,
+        },
+      });
+      
+      if (!response.ok) {
+        console.error(`Failed to fetch following for FID ${authorFid}: ${response.status}`);
+        return false;
+      }
+      
+      const data = await response.json();
+      const isFollowing = data.users?.some(user => user.fid === interactorFid) || false;
       console.log(`Audience check: Following - ${interactorFid} is ${isFollowing ? 'in' : 'NOT in'} caster's following list`);
       return isFollowing;
     } else if (audience === 1) { // Followers - ONLY caster's followers can get tips
-      const isFollower = data.followers?.some(user => user.fid === interactorFid) || false;
+      const response = await fetch(`https://api.neynar.com/v2/farcaster/followers/?fid=${authorFid}&limit=100`, {
+        headers: {
+          'x-api-key': process.env.NEYNAR_API_KEY,
+        },
+      });
+      
+      if (!response.ok) {
+        console.error(`Failed to fetch followers for FID ${authorFid}: ${response.status}`);
+        return false;
+      }
+      
+      const data = await response.json();
+      const isFollower = data.users?.some(user => user.fid === interactorFid) || false;
       console.log(`Audience check: Followers - ${interactorFid} is ${isFollower ? 'a' : 'NOT a'} follower of caster`);
       return isFollower;
     }
@@ -62,7 +73,7 @@ async function getUserByFid(fid) {
   try {
     const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`, {
       headers: {
-        'api_key': process.env.NEYNAR_API_KEY,
+        'x-api-key': process.env.NEYNAR_API_KEY,
       },
     });
     
@@ -78,7 +89,7 @@ async function getCastByHash(hash) {
   try {
     const response = await fetch(`https://api.neynar.com/v2/farcaster/cast?identifier=${hash}&type=hash`, {
       headers: {
-        'api_key': process.env.NEYNAR_API_KEY,
+        'x-api-key': process.env.NEYNAR_API_KEY,
       },
     });
     
@@ -94,14 +105,14 @@ async function getNeynarScore(fid) {
   try {
     const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`, {
       headers: {
-        'api_key': process.env.NEYNAR_API_KEY,
+        'x-api-key': process.env.NEYNAR_API_KEY,
       },
     });
     
     const data = await response.json();
     if (data.users && data.users[0]) {
-      // Neynar score is in power_badge field (0.0 to 1.0)
-      return data.users[0].power_badge || 0;
+      // Neynar score is in score field (0.0 to 1.0)
+      return data.users[0].score || 0;
     }
     return 0;
   } catch (error) {
@@ -114,7 +125,7 @@ async function getUserData(fid) {
   try {
     const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`, {
       headers: {
-        'api_key': process.env.NEYNAR_API_KEY,
+        'x-api-key': process.env.NEYNAR_API_KEY,
       },
     });
     
@@ -123,7 +134,7 @@ async function getUserData(fid) {
       const user = data.users[0];
       return {
         followerCount: user.follower_count || 0,
-        neynarScore: user.power_badge || 0
+        neynarScore: user.score || 0
       };
     }
     return { followerCount: 0, neynarScore: 0 };
