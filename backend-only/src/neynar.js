@@ -41,10 +41,20 @@ async function checkAudienceCriteria(authorFid, interactorFid, audience) {
     }
     
     const data = await response.json();
-    const viewerContext = data.user?.viewer_context;
+    console.log('🔍 API Response structure:', JSON.stringify(data, null, 2));
+    
+    // Bulk endpoint returns users array
+    const user = data.users?.[0];
+    if (!user) {
+      console.error(`No user found for FID ${interactorFid}`);
+      return false;
+    }
+    
+    const viewerContext = user.viewer_context;
     
     if (!viewerContext) {
       console.error(`No viewer_context found for FID ${interactorFid}`);
+      console.log('🔍 User object structure:', JSON.stringify(user, null, 2));
       return false;
     }
     
