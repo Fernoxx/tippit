@@ -14,7 +14,12 @@ const { getUserByFid, getCastByHash } = require('./neynar');
 
 // Verify webhook signature from Neynar
 function verifyWebhookSignature(req) {
-  const signature = req.headers['x-neynar-signature'] || req.headers['X-Neynar-Signature'];
+  // Check all possible header variations
+  const signature = req.headers['x-neynar-signature'] || 
+                   req.headers['X-Neynar-Signature'] ||
+                   req.headers['x-neynar-signature'] ||
+                   req.headers['X-NEYNAR-SIGNATURE'];
+  
   const webhookSecret = process.env.WEBHOOK_SECRET;
   
   console.log('🔐 Signature verification:', {
@@ -24,6 +29,8 @@ function verifyWebhookSignature(req) {
     secretLength: webhookSecret ? webhookSecret.length : 0,
     bodyType: typeof req.body,
     bodyLength: req.body ? req.body.length : 0,
+    rawBodyType: typeof req.rawBody,
+    rawBodyLength: req.rawBody ? req.rawBody.length : 0,
     allHeaders: Object.keys(req.headers).filter(h => h.toLowerCase().includes('signature') || h.toLowerCase().includes('neynar'))
   });
   
@@ -33,7 +40,8 @@ function verifyWebhookSignature(req) {
   }
   
   // Use raw body for signature verification (as per Neynar docs)
-  const rawBody = Buffer.isBuffer(req.body) ? req.body.toString() : JSON.stringify(req.body);
+  const rawBody = req.rawBody ? req.rawBody.toString() : 
+                  (Buffer.isBuffer(req.body) ? req.body.toString() : JSON.stringify(req.body));
   
   const hmac = crypto.createHmac('sha512', webhookSecret);
   hmac.update(rawBody);
@@ -43,6 +51,7 @@ function verifyWebhookSignature(req) {
   console.log('🔐 Signature check:', {
     received: signature.substring(0, 10) + '...',
     expected: expectedSignature.substring(0, 10) + '...',
+    rawBodyLength: rawBody.length,
     isValid
   });
   
@@ -161,17 +170,14 @@ async function webhookHandler(req, res) {
       data: JSON.stringify(eventData, null, 2)
     });
     
-    // TEMPORARY: Skip signature verification to test if events are received
-    console.log('🔍 Testing webhook without signature verification...');
-    
     // Verify webhook signature
     const isValidSignature = verifyWebhookSignature(req);
     if (!isValidSignature) {
-      console.log('⚠️ Webhook signature verification failed, but continuing for testing');
-      // Continue processing for now to test if events work
-    } else {
-      console.log('✅ Signature verification passed');
+      console.log('❌ Webhook signature verification failed');
+      return res.status(401).json({ error: 'Invalid signature' });
     }
+    
+    console.log('✅ Signature verification passed');
     
     console.log('✅ Valid webhook received:', eventData.type);
     
