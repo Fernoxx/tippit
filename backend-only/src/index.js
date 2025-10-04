@@ -45,31 +45,7 @@ new BatchProcessor();
 
 // Using webhook-based event processing
 
-// Security middleware - verify webhook secret
-app.use('/webhook/neynar', (req, res, next) => {
-  const signature = req.headers['x-neynar-signature'];
-  const secret = process.env.WEBHOOK_SECRET;
-  
-  if (!signature || !secret) {
-    console.log('❌ UNAUTHORIZED: Missing signature or secret');
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  
-  // Verify signature (implement proper HMAC verification)
-  const crypto = require('crypto');
-  const expectedSignature = crypto
-    .createHmac('sha256', secret)
-    .update(JSON.stringify(req.body))
-    .digest('hex');
-  
-  if (signature !== expectedSignature) {
-    console.log('❌ UNAUTHORIZED: Invalid signature');
-    return res.status(401).json({ error: 'Invalid signature' });
-  }
-  
-  console.log('✅ SECURE: Webhook signature verified');
-  next();
-});
+// Webhook signature verification is handled in webhook.js (removed duplicate middleware)
 
 // Add basic logging for all webhook attempts
 app.use('/webhook/neynar', (req, res, next) => {
