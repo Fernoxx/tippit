@@ -1031,7 +1031,7 @@ app.get('/api/homepage', async (req, res) => {
               // Add user info and clickable URL to each cast
               const enrichedCasts = mainCasts.map(cast => ({
                 ...cast,
-                farcasterUrl: `https://farcaster.xyz/posts/${cast.hash}`,
+                farcasterUrl: `https://warpcast.com/${farcasterUser.username}/${cast.hash}`,
                 tipper: {
                   userAddress,
                   username: farcasterUser.username,
