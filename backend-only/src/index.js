@@ -1109,6 +1109,27 @@ app.get('/api/backend-wallet', (req, res) => {
 });
 
 // Debug endpoint to check pending tips and API access
+// Debug endpoint to check user casts
+app.get('/api/debug/user-casts/:fid', async (req, res) => {
+  try {
+    const fid = parseInt(req.params.fid);
+    const result = await database.pool.query(`
+      SELECT * FROM user_casts 
+      WHERE user_fid = $1 
+      ORDER BY created_at DESC
+    `, [fid]);
+    
+    res.json({
+      success: true,
+      fid,
+      casts: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching user casts:', error);
+    res.status(500).json({ error: 'Failed to fetch user casts' });
+  }
+});
+
 app.get('/api/debug/pending-tips', async (req, res) => {
   try {
     const pendingTips = await database.getPendingTips();
