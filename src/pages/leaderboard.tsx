@@ -40,29 +40,11 @@ export default function Leaderboard() {
   };
 
   const getRankIcon = (index: number) => {
-    switch (index) {
-      case 0:
-        return <Crown className="w-8 h-8 text-yellow-500" />;
-      case 1:
-        return <Medal className="w-8 h-8 text-gray-400" />;
-      case 2:
-        return <Award className="w-8 h-8 text-orange-600" />;
-      default:
-        return <Star className="w-6 h-6 text-accent" />;
-    }
+    return <span className="text-lg font-semibold text-gray-600">#{index + 1}</span>;
   };
 
   const getRankStyle = (index: number) => {
-    switch (index) {
-      case 0:
-        return 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-white scale-105';
-      case 1:
-        return 'bg-gradient-to-r from-gray-300 to-gray-500 text-white';
-      case 2:
-        return 'bg-gradient-to-r from-orange-400 to-orange-600 text-white';
-      default:
-        return 'bg-white hover:bg-gray-50';
-    }
+    return 'bg-white hover:bg-gray-50 border border-gray-200';
   };
 
   return (
@@ -113,78 +95,6 @@ export default function Leaderboard() {
         </div>
       </div>
 
-      {/* Podium for top 3 */}
-      {(activeTab === 'earned' ? earners : tippers).length >= 3 && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.2 }}
-          className="flex items-end justify-center space-x-4 mb-8"
-        >
-          {/* 2nd place */}
-          <div className="text-center">
-            <motion.div
-              whileHover={{ y: -10 }}
-              className="bg-gradient-to-r from-gray-300 to-gray-500 rounded-t-2xl p-6 pb-12"
-            >
-              <Medal className="w-12 h-12 text-white mx-auto mb-2" />
-              <p className="text-white font-bold text-sm mb-1">
-                {(activeTab === 'earned' ? earners : tippers)[1]?.displayName || 
-                 (activeTab === 'earned' ? earners : tippers)[1]?.username || 
-                 `${(activeTab === 'earned' ? earners : tippers)[1]?.userAddress.slice(0, 6)}...${(activeTab === 'earned' ? earners : tippers)[1]?.userAddress.slice(-4)}`}
-              </p>
-              <p className="text-white text-2xl font-bold">
-                {(activeTab === 'earned' ? earners : tippers)[1]?.totalAmount.toFixed(2)} USDC
-              </p>
-            </motion.div>
-            <div className="bg-gray-400 h-32 rounded-b-2xl flex items-center justify-center">
-              <span className="text-white text-4xl font-bold">2</span>
-            </div>
-          </div>
-
-          {/* 1st place */}
-          <div className="text-center">
-            <motion.div
-              whileHover={{ y: -10 }}
-              className="bg-gradient-to-r from-yellow-400 to-yellow-600 rounded-t-2xl p-6 pb-12"
-            >
-              <Crown className="w-16 h-16 text-white mx-auto mb-2" />
-              <p className="text-white font-bold text-sm mb-1">
-                {(activeTab === 'earned' ? earners : tippers)[0]?.displayName || 
-                 (activeTab === 'earned' ? earners : tippers)[0]?.username || 
-                 `${(activeTab === 'earned' ? earners : tippers)[0]?.userAddress.slice(0, 6)}...${(activeTab === 'earned' ? earners : tippers)[0]?.userAddress.slice(-4)}`}
-              </p>
-              <p className="text-white text-3xl font-bold">
-                {(activeTab === 'earned' ? earners : tippers)[0]?.totalAmount.toFixed(2)} USDC
-              </p>
-            </motion.div>
-            <div className="bg-yellow-500 h-40 rounded-b-2xl flex items-center justify-center">
-              <span className="text-white text-5xl font-bold">1</span>
-            </div>
-          </div>
-
-          {/* 3rd place */}
-          <div className="text-center">
-            <motion.div
-              whileHover={{ y: -10 }}
-              className="bg-gradient-to-r from-orange-400 to-orange-600 rounded-t-2xl p-6 pb-12"
-            >
-              <Award className="w-12 h-12 text-white mx-auto mb-2" />
-              <p className="text-white font-bold text-sm mb-1">
-                {(activeTab === 'earned' ? earners : tippers)[2]?.displayName || 
-                 (activeTab === 'earned' ? earners : tippers)[2]?.username || 
-                 `${(activeTab === 'earned' ? earners : tippers)[2]?.userAddress.slice(0, 6)}...${(activeTab === 'earned' ? earners : tippers)[2]?.userAddress.slice(-4)}`}
-              </p>
-              <p className="text-white text-2xl font-bold">
-                {(activeTab === 'earned' ? earners : tippers)[2]?.totalAmount.toFixed(2)} USDC
-              </p>
-            </motion.div>
-            <div className="bg-orange-500 h-24 rounded-b-2xl flex items-center justify-center">
-              <span className="text-white text-3xl font-bold">3</span>
-            </div>
-          </div>
-        </motion.div>
-      )}
 
       {/* Full leaderboard */}
       <motion.div
@@ -214,7 +124,7 @@ export default function Leaderboard() {
                 )}`}
               >
                 <div className="flex items-center space-x-4">
-                  <div className="flex items-center justify-center w-12">
+                  <div className="flex items-center justify-center w-8">
                     {getRankIcon(index)}
                   </div>
                   <div className="flex items-center space-x-3">
@@ -222,47 +132,31 @@ export default function Leaderboard() {
                       <img
                         src={user.pfpUrl}
                         alt={user.displayName || user.username}
-                        className="w-10 h-10 rounded-full"
+                        className="w-8 h-8 rounded-full"
                       />
                     ) : (
-                      <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
-                        <span className="text-sm font-bold text-gray-600">
+                      <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
+                        <span className="text-xs font-medium text-gray-600">
                           {(user.displayName || user.username || user.userAddress)?.[0]?.toUpperCase()}
                         </span>
                       </div>
                     )}
                     <div>
-                      <p
-                        className={`font-semibold ${
-                          index < 3 ? '' : 'text-gray-800'
-                        }`}
-                      >
+                      <p className="font-medium text-gray-900">
                         {user.displayName || user.username || `${user.userAddress.slice(0, 6)}...${user.userAddress.slice(-4)}`}
                       </p>
-                      <p
-                        className={`text-sm ${
-                          index < 3 ? 'text-white/80' : 'text-gray-600'
-                        }`}
-                      >
-                        {user.username ? `@${user.username}` : `Rank #${index + 1}`}
+                      <p className="text-sm text-gray-500">
+                        {user.username ? `@${user.username}` : `Address`}
                       </p>
                     </div>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p
-                    className={`text-2xl font-bold ${
-                      index < 3 ? '' : 'text-accent'
-                    }`}
-                  >
+                  <p className="text-lg font-semibold text-gray-900">
                     {user.totalAmount.toFixed(2)} USDC
                   </p>
-                  <p
-                    className={`text-sm ${
-                      index < 3 ? 'text-white/80' : 'text-gray-600'
-                    }`}
-                  >
-                    {activeTab === 'tipped' ? 'Total tipped' : 'Total earned'}
+                  <p className="text-sm text-gray-500">
+                    {activeTab === 'tipped' ? 'tipped' : 'earned'}
                   </p>
                 </div>
               </motion.div>

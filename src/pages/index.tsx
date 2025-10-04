@@ -175,9 +175,6 @@ export default function Home() {
                   {/* Tipper Criteria */}
                   {cast.tipper?.criteria && (
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <span className="text-blue-600 font-medium">💡 Tipping Criteria</span>
-                      </div>
                       <div className="space-y-1 text-gray-700">
                         {cast.tipper.criteria.audience === 0 && (
                           <div>• Must be followed by @{cast.tipper.username}</div>
