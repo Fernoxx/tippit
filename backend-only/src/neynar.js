@@ -28,36 +28,74 @@ async function checkAudienceCriteria(authorFid, interactorFid, audience) {
     }
     
     if (audience === 0) { // Following - ONLY users the caster follows can get tips
-      const response = await fetch(`https://api.neynar.com/v2/farcaster/following/?fid=${authorFid}&limit=100`, {
-        headers: {
-          'x-api-key': process.env.NEYNAR_API_KEY,
-        },
-      });
+      // Fetch all following users with pagination
+      let cursor = '';
+      let allFollowingUsers = [];
       
-      if (!response.ok) {
-        console.error(`Failed to fetch following for FID ${authorFid}: ${response.status}`);
-        return false;
-      }
+      do {
+        const url = cursor 
+          ? `https://api.neynar.com/v2/farcaster/following/?fid=${authorFid}&limit=100&cursor=${cursor}`
+          : `https://api.neynar.com/v2/farcaster/following/?fid=${authorFid}&limit=100`;
+          
+        const response = await fetch(url, {
+          headers: {
+            'x-api-key': process.env.NEYNAR_API_KEY,
+          },
+        });
+        
+        if (!response.ok) {
+          console.error(`Failed to fetch following for FID ${authorFid}: ${response.status}`);
+          return false;
+        }
+        
+        const data = await response.json();
+        allFollowingUsers = allFollowingUsers.concat(data.users || []);
+        cursor = data.next?.cursor || '';
+        
+        // Safety check to prevent infinite loops
+        if (allFollowingUsers.length > 10000) {
+          console.warn(`Following list too large for FID ${authorFid}, stopping at ${allFollowingUsers.length} users`);
+          break;
+        }
+      } while (cursor);
       
-      const data = await response.json();
-      const isFollowing = data.users?.some(user => user.fid === interactorFid) || false;
-      console.log(`Audience check: Following - ${interactorFid} is ${isFollowing ? 'in' : 'NOT in'} caster's following list`);
+      const isFollowing = allFollowingUsers.some(user => user.fid === interactorFid);
+      console.log(`Audience check: Following - ${interactorFid} is ${isFollowing ? 'in' : 'NOT in'} caster's following list (checked ${allFollowingUsers.length} users)`);
       return isFollowing;
     } else if (audience === 1) { // Followers - ONLY caster's followers can get tips
-      const response = await fetch(`https://api.neynar.com/v2/farcaster/followers/?fid=${authorFid}&limit=100`, {
-        headers: {
-          'x-api-key': process.env.NEYNAR_API_KEY,
-        },
-      });
+      // Fetch all followers with pagination
+      let cursor = '';
+      let allFollowers = [];
       
-      if (!response.ok) {
-        console.error(`Failed to fetch followers for FID ${authorFid}: ${response.status}`);
-        return false;
-      }
+      do {
+        const url = cursor 
+          ? `https://api.neynar.com/v2/farcaster/followers/?fid=${authorFid}&limit=100&cursor=${cursor}`
+          : `https://api.neynar.com/v2/farcaster/followers/?fid=${authorFid}&limit=100`;
+          
+        const response = await fetch(url, {
+          headers: {
+            'x-api-key': process.env.NEYNAR_API_KEY,
+          },
+        });
+        
+        if (!response.ok) {
+          console.error(`Failed to fetch followers for FID ${authorFid}: ${response.status}`);
+          return false;
+        }
+        
+        const data = await response.json();
+        allFollowers = allFollowers.concat(data.users || []);
+        cursor = data.next?.cursor || '';
+        
+        // Safety check to prevent infinite loops
+        if (allFollowers.length > 10000) {
+          console.warn(`Followers list too large for FID ${authorFid}, stopping at ${allFollowers.length} users`);
+          break;
+        }
+      } while (cursor);
       
-      const data = await response.json();
-      const isFollower = data.users?.some(user => user.fid === interactorFid) || false;
-      console.log(`Audience check: Followers - ${interactorFid} is ${isFollower ? 'a' : 'NOT a'} follower of caster`);
+      const isFollower = allFollowers.some(user => user.fid === interactorFid);
+      console.log(`Audience check: Followers - ${interactorFid} is ${isFollower ? 'a' : 'NOT a'} follower of caster (checked ${allFollowers.length} users)`);
       return isFollower;
     }
     
