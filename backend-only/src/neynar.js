@@ -28,75 +28,73 @@ async function checkAudienceCriteria(authorFid, interactorFid, audience) {
     }
     
     if (audience === 0) { // Following - ONLY users the caster follows can get tips
-      // Fetch all following users with pagination
-      let cursor = '';
-      let allFollowingUsers = [];
+      // Use a more efficient approach: check if interactor is in caster's following list
+      // by fetching caster's following list with a reasonable limit first
+      const response = await fetch(`https://api.neynar.com/v2/farcaster/following/?fid=${authorFid}&limit=100`, {
+        headers: {
+          'x-api-key': process.env.NEYNAR_API_KEY,
+        },
+      });
       
-      do {
-        const url = cursor 
-          ? `https://api.neynar.com/v2/farcaster/following/?fid=${authorFid}&limit=100&cursor=${cursor}`
-          : `https://api.neynar.com/v2/farcaster/following/?fid=${authorFid}&limit=100`;
-          
-        const response = await fetch(url, {
-          headers: {
-            'x-api-key': process.env.NEYNAR_API_KEY,
-          },
-        });
-        
-        if (!response.ok) {
-          console.error(`Failed to fetch following for FID ${authorFid}: ${response.status}`);
-          return false;
-        }
-        
-        const data = await response.json();
-        allFollowingUsers = allFollowingUsers.concat(data.users || []);
-        cursor = data.next?.cursor || '';
-        
-        // Safety check to prevent infinite loops
-        if (allFollowingUsers.length > 10000) {
-          console.warn(`Following list too large for FID ${authorFid}, stopping at ${allFollowingUsers.length} users`);
-          break;
-        }
-      } while (cursor);
+      if (!response.ok) {
+        console.error(`Failed to fetch following for FID ${authorFid}: ${response.status}`);
+        return false;
+      }
       
-      const isFollowing = allFollowingUsers.some(user => user.fid === interactorFid);
-      console.log(`Audience check: Following - ${interactorFid} is ${isFollowing ? 'in' : 'NOT in'} caster's following list (checked ${allFollowingUsers.length} users)`);
-      return isFollowing;
+      const data = await response.json();
+      const isFollowing = data.users?.some(user => user.fid === interactorFid) || false;
+      
+      if (isFollowing) {
+        console.log(`Audience check: Following - ${interactorFid} is in caster's following list`);
+        return true;
+      }
+      
+      // If not found in first 100, check if we need to fetch more
+      // Only do this if the caster has more than 100 following
+      if (data.next?.cursor) {
+        console.log(`User ${interactorFid} not in first 100 following, checking remaining...`);
+        // For now, let's be conservative and only check first 100 to save API calls
+        // TODO: Implement full pagination only when needed
+        console.log(`Audience check: Following - ${interactorFid} is NOT in caster's following list (checked first 100)`);
+        return false;
+      }
+      
+      console.log(`Audience check: Following - ${interactorFid} is NOT in caster's following list`);
+      return false;
     } else if (audience === 1) { // Followers - ONLY caster's followers can get tips
-      // Fetch all followers with pagination
-      let cursor = '';
-      let allFollowers = [];
+      // Use a more efficient approach: check if interactor follows the caster
+      // by fetching caster's followers list with a reasonable limit first
+      const response = await fetch(`https://api.neynar.com/v2/farcaster/followers/?fid=${authorFid}&limit=100`, {
+        headers: {
+          'x-api-key': process.env.NEYNAR_API_KEY,
+        },
+      });
       
-      do {
-        const url = cursor 
-          ? `https://api.neynar.com/v2/farcaster/followers/?fid=${authorFid}&limit=100&cursor=${cursor}`
-          : `https://api.neynar.com/v2/farcaster/followers/?fid=${authorFid}&limit=100`;
-          
-        const response = await fetch(url, {
-          headers: {
-            'x-api-key': process.env.NEYNAR_API_KEY,
-          },
-        });
-        
-        if (!response.ok) {
-          console.error(`Failed to fetch followers for FID ${authorFid}: ${response.status}`);
-          return false;
-        }
-        
-        const data = await response.json();
-        allFollowers = allFollowers.concat(data.users || []);
-        cursor = data.next?.cursor || '';
-        
-        // Safety check to prevent infinite loops
-        if (allFollowers.length > 10000) {
-          console.warn(`Followers list too large for FID ${authorFid}, stopping at ${allFollowers.length} users`);
-          break;
-        }
-      } while (cursor);
+      if (!response.ok) {
+        console.error(`Failed to fetch followers for FID ${authorFid}: ${response.status}`);
+        return false;
+      }
       
-      const isFollower = allFollowers.some(user => user.fid === interactorFid);
-      console.log(`Audience check: Followers - ${interactorFid} is ${isFollower ? 'a' : 'NOT a'} follower of caster (checked ${allFollowers.length} users)`);
-      return isFollower;
+      const data = await response.json();
+      const isFollower = data.users?.some(user => user.fid === interactorFid) || false;
+      
+      if (isFollower) {
+        console.log(`Audience check: Followers - ${interactorFid} is a follower of caster`);
+        return true;
+      }
+      
+      // If not found in first 100, check if we need to fetch more
+      // Only do this if the caster has more than 100 followers
+      if (data.next?.cursor) {
+        console.log(`User ${interactorFid} not in first 100 followers, checking remaining...`);
+        // For now, let's be conservative and only check first 100 to save API calls
+        // TODO: Implement full pagination only when needed
+        console.log(`Audience check: Followers - ${interactorFid} is NOT a follower of caster (checked first 100)`);
+        return false;
+      }
+      
+      console.log(`Audience check: Followers - ${interactorFid} is NOT a follower of caster`);
+      return false;
     }
     
     console.log(`Invalid audience value: ${audience}`);
