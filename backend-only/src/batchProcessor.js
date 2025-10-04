@@ -193,33 +193,32 @@ class BatchProcessor {
     let failed = 0;
 
     try {
-      // Get token contract - USDC and most tokens support multiTransfer
+      // Get token contract - we need transferFrom to use user allowances
       const tokenContract = new ethers.Contract(tokenAddress, [
-        "function transfer(address to, uint256 amount) returns (bool)",
-        "function multiTransfer(address[] calldata recipients, uint256[] calldata amounts) returns (bool)"
+        "function transferFrom(address from, address to, uint256 amount) returns (bool)"
       ], this.wallet);
 
-      console.log(`💸 Processing ${tips.length} tips for token ${tokenAddress} in ONE transaction (like Noice)`);
+      console.log(`💸 Processing ${tips.length} tips for token ${tokenAddress} using transferFrom`);
 
-      // Prepare batch data exactly like Noice
-      const recipients = tips.map(tip => tip.interactorAddress);
-      const amounts = tips.map(tip => ethers.parseUnits(tip.amount, 6)); // USDC has 6 decimals
-
-      try {
-        // Use multiTransfer function (like Noice uses)
-        const tx = await tokenContract.multiTransfer(recipients, amounts, {
-          gasLimit: 3800000 // Same gas limit as Noice
-        });
-        
-        console.log(`⏳ Transaction submitted: ${tx.hash}`);
-        const receipt = await tx.wait();
-        
-        console.log(`✅ Batch transfer successful: ${tips.length} tips in 1 transaction`);
-        console.log(`   📊 Gas used: ${receipt.gasUsed.toString()}`);
-        console.log(`   💰 Transaction hash: ${tx.hash}`);
-
-        // Update all user spending
-        for (const tip of tips) {
+      // Process individual transfers using transferFrom (from caster to engager)
+      for (const tip of tips) {
+        try {
+          const tx = await tokenContract.transferFrom(
+            tip.authorAddress, // from: caster's wallet
+            tip.interactorAddress, // to: engager's wallet  
+            ethers.parseUnits(tip.amount, 6), // amount: tip amount
+            {
+              gasLimit: 100000 // Individual transfer gas limit
+            }
+          );
+          
+          console.log(`⏳ Transfer submitted: ${tip.authorAddress} → ${tip.interactorAddress} (${tip.amount} USDC)`);
+          const receipt = await tx.wait();
+          
+          console.log(`✅ Transfer successful: ${tx.hash}`);
+          console.log(`   📊 Gas used: ${receipt.gasUsed.toString()}`);
+          
+          // Update user spending
           await this.updateUserSpending(tip.authorAddress, tip.amount);
           
           // Add to history
@@ -233,41 +232,13 @@ class BatchProcessor {
             transactionHash: tx.hash,
             timestamp: Date.now()
           });
-        }
+          
+          processed++;
+          console.log(`✅ Tip sent: ${tip.amount} USDC from ${tip.authorAddress} to ${tip.interactorAddress}`);
 
-        processed = tips.length;
-
-      } catch (multiTransferError) {
-        console.log('⚠️ multiTransfer not supported, trying individual transfers...');
-        
-        // Fallback to individual transfers
-        for (const tip of tips) {
-          try {
-            const tx = await tokenContract.transfer(tip.interactorAddress, ethers.parseUnits(tip.amount, 6));
-            await tx.wait();
-            
-            // Update user spending
-            await this.updateUserSpending(tip.authorAddress, tip.amount);
-            
-            // Add to history
-            await database.addTipHistory({
-              fromAddress: tip.authorAddress,
-              toAddress: tip.interactorAddress,
-              tokenAddress: tip.tokenAddress,
-              amount: tip.amount,
-              actionType: tip.actionType,
-              castHash: tip.castHash,
-              transactionHash: tx.hash,
-              timestamp: Date.now()
-            });
-
-            processed++;
-            console.log(`✅ Individual tip sent: ${tip.amount} ${tokenAddress} to ${tip.interactorAddress}`);
-
-          } catch (error) {
-            console.error(`❌ Failed to send tip to ${tip.interactorAddress}:`, error.message);
-            failed++;
-          }
+        } catch (error) {
+          console.error(`❌ Failed to send tip to ${tip.interactorAddress}:`, error);
+          failed++;
         }
       }
 
