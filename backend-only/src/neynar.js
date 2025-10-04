@@ -28,7 +28,8 @@ async function checkAudienceCriteria(authorFid, interactorFid, audience) {
     }
     
     // Use the most efficient approach: single API call to get relationship info
-    const response = await fetch(`https://api.neynar.com/v2/farcaster/user?fid=${interactorFid}&viewer_fid=${authorFid}`, {
+    // Use bulk endpoint with viewer_fid parameter for viewer_context
+    const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${interactorFid}&viewer_fid=${authorFid}`, {
       headers: {
         'x-api-key': process.env.NEYNAR_API_KEY,
       },
