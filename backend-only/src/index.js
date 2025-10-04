@@ -1031,7 +1031,7 @@ app.get('/api/homepage', async (req, res) => {
               // Add user info and clickable URL to each cast
               const enrichedCasts = mainCasts.map(cast => ({
                 ...cast,
-                farcasterUrl: `https://warpcast.com/${farcasterUser.username}/${cast.hash}`,
+                farcasterUrl: `https://farcaster.xyz/posts/${cast.hash}`,
                 tipper: {
                   userAddress,
                   username: farcasterUser.username,
@@ -1078,11 +1078,77 @@ app.get('/api/leaderboard', async (req, res) => {
     const topTippers = await database.getTopTippers(timeFilter);
     const topEarners = await database.getTopEarners(timeFilter);
     
+    // Enrich tippers with user profiles
+    const enrichedTippers = [];
+    for (const tipper of topTippers.slice(0, 20)) { // Top 20 only for performance
+      try {
+        const userResponse = await fetch(
+          `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${tipper.userAddress}`,
+          {
+            headers: { 
+              'x-api-key': process.env.NEYNAR_API_KEY,
+              'x-neynar-experimental': 'false'
+            }
+          }
+        );
+        
+        if (userResponse.ok) {
+          const userData = await userResponse.json();
+          const farcasterUser = userData[tipper.userAddress]?.[0];
+          
+          enrichedTippers.push({
+            ...tipper,
+            username: farcasterUser?.username,
+            displayName: farcasterUser?.display_name,
+            pfpUrl: farcasterUser?.pfp_url
+          });
+        } else {
+          enrichedTippers.push(tipper);
+        }
+      } catch (error) {
+        console.log(`Could not fetch profile for tipper ${tipper.userAddress}:`, error.message);
+        enrichedTippers.push(tipper);
+      }
+    }
+    
+    // Enrich earners with user profiles
+    const enrichedEarners = [];
+    for (const earner of topEarners.slice(0, 20)) { // Top 20 only for performance
+      try {
+        const userResponse = await fetch(
+          `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${earner.userAddress}`,
+          {
+            headers: { 
+              'x-api-key': process.env.NEYNAR_API_KEY,
+              'x-neynar-experimental': 'false'
+            }
+          }
+        );
+        
+        if (userResponse.ok) {
+          const userData = await userResponse.json();
+          const farcasterUser = userData[earner.userAddress]?.[0];
+          
+          enrichedEarners.push({
+            ...earner,
+            username: farcasterUser?.username,
+            displayName: farcasterUser?.display_name,
+            pfpUrl: farcasterUser?.pfp_url
+          });
+        } else {
+          enrichedEarners.push(earner);
+        }
+      } catch (error) {
+        console.log(`Could not fetch profile for earner ${earner.userAddress}:`, error.message);
+        enrichedEarners.push(earner);
+      }
+    }
+    
     res.json({
-      tippers: topTippers,
-      earners: topEarners,
-      users: topTippers.map(t => t.userAddress),
-      amounts: topTippers.map(t => t.totalAmount)
+      tippers: enrichedTippers,
+      earners: enrichedEarners,
+      users: enrichedTippers.map(t => t.userAddress),
+      amounts: enrichedTippers.map(t => t.totalAmount)
     });
   } catch (error) {
     console.error('Leaderboard fetch error:', error);
