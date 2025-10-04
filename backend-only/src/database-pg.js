@@ -199,6 +199,7 @@ class PostgresDatabase {
       const result = await this.pool.query('SELECT * FROM pending_tips ORDER BY added_at ASC');
       return result.rows.map(row => ({
         interactionType: row.interaction_type,
+        actionType: row.interaction_type, // Add actionType for batch processor
         authorFid: row.author_fid,
         interactorFid: row.interactor_fid,
         authorAddress: row.author_address,
