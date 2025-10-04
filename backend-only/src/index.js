@@ -1025,6 +1025,9 @@ app.get('/api/homepage', async (req, res) => {
                 return isMainCast && hasNoParentAuthor;
               }).slice(0, 1); // Take only the 1 most recent main cast per user
               
+              // Get user's tipping criteria
+              const userConfig = await database.getUserConfig(userAddress);
+              
               // Add user info and clickable URL to each cast
               const enrichedCasts = mainCasts.map(cast => ({
                 ...cast,
@@ -1034,7 +1037,12 @@ app.get('/api/homepage', async (req, res) => {
                   username: farcasterUser.username,
                   displayName: farcasterUser.display_name,
                   pfpUrl: farcasterUser.pfp_url,
-                  fid: farcasterUser.fid
+                  fid: farcasterUser.fid,
+                  criteria: userConfig ? {
+                    audience: userConfig.audience,
+                    minFollowerCount: userConfig.minFollowerCount,
+                    minNeynarScore: userConfig.minNeynarScore
+                  } : null
                 }
               }));
               

@@ -23,6 +23,11 @@ interface CastTipper {
   displayName?: string;
   pfpUrl?: string;
   fid?: number;
+  criteria?: {
+    audience: number;
+    minFollowerCount: number;
+    minNeynarScore: number;
+  };
 }
 
 interface Cast {
@@ -152,7 +157,7 @@ export default function Home() {
                   </div>
 
                   {/* Cast Stats */}
-                  <div className="flex items-center space-x-6 text-sm text-gray-500">
+                  <div className="flex items-center space-x-6 text-sm text-gray-500 mb-3">
                     <span className="flex items-center space-x-1">
                       <span>💬</span>
                       <span>{cast.replies?.count || 0}</span>
@@ -166,6 +171,32 @@ export default function Home() {
                       <span>{cast.reactions?.likes_count || 0}</span>
                     </span>
                   </div>
+
+                  {/* Tipper Criteria */}
+                  {cast.tipper?.criteria && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <span className="text-blue-600 font-medium">💡 Tipping Criteria</span>
+                      </div>
+                      <div className="space-y-1 text-gray-700">
+                        {cast.tipper.criteria.audience === 0 && (
+                          <div>• Must be followed by @{cast.tipper.username}</div>
+                        )}
+                        {cast.tipper.criteria.audience === 1 && (
+                          <div>• Must be a follower of @{cast.tipper.username}</div>
+                        )}
+                        {cast.tipper.criteria.audience === 2 && (
+                          <div>• Anyone can earn tips</div>
+                        )}
+                        {cast.tipper.criteria.minFollowerCount > 0 && (
+                          <div>• Must have {cast.tipper.criteria.minFollowerCount}+ followers</div>
+                        )}
+                        {cast.tipper.criteria.minNeynarScore > 0 && (
+                          <div>• Must have {cast.tipper.criteria.minNeynarScore}+ Neynar score</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))
             )}
