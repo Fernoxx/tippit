@@ -141,10 +141,14 @@ async function parseWebhookEvent(event) {
   console.log('🔍 Address lookup:', {
     authorFid,
     authorAddress,
+    authorAddressLower: authorAddress?.toLowerCase(),
     interactorFid, 
     interactorAddress,
+    interactorAddressLower: interactorAddress?.toLowerCase(),
     authorVerifiedAddresses: authorUser?.verified_addresses,
-    interactorVerifiedAddresses: interactorUser?.verified_addresses
+    interactorVerifiedAddresses: interactorUser?.verified_addresses,
+    fullAuthorUser: authorUser,
+    fullInteractorUser: interactorUser
   });
   
   if (!authorAddress || !interactorAddress) {
