@@ -1402,6 +1402,11 @@ if (process.env.NODE_ENV === 'production') {
   }
 }
 
+// Farcaster Mini App manifest redirect
+app.get('/.well-known/farcaster.json', (req, res) => {
+  res.redirect(307, 'https://api.farcaster.xyz/miniapps/hosted-manifest/PLACEHOLDER_MANIFEST_ID');
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Ecion Backend running on port ${PORT}`);
