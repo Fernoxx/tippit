@@ -433,6 +433,23 @@ class PostgresDatabase {
       return false;
     }
   }
+
+  // Check if user has already been tipped for this cast and action type
+  async hasUserBeenTippedForCast(authorAddress, interactorAddress, castHash, actionType) {
+    try {
+      const result = await this.pool.query(`
+        SELECT COUNT(*) as count FROM tip_history 
+        WHERE from_address = $1 AND to_address = $2 AND cast_hash = $3 AND action_type = $4
+      `, [authorAddress.toLowerCase(), interactorAddress.toLowerCase(), castHash, actionType]);
+      
+      const hasBeenTipped = parseInt(result.rows[0].count) > 0;
+      console.log(`🔍 Duplicate check: ${interactorAddress} ${hasBeenTipped ? 'HAS' : 'HAS NOT'} been tipped for ${actionType} on cast ${castHash}`);
+      return hasBeenTipped;
+    } catch (error) {
+      console.error('Error checking tip history:', error);
+      return false;
+    }
+  }
 }
 
 module.exports = new PostgresDatabase();

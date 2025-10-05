@@ -153,6 +153,19 @@ class BatchProcessor {
           continue;
         }
 
+        // Check if user has already been tipped for this cast and action type
+        const hasBeenTipped = await database.hasUserBeenTippedForCast(
+          tip.authorAddress, 
+          tip.interactorAddress, 
+          tip.castHash, 
+          tip.actionType
+        );
+        
+        if (hasBeenTipped) {
+          console.log(`🚫 DUPLICATE TIP BLOCKED: ${tip.interactorAddress} already received ${tip.actionType} tip for cast ${tip.castHash}`);
+          continue;
+        }
+
         // Check spending limit
         if (authorConfig.totalSpent + amount > authorConfig.spendingLimit) {
           console.log(`Spending limit reached for ${tip.authorAddress}`);
@@ -225,12 +238,8 @@ class BatchProcessor {
           // Use multicall to batch multiple transferFrom calls in one transaction
           const tx = await this.executeBatchTransferFrom(tokenAddress, casterTips);
           
-          console.log(`⏳ Batch transaction submitted: ${tx.hash}`);
-          const receipt = await tx.wait();
-          
-          console.log(`✅ Batch transfer successful: ${casterTips.length} tips in 1 transaction`);
-          console.log(`   📊 Gas used: ${receipt.gasUsed.toString()}`);
-          console.log(`   💰 Transaction hash: ${tx.hash}`);
+          console.log(`✅ Batch transfer successful: ${casterTips.length} tips processed`);
+          console.log(`   💰 Final transaction hash: ${tx.hash}`);
           
           // Update user spending and history for all tips
           for (const tip of casterTips) {
@@ -298,14 +307,18 @@ class BatchProcessor {
         );
         results.push(tx);
         console.log(`✅ Transfer ${i + 1} submitted: ${tx.hash}`);
+        
+        // Wait for each transaction to be confirmed before proceeding
+        await tx.wait();
+        console.log(`✅ Transfer ${i + 1} confirmed: ${tx.hash}`);
       } catch (error) {
         console.error(`❌ Transfer ${i + 1} failed:`, error.message);
         throw error; // Stop processing if any transfer fails
       }
     }
     
-    // Return the first transaction for tracking
-    return results[0];
+    // Return the last transaction for tracking
+    return results[results.length - 1];
   }
 
   async updateUserSpending(userAddress, amount) {
