@@ -711,6 +711,39 @@ app.post('/api/config', async (req, res) => {
           const userFid = farcasterUser.fid;
           console.log('✅ Found user FID:', userFid);
           
+          // Fetch user's latest cast and make it earnable
+          try {
+            console.log('🔍 Fetching user\'s latest cast to make it earnable...');
+            const castsResponse = await fetch(
+              `https://api.neynar.com/v2/farcaster/feed/user/casts?fid=${userFid}&limit=3`,
+              {
+                headers: { 'x-api-key': process.env.NEYNAR_API_KEY }
+              }
+            );
+            
+            if (castsResponse.ok) {
+              const castsData = await castsResponse.json();
+              const casts = castsData.casts || [];
+              
+              // Find the latest main cast (not a reply)
+              const latestMainCast = casts.find(cast => 
+                !cast.parent_hash && 
+                (!cast.parent_author || !cast.parent_author.fid || cast.parent_author.fid === null)
+              );
+              
+              if (latestMainCast) {
+                console.log(`📝 Making latest cast earnable: ${latestMainCast.hash}`);
+                await database.addUserCast(userFid, latestMainCast.hash, true);
+              } else {
+                console.log('⚠️ No main cast found for user');
+              }
+            } else {
+              console.log('⚠️ Could not fetch user casts:', castsResponse.status);
+            }
+          } catch (error) {
+            console.log('⚠️ Error fetching user\'s latest cast:', error.message);
+          }
+          
           // Add FID to webhook filter automatically
           const webhookId = await database.getWebhookId();
           if (webhookId) {
