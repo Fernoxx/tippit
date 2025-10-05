@@ -147,8 +147,9 @@ class BatchProcessor {
 
         // Get tip amount
         const amount = this.getTipAmount(authorConfig, tip.actionType);
+        console.log(`💰 Tip calculation: ${tip.actionType} = $${amount} (from config: like=${authorConfig.likeAmount}, recast=${authorConfig.recastAmount})`);
         if (amount <= 0) {
-          console.log(`No tip amount set for ${tip.actionType}`);
+          console.log(`❌ No tip amount set for ${tip.actionType} - skipping tip`);
           continue;
         }
 
@@ -198,6 +199,12 @@ class BatchProcessor {
 
     try {
       console.log(`💸 Processing ${tips.length} tips for token ${tokenAddress} in batches`);
+    console.log(`📋 Tips to process:`, tips.map(tip => ({
+      actionType: tip.actionType,
+      amount: tip.amount,
+      from: tip.authorAddress,
+      to: tip.interactorAddress
+    })));
 
       // Group tips by caster (since each caster has their own allowance)
       const tipsByCaster = {};
@@ -260,27 +267,45 @@ class BatchProcessor {
 
   // Execute batch transferFrom calls using multicall pattern
   async executeBatchTransferFrom(tokenAddress, tips) {
-    // For now, we'll do individual calls but group them efficiently
-    // This is the most reliable approach for standard ERC20 tokens
-    
     const tokenContract = new ethers.Contract(tokenAddress, [
       "function transferFrom(address from, address to, uint256 amount) returns (bool)"
     ], this.wallet);
 
-    // Execute all transfers for this caster in sequence (but they're all from same caster)
-    const promises = tips.map(tip => 
-      tokenContract.transferFrom(
+    // If only one tip, do a simple transferFrom
+    if (tips.length === 1) {
+      const tip = tips[0];
+      return await tokenContract.transferFrom(
         tip.authorAddress,
         tip.interactorAddress,
         ethers.parseUnits(tip.amount, 6)
-      )
-    );
+      );
+    }
 
-    // Wait for all transfers to be submitted
-    const txPromises = await Promise.all(promises);
+    // For multiple tips, we need to batch them properly
+    // Since ERC20 doesn't support native batching, we'll use a multicall contract
+    // For now, let's do sequential calls but ensure they all succeed
+    console.log(`🔄 Executing ${tips.length} transferFrom calls for caster ${tips[0].authorAddress}`);
     
-    // Return the first transaction (they're all from the same caster, so similar gas)
-    return txPromises[0];
+    const results = [];
+    for (let i = 0; i < tips.length; i++) {
+      const tip = tips[i];
+      try {
+        console.log(`📤 Transfer ${i + 1}/${tips.length}: ${tip.amount} USDC to ${tip.interactorAddress}`);
+        const tx = await tokenContract.transferFrom(
+          tip.authorAddress,
+          tip.interactorAddress,
+          ethers.parseUnits(tip.amount, 6)
+        );
+        results.push(tx);
+        console.log(`✅ Transfer ${i + 1} submitted: ${tx.hash}`);
+      } catch (error) {
+        console.error(`❌ Transfer ${i + 1} failed:`, error.message);
+        throw error; // Stop processing if any transfer fails
+      }
+    }
+    
+    // Return the first transaction for tracking
+    return results[0];
   }
 
   async updateUserSpending(userAddress, amount) {
