@@ -187,8 +187,8 @@ export default function Leaderboard() {
               </motion.div>
             ))}
             
-            {/* Load More Button */}
-            {hasMore && (
+            {/* Load More Button - Only show if there are 10+ users */}
+            {hasMore && (activeTab === 'tipped' ? tippers : earners).length >= 10 && (
               <div className="flex justify-center mt-4">
                 <button
                   onClick={loadMore}

@@ -87,7 +87,45 @@ export default function Home() {
         <div className="mb-8">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Casts from Tippers</h3>
           <div className="space-y-3">
-            {!casts || casts.length === 0 ? (
+            {isLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="animate-pulse">
+                    <div className="bg-white border border-gray-200 rounded-lg p-6">
+                      {/* User Info Skeleton */}
+                      <div className="flex items-center space-x-3 mb-3">
+                        <div className="w-12 h-12 bg-gray-300 rounded-full"></div>
+                        <div className="flex-1">
+                          <div className="w-32 h-4 bg-gray-300 rounded mb-1"></div>
+                          <div className="w-24 h-3 bg-gray-300 rounded"></div>
+                        </div>
+                        <div className="w-20 h-6 bg-gray-300 rounded-full"></div>
+                      </div>
+                      
+                      {/* Cast Content Skeleton */}
+                      <div className="mb-3">
+                        <div className="w-full h-4 bg-gray-300 rounded mb-2"></div>
+                        <div className="w-3/4 h-4 bg-gray-300 rounded mb-2"></div>
+                        <div className="w-1/2 h-4 bg-gray-300 rounded"></div>
+                      </div>
+                      
+                      {/* Cast Stats Skeleton */}
+                      <div className="flex items-center space-x-6 mb-3">
+                        <div className="w-8 h-3 bg-gray-300 rounded"></div>
+                        <div className="w-8 h-3 bg-gray-300 rounded"></div>
+                        <div className="w-8 h-3 bg-gray-300 rounded"></div>
+                      </div>
+                      
+                      {/* Criteria Skeleton */}
+                      <div className="bg-gray-100 border border-gray-200 rounded-lg p-3">
+                        <div className="w-full h-3 bg-gray-300 rounded mb-1"></div>
+                        <div className="w-2/3 h-3 bg-gray-300 rounded"></div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : !casts || casts.length === 0 ? (
               <div className="bg-white border border-gray-200 rounded-lg p-12 text-center text-gray-500">
                 <p className="text-lg">No recent casts from tippers yet!</p>
                 <p className="text-sm mt-1">Users need to approve USDC and configure tipping to appear here</p>
@@ -198,8 +236,8 @@ export default function Home() {
               ))
             )}
             
-            {/* Load More Button */}
-            {hasMore && (
+            {/* Load More Button - Only show if there are 10+ casts */}
+            {hasMore && casts && casts.length >= 10 && (
               <div className="flex justify-center mt-4">
                 <button
                   onClick={loadMore}
