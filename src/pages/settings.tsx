@@ -299,6 +299,9 @@ export default function Settings() {
         </p>
       </motion.div>
 
+      {/* Add gap */}
+      <div className="mb-6"></div>
+
       {/* Connected Wallet Info */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -308,8 +311,8 @@ export default function Settings() {
       >
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-gray-600">Connected Wallet</p>
-            <p className="font-mono font-semibold">
+            <p className="text-xs text-gray-500 mb-1">Connected Wallet</p>
+            <p className="font-mono text-sm text-gray-700">
               {address.slice(0, 6)}...{address.slice(-4)}
             </p>
           </div>
@@ -370,12 +373,24 @@ export default function Settings() {
                 { key: 'quote', label: 'Quote Cast', icon: Quote, default: '0.025' },
                 { key: 'follow', label: 'Follow', icon: UserPlus, default: '0' },
               ].map(({ key, label, icon: Icon, default: defaultAmount }) => (
-                <div key={key} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <Icon className="w-5 h-5 text-gray-600" />
-                    <span className="font-medium">{label}</span>
+                <div key={key} className="border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center space-x-3">
+                      <Icon className="w-5 h-5 text-gray-600" />
+                      <span className="font-medium">{label}</span>
+                    </div>
+                    <button
+                      onClick={() => setTippingToggles(prev => ({ ...prev, [key]: !prev[key as keyof typeof tippingToggles] }))}
+                      className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${
+                        tippingToggles[key as keyof typeof tippingToggles]
+                          ? 'bg-green-500 text-white'
+                          : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                      }`}
+                    >
+                      {tippingToggles[key as keyof typeof tippingToggles] ? <Check className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
+                    </button>
                   </div>
-                  <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-2">
                     <input
                       type="number"
                       step="0.001"
@@ -385,22 +400,12 @@ export default function Settings() {
                         setTippingAmounts(prev => ({ ...prev, [key]: e.target.value }));
                         validateAmount(e.target.value, key);
                       }}
-                      className={`w-24 px-3 py-1 border rounded text-sm ${
+                      className={`w-20 px-2 py-1 border rounded text-sm ${
                         amountErrors[key] ? 'border-red-500' : 'border-gray-300'
                       }`}
                       placeholder={defaultAmount}
                     />
                     <span className="text-sm text-gray-600">USDC</span>
-                    <button
-                      onClick={() => setTippingToggles(prev => ({ ...prev, [key]: !prev[key as keyof typeof tippingToggles] }))}
-                      className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                        tippingToggles[key as keyof typeof tippingToggles]
-                          ? 'bg-green-500 text-white'
-                          : 'bg-gray-200 text-gray-600'
-                      }`}
-                    >
-                      {tippingToggles[key as keyof typeof tippingToggles] ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
-                    </button>
                   </div>
                   {amountErrors[key] && (
                     <div className="text-red-500 text-xs mt-1">
