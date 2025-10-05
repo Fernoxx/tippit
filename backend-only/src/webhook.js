@@ -93,28 +93,51 @@ async function parseWebhookEvent(event) {
       break;
       
     case 'cast.created':
+      console.log(`🔍 Processing cast.created event:`, {
+        hash: event.data.hash,
+        authorFid: event.data.author?.fid,
+        parentHash: event.data.parent_hash,
+        hasEmbeds: !!event.data.embeds?.length,
+        embedTypes: event.data.embeds?.map(e => Object.keys(e))
+      });
+      
       // event.data is the full Cast object
       // Check if it's a reply to another cast
       if (event.data.parent_hash) {
         interactionType = 'reply';
+        console.log(`🔍 Processing reply to parent cast: ${event.data.parent_hash}`);
         const parentCast = await getCastByHash(event.data.parent_hash);
         if (parentCast) {
-          authorFid = parentCast.author.fid;
+          // For replies: the person being replied to (parent author) pays the tip
+          // The person doing the replying gets the tip
+          authorFid = parentCast.author.fid;  // Person being replied to (pays tip)
+          interactorFid = event.data.author?.fid;  // Person doing the replying (gets tip)
           castHash = parentCast.hash;
+          console.log(`✅ Reply parsed: ${interactionType} by FID ${interactorFid} to cast by FID ${authorFid}`);
+        } else {
+          console.log(`❌ Could not fetch parent cast: ${event.data.parent_hash}`);
         }
       } else if (event.data.embeds?.some(embed => embed.cast_id)) {
         interactionType = 'quote';
+        console.log(`🔍 Processing quote cast`);
         // Find the quoted cast in embeds
         const quotedEmbed = event.data.embeds.find(embed => embed.cast_id);
         if (quotedEmbed) {
           const parentCast = await getCastByHash(quotedEmbed.cast_id.hash);
           if (parentCast) {
-            authorFid = parentCast.author.fid;
+            // For quotes: the person being quoted (parent author) pays the tip
+            // The person doing the quoting gets the tip
+            authorFid = parentCast.author.fid;  // Person being quoted (pays tip)
+            interactorFid = event.data.author?.fid;  // Person doing the quoting (gets tip)
             castHash = parentCast.hash;
+            console.log(`✅ Quote parsed: ${interactionType} by FID ${interactorFid} quoting cast by FID ${authorFid}`);
+          } else {
+            console.log(`❌ Could not fetch quoted cast: ${quotedEmbed.cast_id.hash}`);
           }
         }
+      } else {
+        console.log(`ℹ️ Cast is not a reply or quote - skipping tip processing`);
       }
-      interactorFid = event.data.author?.fid;
       break;
       
     case 'follow.created':
@@ -125,8 +148,21 @@ async function parseWebhookEvent(event) {
   }
   
   if (!interactionType || !authorFid || !interactorFid) {
+    console.log(`❌ Missing interaction data:`, {
+      interactionType,
+      authorFid,
+      interactorFid,
+      castHash
+    });
     return null;
   }
+  
+  console.log(`✅ Parsed interaction:`, {
+    interactionType,
+    authorFid,
+    interactorFid,
+    castHash
+  });
   
   // Get user data to get Ethereum addresses
   const authorUser = await getUserByFid(authorFid);
