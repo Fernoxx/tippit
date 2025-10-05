@@ -200,13 +200,20 @@ export default function Home() {
             
             {/* Load More Button */}
             {hasMore && (
-              <div className="flex justify-center mt-6">
+              <div className="flex justify-center mt-4">
                 <button
                   onClick={loadMore}
                   disabled={isLoadingMore}
-                  className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="bg-gray-100 text-gray-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-gray-200"
                 >
-                  {isLoadingMore ? 'Loading...' : 'Load More Casts'}
+                  {isLoadingMore ? (
+                    <div className="flex items-center space-x-2">
+                      <div className="animate-spin rounded-full h-3 w-3 border-2 border-gray-400 border-t-gray-600"></div>
+                      <span>Loading...</span>
+                    </div>
+                  ) : (
+                    'Load More Casts'
+                  )}
                 </button>
               </div>
             )}

@@ -107,7 +107,32 @@ export default function Leaderboard() {
           {activeTab === 'tipped' ? 'Tippers' : 'Earners'}
         </h2>
         
-        {(activeTab === 'earned' ? earners : tippers).length === 0 ? (
+        {isLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="animate-pulse">
+                <div className="flex items-center justify-between p-4 rounded-xl bg-gray-100">
+                  <div className="flex items-center space-x-4">
+                    <div className="flex items-center justify-center w-8">
+                      <div className="w-6 h-4 bg-gray-300 rounded"></div>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-gray-300 rounded-full"></div>
+                      <div>
+                        <div className="w-24 h-4 bg-gray-300 rounded mb-1"></div>
+                        <div className="w-16 h-3 bg-gray-300 rounded"></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="w-16 h-5 bg-gray-300 rounded mb-1"></div>
+                    <div className="w-12 h-3 bg-gray-300 rounded"></div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (activeTab === 'earned' ? earners : tippers).length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             <p className="text-lg">No tips received yet!</p>
             <p className="mt-2">Start engaging to earn tips</p>
@@ -164,13 +189,20 @@ export default function Leaderboard() {
             
             {/* Load More Button */}
             {hasMore && (
-              <div className="flex justify-center mt-6">
+              <div className="flex justify-center mt-4">
                 <button
                   onClick={loadMore}
                   disabled={isLoadingMore}
-                  className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="bg-gray-100 text-gray-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-gray-200"
                 >
-                  {isLoadingMore ? 'Loading...' : 'Load More'}
+                  {isLoadingMore ? (
+                    <div className="flex items-center space-x-2">
+                      <div className="animate-spin rounded-full h-3 w-3 border-2 border-gray-400 border-t-gray-600"></div>
+                      <span>Loading...</span>
+                    </div>
+                  ) : (
+                    'Load More'
+                  )}
                 </button>
               </div>
             )}
