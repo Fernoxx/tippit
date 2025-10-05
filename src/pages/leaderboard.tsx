@@ -5,10 +5,10 @@ import { Trophy, Medal, Award, Crown, Star } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 export default function Leaderboard() {
-  const [timeFilter, setTimeFilter] = useState<'24h' | '7d' | '30d'>('30d');
-  const { tippers, earners, users, amounts } = useLeaderboardData(timeFilter);
+  const [timeFilter, setTimeFilter] = useState<'24h' | '7d' | '30d'>('24h');
+  const { tippers, earners, users, amounts, isLoading, isLoadingMore, hasMore, loadMore } = useLeaderboardData(timeFilter);
   const [mounted, setMounted] = useState(false);
-  const [activeTab, setActiveTab] = useState<'tipped' | 'earned'>('earned');
+  const [activeTab, setActiveTab] = useState<'tipped' | 'earned'>('tipped');
 
   useEffect(() => {
     setMounted(true);
@@ -161,6 +161,19 @@ export default function Leaderboard() {
                 </div>
               </motion.div>
             ))}
+            
+            {/* Load More Button */}
+            {hasMore && (
+              <div className="flex justify-center mt-6">
+                <button
+                  onClick={loadMore}
+                  disabled={isLoadingMore}
+                  className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isLoadingMore ? 'Loading...' : 'Load More'}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </motion.div>

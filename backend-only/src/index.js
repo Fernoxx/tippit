@@ -978,15 +978,21 @@ app.get('/api/neynar/auth-url', async (req, res) => {
 // Homepage endpoint - Recent MAIN CASTS ONLY from approved users (no replies)
 app.get('/api/homepage', async (req, res) => {
   try {
-    const { timeFilter = '24h' } = req.query;
+    const { timeFilter = '24h', page = 1, limit = 10 } = req.query;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const offset = (pageNum - 1) * limitNum;
     
     // Get users with active configurations and token approvals
     const activeUsers = await database.getActiveUsersWithApprovals();
     
+    // Get paginated slice of users
+    const paginatedUsers = activeUsers.slice(offset, offset + limitNum);
+    
     // Fetch recent casts for each approved user
     const userCasts = [];
     
-    for (const userAddress of activeUsers.slice(0, 10)) { // Top 10 users
+    for (const userAddress of paginatedUsers) {
       try {
         // Get user's Farcaster profile first
         const userResponse = await fetch(
@@ -1058,10 +1064,22 @@ app.get('/api/homepage', async (req, res) => {
     // Sort by timestamp (most recent first)
     userCasts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     
+    // Calculate pagination info
+    const totalUsers = activeUsers.length;
+    const totalPages = Math.ceil(totalUsers / limitNum);
+    const hasMore = pageNum < totalPages;
+    
     res.json({ 
       casts: userCasts,
-      users: activeUsers.slice(0, 10),
-      amounts: activeUsers.map(() => '0')
+      users: paginatedUsers,
+      amounts: paginatedUsers.map(() => '0'),
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        totalUsers,
+        totalPages,
+        hasMore
+      }
     });
   } catch (error) {
     console.error('Homepage fetch error:', error);
@@ -1072,15 +1090,22 @@ app.get('/api/homepage', async (req, res) => {
 // Leaderboard endpoints  
 app.get('/api/leaderboard', async (req, res) => {
   try {
-    const { timeFilter = '30d' } = req.query;
+    const { timeFilter = '24h', page = 1, limit = 10 } = req.query;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const offset = (pageNum - 1) * limitNum;
     
     // Get top tippers and earners with amounts
     const topTippers = await database.getTopTippers(timeFilter);
     const topEarners = await database.getTopEarners(timeFilter);
     
+    // Get paginated slices
+    const paginatedTippers = topTippers.slice(offset, offset + limitNum);
+    const paginatedEarners = topEarners.slice(offset, offset + limitNum);
+    
     // Enrich tippers with user profiles
     const enrichedTippers = [];
-    for (const tipper of topTippers.slice(0, 20)) { // Top 20 only for performance
+    for (const tipper of paginatedTippers) {
       try {
         const userResponse = await fetch(
           `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${tipper.userAddress}`,
@@ -1113,7 +1138,7 @@ app.get('/api/leaderboard', async (req, res) => {
     
     // Enrich earners with user profiles
     const enrichedEarners = [];
-    for (const earner of topEarners.slice(0, 20)) { // Top 20 only for performance
+    for (const earner of paginatedEarners) {
       try {
         const userResponse = await fetch(
           `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${earner.userAddress}`,
@@ -1144,11 +1169,25 @@ app.get('/api/leaderboard', async (req, res) => {
       }
     }
     
+    // Calculate pagination info
+    const totalTippers = topTippers.length;
+    const totalEarners = topEarners.length;
+    const totalPages = Math.ceil(Math.max(totalTippers, totalEarners) / limitNum);
+    const hasMore = pageNum < totalPages;
+    
     res.json({
       tippers: enrichedTippers,
       earners: enrichedEarners,
       users: enrichedTippers.map(t => t.userAddress),
-      amounts: enrichedTippers.map(t => t.totalAmount)
+      amounts: enrichedTippers.map(t => t.totalAmount),
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        totalTippers,
+        totalEarners,
+        totalPages,
+        hasMore
+      }
     });
   } catch (error) {
     console.error('Leaderboard fetch error:', error);

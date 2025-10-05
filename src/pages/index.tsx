@@ -43,9 +43,9 @@ interface Cast {
 
 export default function Home() {
   const [timeFilter, setTimeFilter] = useState<'24h' | '7d' | '30d'>('24h');
-  const { casts, users: tipsReceivedUsers, amounts: tipsReceivedAmounts } = useHomepageData(timeFilter);
+  const { casts, users: tipsReceivedUsers, amounts: tipsReceivedAmounts, isLoading, isLoadingMore, hasMore, loadMore } = useHomepageData(timeFilter);
   const { users: tipsGivenUsers, amounts: tipsGivenAmounts } = useLeaderboardData(timeFilter);
-  const { connectWallet, isLoading, isConnected, currentUser } = useFarcasterWallet();
+  const { connectWallet, isLoading: walletLoading, isConnected, currentUser } = useFarcasterWallet();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -75,10 +75,10 @@ export default function Home() {
           {!isConnected && (
             <button 
               onClick={handleGetStarted}
-              disabled={isLoading}
+              disabled={walletLoading}
               className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
             >
-              {isLoading ? 'Connecting...' : 'Get Started'}
+              {walletLoading ? 'Connecting...' : 'Get Started'}
             </button>
           )}
         </div>
@@ -196,6 +196,19 @@ export default function Home() {
                   )}
                 </div>
               ))
+            )}
+            
+            {/* Load More Button */}
+            {hasMore && (
+              <div className="flex justify-center mt-6">
+                <button
+                  onClick={loadMore}
+                  disabled={isLoadingMore}
+                  className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isLoadingMore ? 'Loading...' : 'Load More Casts'}
+                </button>
+              </div>
             )}
           </div>
         </div>

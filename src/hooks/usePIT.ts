@@ -362,39 +362,77 @@ interface LeaderboardData {
 export const useHomepageData = (timeFilter: '24h' | '7d' | '30d' = '24h') => {
   const [homepageData, setHomepageData] = useState<HomepageData>({ users: [], amounts: [], casts: [] });
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
 
   useEffect(() => {
-    fetchHomepageData();
+    fetchHomepageData(1, true); // Reset to page 1 when timeFilter changes
   }, [timeFilter]);
 
-  const fetchHomepageData = async () => {
-    setIsLoading(true);
+  const fetchHomepageData = async (page: number = 1, reset: boolean = false) => {
+    if (page === 1) {
+      setIsLoading(true);
+    } else {
+      setIsLoadingMore(true);
+    }
+    
     try {
-      const response = await fetch(`${BACKEND_URL}/api/homepage?timeFilter=${timeFilter}`);
+      const response = await fetch(`${BACKEND_URL}/api/homepage?timeFilter=${timeFilter}&page=${page}&limit=10`);
       if (response.ok) {
         const data = await response.json();
-        setHomepageData({
-          users: data.users || [],
-          amounts: data.amounts || [],
-          casts: data.casts || []
-        });
+        
+        if (reset || page === 1) {
+          // Replace data for first page or reset
+          setHomepageData({
+            users: data.users || [],
+            amounts: data.amounts || [],
+            casts: data.casts || []
+          });
+        } else {
+          // Append data for subsequent pages
+          setHomepageData(prev => ({
+            users: [...prev.users, ...(data.users || [])],
+            amounts: [...prev.amounts, ...(data.amounts || [])],
+            casts: [...prev.casts, ...(data.casts || [])]
+          }));
+        }
+        
+        setCurrentPage(page);
+        setHasMore(data.pagination?.hasMore || false);
       }
     } catch (error) {
       console.error('Error fetching homepage data:', error);
-      // Fallback to empty data
-      setHomepageData({
-        users: [],
-        amounts: [],
-        casts: []
-      });
+      if (reset || page === 1) {
+        setHomepageData({
+          users: [],
+          amounts: [],
+          casts: []
+        });
+      }
     }
+    
     setIsLoading(false);
+    setIsLoadingMore(false);
   };
 
-  return { ...homepageData, isLoading, refetch: fetchHomepageData };
+  const loadMore = () => {
+    if (!isLoadingMore && hasMore) {
+      fetchHomepageData(currentPage + 1, false);
+    }
+  };
+
+  return { 
+    ...homepageData, 
+    isLoading, 
+    isLoadingMore,
+    hasMore,
+    loadMore,
+    refetch: () => fetchHomepageData(1, true)
+  };
 };
 
-export const useLeaderboardData = (timeFilter: '24h' | '7d' | '30d' = '30d') => {
+export const useLeaderboardData = (timeFilter: '24h' | '7d' | '30d' = '24h') => {
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardData>({ 
     tippers: [], 
     earners: [], 
@@ -402,71 +440,75 @@ export const useLeaderboardData = (timeFilter: '24h' | '7d' | '30d' = '30d') => 
     amounts: [] 
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
 
   useEffect(() => {
-    fetchLeaderboardData();
+    fetchLeaderboardData(1, true); // Reset to page 1 when timeFilter changes
   }, [timeFilter]);
 
-  const fetchLeaderboardData = async () => {
-    setIsLoading(true);
+  const fetchLeaderboardData = async (page: number = 1, reset: boolean = false) => {
+    if (page === 1) {
+      setIsLoading(true);
+    } else {
+      setIsLoadingMore(true);
+    }
+    
     try {
-      const response = await fetch(`${BACKEND_URL}/api/leaderboard?timeFilter=${timeFilter}`);
+      const response = await fetch(`${BACKEND_URL}/api/leaderboard?timeFilter=${timeFilter}&page=${page}&limit=10`);
       if (response.ok) {
         const data = await response.json();
         
-        // Fetch user profiles from Neynar for tippers and earners
-        const enrichedTippers = await enrichUsersWithProfiles(data.tippers || []);
-        const enrichedEarners = await enrichUsersWithProfiles(data.earners || []);
+        if (reset || page === 1) {
+          // Replace data for first page or reset
+          setLeaderboardData({
+            tippers: data.tippers || [],
+            earners: data.earners || [],
+            users: data.users || [],
+            amounts: data.amounts || []
+          });
+        } else {
+          // Append data for subsequent pages
+          setLeaderboardData(prev => ({
+            tippers: [...prev.tippers, ...(data.tippers || [])],
+            earners: [...prev.earners, ...(data.earners || [])],
+            users: [...prev.users, ...(data.users || [])],
+            amounts: [...prev.amounts, ...(data.amounts || [])]
+          }));
+        }
         
-        setLeaderboardData({
-          tippers: enrichedTippers,
-          earners: enrichedEarners,
-          users: data.users || [],
-          amounts: data.amounts || []
-        });
+        setCurrentPage(page);
+        setHasMore(data.pagination?.hasMore || false);
       }
     } catch (error) {
       console.error('Error fetching leaderboard data:', error);
-      // Fallback to mock data for now
-      setLeaderboardData({
-        tippers: [],
-        earners: [],
-        users: ['0x1234567890123456789012345678901234567890', '0x0987654321098765432109876543210987654321', '0xabcdefabcdefabcdefabcdefabcdefabcd'],
-        amounts: ['250.75', '180.30', '120.15']
-      });
-    }
-    setIsLoading(false);
-  };
-
-  const enrichUsersWithProfiles = async (users: LeaderboardUser[]) => {
-    const enriched = [];
-    for (const user of users) {
-      try {
-        // Try to get Neynar profile data
-        const response = await fetch(`${BACKEND_URL}/api/neynar/user/by-address/${user.userAddress}`);
-        if (response.ok) {
-          const data = await response.json();
-          const neynarUser = data.users?.[0];
-          if (neynarUser) {
-            enriched.push({
-              ...user,
-              username: neynarUser.username,
-              displayName: neynarUser.display_name,
-              pfpUrl: neynarUser.pfp_url,
-              fid: neynarUser.fid
-            });
-            continue;
-          }
-        }
-      } catch (error) {
-        console.log('Could not fetch profile for', user.userAddress);
+      if (reset || page === 1) {
+        setLeaderboardData({
+          tippers: [],
+          earners: [],
+          users: [],
+          amounts: []
+        });
       }
-      
-      // Fallback if no profile found
-      enriched.push(user);
     }
-    return enriched;
+    
+    setIsLoading(false);
+    setIsLoadingMore(false);
   };
 
-  return { ...leaderboardData, isLoading, refetch: fetchLeaderboardData };
+  const loadMore = () => {
+    if (!isLoadingMore && hasMore) {
+      fetchLeaderboardData(currentPage + 1, false);
+    }
+  };
+
+  return { 
+    ...leaderboardData, 
+    isLoading, 
+    isLoadingMore,
+    hasMore,
+    loadMore,
+    refetch: () => fetchLeaderboardData(1, true)
+  };
 };
