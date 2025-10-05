@@ -131,15 +131,19 @@ class BatchProcessor {
         }
         console.log(`✅ NEYNAR SCORE CHECK PASSED: Interactor ${tip.interactorFid} has Neynar score ${userData.neynarScore} (required: ${authorConfig.minNeynarScore})`);
 
-        // Check audience criteria - MUST be in allowed audience
-        const meetsAudience = await checkAudienceCriteria(tip.authorFid, tip.interactorFid, authorConfig.audience);
-        if (!meetsAudience) {
+        // Check audience criteria - SKIP for follow events (they can't be in following list yet!)
+        if (tip.actionType !== 'follow') {
+          const meetsAudience = await checkAudienceCriteria(tip.authorFid, tip.interactorFid, authorConfig.audience);
+          if (!meetsAudience) {
+            const audienceText = authorConfig.audience === 0 ? 'Following' : authorConfig.audience === 1 ? 'Followers' : 'Anyone';
+            console.log(`❌ AUDIENCE CHECK FAILED: Interactor ${tip.interactorFid} is not in caster's ${audienceText} list`);
+            continue;
+          }
           const audienceText = authorConfig.audience === 0 ? 'Following' : authorConfig.audience === 1 ? 'Followers' : 'Anyone';
-          console.log(`❌ AUDIENCE CHECK FAILED: Interactor ${tip.interactorFid} is not in caster's ${audienceText} list`);
-          continue;
+          console.log(`✅ AUDIENCE CHECK PASSED: Interactor ${tip.interactorFid} is in caster's ${audienceText} list`);
+        } else {
+          console.log(`✅ AUDIENCE CHECK SKIPPED: Follow events don't need audience check (they just started following!)`);
         }
-        const audienceText = authorConfig.audience === 0 ? 'Following' : authorConfig.audience === 1 ? 'Followers' : 'Anyone';
-        console.log(`✅ AUDIENCE CHECK PASSED: Interactor ${tip.interactorFid} is in caster's ${audienceText} list`);
 
         // Get tip amount
         const amount = this.getTipAmount(authorConfig, tip.actionType);
