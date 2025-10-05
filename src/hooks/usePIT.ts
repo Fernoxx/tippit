@@ -339,7 +339,7 @@ interface Cast {
 interface HomepageData {
   users: string[];
   amounts: string[];
-  casts?: Cast[];
+  casts: Cast[];
 }
 
 interface LeaderboardUser {
