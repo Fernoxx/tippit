@@ -264,8 +264,12 @@ async function webhookHandler(req, res) {
     }
     
     // Check if author has active tipping config
+    console.log(`🔍 Getting config for author address: ${interaction.authorAddress}`);
     const authorConfig = await database.getUserConfig(interaction.authorAddress);
+    console.log(`🔍 Author config result:`, { hasConfig: !!authorConfig, isActive: authorConfig?.isActive });
+    
     if (!authorConfig || !authorConfig.isActive) {
+      console.log(`❌ Author ${interaction.authorAddress} has no active tipping config`);
       return res.status(200).json({
         success: true,
         processed: false,
