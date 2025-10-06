@@ -319,9 +319,9 @@ async function webhookHandler(req, res) {
       });
     }
 
-    // Process tip instantly
+    // Process tip instantly (pass the already-validated config)
     console.log(`⚡ Processing tip instantly: ${interaction.interactionType} from ${interaction.interactorFid} to ${interaction.authorFid}`);
-    const result = await instantTipProcessor.processTipInstantly(interaction);
+    const result = await instantTipProcessor.processTipInstantly(interaction, authorConfig);
     
     if (result.success) {
       console.log(`✅ INSTANT TIP SUCCESS: ${result.amount} USDC sent to ${interaction.interactorAddress} for ${interaction.interactionType}`);

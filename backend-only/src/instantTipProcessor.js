@@ -10,7 +10,7 @@ class InstantTipProcessor {
     console.log(`💰 Backend wallet address: ${this.wallet.address}`);
   }
 
-  async processTipInstantly(interaction) {
+  async processTipInstantly(interaction, authorConfig) {
     try {
       console.log(`⚡ Processing instant tip: ${interaction.interactionType} from ${interaction.interactorFid} to ${interaction.authorFid}`);
 
@@ -20,21 +20,10 @@ class InstantTipProcessor {
         return { success: false, reason: 'Interactor has no verified address' };
       }
 
-      // Get author's config
-      console.log(`🔍 Instant tip processor getting config for: ${interaction.authorAddress}`);
-      const authorConfig = await database.getUserConfig(interaction.authorAddress);
-      console.log(`🔍 Instant tip processor config result:`, { hasConfig: !!authorConfig, isActive: authorConfig?.isActive });
-      
+      // Use the already-validated config from webhook
       if (!authorConfig || !authorConfig.isActive) {
-        console.log(`❌ No active config found for ${interaction.authorAddress}`);
+        console.log(`❌ No active config provided`);
         return { success: false, reason: 'No active configuration' };
-      }
-
-      // Check if interaction type is enabled
-      const isEnabled = this.isInteractionEnabled(authorConfig, interaction.interactionType);
-      if (!isEnabled) {
-        console.log(`❌ ${interaction.interactionType} not enabled for this user`);
-        return { success: false, reason: `${interaction.interactionType} not enabled` };
       }
 
       // Get user data for validation
