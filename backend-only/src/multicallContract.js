@@ -154,7 +154,7 @@ class MulticallContract {
         });
 
         console.log(`📋 Call data array length: ${callData.length}`);
-        console.log(`📋 First call data: ${callData[0]?.substring(0, 50)}...`);
+        console.log(`📋 First call data: ${callData[0]?.callData?.substring(0, 50)}...`);
 
         // Execute multicall using aggregate function
         console.log(`📋 Sending aggregate multicall with ${callData.length} calls`);
