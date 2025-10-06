@@ -1252,6 +1252,25 @@ app.get('/api/backend-wallet', (req, res) => {
   }
 });
 
+// Debug endpoint to check tip queue status
+app.get('/api/debug/tip-queue', async (req, res) => {
+  try {
+    const tipQueueManager = require('./src/tipQueueManager');
+    const queueStatus = tipQueueManager.getQueueStatus();
+    
+    res.json({
+      success: true,
+      queueStatus: queueStatus,
+      totalUsers: Object.keys(queueStatus).length,
+      processingUsers: Object.values(queueStatus).filter(user => user.isProcessing).length,
+      queuedTips: Object.values(queueStatus).reduce((total, user) => total + user.queueLength, 0)
+    });
+  } catch (error) {
+    console.error('Error getting tip queue status:', error);
+    res.status(500).json({ error: 'Failed to get tip queue status' });
+  }
+});
+
 // Debug endpoint to check pending tips and API access
 // Debug endpoint to check user casts
 app.get('/api/debug/user-casts/:fid', async (req, res) => {

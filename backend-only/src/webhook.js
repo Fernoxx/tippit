@@ -12,6 +12,7 @@ try {
 }
 const { getUserByFid, getCastByHash } = require('./neynar');
 const instantTipProcessor = require('./instantTipProcessor');
+const tipQueueManager = require('./tipQueueManager');
 
 // Verify webhook signature from Neynar
 function verifyWebhookSignature(req) {
@@ -319,26 +320,25 @@ async function webhookHandler(req, res) {
       });
     }
 
-    // Process tip instantly (pass the already-validated config)
-    console.log(`⚡ Processing tip instantly: ${interaction.interactionType} from ${interaction.interactorFid} to ${interaction.authorFid}`);
-    const result = await instantTipProcessor.processTipInstantly(interaction, authorConfig);
+    // Process tip through queue system (ensures sequential processing per user)
+    console.log(`🔄 Adding tip to queue: ${interaction.interactionType} from ${interaction.interactorFid} to ${interaction.authorFid}`);
+    const result = await tipQueueManager.addTipToQueue(interaction, authorConfig);
     
     if (result.success) {
-      console.log(`✅ INSTANT TIP SUCCESS: ${result.amount} USDC sent to ${interaction.interactorAddress} for ${interaction.interactionType}`);
+      console.log(`✅ TIP QUEUED SUCCESS: ${interaction.interactionType} tip queued for ${interaction.authorAddress}`);
       res.status(200).json({
         success: true,
         processed: true,
-        instant: true,
+        queued: true,
         interactionType: interaction.interactionType,
-        transactionHash: result.transactionHash,
-        amount: result.amount
+        message: 'Tip queued for sequential processing'
       });
     } else {
-      console.log(`❌ INSTANT TIP FAILED: ${result.reason}`);
+      console.log(`❌ TIP QUEUE FAILED: ${result.reason}`);
       res.status(200).json({
         success: true,
         processed: false,
-        instant: true,
+        queued: false,
         interactionType: interaction.interactionType,
         reason: result.reason
       });
