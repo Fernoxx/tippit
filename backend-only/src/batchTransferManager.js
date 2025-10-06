@@ -275,45 +275,73 @@ class BatchTransferManager {
     try {
       console.log(`🔄 Executing ${tips.length} individual transfers for token ${tokenAddress}...`);
       
-      for (let i = 0; i < tips.length; i++) {
-        const tip = tips[i];
-        try {
-          console.log(`📤 Transfer ${i + 1}/${tips.length}: ${tip.amount} tokens to ${tip.interaction.interactorAddress}`);
-          
-          const tx = await tokenContract.transferFrom(
-            tip.interaction.authorAddress,
-            tip.interaction.interactorAddress,
-            ethers.parseUnits(tip.amount.toString(), 6),
-            { gasLimit: 100000 }
-          );
-          
-          console.log(`✅ Transfer ${i + 1} submitted: ${tx.hash}`);
-          await tx.wait();
-          console.log(`✅ Transfer ${i + 1} confirmed: ${tx.hash}`);
-          
-          // Update database
-          await this.updateUserSpending(tip.interaction.authorAddress, tip.amount);
-          await database.addTipHistory({
-            fromAddress: tip.interaction.authorAddress,
-            toAddress: tip.interaction.interactorAddress,
-            tokenAddress: tip.tokenAddress,
-            amount: tip.amount.toString(),
-            actionType: tip.interaction.interactionType,
-            castHash: tip.interaction.castHash,
-            transactionHash: tx.hash,
-            timestamp: Date.now()
-          });
-          
-          processed++;
-          
-          // Small delay between transfers
-          if (i < tips.length - 1) {
-            await this.delay(500);
+      // Group tips by author address to handle nonce management
+      const tipsByAuthor = {};
+      for (const tip of tips) {
+        const authorAddress = tip.interaction.authorAddress.toLowerCase();
+        if (!tipsByAuthor[authorAddress]) {
+          tipsByAuthor[authorAddress] = [];
+        }
+        tipsByAuthor[authorAddress].push(tip);
+      }
+      
+      // Process each author's tips sequentially
+      for (const [authorAddress, authorTips] of Object.entries(tipsByAuthor)) {
+        console.log(`👤 Processing ${authorTips.length} tips for author ${authorAddress}`);
+        
+        for (let i = 0; i < authorTips.length; i++) {
+          const tip = authorTips[i];
+          try {
+            console.log(`📤 Transfer ${i + 1}/${authorTips.length}: ${tip.amount} tokens to ${tip.interaction.interactorAddress}`);
+            
+            // Get current nonce for this author
+            const nonce = await this.provider.getTransactionCount(tip.interaction.authorAddress, 'pending');
+            console.log(`🔢 Using nonce ${nonce} for author ${tip.interaction.authorAddress}`);
+            
+            const tx = await tokenContract.transferFrom(
+              tip.interaction.authorAddress,
+              tip.interaction.interactorAddress,
+              ethers.parseUnits(tip.amount.toString(), 6),
+              { 
+                gasLimit: 100000,
+                nonce: nonce + i // Increment nonce for each transaction from same author
+              }
+            );
+            
+            console.log(`✅ Transfer ${i + 1} submitted: ${tx.hash}`);
+            await tx.wait();
+            console.log(`✅ Transfer ${i + 1} confirmed: ${tx.hash}`);
+            
+            // Update database
+            await this.updateUserSpending(tip.interaction.authorAddress, tip.amount);
+            await database.addTipHistory({
+              fromAddress: tip.interaction.authorAddress,
+              toAddress: tip.interaction.interactorAddress,
+              tokenAddress: tip.tokenAddress,
+              amount: tip.amount.toString(),
+              actionType: tip.interaction.interactionType,
+              castHash: tip.interaction.castHash,
+              transactionHash: tx.hash,
+              timestamp: Date.now()
+            });
+            
+            processed++;
+            
+            // Small delay between transactions from same author to avoid nonce conflicts
+            if (i < authorTips.length - 1) {
+              await this.delay(1000); // 1 second delay
+            }
+            
+          } catch (error) {
+            console.error(`❌ Transfer ${i + 1} failed:`, error.message);
+            failed++;
+            
+            // If it's a nonce error, wait a bit and retry
+            if (error.code === 'NONCE_EXPIRED' || error.code === 'REPLACEMENT_UNDERPRICED') {
+              console.log(`⏳ Nonce error, waiting 2 seconds before retry...`);
+              await this.delay(2000);
+            }
           }
-          
-        } catch (error) {
-          console.error(`❌ Transfer ${i + 1} failed:`, error.message);
-          failed++;
         }
       }
 
