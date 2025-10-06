@@ -21,7 +21,10 @@ class InstantTipProcessor {
       }
 
       // Get author's config
+      console.log(`🔍 Instant tip processor getting config for: ${interaction.authorAddress}`);
       const authorConfig = await database.getUserConfig(interaction.authorAddress);
+      console.log(`🔍 Instant tip processor config result:`, { hasConfig: !!authorConfig, isActive: authorConfig?.isActive });
+      
       if (!authorConfig || !authorConfig.isActive) {
         console.log(`❌ No active config found for ${interaction.authorAddress}`);
         return { success: false, reason: 'No active configuration' };
