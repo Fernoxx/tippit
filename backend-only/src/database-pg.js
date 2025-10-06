@@ -406,7 +406,7 @@ class PostgresDatabase {
         SELECT cast_hash FROM user_casts 
         WHERE user_fid = $1 AND is_main_cast = true
         ORDER BY created_at DESC 
-        LIMIT 1
+        LIMIT 3
       `, [userFid]);
       
       return result.rows.map(row => row.cast_hash);
