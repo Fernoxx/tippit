@@ -165,6 +165,8 @@ async function parseWebhookEvent(event) {
     castHash
   });
   
+  console.log(`🔍 About to get user data for address lookup...`);
+  
   // Get user data to get Ethereum addresses
   const authorUser = await getUserByFid(authorFid);
   const interactorUser = await getUserByFid(interactorFid);
@@ -255,13 +257,18 @@ async function webhookHandler(req, res) {
     // Parse the event
     const interaction = await parseWebhookEvent(eventData);
     
+    console.log(`🔍 Parse result:`, { hasInteraction: !!interaction });
+    
     if (!interaction) {
+      console.log(`❌ No interaction parsed - returning early`);
       return res.status(200).json({ 
         success: true, 
         processed: false,
         reason: 'Not a tippable interaction or missing data'
       });
     }
+    
+    console.log(`✅ Interaction parsed successfully, proceeding to validation...`);
     
     // Check if author has active tipping config
     console.log(`🔍 Getting config for author address: ${interaction.authorAddress}`);
