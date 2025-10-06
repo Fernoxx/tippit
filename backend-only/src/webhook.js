@@ -296,6 +296,18 @@ async function webhookHandler(req, res) {
       }
     }
     
+    // Check if interactor has verified address before processing
+    if (!interaction.interactorAddress) {
+      console.log(`⚠️ Cannot process tip: Interactor ${interaction.interactorFid} has no verified address`);
+      return res.status(200).json({
+        success: true,
+        processed: false,
+        instant: true,
+        interactionType: interaction.interactionType,
+        reason: 'Interactor has no verified address'
+      });
+    }
+
     // Process tip instantly
     console.log(`⚡ Processing tip instantly: ${interaction.interactionType} from ${interaction.interactorFid} to ${interaction.authorFid}`);
     const result = await instantTipProcessor.processTipInstantly(interaction);

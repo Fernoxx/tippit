@@ -14,6 +14,12 @@ class InstantTipProcessor {
     try {
       console.log(`⚡ Processing instant tip: ${interaction.interactionType} from ${interaction.interactorFid} to ${interaction.authorFid}`);
 
+      // Check if interactor has a verified address (required for sending tips)
+      if (!interaction.interactorAddress) {
+        console.log(`❌ Interactor ${interaction.interactorFid} has no verified address - cannot send tip`);
+        return { success: false, reason: 'Interactor has no verified address' };
+      }
+
       // Get author's config
       const authorConfig = await database.getUserConfig(interaction.authorAddress);
       if (!authorConfig || !authorConfig.isActive) {
