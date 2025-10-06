@@ -1291,6 +1291,52 @@ app.post('/api/debug/add-cast', async (req, res) => {
   }
 });
 
+// Endpoint to manually update user's latest cast
+app.post('/api/update-latest-cast', async (req, res) => {
+  try {
+    const { userFid } = req.body;
+    if (!userFid) {
+      return res.status(400).json({ error: 'userFid required' });
+    }
+
+    // Fetch user's latest cast from Neynar
+    const response = await fetch(`https://api.neynar.com/v2/farcaster/feed/user/casts?fid=${userFid}&limit=3`, {
+      headers: { 'x-api-key': process.env.NEYNAR_API_KEY }
+    });
+
+    if (!response.ok) {
+      return res.status(500).json({ error: 'Failed to fetch casts from Neynar' });
+    }
+
+    const data = await response.json();
+    const casts = data.casts || [];
+
+    // Find the latest main cast
+    const latestMainCast = casts.find(cast =>
+      !cast.parent_hash &&
+      (!cast.parent_author || !cast.parent_author.fid || cast.parent_author.fid === null)
+    );
+
+    if (!latestMainCast) {
+      return res.status(404).json({ error: 'No main cast found' });
+    }
+
+    // Update the user_casts table
+    await database.addUserCast(userFid, latestMainCast.hash, true);
+
+    res.json({
+      success: true,
+      message: `Updated latest cast for FID ${userFid}`,
+      castHash: latestMainCast.hash,
+      castText: latestMainCast.text?.substring(0, 100) + '...'
+    });
+
+  } catch (error) {
+    console.error('Error updating latest cast:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/debug/pending-tips', async (req, res) => {
   try {
     const pendingTips = await database.getPendingTips();
