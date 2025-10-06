@@ -99,15 +99,22 @@ class MulticallContract {
       for (const [tokenAddress, tokenTransfers] of Object.entries(transfersByToken)) {
         console.log(`💸 Processing ${tokenTransfers.length} transfers for token ${tokenAddress}`);
         
+        // Create ERC20 contract instance for this token
+        const erc20Contract = new ethers.Contract(tokenAddress, ERC20_ABI, this.wallet);
+        
         // Encode all transferFrom calls for this token
-        const callData = tokenTransfers.map(transfer => 
-          this.encodeTransferFrom(
-            transfer.tokenAddress,
+        const callData = tokenTransfers.map(transfer => {
+          const encoded = erc20Contract.interface.encodeFunctionData("transferFrom", [
             transfer.from,
             transfer.to,
             transfer.amount
-          )
-        );
+          ]);
+          console.log(`📝 Encoded call data: ${encoded.substring(0, 20)}...`);
+          return encoded;
+        });
+
+        console.log(`📋 Call data array length: ${callData.length}`);
+        console.log(`📋 First call data: ${callData[0]?.substring(0, 50)}...`);
 
         // Execute multicall
         const tx = await this.multicallContract.multicall(callData, {
