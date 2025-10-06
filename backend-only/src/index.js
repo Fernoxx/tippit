@@ -4,7 +4,6 @@ const path = require('path');
 require('dotenv').config();
 
 const webhookHandler = require('./webhook');
-const BatchProcessor = require('./batchProcessor');
 // Use PostgreSQL database if available, fallback to file storage
 let database;
 try {
@@ -42,8 +41,7 @@ app.use('/webhook/neynar', express.raw({ type: 'application/json', verify: (req,
 // JSON parser for other routes
 app.use(express.json());
 
-// Initialize batch processor
-new BatchProcessor();
+// Instant tip processing enabled - no batch processor needed
 
 // Using webhook-based event processing
 

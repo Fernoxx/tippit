@@ -11,6 +11,7 @@ try {
   database = require('./database');
 }
 const { getUserByFid, getCastByHash } = require('./neynar');
+const instantTipProcessor = require('./instantTipProcessor');
 
 // Verify webhook signature from Neynar
 function verifyWebhookSignature(req) {
@@ -295,17 +296,30 @@ async function webhookHandler(req, res) {
       }
     }
     
-    // Add to pending tips
-    await database.addPendingTip(interaction);
+    // Process tip instantly
+    console.log(`⚡ Processing tip instantly: ${interaction.interactionType} from ${interaction.interactorFid} to ${interaction.authorFid}`);
+    const result = await instantTipProcessor.processTipInstantly(interaction);
     
-    console.log(`📝 Added tip: ${interaction.interactionType} from ${interaction.interactorFid} to ${interaction.authorFid}`);
-    
-    res.status(200).json({
-      success: true,
-      processed: false, // Will be processed in batch
-      queued: true,
-      interactionType: interaction.interactionType
-    });
+    if (result.success) {
+      console.log(`✅ INSTANT TIP SUCCESS: ${result.amount} USDC sent to ${interaction.interactorAddress} for ${interaction.interactionType}`);
+      res.status(200).json({
+        success: true,
+        processed: true,
+        instant: true,
+        interactionType: interaction.interactionType,
+        transactionHash: result.transactionHash,
+        amount: result.amount
+      });
+    } else {
+      console.log(`❌ INSTANT TIP FAILED: ${result.reason}`);
+      res.status(200).json({
+        success: true,
+        processed: false,
+        instant: true,
+        interactionType: interaction.interactionType,
+        reason: result.reason
+      });
+    }
     
   } catch (error) {
     console.error('❌ Webhook processing error:', error);
