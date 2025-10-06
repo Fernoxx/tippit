@@ -1,6 +1,8 @@
 // Multicall contract for batch transfers (similar to Noice's approach)
 // This contract allows multiple transferFrom calls in a single transaction
 
+const { ethers } = require('ethers');
+
 const MULTICALL_ABI = [
   {
     "inputs": [
