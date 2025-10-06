@@ -1,5 +1,15 @@
 const { ethers } = require('ethers');
-const database = require('./database');
+// Use PostgreSQL database if available, fallback to file storage
+let database;
+try {
+  if (process.env.DATABASE_URL) {
+    database = require('./database-pg');
+  } else {
+    database = require('./database');
+  }
+} catch (error) {
+  database = require('./database');
+}
 
 class InstantTipProcessor {
   constructor() {
