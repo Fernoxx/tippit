@@ -7,6 +7,42 @@ const MULTICALL_ABI = [
   {
     "inputs": [
       {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "target",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes",
+            "name": "callData",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct Multicall3.Call[]",
+        "name": "calls",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "aggregate",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "blockNumber",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes[]",
+        "name": "returnData",
+        "type": "bytes[]"
+      }
+    ],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "bytes[]",
         "name": "data",
         "type": "bytes[]"
@@ -110,14 +146,20 @@ class MulticallContract {
             transfer.amount
           ]);
           console.log(`📝 Encoded call data: ${encoded.substring(0, 20)}...`);
-          return encoded;
+          // Return the call data with the target address
+          return {
+            target: tokenAddress,
+            callData: encoded
+          };
         });
 
         console.log(`📋 Call data array length: ${callData.length}`);
         console.log(`📋 First call data: ${callData[0]?.substring(0, 50)}...`);
 
-        // Execute multicall
-        const tx = await this.multicallContract.multicall(callData, {
+        // Execute multicall using aggregate function
+        console.log(`📋 Sending aggregate multicall with ${callData.length} calls`);
+        
+        const tx = await this.multicallContract.aggregate(callData, {
           gasLimit: 2000000 // Higher gas limit for batch operations
         });
 
