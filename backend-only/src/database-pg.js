@@ -384,7 +384,7 @@ class PostgresDatabase {
         ON CONFLICT (user_fid, cast_hash) DO NOTHING
       `, [userFid, castHash, isMainCast]);
       
-      // Keep only last 3 main casts for each user
+      // Keep only latest 1 main cast for each user (since only latest cast is earnable)
       await this.pool.query(`
         DELETE FROM user_casts 
         WHERE user_fid = $1 AND is_main_cast = true
