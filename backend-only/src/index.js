@@ -1271,6 +1271,39 @@ app.get('/api/debug/tip-queue', async (req, res) => {
   }
 });
 
+// Debug endpoint to check batch transfer status
+app.get('/api/debug/batch-status', async (req, res) => {
+  try {
+    const batchTransferManager = require('./src/batchTransferManager');
+    const batchStatus = batchTransferManager.getBatchStatus();
+    
+    res.json({
+      success: true,
+      batchStatus: batchStatus,
+      message: 'Batch transfer system status'
+    });
+  } catch (error) {
+    console.error('Error getting batch status:', error);
+    res.status(500).json({ error: 'Failed to get batch status' });
+  }
+});
+
+// Force process current batch (for testing)
+app.post('/api/debug/force-batch', async (req, res) => {
+  try {
+    const batchTransferManager = require('./src/batchTransferManager');
+    await batchTransferManager.forceProcessBatch();
+    
+    res.json({
+      success: true,
+      message: 'Batch processing triggered'
+    });
+  } catch (error) {
+    console.error('Error forcing batch processing:', error);
+    res.status(500).json({ error: 'Failed to force batch processing' });
+  }
+});
+
 // Debug endpoint to check pending tips and API access
 // Debug endpoint to check user casts
 app.get('/api/debug/user-casts/:fid', async (req, res) => {

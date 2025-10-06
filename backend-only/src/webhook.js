@@ -13,6 +13,7 @@ try {
 const { getUserByFid, getCastByHash } = require('./neynar');
 const instantTipProcessor = require('./instantTipProcessor');
 const tipQueueManager = require('./tipQueueManager');
+const batchTransferManager = require('./batchTransferManager');
 
 // Verify webhook signature from Neynar
 function verifyWebhookSignature(req) {
@@ -320,25 +321,26 @@ async function webhookHandler(req, res) {
       });
     }
 
-    // Process tip through queue system (ensures sequential processing per user)
-    console.log(`🔄 Adding tip to queue: ${interaction.interactionType} from ${interaction.interactorFid} to ${interaction.authorFid}`);
-    const result = await tipQueueManager.addTipToQueue(interaction, authorConfig);
+    // Process tip through batch system (like Noice - 1 minute batches for gas efficiency)
+    console.log(`🔄 Adding tip to batch: ${interaction.interactionType} from ${interaction.interactorFid} to ${interaction.authorFid}`);
+    const result = await batchTransferManager.addTipToBatch(interaction, authorConfig);
     
     if (result.success) {
-      console.log(`✅ TIP QUEUED SUCCESS: ${interaction.interactionType} tip queued for ${interaction.authorAddress}`);
+      console.log(`✅ TIP BATCHED SUCCESS: ${interaction.interactionType} tip added to batch (${result.batchSize} total pending)`);
       res.status(200).json({
         success: true,
         processed: true,
-        queued: true,
+        batched: true,
         interactionType: interaction.interactionType,
-        message: 'Tip queued for sequential processing'
+        batchSize: result.batchSize,
+        message: 'Tip added to batch for gas-efficient processing'
       });
     } else {
-      console.log(`❌ TIP QUEUE FAILED: ${result.reason}`);
+      console.log(`❌ TIP BATCH FAILED: ${result.reason}`);
       res.status(200).json({
         success: true,
         processed: false,
-        queued: false,
+        batched: false,
         interactionType: interaction.interactionType,
         reason: result.reason
       });
