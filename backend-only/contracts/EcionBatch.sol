@@ -17,12 +17,14 @@ contract EcionBatch {
     
     // This is exactly like Noice's executeBatch function
     // Function signature: 0x34fcd5be
-    function executeBatch(tuple(address,uint256,bytes)[] calldata calls) external onlyOwner {
+    function executeBatch(address[] calldata targets, uint256[] calldata values, bytes[] calldata datas) external onlyOwner {
         uint256 gasStart = gasleft();
         uint256 totalTransfers = 0;
         
-        for (uint256 i = 0; i < calls.length; i++) {
-            (address target, uint256 value, bytes memory data) = calls[i];
+        for (uint256 i = 0; i < targets.length; i++) {
+            address target = targets[i];
+            uint256 value = values[i];
+            bytes memory data = datas[i];
             
             // Execute the call using low-level call
             // The caller (owner/backend wallet) must have approval to spend tokens
