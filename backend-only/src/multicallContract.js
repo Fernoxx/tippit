@@ -213,31 +213,9 @@ class MulticallContract {
           {
             "inputs": [
               {
-                "components": [
-                  {
-                    "internalType": "address",
-                    "name": "token",
-                    "type": "address"
-                  },
-                  {
-                    "internalType": "address",
-                    "name": "from",
-                    "type": "address"
-                  },
-                  {
-                    "internalType": "address",
-                    "name": "to",
-                    "type": "address"
-                  },
-                  {
-                    "internalType": "uint256",
-                    "name": "amount",
-                    "type": "uint256"
-                  }
-                ],
-                "internalType": "struct EcionBatch.TransferCall[]",
+                "internalType": "tuple(address,uint256,bytes)[]",
                 "name": "calls",
-                "type": "tuple[]"
+                "type": "tuple(address,uint256,bytes)[]"
               }
             ],
             "name": "executeBatch",
@@ -275,32 +253,22 @@ class MulticallContract {
         
         const batchTransferContract = new ethers.Contract(batchTransferAddress, batchTransferABI, this.wallet);
         
-        // Convert our call data to the format expected by executeBatch
+        // Convert our call data to Noice's format: (address,uint256,bytes)[]
         const transferCalls = callData.map(call => {
-          // Decode the transferFrom call data to get from, to, amount
-          const callDataBytes = ethers.getBytes(call.callData);
-          const dataWithoutSelector = callDataBytes.slice(4); // Skip function selector
-          const decoded = ethers.AbiCoder.defaultAbiCoder().decode(
-            ['address', 'address', 'uint256'],
-            dataWithoutSelector
-          );
-          
-          // Return as tuple array for contract compatibility
-          // The contract will call transferFrom(from, to, amount) using the backend wallet
+          // Return as tuple: (target, value, data)
+          // This matches Noice's executeBatch((address,uint256,bytes)[]) format
           return [
-            call.target,  // token address
-            decoded[0],   // from address (author)
-            decoded[1],   // to address (recipient)
-            decoded[2]    // amount
+            call.target,    // token address
+            0,              // value (0 for ERC20 transfers)
+            call.callData   // encoded transferFrom call data
           ];
         });
         
         console.log(`📋 Executing batch with ${transferCalls.length} transfers...`);
         console.log(`📋 Transfer calls:`, transferCalls.map(call => [
-          call[0], // token
-          call[1], // from
-          call[2], // to
-          call[3].toString() // amount as string
+          call[0], // token address
+          call[1], // value (0)
+          call[2].substring(0, 10) + '...' // call data preview
         ]));
         
         // Check if transferCalls is valid
