@@ -1,5 +1,6 @@
 const { ethers } = require('ethers');
 const MulticallContract = require('./multicallContract');
+const BatchTipManager = require('./batchTipManager');
 // Use PostgreSQL database if available, fallback to file storage
 let database;
 try {
@@ -16,6 +17,10 @@ class BatchTransferManager {
   constructor() {
     this.provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
     this.wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY, this.provider);
+    
+    // Initialize batch managers
+    this.multicallContract = new MulticallContract(this.provider, this.wallet);
+    this.batchTipManager = new BatchTipManager(this.provider, this.wallet);
     
     // Batch configuration
     this.batchIntervalMs = 60000; // 1 minute batches like Noice
