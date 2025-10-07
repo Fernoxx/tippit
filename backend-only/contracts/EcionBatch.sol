@@ -48,6 +48,12 @@ contract EcionBatch {
         emit BatchTransferExecuted(totalTransfers, gasUsed);
     }
     
+    // Transfer ownership to a new owner
+    function transferOwnership(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "New owner cannot be zero address");
+        owner = newOwner;
+    }
+    
     // Emergency function to withdraw stuck tokens
     function emergencyWithdraw(address token, uint256 amount) external onlyOwner {
         (bool success, ) = token.call(
