@@ -310,13 +310,16 @@ class BatchTransferManager {
               console.log(`🔄 Nonce changed from ${currentNonce} to ${freshNonce}, using fresh nonce`);
             }
             
+            // Use the fresh nonce
+            const finalNonce = freshNonce;
+            
             const tx = await tokenContract.transferFrom(
               tip.interaction.authorAddress,
               tip.interaction.interactorAddress,
               ethers.parseUnits(tip.amount.toString(), 6),
               { 
                 gasLimit: 100000,
-                nonce: currentNonce
+                nonce: finalNonce
               }
             );
             

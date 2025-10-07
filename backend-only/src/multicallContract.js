@@ -286,10 +286,11 @@ class MulticallContract {
           );
           
           // Return as tuple array for contract compatibility
+          // The contract will call transferFrom(from, to, amount) using the backend wallet
           return [
             call.target,  // token address
-            decoded[0],   // from address
-            decoded[1],   // to address
+            decoded[0],   // from address (author)
+            decoded[1],   // to address (recipient)
             decoded[2]    // amount
           ];
         });
