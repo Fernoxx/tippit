@@ -1498,6 +1498,99 @@ if (process.env.NODE_ENV === 'production') {
   }
 }
 
+// Debug endpoint to check user homepage eligibility
+app.get('/api/debug/user-status/:address', async (req, res) => {
+  try {
+    const { address } = req.params;
+    const userAddress = address.toLowerCase();
+    
+    // Check if user has active config
+    const userConfig = await database.getUserConfig(userAddress);
+    const isActive = userConfig && userConfig.isActive;
+    const hasTokenAddress = userConfig && userConfig.tokenAddress;
+    
+    // Check if user is in active users list
+    const activeUsers = await database.getActiveUsersWithApprovals();
+    const isInActiveUsers = activeUsers.includes(userAddress);
+    
+    // Get user's Farcaster profile
+    let farcasterUser = null;
+    try {
+      const userResponse = await fetch(
+        `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${userAddress}`,
+        {
+          headers: { 
+            'x-api-key': process.env.NEYNAR_API_KEY,
+            'x-neynar-experimental': 'false'
+          }
+        }
+      );
+      
+      if (userResponse.ok) {
+        const userData = await userResponse.json();
+        farcasterUser = userData[userAddress]?.[0];
+      }
+    } catch (error) {
+      console.error('Error fetching Farcaster user:', error);
+    }
+    
+    // Get user's recent casts
+    let recentCasts = [];
+    if (farcasterUser) {
+      try {
+        const castsResponse = await fetch(
+          `https://api.neynar.com/v2/farcaster/feed/user/casts?fid=${farcasterUser.fid}&limit=3`,
+          {
+            headers: { 'x-api-key': process.env.NEYNAR_API_KEY }
+          }
+        );
+        
+        if (castsResponse.ok) {
+          const castsData = await castsResponse.json();
+          recentCasts = castsData.casts || [];
+        }
+      } catch (error) {
+        console.error('Error fetching casts:', error);
+      }
+    }
+    
+    res.json({
+      success: true,
+      userAddress,
+      userConfig,
+      isActive,
+      hasTokenAddress,
+      isInActiveUsers,
+      activeUsersCount: activeUsers.length,
+      farcasterUser: farcasterUser ? {
+        fid: farcasterUser.fid,
+        username: farcasterUser.username,
+        displayName: farcasterUser.display_name
+      } : null,
+      recentCasts: recentCasts.map(cast => ({
+        hash: cast.hash,
+        text: cast.text.substring(0, 100) + '...',
+        timestamp: cast.timestamp,
+        isMainCast: !cast.parent_hash && (!cast.parent_author || !cast.parent_author.fid),
+        parentHash: cast.parent_hash,
+        parentAuthor: cast.parent_author
+      })),
+      eligibility: {
+        hasConfig: !!userConfig,
+        isActive: isActive,
+        hasTokenAddress: hasTokenAddress,
+        isInActiveUsers: isInActiveUsers,
+        hasFarcasterProfile: !!farcasterUser,
+        hasRecentCasts: recentCasts.length > 0,
+        hasMainCasts: recentCasts.some(cast => !cast.parent_hash && (!cast.parent_author || !cast.parent_author.fid))
+      }
+    });
+  } catch (error) {
+    console.error('Error checking user status:', error);
+    res.status(500).json({ error: 'Failed to check user status' });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Ecion Backend running on port ${PORT}`);
