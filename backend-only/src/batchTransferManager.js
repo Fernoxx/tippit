@@ -225,6 +225,7 @@ class BatchTransferManager {
       console.log(`💰 Gas savings: ${gasSavings.savingsPercent.toFixed(1)}% (${gasSavings.savings} gas saved)`);
 
       // Execute batch transfer using multicall (like Noice)
+      console.log(`🔄 Attempting batch transfer with ${transfers.length} transfers...`);
       const results = await this.multicallContract.executeBatchTransfers(transfers);
       
       console.log(`✅ Multicall batch successful: ${results.length} token batches processed`);
@@ -289,14 +290,15 @@ class BatchTransferManager {
       for (const [authorAddress, authorTips] of Object.entries(tipsByAuthor)) {
         console.log(`👤 Processing ${authorTips.length} tips for author ${authorAddress}`);
         
+        // Get starting nonce for this author
+        let currentNonce = await this.provider.getTransactionCount(authorAddress, 'pending');
+        console.log(`🔢 Starting nonce for ${authorAddress}: ${currentNonce}`);
+        
         for (let i = 0; i < authorTips.length; i++) {
           const tip = authorTips[i];
           try {
             console.log(`📤 Transfer ${i + 1}/${authorTips.length}: ${tip.amount} tokens to ${tip.interaction.interactorAddress}`);
-            
-            // Get current nonce for this author
-            const nonce = await this.provider.getTransactionCount(tip.interaction.authorAddress, 'pending');
-            console.log(`🔢 Using nonce ${nonce} for author ${tip.interaction.authorAddress}`);
+            console.log(`🔢 Using nonce ${currentNonce} for author ${authorAddress}`);
             
             const tx = await tokenContract.transferFrom(
               tip.interaction.authorAddress,
@@ -304,24 +306,45 @@ class BatchTransferManager {
               ethers.parseUnits(tip.amount.toString(), 6),
               { 
                 gasLimit: 100000,
-                nonce: nonce + i // Increment nonce for each transaction from same author
+                nonce: currentNonce
               }
             );
+            
+            // Increment nonce for next transaction
+            currentNonce++;
             
             console.log(`✅ Transfer ${i + 1} submitted: ${tx.hash}`);
             
             // Wait for confirmation with timeout
             try {
-              const receipt = await tx.wait(3); // Wait for 3 confirmations
+              console.log(`⏳ Waiting for confirmation of ${tx.hash}...`);
+              const receipt = await tx.wait(2); // Wait for 2 confirmations
               console.log(`✅ Transfer ${i + 1} confirmed: ${tx.hash} (Gas: ${receipt.gasUsed.toString()})`);
             } catch (waitError) {
               console.log(`⏳ Transfer ${i + 1} timeout, checking status...`);
+              console.log(`🔍 Wait error:`, waitError.message);
+              
               // Check if transaction was mined
-              const receipt = await this.provider.getTransactionReceipt(tx.hash);
-              if (receipt && receipt.status === 1) {
-                console.log(`✅ Transfer ${i + 1} confirmed: ${tx.hash}`);
-              } else {
-                throw new Error(`Transfer ${i + 1} failed or not confirmed`);
+              try {
+                const receipt = await this.provider.getTransactionReceipt(tx.hash);
+                if (receipt && receipt.status === 1) {
+                  console.log(`✅ Transfer ${i + 1} confirmed: ${tx.hash}`);
+                } else if (receipt && receipt.status === 0) {
+                  throw new Error(`Transfer ${i + 1} failed: transaction reverted`);
+                } else {
+                  // Transaction might still be pending, wait a bit more
+                  console.log(`⏳ Transaction still pending, waiting 5 seconds...`);
+                  await this.delay(5000);
+                  const receipt2 = await this.provider.getTransactionReceipt(tx.hash);
+                  if (receipt2 && receipt2.status === 1) {
+                    console.log(`✅ Transfer ${i + 1} confirmed after delay: ${tx.hash}`);
+                  } else {
+                    throw new Error(`Transfer ${i + 1} failed or not confirmed after delay`);
+                  }
+                }
+              } catch (receiptError) {
+                console.error(`❌ Error checking receipt:`, receiptError.message);
+                throw new Error(`Transfer ${i + 1} failed: ${receiptError.message}`);
               }
             }
             

@@ -194,9 +194,11 @@ class MulticallContract {
         // Convert our call data to the format expected by executeBatch
         const transferCalls = callData.map(call => {
           // Decode the transferFrom call data to get from, to, amount
+          const callDataBytes = ethers.getBytes(call.callData);
+          const dataWithoutSelector = callDataBytes.slice(4); // Skip function selector
           const decoded = ethers.AbiCoder.defaultAbiCoder().decode(
             ['address', 'address', 'uint256'],
-            call.callData.slice(4) // Skip function selector
+            dataWithoutSelector
           );
           
           return [
