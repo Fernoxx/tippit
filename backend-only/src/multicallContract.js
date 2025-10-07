@@ -156,12 +156,50 @@ class MulticallContract {
         console.log(`📋 Call data array length: ${callData.length}`);
         console.log(`📋 First call data: ${callData[0]?.callData?.substring(0, 50)}...`);
 
-        // Execute batch using Multicall3 aggregate (simpler approach)
-        console.log(`📋 Using Multicall3 aggregate function`);
+        // Execute batch using our custom contract (like Noice)
+        console.log(`📋 Using custom executeBatch function like Noice`);
         console.log(`📋 Call data structure:`, JSON.stringify(callData, null, 2));
         
-        // Use Multicall3's aggregate function properly
-        const tx = await this.multicallContract.aggregate(callData, {
+        // Our deployed contract address (replace with your deployed address)
+        const batchTransferAddress = process.env.BATCH_TRANSFER_CONTRACT_ADDRESS || '0x0000000000000000000000000000000000000000';
+        
+        if (batchTransferAddress === '0x0000000000000000000000000000000000000000') {
+          throw new Error('BATCH_TRANSFER_CONTRACT_ADDRESS not set - using individual transfers');
+        }
+        
+        const batchTransferABI = [
+          {
+            "inputs": [
+              {
+                "components": [
+                  {"internalType": "address", "name": "token", "type": "address"},
+                  {"internalType": "uint256", "name": "amount", "type": "uint256"},
+                  {"internalType": "bytes", "name": "callData", "type": "bytes"}
+                ],
+                "internalType": "struct BatchTransfer.TransferCall[]",
+                "name": "calls",
+                "type": "tuple[]"
+              }
+            ],
+            "name": "executeBatch",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+          }
+        ];
+        
+        const batchTransferContract = new ethers.Contract(batchTransferAddress, batchTransferABI, this.wallet);
+        
+        // Convert our call data to the format expected by executeBatch
+        const transferCalls = callData.map(call => ({
+          token: call.target,
+          amount: 0, // Not used in our case
+          callData: call.callData
+        }));
+        
+        console.log(`📋 Executing batch with ${transferCalls.length} transfers...`);
+        
+        const tx = await batchTransferContract.executeBatch(transferCalls, {
           gasLimit: 2000000
         });
 
