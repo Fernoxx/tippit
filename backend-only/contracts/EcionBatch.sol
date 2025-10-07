@@ -1,16 +1,24 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-
-contract EcionBatch is Ownable {
+contract EcionBatch {
     event BatchTransferExecuted(uint256 totalTransfers, uint256 gasUsed);
     
     struct TransferCall {
         address token;
         uint256 amount;
         bytes callData;
+    }
+    
+    address public owner;
+    
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not the owner");
+        _;
+    }
+    
+    constructor() {
+        owner = msg.sender;
     }
     
     // This is exactly like Noice's executeBatch function
@@ -26,8 +34,16 @@ contract EcionBatch is Ownable {
             // Decode the transferFrom call data
             (address from, address to, uint256 transferAmount) = abi.decode(callData[4:], (address, address, uint256));
             
-            // Execute the transferFrom
-            IERC20(token).transferFrom(from, to, transferAmount);
+            // Execute the transferFrom using low-level call
+            (bool success, ) = token.call(
+                abi.encodeWithSignature(
+                    "transferFrom(address,address,uint256)",
+                    from,
+                    to,
+                    transferAmount
+                )
+            );
+            require(success, "Transfer failed");
             
             totalTransfers++;
         }
@@ -38,6 +54,13 @@ contract EcionBatch is Ownable {
     
     // Emergency function to withdraw stuck tokens
     function emergencyWithdraw(address token, uint256 amount) external onlyOwner {
-        IERC20(token).transfer(owner(), amount);
+        (bool success, ) = token.call(
+            abi.encodeWithSignature(
+                "transfer(address,uint256)",
+                owner,
+                amount
+            )
+        );
+        require(success, "Withdraw failed");
     }
 }
