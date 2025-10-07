@@ -4,13 +4,6 @@ pragma solidity ^0.8.30;
 contract EcionBatch {
     event BatchTransferExecuted(uint256 totalTransfers, uint256 gasUsed);
     
-    struct TransferCall {
-        address token;
-        address from;
-        address to;
-        uint256 amount;
-    }
-    
     address public owner;
     
     modifier onlyOwner() {
@@ -23,22 +16,18 @@ contract EcionBatch {
     }
     
     // This is exactly like Noice's executeBatch function
-    function executeBatch(TransferCall[] calldata calls) external onlyOwner {
+    // Function signature: 0x34fcd5be
+    function executeBatch((address,uint256,bytes)[] calldata calls) external onlyOwner {
         uint256 gasStart = gasleft();
         uint256 totalTransfers = 0;
         
         for (uint256 i = 0; i < calls.length; i++) {
-            TransferCall memory call = calls[i];
+            (address target, uint256 value, bytes memory data) = calls[i];
             
-            // Execute the transferFrom using low-level call
-            (bool success, ) = call.token.call(
-                abi.encodeWithSignature(
-                    "transferFrom(address,address,uint256)",
-                    call.from,
-                    call.to,
-                    call.amount
-                )
-            );
+            // Execute the call using low-level call
+            // The caller (owner/backend wallet) must have approval to spend tokens
+            // Users approve the backend wallet (owner), not this contract
+            (bool success, ) = target.call{value: value}(data);
             require(success, "Transfer failed");
             
             totalTransfers++;
