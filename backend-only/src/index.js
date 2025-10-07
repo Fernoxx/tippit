@@ -646,8 +646,16 @@ app.post('/webhook/neynar', (req, res) => {
   console.log('🔔 WEBHOOK EVENT RECEIVED:', {
     type: req.body?.type,
     timestamp: new Date().toISOString(),
-    hasData: !!req.body?.data
+    hasData: !!req.body?.data,
+    bodyKeys: req.body ? Object.keys(req.body) : 'no body',
+    headers: Object.keys(req.headers).filter(h => h.toLowerCase().includes('neynar') || h.toLowerCase().includes('signature')),
+    userAgent: req.headers['user-agent'],
+    contentType: req.headers['content-type']
   });
+  
+  // Log full body for debugging
+  console.log('📋 Full webhook body:', JSON.stringify(req.body, null, 2));
+  
   webhookHandler(req, res);
 });
 
@@ -1479,6 +1487,27 @@ app.get('/api/debug/test-homepage', async (req, res) => {
   } catch (error) {
     console.error('Error testing homepage:', error);
     res.status(500).json({ error: 'Failed to test homepage' });
+  }
+});
+
+// Debug endpoint to check webhook configuration
+app.get('/api/debug/webhook-status', async (req, res) => {
+  try {
+    const webhookId = await database.getWebhookId();
+    const trackedFids = await database.getTrackedFids();
+    
+    res.json({
+      success: true,
+      webhookId,
+      trackedFids,
+      webhookSecret: process.env.WEBHOOK_SECRET ? 'Set' : 'Not set',
+      neynarApiKey: process.env.NEYNAR_API_KEY ? 'Set' : 'Not set',
+      webhookUrl: `https://${req.get('host')}/webhook/neynar`,
+      message: 'Check Railway logs for webhook events'
+    });
+  } catch (error) {
+    console.error('Error checking webhook status:', error);
+    res.status(500).json({ error: 'Failed to check webhook status' });
   }
 });
 
