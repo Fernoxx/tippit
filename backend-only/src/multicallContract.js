@@ -160,12 +160,19 @@ class MulticallContract {
         console.log(`📋 Sending multicall with ${callData.length} calls`);
         console.log(`📋 Call data structure:`, JSON.stringify(callData, null, 2));
         
+        // Extract just the call data bytes
+        const callDataBytes = callData.map(call => call.callData);
+        console.log(`📋 Call data bytes:`, callDataBytes);
+        
         // Encode the multicall function call manually
-        const multicallData = this.multicallContract.interface.encodeFunctionData("multicall", [
-          callData.map(call => call.callData)
-        ]);
+        const multicallData = this.multicallContract.interface.encodeFunctionData("multicall", [callDataBytes]);
         
         console.log(`📋 Encoded multicall data: ${multicallData.substring(0, 50)}...`);
+        console.log(`📋 Full multicall data length: ${multicallData.length}`);
+        
+        if (!multicallData || multicallData === '0x') {
+          throw new Error('Multicall data is empty - cannot proceed');
+        }
         
         const tx = await this.wallet.sendTransaction({
           to: this.multicallAddress,
