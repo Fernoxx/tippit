@@ -234,6 +234,14 @@ class MulticallContract {
           }
         }
         
+        // Call the contract with the correct parameter structure
+        // The contract expects: executeBatch(TransferCall[] calldata calls)
+        console.log(`📋 About to call executeBatch with:`, {
+          transferCallsLength: transferCalls.length,
+          firstCall: transferCalls[0],
+          contractAddress: batchTransferAddress
+        });
+        
         const tx = await batchTransferContract.executeBatch(transferCalls, {
           gasLimit: 2000000
         });
