@@ -58,6 +58,9 @@ app.use('/webhook/neynar', (req, res, next) => {
   next();
 });
 
+// Parse webhook body as JSON
+app.use('/webhook/neynar', express.json({ type: 'application/json' }));
+
 // Test endpoint to simulate a webhook
 app.post('/api/test-webhook', async (req, res) => {
   console.log('🧪 TEST WEBHOOK CALLED');
@@ -653,8 +656,13 @@ app.post('/webhook/neynar', (req, res) => {
     contentType: req.headers['content-type']
   });
   
-  // Log full body for debugging
-  console.log('📋 Full webhook body:', JSON.stringify(req.body, null, 2));
+  // Log webhook body (simplified to avoid rate limits)
+  if (req.body && typeof req.body === 'object') {
+    console.log('📋 Webhook body type:', req.body.type || 'unknown');
+    console.log('📋 Webhook data keys:', req.body.data ? Object.keys(req.body.data) : 'no data');
+  } else {
+    console.log('📋 Webhook body is not JSON object');
+  }
   
   webhookHandler(req, res);
 });
