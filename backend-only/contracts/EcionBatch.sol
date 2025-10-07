@@ -6,8 +6,9 @@ contract EcionBatch {
     
     struct TransferCall {
         address token;
+        address from;
+        address to;
         uint256 amount;
-        bytes callData;
     }
     
     address public owner;
@@ -28,19 +29,14 @@ contract EcionBatch {
         
         for (uint256 i = 0; i < calls.length; i++) {
             TransferCall memory call = calls[i];
-            address token = call.token;
-            bytes memory callData = call.callData;
-            
-            // Decode the transferFrom call data
-            (address from, address to, uint256 transferAmount) = abi.decode(callData[4:], (address, address, uint256));
             
             // Execute the transferFrom using low-level call
-            (bool success, ) = token.call(
+            (bool success, ) = call.token.call(
                 abi.encodeWithSignature(
                     "transferFrom(address,address,uint256)",
-                    from,
-                    to,
-                    transferAmount
+                    call.from,
+                    call.to,
+                    call.amount
                 )
             );
             require(success, "Transfer failed");
