@@ -1511,6 +1511,56 @@ app.get('/api/debug/webhook-status', async (req, res) => {
   }
 });
 
+// Debug endpoint to get FID from address and check webhook tracking
+app.get('/api/debug/check-fid/:address', async (req, res) => {
+  try {
+    const { address } = req.params;
+    const userAddress = address.toLowerCase();
+    
+    // Get user's Farcaster profile
+    let farcasterUser = null;
+    try {
+      const userResponse = await fetch(
+        `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${userAddress}`,
+        {
+          headers: { 
+            'x-api-key': process.env.NEYNAR_API_KEY,
+            'x-neynar-experimental': 'false'
+          }
+        }
+      );
+      
+      if (userResponse.ok) {
+        const userData = await userResponse.json();
+        farcasterUser = userData[userAddress]?.[0];
+      }
+    } catch (error) {
+      console.error('Error fetching Farcaster user:', error);
+    }
+    
+    // Get tracked FIDs
+    const trackedFids = await database.getTrackedFids();
+    const isTracked = farcasterUser ? trackedFids.includes(farcasterUser.fid) : false;
+    
+    res.json({
+      success: true,
+      userAddress,
+      farcasterUser: farcasterUser ? {
+        fid: farcasterUser.fid,
+        username: farcasterUser.username,
+        displayName: farcasterUser.display_name
+      } : null,
+      trackedFids,
+      isTracked,
+      webhookId: await database.getWebhookId(),
+      message: isTracked ? 'Your FID is being tracked by webhook' : 'Your FID is NOT being tracked by webhook'
+    });
+  } catch (error) {
+    console.error('Error checking FID:', error);
+    res.status(500).json({ error: 'Failed to check FID' });
+  }
+});
+
 // Debug endpoint to check user homepage eligibility
 app.get('/api/debug/user-status/:address', async (req, res) => {
   try {
