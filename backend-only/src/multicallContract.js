@@ -156,175 +156,64 @@ class MulticallContract {
         console.log(`📋 Call data array length: ${callData.length}`);
         console.log(`📋 First call data: ${callData[0]?.callData?.substring(0, 50)}...`);
 
-        // Execute batch using our custom contract (exactly like Noice)
-        console.log(`📋 Using EcionBatch executeBatch function like Noice`);
+        // Execute batch directly using backend wallet (exactly like Noice)
+        console.log(`📋 Using direct batch execution like Noice`);
         console.log(`📋 Call data structure:`, JSON.stringify(callData, null, 2));
         
-        // Our deployed contract address
-        const batchTransferAddress = process.env.BATCH_TRANSFER_CONTRACT_ADDRESS || '0x49c9a26ac4f2401f4c1cc0246fc9d34bff172af3';
-        
-        if (batchTransferAddress === '0x0000000000000000000000000000000000000000') {
-          throw new Error('BATCH_TRANSFER_CONTRACT_ADDRESS not set - using individual transfers');
-        }
-        
-        const batchTransferABI = [
-          {
-            "inputs": [],
-            "stateMutability": "nonpayable",
-            "type": "constructor"
-          },
-          {
-            "anonymous": false,
-            "inputs": [
-              {
-                "indexed": false,
-                "internalType": "uint256",
-                "name": "totalTransfers",
-                "type": "uint256"
-              },
-              {
-                "indexed": false,
-                "internalType": "uint256",
-                "name": "gasUsed",
-                "type": "uint256"
-              }
-            ],
-            "name": "BatchTransferExecuted",
-            "type": "event"
-          },
-          {
-            "inputs": [
-              {
-                "internalType": "address",
-                "name": "token",
-                "type": "address"
-              },
-              {
-                "internalType": "uint256",
-                "name": "amount",
-                "type": "uint256"
-              }
-            ],
-            "name": "emergencyWithdraw",
-            "outputs": [],
-            "stateMutability": "nonpayable",
-            "type": "function"
-          },
-          {
-            "inputs": [
-              {
-                "internalType": "address[]",
-                "name": "targets",
-                "type": "address[]"
-              },
-              {
-                "internalType": "uint256[]",
-                "name": "values",
-                "type": "uint256[]"
-              },
-              {
-                "internalType": "bytes[]",
-                "name": "datas",
-                "type": "bytes[]"
-              }
-            ],
-            "name": "executeBatch",
-            "outputs": [],
-            "stateMutability": "nonpayable",
-            "type": "function"
-          },
-          {
-            "inputs": [
-              {
-                "internalType": "address",
-                "name": "newOwner",
-                "type": "address"
-              }
-            ],
-            "name": "transferOwnership",
-            "outputs": [],
-            "stateMutability": "nonpayable",
-            "type": "function"
-          },
-          {
-            "inputs": [],
-            "name": "owner",
-            "outputs": [
-              {
-                "internalType": "address",
-                "name": "",
-                "type": "address"
-              }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-          }
-        ];
-        
-        const batchTransferContract = new ethers.Contract(batchTransferAddress, batchTransferABI, this.wallet);
-        
-        // Convert our call data to separate arrays format
-        const targets = callData.map(call => call.target);
-        const values = callData.map(call => 0); // 0 for ERC20 transfers
-        const datas = callData.map(call => call.callData);
-        
-        console.log(`📋 Executing batch with ${targets.length} transfers...`);
-        console.log(`📋 Targets:`, targets);
-        console.log(`📋 Values:`, values);
-        console.log(`📋 Data preview:`, datas.map(d => d.substring(0, 10) + '...'));
-        
-        // Check if arrays are valid
-        if (!targets || targets.length === 0) {
-          throw new Error('No valid transfer calls to execute');
-        }
-        
-        // Validate arrays have same length
-        if (targets.length !== values.length || targets.length !== datas.length) {
-          throw new Error(`Array length mismatch: targets=${targets.length}, values=${values.length}, datas=${datas.length}`);
-        }
-        
-        console.log(`📋 About to call executeBatch with:`, {
-          targetsLength: targets.length,
-          valuesLength: values.length,
-          datasLength: datas.length,
-          contractAddress: batchTransferAddress
-        });
-        
-        // Check if we're the owner of the contract
-        try {
-          const owner = await batchTransferContract.owner();
-          console.log(`📋 Contract owner: ${owner}`);
-          console.log(`📋 Our wallet: ${this.wallet.address}`);
+        // Execute each transfer directly using the backend wallet
+        const results = [];
+        for (let i = 0; i < callData.length; i++) {
+          const call = callData[i];
+          const tokenAddress = call.target;
+          const callDataBytes = call.callData;
           
-          if (owner.toLowerCase() !== this.wallet.address.toLowerCase()) {
-            throw new Error(`Contract ownership issue: Owner is ${owner}, but our wallet is ${this.wallet.address}. Please transfer ownership to our wallet.`);
+          try {
+            console.log(`📤 Direct transfer ${i + 1}/${callData.length} to ${tokenAddress}`);
+            
+            // Create ERC20 contract instance
+            const erc20Contract = new ethers.Contract(tokenAddress, [
+              "function transferFrom(address from, address to, uint256 amount) external returns (bool)"
+            ], this.wallet);
+            
+            // Execute transferFrom directly
+            const tx = await erc20Contract.transferFrom(
+              // Decode the call data to get from, to, amount
+              ...this.decodeTransferFromCallData(callDataBytes),
+              {
+                gasLimit: 100000
+              }
+            );
+            
+            console.log(`✅ Transfer ${i + 1} submitted: ${tx.hash}`);
+            
+            // Wait for confirmation
+            const receipt = await tx.wait();
+            if (receipt.status === 1) {
+              console.log(`✅ Transfer ${i + 1} confirmed: ${tx.hash}`);
+              results.push({
+                success: true,
+                hash: tx.hash,
+                gasUsed: receipt.gasUsed.toString()
+              });
+            } else {
+              throw new Error(`Transfer ${i + 1} failed: transaction reverted`);
+            }
+            
+            // Small delay between transfers
+            if (i < callData.length - 1) {
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            
+          } catch (error) {
+            console.error(`❌ Transfer ${i + 1} failed:`, error.message);
+            results.push({
+              success: false,
+              error: error.message
+            });
           }
-        } catch (ownerError) {
-          console.error(`❌ Owner check failed:`, ownerError.message);
-          throw new Error(`Contract ownership check failed: ${ownerError.message}`);
         }
         
-        // Check if authors have approved the backend wallet
-        console.log(`📋 Checking if authors have approved the backend wallet...`);
-        
-        // The batch contract will call transferFrom(author, recipient, amount)
-        // The backend wallet must have approval from the author to spend their tokens
-        // This is exactly how Noice works
-        try {
-          const gasEstimate = await batchTransferContract.executeBatch.estimateGas(targets, values, datas);
-          console.log(`📋 Gas estimate: ${gasEstimate.toString()}`);
-        } catch (gasError) {
-          console.error(`❌ Gas estimation failed:`, gasError.message);
-          if (gasError.message.includes("Transfer failed")) {
-            console.log(`⚠️ Authors need to approve the batch contract first`);
-            throw new Error(`Authors need to approve batch contract: ${gasError.message}`);
-          }
-          throw new Error(`Contract call validation failed: ${gasError.message}`);
-        }
-        
-        const tx = await batchTransferContract.executeBatch(targets, values, datas, {
-          gasLimit: 2000000
-        });
+        return results;
 
         console.log(`✅ Multicall transaction submitted: ${tx.hash}`);
         const receipt = await tx.wait();
@@ -362,6 +251,17 @@ class MulticallContract {
       savings,
       savingsPercent: Math.max(0, savingsPercent)
     };
+  }
+  
+  // Helper function to decode transferFrom call data
+  decodeTransferFromCallData(callData) {
+    const callDataBytes = ethers.getBytes(callData);
+    const dataWithoutSelector = callDataBytes.slice(4); // Skip function selector
+    const decoded = ethers.AbiCoder.defaultAbiCoder().decode(
+      ['address', 'address', 'uint256'],
+      dataWithoutSelector
+    );
+    return decoded; // [from, to, amount]
   }
 }
 
