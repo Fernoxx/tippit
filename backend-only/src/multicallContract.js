@@ -242,6 +242,20 @@ class MulticallContract {
           contractAddress: batchTransferAddress
         });
         
+        // Check if we're the owner of the contract
+        try {
+          const owner = await batchTransferContract.owner();
+          console.log(`📋 Contract owner: ${owner}`);
+          console.log(`📋 Our wallet: ${this.wallet.address}`);
+          
+          if (owner.toLowerCase() !== this.wallet.address.toLowerCase()) {
+            throw new Error(`Contract ownership issue: Owner is ${owner}, but our wallet is ${this.wallet.address}. Please transfer ownership to our wallet.`);
+          }
+        } catch (ownerError) {
+          console.error(`❌ Owner check failed:`, ownerError.message);
+          throw new Error(`Contract ownership check failed: ${ownerError.message}`);
+        }
+        
         // Try to estimate gas first to see if the call is valid
         try {
           const gasEstimate = await batchTransferContract.executeBatch.estimateGas(transferCalls);

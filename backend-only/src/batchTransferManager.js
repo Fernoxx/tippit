@@ -295,14 +295,14 @@ class BatchTransferManager {
           try {
             console.log(`📤 Transfer ${i + 1}/${authorTips.length}: ${tip.amount} tokens to ${tip.interaction.interactorAddress}`);
             
-            // Get fresh nonce for each transaction to avoid conflicts
-            const currentNonce = await this.provider.getTransactionCount(authorAddress, 'pending');
-            console.log(`🔢 Using nonce ${currentNonce} for author ${authorAddress}`);
-            
             // Add a small delay to ensure nonce is fresh
             if (i > 0) {
               await this.delay(1000);
             }
+            
+            // Get fresh nonce right before the transaction
+            const currentNonce = await this.provider.getTransactionCount(authorAddress, 'pending');
+            console.log(`🔢 Using nonce ${currentNonce} for author ${authorAddress}`);
             
             const tx = await tokenContract.transferFrom(
               tip.interaction.authorAddress,
