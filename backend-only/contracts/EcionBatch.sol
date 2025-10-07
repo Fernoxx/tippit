@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract NoiceBatchTransfer is Ownable {
+contract EcionBatch is Ownable {
     event BatchTransferExecuted(uint256 totalTransfers, uint256 gasUsed);
     
     // This is exactly like Noice's executeBatch function

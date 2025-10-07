@@ -157,7 +157,7 @@ class MulticallContract {
         console.log(`📋 First call data: ${callData[0]?.callData?.substring(0, 50)}...`);
 
         // Execute batch using our custom contract (exactly like Noice)
-        console.log(`📋 Using custom executeBatch function like Noice`);
+        console.log(`📋 Using EcionBatch executeBatch function like Noice`);
         console.log(`📋 Call data structure:`, JSON.stringify(callData, null, 2));
         
         // Our deployed contract address (replace with your deployed address)
@@ -176,7 +176,7 @@ class MulticallContract {
                   {"internalType": "uint256", "name": "amount", "type": "uint256"},
                   {"internalType": "bytes", "name": "callData", "type": "bytes"}
                 ],
-                "internalType": "struct NoiceBatchTransfer.TransferCall[]",
+                "internalType": "struct EcionBatch.TransferCall[]",
                 "name": "calls",
                 "type": "tuple[]"
               }
