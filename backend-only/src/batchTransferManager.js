@@ -286,23 +286,23 @@ class BatchTransferManager {
         tipsByAuthor[authorAddress].push(tip);
       }
       
-      // Process each author's tips sequentially
-      for (const [authorAddress, authorTips] of Object.entries(tipsByAuthor)) {
-        console.log(`👤 Processing ${authorTips.length} tips for author ${authorAddress}`);
-        
-        for (let i = 0; i < authorTips.length; i++) {
-          const tip = authorTips[i];
-          try {
-            console.log(`📤 Transfer ${i + 1}/${authorTips.length}: ${tip.amount} tokens to ${tip.interaction.interactorAddress}`);
-            
-            // Add a small delay to ensure nonce is fresh
-            if (i > 0) {
-              await this.delay(1000);
-            }
-            
-            // Get fresh nonce right before the transaction
-            const finalNonce = await this.provider.getTransactionCount(authorAddress, 'pending');
-            console.log(`🔢 Using nonce ${finalNonce} for author ${authorAddress}`);
+        // Process each author's tips sequentially
+        for (const [authorAddress, authorTips] of Object.entries(tipsByAuthor)) {
+          console.log(`👤 Processing ${authorTips.length} tips for author ${authorAddress}`);
+
+          for (let i = 0; i < authorTips.length; i++) {
+            const tip = authorTips[i];
+            try {
+              console.log(`📤 Transfer ${i + 1}/${authorTips.length}: ${tip.amount} tokens to ${tip.interaction.interactorAddress}`);
+              
+              // Add a small delay to ensure nonce is fresh
+              if (i > 0) {
+                await this.delay(2000);
+              }
+              
+              // Get fresh nonce right before the transaction
+              const finalNonce = await this.provider.getTransactionCount(authorAddress, 'pending');
+              console.log(`🔢 Using nonce ${finalNonce} for author ${authorAddress}`);
             
             const tx = await tokenContract.transferFrom(
               tip.interaction.authorAddress,
