@@ -210,7 +210,12 @@ class MulticallContract {
         });
         
         console.log(`📋 Executing batch with ${transferCalls.length} transfers...`);
-        console.log(`📋 Transfer calls:`, JSON.stringify(transferCalls, null, 2));
+        console.log(`📋 Transfer calls:`, transferCalls.map(call => [
+          call[0], // token
+          call[1], // from
+          call[2], // to
+          call[3].toString() // amount as string
+        ]));
         
         // Check if transferCalls is valid
         if (!transferCalls || transferCalls.length === 0) {
@@ -224,7 +229,7 @@ class MulticallContract {
             throw new Error(`Invalid transfer call at index ${i}: ${JSON.stringify(call)}`);
           }
           if (!call[0] || !call[1] || !call[2] || call[3] === undefined) {
-            throw new Error(`Invalid transfer call data at index ${i}: token=${call[0]}, from=${call[1]}, to=${call[2]}, amount=${call[3]}`);
+            throw new Error(`Invalid transfer call data at index ${i}: token=${call[0]}, from=${call[1]}, to=${call[2]}, amount=${call[3]?.toString()}`);
           }
         }
         

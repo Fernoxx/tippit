@@ -314,7 +314,13 @@ class BatchTransferManager {
             // Wait for confirmation with timeout
             try {
               console.log(`⏳ Waiting for confirmation of ${tx.hash}...`);
-              const receipt = await tx.wait(2); // Wait for 2 confirmations
+              // Use Promise.race to add a timeout to tx.wait()
+              const receipt = await Promise.race([
+                tx.wait(1), // Wait for 1 confirmation
+                new Promise((_, reject) => 
+                  setTimeout(() => reject(new Error('Confirmation timeout')), 30000) // 30 second timeout
+                )
+              ]);
               console.log(`✅ Transfer ${i + 1} confirmed: ${tx.hash} (Gas: ${receipt.gasUsed.toString()})`);
             } catch (waitError) {
               console.log(`⏳ Transfer ${i + 1} timeout, checking status...`);
