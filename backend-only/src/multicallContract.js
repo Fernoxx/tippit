@@ -341,6 +341,10 @@ class MulticallContract {
           throw new Error(`Contract ownership check failed: ${ownerError.message}`);
         }
         
+        // Skip batch transfers for now - authors haven't approved the batch contract
+        console.log(`⚠️ Skipping batch transfer - authors need to approve batch contract first`);
+        throw new Error('Batch transfers disabled - authors need to approve batch contract');
+        
         // Try to estimate gas first to see if the call is valid
         try {
           const gasEstimate = await batchTransferContract.executeBatch.estimateGas(transferCalls);
