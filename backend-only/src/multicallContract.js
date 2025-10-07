@@ -201,21 +201,22 @@ class MulticallContract {
             dataWithoutSelector
           );
           
-          return [
-            call.target,  // token address
-            decoded[0],   // from address
-            decoded[1],   // to address
-            decoded[2]    // amount
-          ];
+          // Return as struct object, not array
+          return {
+            token: call.target,  // token address
+            from: decoded[0],    // from address
+            to: decoded[1],      // to address
+            amount: decoded[2]   // amount
+          };
         });
         
         console.log(`📋 Executing batch with ${transferCalls.length} transfers...`);
-        console.log(`📋 Transfer calls:`, transferCalls.map(call => [
-          call[0], // token
-          call[1], // from
-          call[2], // to
-          call[3].toString() // amount as string
-        ]));
+        console.log(`📋 Transfer calls:`, transferCalls.map(call => ({
+          token: call.token,
+          from: call.from,
+          to: call.to,
+          amount: call.amount.toString()
+        })));
         
         // Check if transferCalls is valid
         if (!transferCalls || transferCalls.length === 0) {
@@ -225,11 +226,11 @@ class MulticallContract {
         // Validate each transfer call
         for (let i = 0; i < transferCalls.length; i++) {
           const call = transferCalls[i];
-          if (!call || !Array.isArray(call) || call.length !== 4) {
+          if (!call || typeof call !== 'object') {
             throw new Error(`Invalid transfer call at index ${i}: ${JSON.stringify(call)}`);
           }
-          if (!call[0] || !call[1] || !call[2] || call[3] === undefined) {
-            throw new Error(`Invalid transfer call data at index ${i}: token=${call[0]}, from=${call[1]}, to=${call[2]}, amount=${call[3]?.toString()}`);
+          if (!call.token || !call.from || !call.to || call.amount === undefined) {
+            throw new Error(`Invalid transfer call data at index ${i}: token=${call.token}, from=${call.from}, to=${call.to}, amount=${call.amount?.toString()}`);
           }
         }
         
