@@ -1509,6 +1509,23 @@ if (process.env.NODE_ENV === 'production') {
   }
 }
 
+// Test homepage endpoint to trigger debug logs
+app.get('/api/debug/test-homepage', async (req, res) => {
+  try {
+    console.log('🧪 Testing homepage endpoint to trigger debug logs...');
+    const response = await fetch(`https://${req.get('host')}/api/homepage`);
+    const data = await response.json();
+    res.json({
+      success: true,
+      message: 'Homepage test completed - check server logs for debug info',
+      homepageData: data
+    });
+  } catch (error) {
+    console.error('Error testing homepage:', error);
+    res.status(500).json({ error: 'Failed to test homepage' });
+  }
+});
+
 // Debug endpoint to check user homepage eligibility
 app.get('/api/debug/user-status/:address', async (req, res) => {
   try {
