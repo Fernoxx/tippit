@@ -1059,6 +1059,17 @@ app.get('/api/homepage', async (req, res) => {
                 const isMainCast = !cast.parent_hash && (!cast.parent_author || !cast.parent_author.fid || cast.parent_author.fid === null);
                 // Additional check: ensure parent_author.fid is null or undefined
                 const hasNoParentAuthor = !cast.parent_author || cast.parent_author.fid === null || cast.parent_author.fid === undefined;
+                
+                // Debug logging for your address
+                if (userAddress.toLowerCase() === '0x3cf87b76d2a1d36f9542b4da2a6b4b3dc0f0bb2e') {
+                  console.log(`🔍 DEBUG ${userAddress}: Cast ${cast.hash}`);
+                  console.log(`  - parent_hash: ${cast.parent_hash}`);
+                  console.log(`  - parent_author:`, cast.parent_author);
+                  console.log(`  - isMainCast: ${isMainCast}`);
+                  console.log(`  - hasNoParentAuthor: ${hasNoParentAuthor}`);
+                  console.log(`  - text: ${cast.text.substring(0, 100)}...`);
+                }
+                
                 return isMainCast && hasNoParentAuthor;
               }).slice(0, 1); // Take only the 1 most recent main cast per user
               
