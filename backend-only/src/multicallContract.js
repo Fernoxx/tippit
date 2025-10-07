@@ -307,8 +307,9 @@ class MulticallContract {
         // Check if authors have approved the backend wallet
         console.log(`📋 Checking if authors have approved the backend wallet...`);
         
-        // The batch contract will call transferFrom using the backend wallet's allowance
-        // Users approve the backend wallet, not the batch contract
+        // The batch contract will call transferFrom(author, recipient, amount)
+        // The backend wallet must have approval from the author to spend their tokens
+        // This is exactly how Noice works
         try {
           const gasEstimate = await batchTransferContract.executeBatch.estimateGas(targets, values, datas);
           console.log(`📋 Gas estimate: ${gasEstimate.toString()}`);
