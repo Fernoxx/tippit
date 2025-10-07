@@ -17,7 +17,7 @@ contract EcionBatch {
     
     // This is exactly like Noice's executeBatch function
     // Function signature: 0x34fcd5be
-    function executeBatch((address,uint256,bytes)[] calldata calls) external onlyOwner {
+    function executeBatch(tuple(address,uint256,bytes)[] calldata calls) external onlyOwner {
         uint256 gasStart = gasleft();
         uint256 totalTransfers = 0;
         
