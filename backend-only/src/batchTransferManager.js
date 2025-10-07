@@ -220,11 +220,12 @@ class BatchTransferManager {
         amount: ethers.parseUnits(tip.amount.toString(), 6) // USDC has 6 decimals
       }));
 
-      // Use individual transfers for now (multicall has issues)
-      console.log(`💸 Executing ${tips.length} transfers for token ${tokenAddress} using individual transfers...`);
-      console.log(`💰 Individual transfers are more reliable than multicall`);
-      
-      return await this.executeIndividualTransfers(tokenAddress, tips);
+      // Calculate gas savings
+      const gasSavings = this.multicallContract.calculateGasSavings(tips.length);
+      console.log(`💰 Gas savings: ${gasSavings.savingsPercent.toFixed(1)}% (${gasSavings.savings} gas saved)`);
+
+      // Execute batch transfer using multicall (like Noice)
+      const results = await this.multicallContract.executeBatchTransfers(transfers);
       
       console.log(`✅ Multicall batch successful: ${results.length} token batches processed`);
       

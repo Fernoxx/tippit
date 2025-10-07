@@ -156,15 +156,11 @@ class MulticallContract {
         console.log(`📋 Call data array length: ${callData.length}`);
         console.log(`📋 First call data: ${callData[0]?.callData?.substring(0, 50)}...`);
 
-        // Execute multicall using direct transaction
-        console.log(`📋 Sending multicall with ${callData.length} calls`);
+        // Execute multicall using aggregate function (like Noice)
+        console.log(`📋 Sending aggregate multicall with ${callData.length} calls`);
         console.log(`📋 Call data structure:`, JSON.stringify(callData, null, 2));
         
-        // Extract just the call data bytes
-        const callDataBytes = callData.map(call => call.callData);
-        console.log(`📋 Call data bytes:`, callDataBytes);
-        
-        // Use the aggregate function instead of multicall
+        // Use the aggregate function exactly like Noice does
         const tx = await this.multicallContract.aggregate(callData, {
           gasLimit: 2000000
         });
