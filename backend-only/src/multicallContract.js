@@ -161,7 +161,7 @@ class MulticallContract {
         console.log(`📋 Call data structure:`, JSON.stringify(callData, null, 2));
         
         // Our deployed contract address
-        const batchTransferAddress = process.env.BATCH_TRANSFER_CONTRACT_ADDRESS || '0x035b3c889a5c72604ac3512c673f7162bf9f5ec4';
+        const batchTransferAddress = process.env.BATCH_TRANSFER_CONTRACT_ADDRESS || '0x894df225e6674d67d1fb0c7b059b3201e5074432';
         
         if (batchTransferAddress === '0x0000000000000000000000000000000000000000') {
           throw new Error('BATCH_TRANSFER_CONTRACT_ADDRESS not set - using individual transfers');
