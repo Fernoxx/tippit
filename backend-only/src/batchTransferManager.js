@@ -290,14 +290,13 @@ class BatchTransferManager {
       for (const [authorAddress, authorTips] of Object.entries(tipsByAuthor)) {
         console.log(`👤 Processing ${authorTips.length} tips for author ${authorAddress}`);
         
-        // Get starting nonce for this author
-        let currentNonce = await this.provider.getTransactionCount(authorAddress, 'pending');
-        console.log(`🔢 Starting nonce for ${authorAddress}: ${currentNonce}`);
-        
         for (let i = 0; i < authorTips.length; i++) {
           const tip = authorTips[i];
           try {
             console.log(`📤 Transfer ${i + 1}/${authorTips.length}: ${tip.amount} tokens to ${tip.interaction.interactorAddress}`);
+            
+            // Get fresh nonce for each transaction to avoid conflicts
+            const currentNonce = await this.provider.getTransactionCount(authorAddress, 'pending');
             console.log(`🔢 Using nonce ${currentNonce} for author ${authorAddress}`);
             
             const tx = await tokenContract.transferFrom(
@@ -309,9 +308,6 @@ class BatchTransferManager {
                 nonce: currentNonce
               }
             );
-            
-            // Increment nonce for next transaction
-            currentNonce++;
             
             console.log(`✅ Transfer ${i + 1} submitted: ${tx.hash}`);
             
@@ -363,9 +359,10 @@ class BatchTransferManager {
             
             processed++;
             
-            // Small delay between transactions from same author to avoid nonce conflicts
+            // Small delay between transactions from same author to ensure proper sequencing
             if (i < authorTips.length - 1) {
-              await this.delay(1000); // 1 second delay
+              console.log(`⏳ Waiting 2 seconds before next transaction...`);
+              await this.delay(2000); // 2 second delay
             }
             
           } catch (error) {
