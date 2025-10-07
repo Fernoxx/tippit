@@ -1041,9 +1041,9 @@ app.get('/api/homepage', async (req, res) => {
           const farcasterUser = userData[userAddress]?.[0];
           
           if (farcasterUser) {
-            // Fetch user's recent casts (last 3 to filter main casts only)
+            // Fetch user's recent casts (last 10 to find main casts)
             const castsResponse = await fetch(
-              `https://api.neynar.com/v2/farcaster/feed/user/casts?fid=${farcasterUser.fid}&limit=3`,
+              `https://api.neynar.com/v2/farcaster/feed/user/casts?fid=${farcasterUser.fid}&limit=10`,
               {
                 headers: { 'x-api-key': process.env.NEYNAR_API_KEY }
               }
@@ -1053,6 +1053,18 @@ app.get('/api/homepage', async (req, res) => {
               const castsData = await castsResponse.json();
               const casts = castsData.casts || [];
               
+              // Debug logging for your address - show all casts
+              if (userAddress.toLowerCase() === '0x3cf87b76d2a1d36f9542b4da2a6b4b3dc0f0bb2e') {
+                console.log(`🔍 DEBUG ${userAddress}: Found ${casts.length} total casts`);
+                casts.forEach((cast, index) => {
+                  console.log(`  Cast ${index + 1}: ${cast.hash}`);
+                  console.log(`    - parent_hash: ${cast.parent_hash}`);
+                  console.log(`    - parent_author:`, cast.parent_author);
+                  console.log(`    - text: ${cast.text.substring(0, 100)}...`);
+                  console.log(`    - timestamp: ${new Date(cast.timestamp).toISOString()}`);
+                });
+              }
+              
               // Filter to only show MAIN CASTS (not replies) - NO CUTOFF DATE
               const mainCasts = casts.filter(cast => {
                 // Only main casts (no parent_hash and no parent_author with valid fid)
@@ -1060,18 +1072,19 @@ app.get('/api/homepage', async (req, res) => {
                 // Additional check: ensure parent_author.fid is null or undefined
                 const hasNoParentAuthor = !cast.parent_author || cast.parent_author.fid === null || cast.parent_author.fid === undefined;
                 
-                // Debug logging for your address
-                if (userAddress.toLowerCase() === '0x3cf87b76d2a1d36f9542b4da2a6b4b3dc0f0bb2e') {
-                  console.log(`🔍 DEBUG ${userAddress}: Cast ${cast.hash}`);
-                  console.log(`  - parent_hash: ${cast.parent_hash}`);
-                  console.log(`  - parent_author:`, cast.parent_author);
-                  console.log(`  - isMainCast: ${isMainCast}`);
-                  console.log(`  - hasNoParentAuthor: ${hasNoParentAuthor}`);
-                  console.log(`  - text: ${cast.text.substring(0, 100)}...`);
-                }
-                
                 return isMainCast && hasNoParentAuthor;
               }).slice(0, 1); // Take only the 1 most recent main cast per user
+              
+              // Debug logging for main casts
+              if (userAddress.toLowerCase() === '0x3cf87b76d2a1d36f9542b4da2a6b4b3dc0f0bb2e') {
+                console.log(`🔍 DEBUG ${userAddress}: Found ${mainCasts.length} main casts`);
+                if (mainCasts.length > 0) {
+                  console.log(`  ✅ Latest main cast: ${mainCasts[0].hash}`);
+                  console.log(`  - text: ${mainCasts[0].text.substring(0, 100)}...`);
+                } else {
+                  console.log(`  ❌ No main casts found in last 10 posts`);
+                }
+              }
               
               // Get user's tipping criteria
               const userConfig = await database.getUserConfig(userAddress);
