@@ -311,43 +311,36 @@ class BatchTransferManager {
             
             console.log(`✅ Transfer ${i + 1} submitted: ${tx.hash}`);
             
-            // Wait for confirmation with timeout
-            try {
-              console.log(`⏳ Waiting for confirmation of ${tx.hash}...`);
-              // Use Promise.race to add a timeout to tx.wait()
-              const receipt = await Promise.race([
-                tx.wait(1), // Wait for 1 confirmation
-                new Promise((_, reject) => 
-                  setTimeout(() => reject(new Error('Confirmation timeout')), 30000) // 30 second timeout
-                )
-              ]);
-              console.log(`✅ Transfer ${i + 1} confirmed: ${tx.hash} (Gas: ${receipt.gasUsed.toString()})`);
-            } catch (waitError) {
-              console.log(`⏳ Transfer ${i + 1} timeout, checking status...`);
-              console.log(`🔍 Wait error:`, waitError.message);
-              
-              // Check if transaction was mined
+            // Wait for confirmation with polling approach
+            console.log(`⏳ Waiting for confirmation of ${tx.hash}...`);
+            let confirmed = false;
+            let attempts = 0;
+            const maxAttempts = 30; // 30 attempts = 30 seconds
+            
+            while (!confirmed && attempts < maxAttempts) {
               try {
                 const receipt = await this.provider.getTransactionReceipt(tx.hash);
-                if (receipt && receipt.status === 1) {
-                  console.log(`✅ Transfer ${i + 1} confirmed: ${tx.hash}`);
-                } else if (receipt && receipt.status === 0) {
-                  throw new Error(`Transfer ${i + 1} failed: transaction reverted`);
-                } else {
-                  // Transaction might still be pending, wait a bit more
-                  console.log(`⏳ Transaction still pending, waiting 5 seconds...`);
-                  await this.delay(5000);
-                  const receipt2 = await this.provider.getTransactionReceipt(tx.hash);
-                  if (receipt2 && receipt2.status === 1) {
-                    console.log(`✅ Transfer ${i + 1} confirmed after delay: ${tx.hash}`);
-                  } else {
-                    throw new Error(`Transfer ${i + 1} failed or not confirmed after delay`);
+                if (receipt) {
+                  if (receipt.status === 1) {
+                    console.log(`✅ Transfer ${i + 1} confirmed: ${tx.hash} (Gas: ${receipt.gasUsed.toString()})`);
+                    confirmed = true;
+                  } else if (receipt.status === 0) {
+                    throw new Error(`Transfer ${i + 1} failed: transaction reverted`);
                   }
+                } else {
+                  // Transaction not mined yet, wait 1 second
+                  console.log(`⏳ Transaction ${tx.hash} not mined yet, attempt ${attempts + 1}/${maxAttempts}...`);
+                  await this.delay(1000);
+                  attempts++;
                 }
-              } catch (receiptError) {
-                console.error(`❌ Error checking receipt:`, receiptError.message);
-                throw new Error(`Transfer ${i + 1} failed: ${receiptError.message}`);
+              } catch (error) {
+                console.error(`❌ Error checking receipt:`, error.message);
+                throw new Error(`Transfer ${i + 1} failed: ${error.message}`);
               }
+            }
+            
+            if (!confirmed) {
+              throw new Error(`Transfer ${i + 1} failed: confirmation timeout after ${maxAttempts} seconds`);
             }
             
             // Update database
