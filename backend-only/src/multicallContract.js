@@ -242,6 +242,15 @@ class MulticallContract {
           contractAddress: batchTransferAddress
         });
         
+        // Try to estimate gas first to see if the call is valid
+        try {
+          const gasEstimate = await batchTransferContract.executeBatch.estimateGas(transferCalls);
+          console.log(`📋 Gas estimate: ${gasEstimate.toString()}`);
+        } catch (gasError) {
+          console.error(`❌ Gas estimation failed:`, gasError.message);
+          throw new Error(`Contract call validation failed: ${gasError.message}`);
+        }
+        
         const tx = await batchTransferContract.executeBatch(transferCalls, {
           gasLimit: 2000000
         });
