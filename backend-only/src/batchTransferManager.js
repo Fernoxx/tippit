@@ -304,6 +304,12 @@ class BatchTransferManager {
             const currentNonce = await this.provider.getTransactionCount(authorAddress, 'pending');
             console.log(`🔢 Using nonce ${currentNonce} for author ${authorAddress}`);
             
+            // Double-check nonce is fresh
+            const freshNonce = await this.provider.getTransactionCount(authorAddress, 'pending');
+            if (freshNonce !== currentNonce) {
+              console.log(`🔄 Nonce changed from ${currentNonce} to ${freshNonce}, using fresh nonce`);
+            }
+            
             const tx = await tokenContract.transferFrom(
               tip.interaction.authorAddress,
               tip.interaction.interactorAddress,
