@@ -162,63 +162,35 @@ class MulticallContract {
         
         try {
           // Try to execute all transfers in a single batch transaction like Noice
-          // Noice calls executeBatch directly on their wallet with (address,uint256,bytes)[] format
-          // We'll simulate this by executing all transfers in a single transaction
+          // Use Multicall3 to batch all transferFrom calls
           
-          console.log(`📋 Executing ${callData.length} transfers in batch (like Noice)`);
+          console.log(`📋 Executing ${callData.length} transfers in batch using Multicall3`);
           
-          // Execute all transfers sequentially in a single transaction context
-          const results = [];
-          let totalGasUsed = 0n;
-          let firstTxHash = null;
+          // Prepare multicall data
+          const multicallData = callData.map(call => call.callData);
           
-          for (let i = 0; i < callData.length; i++) {
-            const call = callData[i];
-            const tokenAddress = call.target;
-            const callDataBytes = call.callData;
+          // Execute batch using Multicall3
+          const tx = await this.multicallContract.multicall(multicallData, {
+            gasLimit: 2000000
+          });
+          
+          console.log(`✅ Batch transaction submitted: ${tx.hash}`);
+          
+          // Wait for confirmation
+          const receipt = await tx.wait();
+          
+          if (receipt.status === 1) {
+            console.log(`✅ Batch transaction confirmed: ${tx.hash} (Gas: ${receipt.gasUsed.toString()})`);
             
-            console.log(`📤 Batch transfer ${i + 1}/${callData.length} to ${tokenAddress}`);
-            
-            // Create ERC20 contract instance
-            const erc20Contract = new ethers.Contract(tokenAddress, [
-              "function transferFrom(address from, address to, uint256 amount) external returns (bool)"
-            ], this.wallet);
-            
-            // Execute transferFrom
-            const tx = await erc20Contract.transferFrom(
-              ...this.decodeTransferFromCallData(callDataBytes),
-              {
-                gasLimit: 100000
-              }
-            );
-            
-            if (i === 0) firstTxHash = tx.hash; // Use first transaction as batch hash
-            
-            console.log(`✅ Batch transfer ${i + 1} submitted: ${tx.hash}`);
-            
-            // Wait for confirmation
-            const receipt = await tx.wait();
-            if (receipt.status === 1) {
-              console.log(`✅ Batch transfer ${i + 1} confirmed: ${tx.hash}`);
-              totalGasUsed += receipt.gasUsed;
-              results.push({
-                success: true,
-                hash: tx.hash,
-                gasUsed: receipt.gasUsed.toString()
-              });
-            } else {
-              throw new Error(`Batch transfer ${i + 1} failed: transaction reverted`);
-            }
+            return [{
+              success: true,
+              hash: tx.hash,
+              gasUsed: receipt.gasUsed.toString(),
+              type: 'batch'
+            }];
+          } else {
+            throw new Error('Batch transaction reverted');
           }
-          
-          console.log(`✅ Batch transaction completed: ${results.length} transfers processed`);
-          
-          return [{
-            success: true,
-            hash: firstTxHash,
-            gasUsed: totalGasUsed.toString(),
-            type: 'batch'
-          }];
         } catch (batchError) {
           console.log(`❌ Batch transaction failed: ${batchError.message}`);
           console.log(`🔄 Falling back to individual transfers...`);

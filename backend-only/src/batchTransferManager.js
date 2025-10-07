@@ -1,6 +1,7 @@
 const { ethers } = require('ethers');
 const MulticallContract = require('./multicallContract');
 const BatchTipManager = require('./batchTipManager');
+const EcionTipnV2Manager = require('./ecionTipnV2Manager');
 // Use PostgreSQL database if available, fallback to file storage
 let database;
 try {
@@ -21,6 +22,7 @@ class BatchTransferManager {
     // Initialize batch managers
     this.multicallContract = new MulticallContract(this.provider, this.wallet);
     this.batchTipManager = new BatchTipManager(this.provider, this.wallet);
+    this.ecionTipnV2Manager = new EcionTipnV2Manager(this.provider, this.wallet);
     
     // Batch configuration
     this.batchIntervalMs = 60000; // 1 minute batches like Noice
