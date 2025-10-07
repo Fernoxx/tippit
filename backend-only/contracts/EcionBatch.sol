@@ -29,6 +29,7 @@ contract EcionBatch {
             // Execute the call using low-level call
             // The caller (owner/backend wallet) must have approval to spend tokens
             // Users approve the backend wallet (owner), not this contract
+            // We need to call transferFrom using the backend wallet as the caller
             (bool success, ) = target.call{value: value}(data);
             require(success, "Transfer failed");
             
