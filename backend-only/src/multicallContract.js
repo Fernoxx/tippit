@@ -304,10 +304,11 @@ class MulticallContract {
           throw new Error(`Contract ownership check failed: ${ownerError.message}`);
         }
         
-        // Check if authors have approved the batch contract
-        console.log(`📋 Checking if authors have approved the batch contract...`);
+        // Check if authors have approved the backend wallet
+        console.log(`📋 Checking if authors have approved the backend wallet...`);
         
-        // For now, let's try the batch transfer and see what happens
+        // The batch contract will call transferFrom using the backend wallet's allowance
+        // Users approve the backend wallet, not the batch contract
         try {
           const gasEstimate = await batchTransferContract.executeBatch.estimateGas(targets, values, datas);
           console.log(`📋 Gas estimate: ${gasEstimate.toString()}`);
