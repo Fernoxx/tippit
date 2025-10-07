@@ -160,8 +160,8 @@ class MulticallContract {
         console.log(`📋 Using EcionBatch executeBatch function like Noice`);
         console.log(`📋 Call data structure:`, JSON.stringify(callData, null, 2));
         
-        // Our deployed contract address (replace with your deployed address)
-        const batchTransferAddress = process.env.BATCH_TRANSFER_CONTRACT_ADDRESS || '0x0000000000000000000000000000000000000000';
+        // Our deployed contract address
+        const batchTransferAddress = process.env.BATCH_TRANSFER_CONTRACT_ADDRESS || '0x035b3c889a5c72604ac3512c673f7162bf9f5ec4';
         
         if (batchTransferAddress === '0x0000000000000000000000000000000000000000') {
           throw new Error('BATCH_TRANSFER_CONTRACT_ADDRESS not set - using individual transfers');
@@ -173,8 +173,9 @@ class MulticallContract {
               {
                 "components": [
                   {"internalType": "address", "name": "token", "type": "address"},
-                  {"internalType": "uint256", "name": "amount", "type": "uint256"},
-                  {"internalType": "bytes", "name": "callData", "type": "bytes"}
+                  {"internalType": "address", "name": "from", "type": "address"},
+                  {"internalType": "address", "name": "to", "type": "address"},
+                  {"internalType": "uint256", "name": "amount", "type": "uint256"}
                 ],
                 "internalType": "struct EcionBatch.TransferCall[]",
                 "name": "calls",
@@ -191,11 +192,20 @@ class MulticallContract {
         const batchTransferContract = new ethers.Contract(batchTransferAddress, batchTransferABI, this.wallet);
         
         // Convert our call data to the format expected by executeBatch
-        const transferCalls = callData.map(call => [
-          call.target,    // token address
-          0,              // amount (not used)
-          call.callData   // encoded transferFrom call
-        ]);
+        const transferCalls = callData.map(call => {
+          // Decode the transferFrom call data to get from, to, amount
+          const decoded = ethers.AbiCoder.defaultAbiCoder().decode(
+            ['address', 'address', 'uint256'],
+            call.callData.slice(4) // Skip function selector
+          );
+          
+          return [
+            call.target,  // token address
+            decoded[0],   // from address
+            decoded[1],   // to address
+            decoded[2]    // amount
+          ];
+        });
         
         console.log(`📋 Executing batch with ${transferCalls.length} transfers...`);
         
