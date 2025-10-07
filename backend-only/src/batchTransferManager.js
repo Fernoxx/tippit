@@ -311,11 +311,16 @@ class BatchTransferManager {
             
             console.log(`✅ Transfer ${i + 1} submitted: ${tx.hash}`);
             
+            // Check if transaction was actually submitted
+            if (!tx.hash) {
+              throw new Error(`Transfer ${i + 1} failed: no transaction hash returned`);
+            }
+            
             // Wait for confirmation with polling approach
             console.log(`⏳ Waiting for confirmation of ${tx.hash}...`);
             let confirmed = false;
             let attempts = 0;
-            const maxAttempts = 30; // 30 attempts = 30 seconds
+            const maxAttempts = 15; // 15 attempts = 15 seconds
             
             while (!confirmed && attempts < maxAttempts) {
               try {
