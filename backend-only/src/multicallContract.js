@@ -156,64 +156,81 @@ class MulticallContract {
         console.log(`📋 Call data array length: ${callData.length}`);
         console.log(`📋 First call data: ${callData[0]?.callData?.substring(0, 50)}...`);
 
-        // Execute individual transfers directly (this was working!)
-        console.log(`📋 Using direct individual transfers (working approach)`);
+        // Try batch transaction FIRST (like Noice), then fallback to individual transfers
+        console.log(`📋 Attempting batch transaction FIRST (like Noice)`);
         console.log(`📋 Call data structure:`, JSON.stringify(callData, null, 2));
         
-        // Execute each transfer directly using the backend wallet
-        const results = [];
-        for (let i = 0; i < callData.length; i++) {
-          const call = callData[i];
-          const tokenAddress = call.target;
-          const callDataBytes = call.callData;
+        try {
+          // Try to execute all transfers in a single batch transaction
+          const batchTx = await this.executeBatchTransaction(callData);
+          console.log(`✅ Batch transaction successful: ${batchTx.hash}`);
+          return [{
+            success: true,
+            hash: batchTx.hash,
+            gasUsed: batchTx.gasUsed?.toString() || 'unknown',
+            type: 'batch'
+          }];
+        } catch (batchError) {
+          console.log(`❌ Batch transaction failed: ${batchError.message}`);
+          console.log(`🔄 Falling back to individual transfers...`);
           
-          try {
-            console.log(`📤 Direct transfer ${i + 1}/${callData.length} to ${tokenAddress}`);
+          // Fallback to individual transfers
+          const results = [];
+          for (let i = 0; i < callData.length; i++) {
+            const call = callData[i];
+            const tokenAddress = call.target;
+            const callDataBytes = call.callData;
             
-            // Create ERC20 contract instance
-            const erc20Contract = new ethers.Contract(tokenAddress, [
-              "function transferFrom(address from, address to, uint256 amount) external returns (bool)"
-            ], this.wallet);
-            
-            // Execute transferFrom directly
-            const tx = await erc20Contract.transferFrom(
-              // Decode the call data to get from, to, amount
-              ...this.decodeTransferFromCallData(callDataBytes),
-              {
-                gasLimit: 100000
+            try {
+              console.log(`📤 Individual transfer ${i + 1}/${callData.length} to ${tokenAddress}`);
+              
+              // Create ERC20 contract instance
+              const erc20Contract = new ethers.Contract(tokenAddress, [
+                "function transferFrom(address from, address to, uint256 amount) external returns (bool)"
+              ], this.wallet);
+              
+              // Execute transferFrom directly
+              const tx = await erc20Contract.transferFrom(
+                // Decode the call data to get from, to, amount
+                ...this.decodeTransferFromCallData(callDataBytes),
+                {
+                  gasLimit: 100000
+                }
+              );
+              
+              console.log(`✅ Transfer ${i + 1} submitted: ${tx.hash}`);
+              
+              // Wait for confirmation
+              const receipt = await tx.wait();
+              if (receipt.status === 1) {
+                console.log(`✅ Transfer ${i + 1} confirmed: ${tx.hash}`);
+                results.push({
+                  success: true,
+                  hash: tx.hash,
+                  gasUsed: receipt.gasUsed.toString(),
+                  type: 'individual'
+                });
+              } else {
+                throw new Error(`Transfer ${i + 1} failed: transaction reverted`);
               }
-            );
-            
-            console.log(`✅ Transfer ${i + 1} submitted: ${tx.hash}`);
-            
-            // Wait for confirmation
-            const receipt = await tx.wait();
-            if (receipt.status === 1) {
-              console.log(`✅ Transfer ${i + 1} confirmed: ${tx.hash}`);
+              
+              // Small delay between transfers
+              if (i < callData.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              }
+              
+            } catch (error) {
+              console.error(`❌ Transfer ${i + 1} failed:`, error.message);
               results.push({
-                success: true,
-                hash: tx.hash,
-                gasUsed: receipt.gasUsed.toString()
+                success: false,
+                error: error.message,
+                type: 'individual'
               });
-            } else {
-              throw new Error(`Transfer ${i + 1} failed: transaction reverted`);
             }
-            
-            // Small delay between transfers
-            if (i < callData.length - 1) {
-              await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-            
-          } catch (error) {
-            console.error(`❌ Transfer ${i + 1} failed:`, error.message);
-            results.push({
-              success: false,
-              error: error.message
-            });
           }
+          
+          return results;
         }
-        
-        return results;
 
         console.log(`✅ Multicall transaction submitted: ${tx.hash}`);
         const receipt = await tx.wait();
