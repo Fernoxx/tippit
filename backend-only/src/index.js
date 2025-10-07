@@ -1465,63 +1465,6 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Serve frontend static files if in production (AFTER all API routes)
-if (process.env.NODE_ENV === 'production') {
-  try {
-    // Check if frontend build exists
-    const frontendBuildPath = path.join(__dirname, '../../.next');
-    const publicPath = path.join(__dirname, '../../public');
-    
-    console.log('🔍 Checking frontend paths:');
-    console.log('  Build path:', frontendBuildPath);
-    console.log('  Public path:', publicPath);
-    
-    // Serve Next.js static files
-    app.use('/_next', express.static(path.join(frontendBuildPath)));
-    app.use('/public', express.static(publicPath));
-    
-    // Simple fallback for frontend routes (LAST ROUTE)
-    app.get('*', (req, res) => {
-      // For now, serve a simple HTML page until Next.js is properly configured
-      res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Ecion - Farcaster Tipping App</title>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          <style>
-            body { font-family: system-ui; margin: 0; padding: 40px; background: #f9fafb; }
-            .container { max-width: 600px; margin: 0 auto; text-align: center; }
-            .card { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-            .btn { display: inline-block; background: #3b82f6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; margin: 8px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="card">
-              <h1>🎉 Ecion is Running!</h1>
-              <p>Your Farcaster tipping app is successfully deployed on Railway.</p>
-              <p><strong>Backend:</strong> ✅ Active<br>
-                 <strong>Database:</strong> ✅ Connected<br>
-                 <strong>Webhooks:</strong> Ready</p>
-              <a href="/health" class="btn">Check Health</a>
-              <a href="/api/debug/pending-tips" class="btn">Debug Info</a>
-              <a href="/api/test-webhook" class="btn">Test Webhook</a>
-              <p><em>Note: Full Next.js frontend deployment coming soon...</em></p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `);
-    });
-    
-    console.log('🌐 Frontend fallback page configured');
-  } catch (error) {
-    console.error('❌ Frontend serving setup failed:', error);
-  }
-}
-
 // Test homepage endpoint to trigger debug logs
 app.get('/api/debug/test-homepage', async (req, res) => {
   try {
@@ -1580,7 +1523,7 @@ app.get('/api/debug/user-status/:address', async (req, res) => {
     if (farcasterUser) {
       try {
         const castsResponse = await fetch(
-          `https://api.neynar.com/v2/farcaster/feed/user/casts?fid=${farcasterUser.fid}&limit=3`,
+          `https://api.neynar.com/v2/farcaster/feed/user/casts?fid=${farcasterUser.fid}&limit=10`,
           {
             headers: { 'x-api-key': process.env.NEYNAR_API_KEY }
           }
@@ -1631,6 +1574,64 @@ app.get('/api/debug/user-status/:address', async (req, res) => {
     res.status(500).json({ error: 'Failed to check user status' });
   }
 });
+
+// Serve frontend static files if in production (AFTER all API routes)
+if (process.env.NODE_ENV === 'production') {
+  try {
+    // Check if frontend build exists
+    const frontendBuildPath = path.join(__dirname, '../../.next');
+    const publicPath = path.join(__dirname, '../../public');
+    
+    console.log('🔍 Checking frontend paths:');
+    console.log('  Build path:', frontendBuildPath);
+    console.log('  Public path:', publicPath);
+    
+    // Serve Next.js static files
+    app.use('/_next', express.static(path.join(frontendBuildPath)));
+    app.use('/public', express.static(publicPath));
+    
+    // Simple fallback for frontend routes (LAST ROUTE)
+    app.get('*', (req, res) => {
+      // For now, serve a simple HTML page until Next.js is properly configured
+      res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Ecion - Farcaster Tipping App</title>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <style>
+            body { font-family: system-ui; margin: 0; padding: 40px; background: #f9fafb; }
+            .container { max-width: 600px; margin: 0 auto; text-align: center; }
+            .card { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+            .btn { display: inline-block; background: #3b82f6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; margin: 8px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="card">
+              <h1>🎉 Ecion is Running!</h1>
+              <p>Your Farcaster tipping app is successfully deployed on Railway.</p>
+              <p><strong>Backend:</strong> ✅ Active<br>
+                 <strong>Database:</strong> ✅ Connected<br>
+                 <strong>Webhooks:</strong> Ready</p>
+              <a href="/health" class="btn">Check Health</a>
+              <a href="/api/debug/pending-tips" class="btn">Debug Info</a>
+              <a href="/api/test-webhook" class="btn">Test Webhook</a>
+              <p><em>Note: Full Next.js frontend deployment coming soon...</em></p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `);
+    });
+    
+    console.log('🌐 Frontend fallback page configured');
+  } catch (error) {
+    console.error('❌ Frontend serving setup failed:', error);
+  }
+}
+
 
 // Start server
 app.listen(PORT, () => {
