@@ -220,12 +220,11 @@ class BatchTransferManager {
         amount: ethers.parseUnits(tip.amount.toString(), 6) // USDC has 6 decimals
       }));
 
-      // Calculate gas savings
-      const gasSavings = this.multicallContract.calculateGasSavings(tips.length);
-      console.log(`💰 Gas savings: ${gasSavings.savingsPercent.toFixed(1)}% (${gasSavings.savings} gas saved)`);
-
-      // Execute batch transfer using multicall
-      const results = await this.multicallContract.executeBatchTransfers(transfers);
+      // Use individual transfers for now (multicall has issues)
+      console.log(`💸 Executing ${tips.length} transfers for token ${tokenAddress} using individual transfers...`);
+      console.log(`💰 Individual transfers are more reliable than multicall`);
+      
+      return await this.executeIndividualTransfers(tokenAddress, tips);
       
       console.log(`✅ Multicall batch successful: ${results.length} token batches processed`);
       
@@ -309,8 +308,21 @@ class BatchTransferManager {
             );
             
             console.log(`✅ Transfer ${i + 1} submitted: ${tx.hash}`);
-            await tx.wait();
-            console.log(`✅ Transfer ${i + 1} confirmed: ${tx.hash}`);
+            
+            // Wait for confirmation with timeout
+            try {
+              const receipt = await tx.wait(3); // Wait for 3 confirmations
+              console.log(`✅ Transfer ${i + 1} confirmed: ${tx.hash} (Gas: ${receipt.gasUsed.toString()})`);
+            } catch (waitError) {
+              console.log(`⏳ Transfer ${i + 1} timeout, checking status...`);
+              // Check if transaction was mined
+              const receipt = await this.provider.getTransactionReceipt(tx.hash);
+              if (receipt && receipt.status === 1) {
+                console.log(`✅ Transfer ${i + 1} confirmed: ${tx.hash}`);
+              } else {
+                throw new Error(`Transfer ${i + 1} failed or not confirmed`);
+              }
+            }
             
             // Update database
             await this.updateUserSpending(tip.interaction.authorAddress, tip.amount);
