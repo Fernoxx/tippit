@@ -170,25 +170,70 @@ class MulticallContract {
         const batchTransferABI = [
           {
             "inputs": [],
-            "name": "owner",
-            "outputs": [
+            "stateMutability": "nonpayable",
+            "type": "constructor"
+          },
+          {
+            "anonymous": false,
+            "inputs": [
               {
-                "internalType": "address",
-                "name": "",
-                "type": "address"
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "totalTransfers",
+                "type": "uint256"
+              },
+              {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "gasUsed",
+                "type": "uint256"
               }
             ],
-            "stateMutability": "view",
+            "name": "BatchTransferExecuted",
+            "type": "event"
+          },
+          {
+            "inputs": [
+              {
+                "internalType": "address",
+                "name": "token",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "amount",
+                "type": "uint256"
+              }
+            ],
+            "name": "emergencyWithdraw",
+            "outputs": [],
+            "stateMutability": "nonpayable",
             "type": "function"
           },
           {
             "inputs": [
               {
                 "components": [
-                  {"internalType": "address", "name": "token", "type": "address"},
-                  {"internalType": "address", "name": "from", "type": "address"},
-                  {"internalType": "address", "name": "to", "type": "address"},
-                  {"internalType": "uint256", "name": "amount", "type": "uint256"}
+                  {
+                    "internalType": "address",
+                    "name": "token",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "address",
+                    "name": "from",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "address",
+                    "name": "to",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "uint256",
+                    "name": "amount",
+                    "type": "uint256"
+                  }
                 ],
                 "internalType": "struct EcionBatch.TransferCall[]",
                 "name": "calls",
@@ -198,6 +243,32 @@ class MulticallContract {
             "name": "executeBatch",
             "outputs": [],
             "stateMutability": "nonpayable",
+            "type": "function"
+          },
+          {
+            "inputs": [
+              {
+                "internalType": "address",
+                "name": "newOwner",
+                "type": "address"
+              }
+            ],
+            "name": "transferOwnership",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+          },
+          {
+            "inputs": [],
+            "name": "owner",
+            "outputs": [
+              {
+                "internalType": "address",
+                "name": "",
+                "type": "address"
+              }
+            ],
+            "stateMutability": "view",
             "type": "function"
           }
         ];
