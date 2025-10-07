@@ -156,11 +156,21 @@ class MulticallContract {
         console.log(`📋 Call data array length: ${callData.length}`);
         console.log(`📋 First call data: ${callData[0]?.callData?.substring(0, 50)}...`);
 
-        // Execute multicall using aggregate function
-        console.log(`📋 Sending aggregate multicall with ${callData.length} calls`);
+        // Execute multicall using direct transaction
+        console.log(`📋 Sending multicall with ${callData.length} calls`);
+        console.log(`📋 Call data structure:`, JSON.stringify(callData, null, 2));
         
-        const tx = await this.multicallContract.aggregate(callData, {
-          gasLimit: 2000000 // Higher gas limit for batch operations
+        // Encode the multicall function call manually
+        const multicallData = this.multicallContract.interface.encodeFunctionData("multicall", [
+          callData.map(call => call.callData)
+        ]);
+        
+        console.log(`📋 Encoded multicall data: ${multicallData.substring(0, 50)}...`);
+        
+        const tx = await this.wallet.sendTransaction({
+          to: this.multicallAddress,
+          data: multicallData,
+          gasLimit: 2000000
         });
 
         console.log(`✅ Multicall transaction submitted: ${tx.hash}`);
