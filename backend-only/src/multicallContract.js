@@ -160,6 +160,12 @@ class MulticallContract {
         console.log(`📋 Sending aggregate multicall with ${callData.length} calls`);
         console.log(`📋 Call data structure:`, JSON.stringify(callData, null, 2));
         
+        // Debug: Check if callData is properly formatted
+        for (let i = 0; i < callData.length; i++) {
+          const call = callData[i];
+          console.log(`📋 Call ${i}: target=${call.target}, callData=${call.callData.substring(0, 20)}...`);
+        }
+        
         // Use the aggregate function exactly like Noice does
         const tx = await this.multicallContract.aggregate(callData, {
           gasLimit: 2000000
