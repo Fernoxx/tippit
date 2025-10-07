@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.30;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -7,13 +7,21 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 contract EcionBatch is Ownable {
     event BatchTransferExecuted(uint256 totalTransfers, uint256 gasUsed);
     
+    struct TransferCall {
+        address token;
+        uint256 amount;
+        bytes callData;
+    }
+    
     // This is exactly like Noice's executeBatch function
-    function executeBatch((address,uint256,bytes)[] calldata calls) external onlyOwner {
+    function executeBatch(TransferCall[] calldata calls) external onlyOwner {
         uint256 gasStart = gasleft();
         uint256 totalTransfers = 0;
         
         for (uint256 i = 0; i < calls.length; i++) {
-            (address token, uint256 amount, bytes memory callData) = calls[i];
+            TransferCall memory call = calls[i];
+            address token = call.token;
+            bytes memory callData = call.callData;
             
             // Decode the transferFrom call data
             (address from, address to, uint256 transferAmount) = abi.decode(callData[4:], (address, address, uint256));
