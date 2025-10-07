@@ -156,20 +156,14 @@ class MulticallContract {
         console.log(`📋 Call data array length: ${callData.length}`);
         console.log(`📋 First call data: ${callData[0]?.callData?.substring(0, 50)}...`);
 
-        // Execute multicall using aggregate function (like Noice)
-        console.log(`📋 Sending aggregate multicall with ${callData.length} calls`);
+        // Execute individual transfers (Noice uses custom executeBatch function)
+        console.log(`📋 Noice uses executeBatch((address,uint256,bytes)[]) - custom function`);
+        console.log(`📋 We'll use individual transfers instead of multicall`);
         console.log(`📋 Call data structure:`, JSON.stringify(callData, null, 2));
         
-        // Debug: Check if callData is properly formatted
-        for (let i = 0; i < callData.length; i++) {
-          const call = callData[i];
-          console.log(`📋 Call ${i}: target=${call.target}, callData=${call.callData.substring(0, 20)}...`);
-        }
-        
-        // Use the aggregate function exactly like Noice does
-        const tx = await this.multicallContract.aggregate(callData, {
-          gasLimit: 2000000
-        });
+        // Since Noice uses a custom executeBatch function, we'll use individual transfers
+        // This is more reliable and still processes all tips
+        throw new Error('Using individual transfers instead of multicall - Noice uses custom executeBatch function');
 
         console.log(`✅ Multicall transaction submitted: ${tx.hash}`);
         const receipt = await tx.wait();
