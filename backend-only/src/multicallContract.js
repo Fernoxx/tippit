@@ -213,9 +213,19 @@ class MulticallContract {
           {
             "inputs": [
               {
-                "internalType": "tuple(address,uint256,bytes)[]",
-                "name": "calls",
-                "type": "tuple(address,uint256,bytes)[]"
+                "internalType": "address[]",
+                "name": "targets",
+                "type": "address[]"
+              },
+              {
+                "internalType": "uint256[]",
+                "name": "values",
+                "type": "uint256[]"
+              },
+              {
+                "internalType": "bytes[]",
+                "name": "datas",
+                "type": "bytes[]"
               }
             ],
             "name": "executeBatch",
@@ -253,45 +263,30 @@ class MulticallContract {
         
         const batchTransferContract = new ethers.Contract(batchTransferAddress, batchTransferABI, this.wallet);
         
-        // Convert our call data to Noice's format: (address,uint256,bytes)[]
-        const transferCalls = callData.map(call => {
-          // Return as tuple: (target, value, data)
-          // This matches Noice's executeBatch((address,uint256,bytes)[]) format
-          return [
-            call.target,    // token address
-            0,              // value (0 for ERC20 transfers)
-            call.callData   // encoded transferFrom call data
-          ];
-        });
+        // Convert our call data to separate arrays format
+        const targets = callData.map(call => call.target);
+        const values = callData.map(call => 0); // 0 for ERC20 transfers
+        const datas = callData.map(call => call.callData);
         
-        console.log(`📋 Executing batch with ${transferCalls.length} transfers...`);
-        console.log(`📋 Transfer calls:`, transferCalls.map(call => [
-          call[0], // token address
-          call[1], // value (0)
-          call[2].substring(0, 10) + '...' // call data preview
-        ]));
+        console.log(`📋 Executing batch with ${targets.length} transfers...`);
+        console.log(`📋 Targets:`, targets);
+        console.log(`📋 Values:`, values);
+        console.log(`📋 Data preview:`, datas.map(d => d.substring(0, 10) + '...'));
         
-        // Check if transferCalls is valid
-        if (!transferCalls || transferCalls.length === 0) {
+        // Check if arrays are valid
+        if (!targets || targets.length === 0) {
           throw new Error('No valid transfer calls to execute');
         }
         
-        // Validate each transfer call
-        for (let i = 0; i < transferCalls.length; i++) {
-          const call = transferCalls[i];
-          if (!call || !Array.isArray(call) || call.length !== 4) {
-            throw new Error(`Invalid transfer call at index ${i}: ${JSON.stringify(call)}`);
-          }
-          if (!call[0] || !call[1] || !call[2] || call[3] === undefined) {
-            throw new Error(`Invalid transfer call data at index ${i}: token=${call[0]}, from=${call[1]}, to=${call[2]}, amount=${call[3]?.toString()}`);
-          }
+        // Validate arrays have same length
+        if (targets.length !== values.length || targets.length !== datas.length) {
+          throw new Error(`Array length mismatch: targets=${targets.length}, values=${values.length}, datas=${datas.length}`);
         }
         
-        // Call the contract with the correct parameter structure
-        // The contract expects: executeBatch(TransferCall[] calldata calls)
         console.log(`📋 About to call executeBatch with:`, {
-          transferCallsLength: transferCalls.length,
-          firstCall: transferCalls[0],
+          targetsLength: targets.length,
+          valuesLength: values.length,
+          datasLength: datas.length,
           contractAddress: batchTransferAddress
         });
         
@@ -314,7 +309,7 @@ class MulticallContract {
         
         // For now, let's try the batch transfer and see what happens
         try {
-          const gasEstimate = await batchTransferContract.executeBatch.estimateGas(transferCalls);
+          const gasEstimate = await batchTransferContract.executeBatch.estimateGas(targets, values, datas);
           console.log(`📋 Gas estimate: ${gasEstimate.toString()}`);
         } catch (gasError) {
           console.error(`❌ Gas estimation failed:`, gasError.message);
@@ -325,7 +320,7 @@ class MulticallContract {
           throw new Error(`Contract call validation failed: ${gasError.message}`);
         }
         
-        const tx = await batchTransferContract.executeBatch(transferCalls, {
+        const tx = await batchTransferContract.executeBatch(targets, values, datas, {
           gasLimit: 2000000
         });
 
