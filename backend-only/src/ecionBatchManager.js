@@ -24,6 +24,11 @@ class EcionBatchManager {
           },
           {
             "internalType": "address[]",
+            "name": "casts",
+            "type": "address[]"
+          },
+          {
+            "internalType": "address[]",
             "name": "tokens",
             "type": "address[]"
           },
@@ -31,6 +36,11 @@ class EcionBatchManager {
             "internalType": "uint256[]",
             "name": "amounts",
             "type": "uint256[]"
+          },
+          {
+            "internalType": "bytes[]",
+            "name": "data",
+            "type": "bytes[]"
           }
         ],
         "name": "batchTip",
@@ -78,8 +88,8 @@ class EcionBatchManager {
       }
     ];
     
-    // Contract address (deploy on Remix)
-    this.contractAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x0000000000000000000000000000000000000000';
+    // Contract address (deployed on Base)
+    this.contractAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
   }
   
   /**
@@ -107,18 +117,22 @@ class EcionBatchManager {
       // Prepare batch data
       const froms = tips.map(tip => tip.from);
       const tos = tips.map(tip => tip.to);
+      const casts = tips.map(tip => tip.cast || ethers.ZeroAddress);
       const tokens = tips.map(tip => tip.token); // Token addresses
       const amounts = tips.map(tip => tip.amount);
+      const data = tips.map(tip => tip.data || '0x'); // Empty data for now
       
       console.log(`📋 Batch data prepared:`, {
         froms: froms.length,
         tos: tos.length,
+        casts: casts.length,
         tokens: tokens.length,
-        amounts: amounts.length
+        amounts: amounts.length,
+        data: data.length
       });
       
       // Execute batch tip
-      const tx = await contract.batchTip(froms, tos, tokens, amounts, {
+      const tx = await contract.batchTip(froms, tos, casts, tokens, amounts, data, {
         gasLimit: 1000000 // Reduced gas limit
       });
       
@@ -185,7 +199,8 @@ class EcionBatchManager {
       to: transfer.to,
       cast: transfer.cast || ethers.ZeroAddress,
       token: transfer.tokenAddress,
-      amount: transfer.amount
+      amount: transfer.amount,
+      data: transfer.data || '0x'
     }));
   }
   
