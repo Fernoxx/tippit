@@ -300,12 +300,46 @@ async function webhookHandler(req, res) {
     if (interaction.castHash) {
       const isCastEligible = await database.isCastEligibleForTips(interaction.authorFid, interaction.castHash);
       if (!isCastEligible) {
-        console.log(`🚫 Cast ${interaction.castHash} not eligible for tips (not the latest main cast)`);
-        return res.status(200).json({
-          success: true,
-          processed: false,
-          reason: 'Cast not eligible for tips (not the latest main cast)'
-        });
+        console.log(`🚫 Cast ${interaction.castHash} not in database, fetching to verify...`);
+        
+        // The cast might not be in database yet (webhook doesn't track user's own casts)
+        // Fetch the cast to check if it's a main cast and update database
+        try {
+          const cast = await getCastByHash(interaction.castHash);
+          if (cast) {
+            const isMainCast = !cast.parent_hash && (!cast.parent_author || !cast.parent_author.fid || cast.parent_author.fid === null);
+            
+            if (isMainCast && cast.author.fid === interaction.authorFid) {
+              console.log(`✅ Cast ${interaction.castHash} is a main cast, adding to database`);
+              await database.addUserCast(interaction.authorFid, interaction.castHash, true);
+              
+              // Now check eligibility again
+              const nowEligible = await database.isCastEligibleForTips(interaction.authorFid, interaction.castHash);
+              if (!nowEligible) {
+                console.log(`🚫 Cast ${interaction.castHash} still not eligible (not the latest main cast)`);
+                return res.status(200).json({
+                  success: true,
+                  processed: false,
+                  reason: 'Cast not eligible for tips (not the latest main cast)'
+                });
+              }
+            } else {
+              console.log(`🚫 Cast ${interaction.castHash} is not a main cast or wrong author`);
+              return res.status(200).json({
+                success: true,
+                processed: false,
+                reason: 'Cast not eligible for tips (not a main cast)'
+              });
+            }
+          }
+        } catch (error) {
+          console.error(`❌ Error fetching cast for eligibility check:`, error);
+          return res.status(200).json({
+            success: true,
+            processed: false,
+            reason: 'Could not verify cast eligibility'
+          });
+        }
       }
     }
     
