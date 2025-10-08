@@ -166,33 +166,16 @@ class BatchTransferManager {
     }
 
     this.isProcessing = true;
-    console.log(`🔄 Processing batch of ${this.pendingTips.length} tips...`);
+    console.log(`🔄 Processing batch of ${this.pendingTips.length} tips in ONE transaction...`);
 
     try {
-      // Group tips by token address for efficient batching
-      const tipsByToken = this.groupTipsByToken(this.pendingTips);
+      // Process ALL tips in ONE transaction (even with different tokens)
+      const result = await this.executeBatchTransfer(this.pendingTips);
       
-      let totalProcessed = 0;
-      let totalFailed = 0;
-
-      // Process each token batch
-      for (const [tokenAddress, tips] of Object.entries(tipsByToken)) {
-        console.log(`💸 Processing ${tips.length} tips for token ${tokenAddress}`);
-        
-        try {
-          const result = await this.executeBatchTransfer(tokenAddress, tips);
-          totalProcessed += result.processed;
-          totalFailed += result.failed;
-        } catch (error) {
-          console.error(`❌ Batch transfer failed for token ${tokenAddress}:`, error);
-          totalFailed += tips.length;
-        }
-      }
-
       // Clear processed tips
       this.pendingTips = [];
       
-      console.log(`✅ Batch processing complete: ${totalProcessed} processed, ${totalFailed} failed`);
+      console.log(`✅ Batch processing complete: ${result.processed} processed, ${result.failed} failed`);
 
     } catch (error) {
       console.error('❌ Batch processing error:', error);
@@ -201,30 +184,20 @@ class BatchTransferManager {
     }
   }
 
-  groupTipsByToken(tips) {
-    const grouped = {};
-    for (const tip of tips) {
-      if (!grouped[tip.tokenAddress]) {
-        grouped[tip.tokenAddress] = [];
-      }
-      grouped[tip.tokenAddress].push(tip);
-    }
-    return grouped;
-  }
 
-  async executeBatchTransfer(tokenAddress, tips) {
+  async executeBatchTransfer(tips) {
     let processed = 0;
     let failed = 0;
 
     try {
-      console.log(`💸 Executing ${tips.length} transfers for token ${tokenAddress}...`);
+      console.log(`💸 Executing ${tips.length} transfers (ALL tokens) in ONE transaction...`);
       
       // Try EcionBatch first (most efficient)
       const isEcionBatchReady = await this.ecionBatchManager.isContractReady();
       if (isEcionBatchReady) {
         console.log(`🎯 Trying EcionBatch contract first...`);
         try {
-          // Prepare transfer data for EcionBatch
+          // Prepare transfer data for EcionBatch - ALL tips in one batch
           const transfers = tips.map(tip => ({
             tokenAddress: tip.tokenAddress,
             from: tip.interaction.authorAddress,
@@ -258,7 +231,7 @@ class BatchTransferManager {
               }
             }
           }
-          
+
           return { processed, failed };
         } catch (error) {
           console.log(`❌ EcionBatch failed: ${error.message}`);
