@@ -24,11 +24,6 @@ class EcionBatchManager {
           },
           {
             "internalType": "address[]",
-            "name": "casts",
-            "type": "address[]"
-          },
-          {
-            "internalType": "address[]",
             "name": "tokens",
             "type": "address[]"
           },
@@ -36,11 +31,6 @@ class EcionBatchManager {
             "internalType": "uint256[]",
             "name": "amounts",
             "type": "uint256[]"
-          },
-          {
-            "internalType": "bytes[]",
-            "name": "data",
-            "type": "bytes[]"
           }
         ],
         "name": "batchTip",
@@ -117,23 +107,19 @@ class EcionBatchManager {
       // Prepare batch data
       const froms = tips.map(tip => tip.from);
       const tos = tips.map(tip => tip.to);
-      const casts = tips.map(tip => tip.cast || ethers.ZeroAddress); // Use cast address or zero
       const tokens = tips.map(tip => tip.token); // Token addresses
       const amounts = tips.map(tip => tip.amount);
-      const data = tips.map(tip => '0x'); // No data needed
       
       console.log(`📋 Batch data prepared:`, {
         froms: froms.length,
         tos: tos.length,
-        casts: casts.length,
         tokens: tokens.length,
-        amounts: amounts.length,
-        data: data.length
+        amounts: amounts.length
       });
       
       // Execute batch tip
-      const tx = await contract.batchTip(froms, tos, casts, tokens, amounts, data, {
-        gasLimit: 2000000
+      const tx = await contract.batchTip(froms, tos, tokens, amounts, {
+        gasLimit: 1000000 // Reduced gas limit
       });
       
       console.log(`✅ Batch tip transaction submitted: ${tx.hash}`);
@@ -171,34 +157,19 @@ class EcionBatchManager {
    * @returns {Array} - Success results
    */
   async parseBatchResults(contract, receipt) {
+    // Since we removed events for gas efficiency, 
+    // we'll return a simple success array based on transaction success
     const results = [];
     
-    // Parse Tip events
-    const tipEvent = contract.interface.getEvent('Tip');
-    const tipLogs = receipt.logs.filter(log => {
-      try {
-        return contract.interface.parseLog(log)?.name === 'Tip';
-      } catch {
-        return false;
-      }
-    });
-    
-    tipLogs.forEach((log, index) => {
-      try {
-        const parsed = contract.interface.parseLog(log);
-        results.push({
-          index,
-          success: true,
-          from: parsed.args.from,
-          to: parsed.args.to,
-          cast: parsed.args.cast,
-          token: parsed.args.token,
-          amount: parsed.args.quantity.toString()
-        });
-      } catch (error) {
-        console.log(`⚠️ Could not parse tip event ${index}: ${error.message}`);
-      }
-    });
+    if (receipt.status === 1) {
+      // Transaction succeeded, all transfers were processed
+      // We can't determine individual success without events, 
+      // but the transaction succeeded
+      results.push({
+        success: true,
+        message: 'Batch transaction completed successfully'
+      });
+    }
     
     return results;
   }
