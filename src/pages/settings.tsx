@@ -10,7 +10,6 @@ import {
   Heart,
   MessageCircle,
   Repeat,
-  Quote,
   UserPlus,
   Check,
   X,
@@ -69,14 +68,12 @@ export default function Settings() {
     like: '0.005',
     reply: '0.025',
     recast: '0.025',
-    quote: '0.025',
     follow: '0',
   });
   const [tippingToggles, setTippingToggles] = useState({
     like: true,
     reply: true,
     recast: true,
-    quote: true,
     follow: false,
   });
   const [criteria, setCriteria] = useState({
@@ -92,14 +89,12 @@ export default function Settings() {
         like: userConfig.likeAmount?.toString() || '0.005',
         reply: userConfig.replyAmount?.toString() || '0.025',
         recast: userConfig.recastAmount?.toString() || '0.025',
-        quote: userConfig.quoteAmount?.toString() || '0.025',
         follow: userConfig.followAmount?.toString() || '0',
       });
       setTippingToggles({
         like: userConfig.likeEnabled ?? true,
         reply: userConfig.replyEnabled ?? true,
         recast: userConfig.recastEnabled ?? true,
-        quote: userConfig.quoteEnabled ?? true,
         follow: userConfig.followEnabled ?? false,
       });
       setCriteria({
@@ -207,7 +202,6 @@ export default function Settings() {
         likeAmount: tippingAmounts.like,
         replyAmount: tippingAmounts.reply,
         recastAmount: tippingAmounts.recast,
-        quoteAmount: tippingAmounts.quote,
         followAmount: tippingAmounts.follow,
         spendingLimit: '999999', // No limit - controlled by token approvals
         audience: criteria.audience,
@@ -216,7 +210,6 @@ export default function Settings() {
         likeEnabled: tippingToggles.like,
         replyEnabled: tippingToggles.reply,
         recastEnabled: tippingToggles.recast,
-        quoteEnabled: tippingToggles.quote,
         followEnabled: tippingToggles.follow,
         isActive: true,
         totalSpent: userConfig?.totalSpent || '0'
@@ -370,7 +363,6 @@ export default function Settings() {
                 { key: 'like', label: 'Like', icon: Heart, default: '0.005' },
                 { key: 'reply', label: 'Reply', icon: MessageCircle, default: '0.025' },
                 { key: 'recast', label: 'Recast', icon: Repeat, default: '0.025' },
-                { key: 'quote', label: 'Quote Cast', icon: Quote, default: '0.025' },
                 { key: 'follow', label: 'Follow', icon: UserPlus, default: '0' },
               ].map(({ key, label, icon: Icon, default: defaultAmount }) => (
                 <div key={key} className="border border-gray-200 rounded-lg p-4">

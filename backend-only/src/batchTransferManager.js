@@ -488,7 +488,6 @@ class BatchTransferManager {
       case 'like': return parseFloat(config.likeAmount);
       case 'reply': return parseFloat(config.replyAmount);
       case 'recast': return parseFloat(config.recastAmount);
-      case 'quote': return parseFloat(config.quoteAmount);
       case 'follow': return parseFloat(config.followAmount);
       default: return 0;
     }

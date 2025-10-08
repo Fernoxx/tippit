@@ -861,7 +861,6 @@ app.get('/api/config/:userAddress', async (req, res) => {
         likeAmount: '0.01',
         replyAmount: '0.025',
         recastAmount: '0.025',
-        quoteAmount: '0.025',
         followAmount: '0',
         spendingLimit: '999999',
         audience: 0, // Following only
@@ -870,7 +869,6 @@ app.get('/api/config/:userAddress', async (req, res) => {
         likeEnabled: true,
         replyEnabled: true,
         recastEnabled: true,
-        quoteEnabled: true,
         followEnabled: false,
         isActive: false, // Not active until user saves
         totalSpent: '0'

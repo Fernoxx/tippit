@@ -31,7 +31,6 @@ interface UserConfig {
   likeAmount: string;
   replyAmount: string;
   recastAmount: string;
-  quoteAmount: string;
   followAmount: string;
   spendingLimit: string;
   audience: number;
@@ -40,7 +39,6 @@ interface UserConfig {
   likeEnabled: boolean;
   replyEnabled: boolean;
   recastEnabled: boolean;
-  quoteEnabled: boolean;
   followEnabled: boolean;
   isActive: boolean;
   totalSpent: string;

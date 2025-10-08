@@ -120,26 +120,8 @@ async function parseWebhookEvent(event) {
         } else {
           console.log(`❌ Could not fetch parent cast: ${event.data.parent_hash}`);
         }
-      } else if (event.data.embeds?.some(embed => embed.cast_id)) {
-        interactionType = 'quote';
-        console.log(`🔍 Processing quote cast`);
-        // Find the quoted cast in embeds
-        const quotedEmbed = event.data.embeds.find(embed => embed.cast_id);
-        if (quotedEmbed) {
-          const parentCast = await getCastByHash(quotedEmbed.cast_id.hash);
-          if (parentCast) {
-            // For quotes: the person being quoted (parent author) pays the tip
-            // The person doing the quoting gets the tip
-            authorFid = parentCast.author.fid;  // Person being quoted (pays tip)
-            interactorFid = event.data.author?.fid;  // Person doing the quoting (gets tip)
-            castHash = parentCast.hash;
-            console.log(`✅ Quote parsed: ${interactionType} by FID ${interactorFid} quoting cast by FID ${authorFid}`);
-          } else {
-            console.log(`❌ Could not fetch quoted cast: ${quotedEmbed.cast_id.hash}`);
-          }
-        }
       } else {
-        console.log(`ℹ️ Cast is not a reply or quote - skipping tip processing`);
+        console.log(`ℹ️ Cast is not a reply - skipping tip processing`);
       }
       break;
       
@@ -257,28 +239,6 @@ async function webhookHandler(req, res) {
             await database.addUserCast(authorFid, castHash, true);
           }
         }
-        
-        // ALSO check if this cast quotes ANY tracked user's cast
-        if (castData.embeds?.some(embed => embed.cast_id)) {
-          console.log(`🔍 Cast has embeds, checking if it quotes a tracked user...`);
-          const trackedFids = await database.getTrackedFids();
-          
-          // Check each embed to see if it's quoting a tracked user
-          for (const embed of castData.embeds) {
-            if (embed.cast_id?.hash) {
-              try {
-                const quotedCast = await getCastByHash(embed.cast_id.hash);
-                if (quotedCast && quotedCast.author && trackedFids.includes(quotedCast.author.fid)) {
-                  console.log(`🎯 QUOTE DETECTED! FID ${authorFid} quoted tracked user FID ${quotedCast.author.fid}'s cast`);
-                  // This will be processed by parseWebhookEvent below
-                  break;
-                }
-              } catch (error) {
-                console.log(`⚠️ Error checking quoted cast:`, error.message);
-              }
-            }
-          }
-        }
       }
     }
     
@@ -386,7 +346,6 @@ function getActionEnabled(config, actionType) {
     case 'like': return config.likeEnabled;
     case 'reply': return config.replyEnabled;
     case 'recast': return config.recastEnabled;
-    case 'quote': return config.quoteEnabled;
     case 'follow': return config.followEnabled;
     default: return false;
   }
