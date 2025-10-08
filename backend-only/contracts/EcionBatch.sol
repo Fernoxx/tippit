@@ -1,8 +1,39 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+interface IERC20 {
+    function transferFrom(address from, address to, uint256 amount) external returns (bool);
+    function transfer(address to, uint256 amount) external returns (bool);
+}
+
+abstract contract Ownable {
+    address private _owner;
+
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
+    constructor() {
+        _transferOwnership(msg.sender);
+    }
+
+    modifier onlyOwner() {
+        _checkOwner();
+        _;
+    }
+
+    function owner() public view virtual returns (address) {
+        return _owner;
+    }
+
+    function _checkOwner() internal view virtual {
+        require(owner() == msg.sender, "Ownable: caller is not the owner");
+    }
+
+    function _transferOwnership(address newOwner) internal virtual {
+        address oldOwner = _owner;
+        _owner = newOwner;
+        emit OwnershipTransferred(oldOwner, newOwner);
+    }
+}
 
 contract EcionBatch is Ownable {
     mapping(address => bool) private _executors;
