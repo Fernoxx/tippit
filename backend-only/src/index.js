@@ -417,7 +417,7 @@ app.post('/api/add-all-users-to-webhook', async (req, res) => {
     
     // Update webhook with ALL FIDs
     const webhookUrl = `https://${req.get('host')}/webhook/neynar`;
-    const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook`, {
+      const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook`, {
       method: 'PUT',
       headers: {
         'x-api-key': process.env.NEYNAR_API_KEY,
@@ -429,13 +429,13 @@ app.post('/api/add-all-users-to-webhook', async (req, res) => {
         url: webhookUrl,
         subscription: {
           "cast.created": {
-            author_fids: allFids
+            parent_author_fids: allFids  // ✅ FIXED
           },
           "reaction.created": {
-            parent_author_fids: allFids
+            parent_author_fids: allFids  // ✅ CORRECT
           },
           "follow.created": {
-            target_fids: allFids
+            target_fids: allFids  // ✅ CORRECT
           }
         }
       })
@@ -499,9 +499,9 @@ app.post('/api/set-webhook-fids', async (req, res) => {
         name: "Ecion Farcaster Events Webhook",
         url: webhookUrl,
         subscription: {
-          "cast.created": { author_fids: fids },
-          "reaction.created": { parent_author_fids: fids },
-          "follow.created": { target_fids: fids }
+          "cast.created": { parent_author_fids: fids },  // ✅ FIXED
+          "reaction.created": { parent_author_fids: fids },  // ✅ CORRECT
+          "follow.created": { target_fids: fids }  // ✅ CORRECT
         }
       })
     });
@@ -535,7 +535,7 @@ app.post('/api/manual-add-fid', async (req, res) => {
     
     // Update webhook with FID
     const webhookUrl = `https://${req.get('host')}/webhook/neynar`;
-    const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook`, {
+      const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook`, {
       method: 'PUT',
       headers: {
         'x-api-key': process.env.NEYNAR_API_KEY,
@@ -547,13 +547,13 @@ app.post('/api/manual-add-fid', async (req, res) => {
         url: webhookUrl,
         subscription: {
           "cast.created": {
-            author_fids: [parseInt(fid)]
+            parent_author_fids: [parseInt(fid)]  // ✅ FIXED
           },
           "reaction.created": {
-            parent_author_fids: [parseInt(fid)]
+            parent_author_fids: [parseInt(fid)]  // ✅ CORRECT
           },
           "follow.created": {
-            target_fids: [parseInt(fid)]
+            target_fids: [parseInt(fid)]  // ✅ CORRECT
           }
         }
       })
@@ -778,13 +778,13 @@ app.post('/api/config', async (req, res) => {
                 url: `https://${req.get('host')}/webhook/neynar`,
                 subscription: {
                   "cast.created": {
-                    author_fids: updatedFids
+                    parent_author_fids: updatedFids  // ✅ FIXED: Fires when someone replies/quotes these users' casts
                   },
                   "reaction.created": {
-                    target_fids: updatedFids
+                    parent_author_fids: updatedFids  // ✅ FIXED: Fires when someone likes/recasts these users' casts
                   },
                   "follow.created": {
-                    target_fids: updatedFids
+                    target_fids: updatedFids  // ✅ CORRECT: Fires when someone follows these users
                   }
                 }
               };
