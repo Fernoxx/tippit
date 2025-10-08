@@ -429,13 +429,14 @@ app.post('/api/add-all-users-to-webhook', async (req, res) => {
         url: webhookUrl,
         subscription: {
           "cast.created": {
-            parent_author_fids: allFids  // ✅ FIXED
+            author_fids: allFids,           // Fires when user creates cast
+            parent_author_fids: allFids     // Fires when someone replies/quotes user's cast
           },
           "reaction.created": {
-            parent_author_fids: allFids  // ✅ CORRECT
+            parent_author_fids: allFids     // Fires when someone likes/recasts user's cast
           },
           "follow.created": {
-            target_fids: allFids  // ✅ CORRECT
+            target_fids: allFids            // Fires when someone follows user
           }
         }
       })
@@ -499,9 +500,16 @@ app.post('/api/set-webhook-fids', async (req, res) => {
         name: "Ecion Farcaster Events Webhook",
         url: webhookUrl,
         subscription: {
-          "cast.created": { parent_author_fids: fids },  // ✅ FIXED
-          "reaction.created": { parent_author_fids: fids },  // ✅ CORRECT
-          "follow.created": { target_fids: fids }  // ✅ CORRECT
+          "cast.created": { 
+            author_fids: fids,
+            parent_author_fids: fids
+          },
+          "reaction.created": { 
+            parent_author_fids: fids
+          },
+          "follow.created": { 
+            target_fids: fids
+          }
         }
       })
     });
@@ -547,13 +555,14 @@ app.post('/api/manual-add-fid', async (req, res) => {
         url: webhookUrl,
         subscription: {
           "cast.created": {
-            parent_author_fids: [parseInt(fid)]  // ✅ FIXED
+            author_fids: [parseInt(fid)],
+            parent_author_fids: [parseInt(fid)]
           },
           "reaction.created": {
-            parent_author_fids: [parseInt(fid)]  // ✅ CORRECT
+            parent_author_fids: [parseInt(fid)]
           },
           "follow.created": {
-            target_fids: [parseInt(fid)]  // ✅ CORRECT
+            target_fids: [parseInt(fid)]
           }
         }
       })
@@ -778,13 +787,14 @@ app.post('/api/config', async (req, res) => {
                 url: `https://${req.get('host')}/webhook/neynar`,
                 subscription: {
                   "cast.created": {
-                    parent_author_fids: updatedFids  // ✅ FIXED: Fires when someone replies/quotes these users' casts
+                    author_fids: updatedFids,           // Fires when user creates a cast (to update latest earnable)
+                    parent_author_fids: updatedFids     // Fires when someone replies/quotes user's cast (for tips)
                   },
                   "reaction.created": {
-                    parent_author_fids: updatedFids  // ✅ FIXED: Fires when someone likes/recasts these users' casts
+                    parent_author_fids: updatedFids     // Fires when someone likes/recasts user's cast (for tips)
                   },
                   "follow.created": {
-                    target_fids: updatedFids  // ✅ CORRECT: Fires when someone follows these users
+                    target_fids: updatedFids            // Fires when someone follows user (for tips)
                   }
                 }
               };
