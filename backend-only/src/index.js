@@ -1410,8 +1410,8 @@ app.post('/api/update-latest-cast', async (req, res) => {
       return res.status(400).json({ error: 'userFid required' });
     }
 
-    // Fetch user's latest cast from Neynar
-    const response = await fetch(`https://api.neynar.com/v2/farcaster/feed/user/casts?fid=${userFid}&limit=3`, {
+    // Fetch user's latest cast from Neynar (check last 25 casts to find a main one)
+    const response = await fetch(`https://api.neynar.com/v2/farcaster/feed/user/casts?fid=${userFid}&limit=25`, {
       headers: { 'x-api-key': process.env.NEYNAR_API_KEY }
     });
 
@@ -1422,14 +1422,17 @@ app.post('/api/update-latest-cast', async (req, res) => {
     const data = await response.json();
     const casts = data.casts || [];
 
-    // Find the latest main cast
+    // Find the latest main cast (not a reply)
     const latestMainCast = casts.find(cast =>
       !cast.parent_hash &&
       (!cast.parent_author || !cast.parent_author.fid || cast.parent_author.fid === null)
     );
 
     if (!latestMainCast) {
-      return res.status(404).json({ error: 'No main cast found' });
+      return res.status(404).json({ 
+        error: 'No main cast found in last 25 posts',
+        debug: `Checked ${casts.length} casts, all were replies or had parent_author`
+      });
     }
 
     // Update the user_casts table
