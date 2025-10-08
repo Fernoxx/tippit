@@ -500,8 +500,15 @@ class BatchTransferManager {
         "function allowance(address owner, address spender) view returns (uint256)"
       ], this.provider);
       
-      const allowance = await tokenContract.allowance(userAddress, this.wallet.address);
-      return parseFloat(ethers.formatUnits(allowance, 6)); // USDC has 6 decimals
+      // Check allowance for ECION BATCH CONTRACT, not backend wallet!
+      const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+      
+      const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
+      const formattedAllowance = parseFloat(ethers.formatUnits(allowance, 6)); // USDC has 6 decimals
+      
+      console.log(`💰 Allowance check: User ${userAddress} has ${formattedAllowance} approved to contract ${ecionBatchAddress}`);
+      
+      return formattedAllowance;
     } catch (error) {
       console.error('Error fetching token allowance:', error);
       return 0;

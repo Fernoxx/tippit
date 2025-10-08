@@ -881,15 +881,19 @@ app.get('/api/allowance/:userAddress/:tokenAddress', async (req, res) => {
     const { ethers } = require('ethers');
     
     const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-    const backendWallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY, provider);
+    
+    // Check allowance for ECION BATCH CONTRACT, not backend wallet!
+    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     
     const tokenContract = new ethers.Contract(tokenAddress, [
       "function allowance(address owner, address spender) view returns (uint256)"
     ], provider);
     
-    const allowance = await tokenContract.allowance(userAddress, backendWallet.address);
+    const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
     const tokenDecimals = tokenAddress.toLowerCase() === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913' ? 6 : 18;
     const formattedAllowance = ethers.formatUnits(allowance, tokenDecimals);
+    
+    console.log(`📊 Allowance check: User ${userAddress} approved ${formattedAllowance} to EcionBatch contract ${ecionBatchAddress}`);
     
     res.json({ allowance: formattedAllowance });
   } catch (error) {
@@ -1282,9 +1286,16 @@ app.get('/api/backend-wallet', (req, res) => {
   try {
     const { ethers } = require('ethers');
     const wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY);
+    
+    // Return ECION BATCH CONTRACT address for approvals (not backend wallet)
+    // Users need to approve the contract, not the backend wallet!
+    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    
     res.json({ 
-      address: wallet.address,
-      network: 'Base'
+      address: ecionBatchAddress, // Contract address for token approvals
+      backendWallet: wallet.address, // Backend wallet (executor)
+      network: 'Base',
+      note: 'Users must approve the EcionBatch contract, not the backend wallet'
     });
   } catch (error) {
     console.error('Backend wallet fetch error:', error);

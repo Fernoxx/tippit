@@ -6,22 +6,24 @@ import { parseUnits, formatUnits } from 'viem';
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001').replace(/\/$/, '');
 
-// Fetch backend wallet address dynamically
-let BACKEND_WALLET_ADDRESS = '0x0000000000000000000000000000000000000000';
+// Fetch EcionBatch contract address for token approvals
+// NOTE: Users must approve the EcionBatch CONTRACT, not the backend wallet!
+let ECION_BATCH_CONTRACT_ADDRESS = '0x0000000000000000000000000000000000000000';
 
 const fetchBackendWalletAddress = async () => {
   try {
     const response = await fetch(`${BACKEND_URL}/api/backend-wallet`);
     if (response.ok) {
       const data = await response.json();
-      BACKEND_WALLET_ADDRESS = data.address;
-      console.log('✅ Backend wallet address loaded:', BACKEND_WALLET_ADDRESS);
+      ECION_BATCH_CONTRACT_ADDRESS = data.address; // This is the contract address for approvals
+      console.log('✅ EcionBatch contract address loaded:', ECION_BATCH_CONTRACT_ADDRESS);
+      console.log('ℹ️ Users must approve tokens to the contract, not the backend wallet');
       return data.address;
     }
   } catch (error) {
-    console.error('Failed to fetch backend wallet address:', error);
+    console.error('Failed to fetch contract address:', error);
   }
-  return BACKEND_WALLET_ADDRESS;
+  return ECION_BATCH_CONTRACT_ADDRESS;
 };
 
 interface UserConfig {
@@ -150,17 +152,17 @@ export const useEcion = () => {
 
     setIsApproving(true);
     try {
-      // Fetch the latest backend wallet address
-      const backendWallet = await fetchBackendWalletAddress();
+      // Fetch the latest EcionBatch contract address
+      const contractAddress = await fetchBackendWalletAddress();
       
-      if (backendWallet === '0x0000000000000000000000000000000000000000') {
-        toast.error('Backend wallet address not available. Please try again.', { duration: 2000 });
+      if (contractAddress === '0x0000000000000000000000000000000000000000') {
+        toast.error('Contract address not available. Please try again.', { duration: 2000 });
         setIsApproving(false);
         return;
       }
       
-      console.log('Approving EXACT amount:', amount, 'tokens to backend wallet');
-      console.log('Backend wallet address:', backendWallet);
+      console.log('Approving EXACT amount:', amount, 'tokens to EcionBatch contract');
+      console.log('EcionBatch contract address:', contractAddress);
       
       const tokenDecimals = tokenAddress.toLowerCase() === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913' ? 6 : 18;
       const amountWei = parseUnits(amount, tokenDecimals);
@@ -180,7 +182,7 @@ export const useEcion = () => {
           }
         ],
         functionName: 'approve',
-        args: [backendWallet as `0x${string}`, amountWei],
+        args: [contractAddress as `0x${string}`, amountWei],
       });
       
       console.log('Approval transaction submitted');
@@ -190,7 +192,7 @@ export const useEcion = () => {
       if (error.message?.includes('User rejected')) {
         toast.error('Transaction cancelled by user', { duration: 2000 });
       } else if (error.message?.includes('zero address')) {
-        toast.error('Backend wallet address not configured. Please contact support.', { duration: 2000 });
+        toast.error('EcionBatch contract address not configured. Please contact support.', { duration: 2000 });
       } else {
         toast.error('Failed to approve tokens: ' + error.message, { duration: 2000 });
       }
@@ -206,16 +208,17 @@ export const useEcion = () => {
 
     setIsRevokingAllowance(true);
     try {
-      // Fetch the latest backend wallet address
-      const backendWallet = await fetchBackendWalletAddress();
+      // Fetch the latest EcionBatch contract address
+      const contractAddress = await fetchBackendWalletAddress();
       
-      if (backendWallet === '0x0000000000000000000000000000000000000000') {
-        toast.error('Backend wallet address not available. Please try again.', { duration: 2000 });
+      if (contractAddress === '0x0000000000000000000000000000000000000000') {
+        toast.error('Contract address not available. Please try again.', { duration: 2000 });
         setIsRevokingAllowance(false);
         return;
       }
       
       console.log('Revoking allowance for token:', tokenAddress);
+      console.log('Revoking from EcionBatch contract:', contractAddress);
       
       writeContract({
         address: tokenAddress as `0x${string}`,
@@ -232,7 +235,7 @@ export const useEcion = () => {
           }
         ],
         functionName: 'approve',
-        args: [backendWallet as `0x${string}`, 0n],
+        args: [contractAddress as `0x${string}`, 0n],
       });
       
       console.log('Revoke transaction submitted');
@@ -243,7 +246,7 @@ export const useEcion = () => {
       if (error.message?.includes('User rejected')) {
         toast.error('Transaction cancelled by user', { duration: 2000 });
       } else if (error.message?.includes('zero address')) {
-        toast.error('Backend wallet address not configured. Please contact support.', { duration: 2000 });
+        toast.error('EcionBatch contract address not configured. Please contact support.', { duration: 2000 });
       } else {
         toast.error('Failed to revoke allowance: ' + error.message, { duration: 2000 });
       }
