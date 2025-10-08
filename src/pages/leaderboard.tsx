@@ -48,29 +48,10 @@ export default function Leaderboard() {
   };
 
   return (
-    <div className="space-y-8">
-
-      {/* Time Filter */}
-      <div className="flex justify-center mb-6">
-        <div className="flex space-x-2 bg-white rounded-lg p-1 shadow-sm">
-          {(['24h', '7d', '30d'] as const).map((period) => (
-            <button
-              key={period}
-              onClick={() => setTimeFilter(period)}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                timeFilter === period
-                  ? 'bg-accent text-white'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              {period}
-            </button>
-          ))}
-        </div>
-      </div>
+    <div className="space-y-4">
 
       {/* Tabs */}
-      <div className="flex justify-center mb-8">
+      <div className="flex justify-center mb-4">
         <div className="flex bg-white rounded-lg p-1 shadow-sm">
           <button
             onClick={() => setActiveTab('tipped')}
@@ -95,7 +76,6 @@ export default function Leaderboard() {
         </div>
       </div>
 
-
       {/* Full leaderboard */}
       <motion.div
         variants={containerVariants}
@@ -103,9 +83,29 @@ export default function Leaderboard() {
         animate="visible"
         className="bg-white rounded-2xl p-8 card-shadow"
       >
-        <h2 className="text-2xl font-bold text-accent mb-6">
-          {activeTab === 'tipped' ? 'Tippers' : 'Earners'}
-        </h2>
+        {/* Title and Time Filter on Same Line */}
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-accent">
+            {activeTab === 'tipped' ? 'Tippers' : 'Earners'}
+          </h2>
+          
+          {/* Time Filter - Smaller */}
+          <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
+            {(['24h', '7d', '30d'] as const).map((period) => (
+              <button
+                key={period}
+                onClick={() => setTimeFilter(period)}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                  timeFilter === period
+                    ? 'bg-accent text-white'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                {period}
+              </button>
+            ))}
+          </div>
+        </div>
         
         {isLoading ? (
           <div className="space-y-3">
