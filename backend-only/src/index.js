@@ -433,7 +433,7 @@ app.post('/api/add-all-users-to-webhook', async (req, res) => {
             parent_author_fids: allFids     // Fires when someone replies/quotes user's cast
           },
           "reaction.created": {
-            parent_author_fids: allFids     // ✅ Fires when someone likes/recasts casts authored by these FIDs
+            target_fids: allFids            // ✅ CORRECT: Likes/recasts on user's cast
           },
           "follow.created": {
             target_fids: allFids            // Fires when someone follows user
@@ -505,7 +505,7 @@ app.post('/api/set-webhook-fids', async (req, res) => {
             parent_author_fids: fids
           },
           "reaction.created": { 
-            parent_author_fids: fids
+            target_fids: fids  // ✅ CORRECT
           },
           "follow.created": { 
             target_fids: fids
@@ -559,7 +559,7 @@ app.post('/api/manual-add-fid', async (req, res) => {
             parent_author_fids: [parseInt(fid)]
           },
           "reaction.created": {
-            parent_author_fids: [parseInt(fid)]
+            target_fids: [parseInt(fid)]  // ✅ CORRECT
           },
           "follow.created": {
             target_fids: [parseInt(fid)]
@@ -791,7 +791,7 @@ app.post('/api/config', async (req, res) => {
                     parent_author_fids: updatedFids     // Fires when someone replies/quotes user's cast (for tips)
                   },
                   "reaction.created": {
-                    parent_author_fids: updatedFids     // ✅ Fires when someone likes/recasts casts AUTHORED BY these FIDs
+                    target_fids: updatedFids            // ✅ CORRECT: Fires when someone likes/recasts user's cast
                   },
                   "follow.created": {
                     target_fids: updatedFids            // Fires when someone follows user (for tips)
@@ -1569,7 +1569,7 @@ app.post('/api/force-update-webhook', async (req, res) => {
           parent_author_fids: trackedFids     // When someone replies/quotes
         },
         "reaction.created": {
-          parent_author_fids: trackedFids     // When someone likes/recasts user's cast
+          target_fids: trackedFids            // ✅ CORRECT: When someone likes/recasts user's cast
         },
         "follow.created": {
           target_fids: trackedFids            // When someone follows user
