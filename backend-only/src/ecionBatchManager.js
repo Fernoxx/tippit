@@ -37,6 +37,11 @@ class EcionBatchManager {
           },
           {
             "internalType": "address[]",
+            "name": "casts",
+            "type": "address[]"
+          },
+          {
+            "internalType": "address[]",
             "name": "tokens",
             "type": "address[]"
           },
@@ -44,6 +49,11 @@ class EcionBatchManager {
             "internalType": "uint256[]",
             "name": "amounts",
             "type": "uint256[]"
+          },
+          {
+            "internalType": "bytes[]",
+            "name": "data",
+            "type": "bytes[]"
           }
         ],
         "name": "batchTip",
@@ -151,18 +161,22 @@ class EcionBatchManager {
       // Prepare batch data
       const froms = tips.map(tip => tip.from);
       const tos = tips.map(tip => tip.to);
+      const casts = tips.map(tip => tip.cast || '0x0000000000000000000000000000000000000000'); // Cast addresses (use zero address if not available)
       const tokens = tips.map(tip => tip.token); // Token addresses
       const amounts = tips.map(tip => tip.amount);
+      const data = tips.map(() => '0x'); // Empty bytes array for each tip
       
       console.log(`📋 Batch data prepared:`, {
         froms: froms.length,
         tos: tos.length,
+        casts: casts.length,
         tokens: tokens.length,
-        amounts: amounts.length
+        amounts: amounts.length,
+        data: data.length
       });
       
       // Execute batch tip
-      const tx = await contract.batchTip(froms, tos, tokens, amounts, {
+      const tx = await contract.batchTip(froms, tos, casts, tokens, amounts, data, {
         gasLimit: 1000000 // Reduced gas limit
       });
       
