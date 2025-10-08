@@ -51,7 +51,7 @@ export default function Leaderboard() {
     <div className="space-y-4">
 
       {/* Tabs */}
-      <div className="flex justify-center mb-4">
+      <div className="flex justify-center mb-6 mt-8">
         <div className="flex bg-white rounded-lg p-1 shadow-sm">
           <button
             onClick={() => setActiveTab('tipped')}
