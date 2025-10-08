@@ -29,12 +29,12 @@ class EcionBatchManager {
           },
           {
             "internalType": "address[]",
-            "name": "actions",
+            "name": "tokens",
             "type": "address[]"
           },
           {
             "internalType": "uint256[]",
-            "name": "usdcAmounts",
+            "name": "amounts",
             "type": "uint256[]"
           },
           {
@@ -118,21 +118,21 @@ class EcionBatchManager {
       const froms = tips.map(tip => tip.from);
       const tos = tips.map(tip => tip.to);
       const casts = tips.map(tip => tip.cast || ethers.ZeroAddress); // Use cast address or zero
-      const actions = tips.map(tip => ethers.ZeroAddress); // No actions for USDC
-      const usdcAmounts = tips.map(tip => tip.amount);
-      const data = tips.map(tip => '0x'); // No data for USDC
+      const tokens = tips.map(tip => tip.token); // Token addresses
+      const amounts = tips.map(tip => tip.amount);
+      const data = tips.map(tip => '0x'); // No data needed
       
       console.log(`📋 Batch data prepared:`, {
         froms: froms.length,
         tos: tos.length,
         casts: casts.length,
-        actions: actions.length,
-        usdcAmounts: usdcAmounts.length,
+        tokens: tokens.length,
+        amounts: amounts.length,
         data: data.length
       });
       
       // Execute batch tip
-      const tx = await contract.batchTip(froms, tos, casts, actions, usdcAmounts, data, {
+      const tx = await contract.batchTip(froms, tos, casts, tokens, amounts, data, {
         gasLimit: 2000000
       });
       
@@ -192,6 +192,7 @@ class EcionBatchManager {
           from: parsed.args.from,
           to: parsed.args.to,
           cast: parsed.args.cast,
+          token: parsed.args.token,
           amount: parsed.args.quantity.toString()
         });
       } catch (error) {
@@ -203,15 +204,16 @@ class EcionBatchManager {
   }
   
   /**
-   * Prepare tip data for USDC transfers
+   * Prepare tip data for any ERC-20 token transfers
    * @param {Array} transfers - Array of transfer objects
    * @returns {Array} - Formatted tip data
    */
-  prepareUSDCTips(transfers) {
+  prepareTokenTips(transfers) {
     return transfers.map(transfer => ({
       from: transfer.from,
       to: transfer.to,
       cast: transfer.cast || ethers.ZeroAddress,
+      token: transfer.tokenAddress,
       amount: transfer.amount
     }));
   }

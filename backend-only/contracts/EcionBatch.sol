@@ -12,8 +12,6 @@ contract EcionBatch is Ownable {
     EnumerableSet.AddressSet private _tippers;
     EnumerableSet.AddressSet private _executors;
 
-    IERC20 public constant USDC = IERC20(0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913);
-
     modifier onlyExecutor() {
         require(_executors.contains(msg.sender), "Only executors");
         _;
@@ -23,6 +21,7 @@ contract EcionBatch is Ownable {
         address indexed from,
         address indexed to,
         address indexed cast,
+        address token,
         uint quantity,
         uint timestamp
     );
@@ -38,8 +37,8 @@ contract EcionBatch is Ownable {
         address[] calldata froms, 
         address[] calldata tos, 
         address[] calldata casts, 
-        address[] calldata actions, 
-        uint[] calldata usdcAmounts,
+        address[] calldata tokens,
+        uint[] calldata amounts,
         bytes[] calldata data
     ) external onlyExecutor returns (bool[] memory) {
         uint256 gasStart = gasleft();
@@ -47,7 +46,7 @@ contract EcionBatch is Ownable {
         bool[] memory success = new bool[](froms.length);
         
         for (uint i = 0; i < froms.length; i++) {
-            success[i] = _tip(froms[i], tos[i], casts[i], usdcAmounts[i]);
+            success[i] = _tip(froms[i], tos[i], casts[i], tokens[i], amounts[i]);
         }
         
         uint256 gasUsed = gasStart - gasleft();
@@ -61,30 +60,32 @@ contract EcionBatch is Ownable {
         address from, 
         address to, 
         address cast, 
-        uint usdcAmount
+        address token,
+        uint amount
     ) external onlyExecutor returns (bool) {
-        return _tip(from, to, cast, usdcAmount);
+        return _tip(from, to, cast, token, amount);
     }
 
     function _tip(
         address from, 
         address to, 
         address cast, 
-        uint usdcAmount
+        address token,
+        uint amount
     ) internal returns (bool) {
         // Only process the tip for the first time
         if (_castTippers[cast].contains(from)) {
             return false;
         }
 
-        // Attempt to charge USDC
-        if (usdcAmount > 0) {
-            try USDC.transferFrom(from, to, usdcAmount) {
+        // Attempt to transfer any ERC20 token
+        if (amount > 0 && token != address(0)) {
+            try IERC20(token).transferFrom(from, to, amount) {
                 // Tip successful
                 _tippers.add(from);
                 _castTippers[cast].add(from);
 
-                emit Tip(from, to, cast, usdcAmount, block.timestamp);
+                emit Tip(from, to, cast, token, amount, block.timestamp);
                 return true;
             } catch {
                 return false;
