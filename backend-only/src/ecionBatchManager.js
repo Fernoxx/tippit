@@ -8,8 +8,21 @@ class EcionBatchManager {
     this.provider = provider;
     this.wallet = wallet;
     
-    // EcionBatch contract ABI
+    // EcionBatch contract ABI (from deployed contract)
     this.contractABI = [
+      {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "executor",
+            "type": "address"
+          }
+        ],
+        "name": "addExecutor",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
       {
         "inputs": [
           {
@@ -24,11 +37,6 @@ class EcionBatchManager {
           },
           {
             "internalType": "address[]",
-            "name": "casts",
-            "type": "address[]"
-          },
-          {
-            "internalType": "address[]",
             "name": "tokens",
             "type": "address[]"
           },
@@ -36,11 +44,6 @@ class EcionBatchManager {
             "internalType": "uint256[]",
             "name": "amounts",
             "type": "uint256[]"
-          },
-          {
-            "internalType": "bytes[]",
-            "name": "data",
-            "type": "bytes[]"
           }
         ],
         "name": "batchTip",
@@ -51,6 +54,37 @@ class EcionBatchManager {
             "type": "bool[]"
           }
         ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "name": "emergencyWithdraw",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "executor",
+            "type": "address"
+          }
+        ],
+        "name": "removeExecutor",
+        "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
       },
@@ -117,22 +151,18 @@ class EcionBatchManager {
       // Prepare batch data
       const froms = tips.map(tip => tip.from);
       const tos = tips.map(tip => tip.to);
-      const casts = tips.map(tip => tip.cast || ethers.ZeroAddress);
       const tokens = tips.map(tip => tip.token); // Token addresses
       const amounts = tips.map(tip => tip.amount);
-      const data = tips.map(tip => tip.data || '0x'); // Empty data for now
       
       console.log(`📋 Batch data prepared:`, {
         froms: froms.length,
         tos: tos.length,
-        casts: casts.length,
         tokens: tokens.length,
-        amounts: amounts.length,
-        data: data.length
+        amounts: amounts.length
       });
       
       // Execute batch tip
-      const tx = await contract.batchTip(froms, tos, casts, tokens, amounts, data, {
+      const tx = await contract.batchTip(froms, tos, tokens, amounts, {
         gasLimit: 1000000 // Reduced gas limit
       });
       
@@ -197,10 +227,8 @@ class EcionBatchManager {
     return transfers.map(transfer => ({
       from: transfer.from,
       to: transfer.to,
-      cast: transfer.cast || ethers.ZeroAddress,
       token: transfer.tokenAddress,
-      amount: transfer.amount,
-      data: transfer.data || '0x'
+      amount: transfer.amount
     }));
   }
   

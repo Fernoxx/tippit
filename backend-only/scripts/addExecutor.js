@@ -10,7 +10,7 @@ async function addExecutor() {
     // Contract address
     const contractAddress = '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     
-    // Contract ABI (just the functions we need)
+    // Contract ABI (from deployed contract)
     const contractABI = [
       {
         "inputs": [
