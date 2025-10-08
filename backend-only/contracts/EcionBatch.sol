@@ -1,19 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "@openzeppelin/contracts@4.9.5/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts@4.9.5/access/Ownable.sol";
 
 contract EcionBatch is Ownable {
-    using EnumerableSet for EnumerableSet.AddressSet;
-
-    mapping(address => EnumerableSet.AddressSet) private _castTippers;
-    EnumerableSet.AddressSet private _tippers;
-    EnumerableSet.AddressSet private _executors;
+    mapping(address => mapping(address => bool)) private _castTippers;
+    mapping(address => bool) private _tippers;
+    mapping(address => bool) private _executors;
 
     modifier onlyExecutor() {
-        require(_executors.contains(msg.sender), "Only executors");
+        require(_executors[msg.sender], "Only executors");
         _;
     }
 
@@ -74,7 +71,7 @@ contract EcionBatch is Ownable {
         uint amount
     ) internal returns (bool) {
         // Only process the tip for the first time
-        if (_castTippers[cast].contains(from)) {
+        if (_castTippers[cast][from]) {
             return false;
         }
 
@@ -82,8 +79,8 @@ contract EcionBatch is Ownable {
         if (amount > 0 && token != address(0)) {
             try IERC20(token).transferFrom(from, to, amount) {
                 // Tip successful
-                _tippers.add(from);
-                _castTippers[cast].add(from);
+                _tippers[from] = true;
+                _castTippers[cast][from] = true;
 
                 emit Tip(from, to, cast, token, amount, block.timestamp);
                 return true;
@@ -96,35 +93,23 @@ contract EcionBatch is Ownable {
     }
 
     function addExecutor(address executor) external onlyOwner {
-        _executors.add(executor);
+        _executors[executor] = true;
     }
     
     function removeExecutor(address executor) external onlyOwner {
-        _executors.remove(executor);
+        _executors[executor] = false;
     }
     
     function isExecutor(address executor) external view returns (bool) {
-        return _executors.contains(executor);
+        return _executors[executor];
     }
 
-    function getExecutors() external view returns (address[] memory) {
-        return _executors.values();
-    }
-
-    function getTippers() external view returns (address[] memory) {
-        return _tippers.values();
-    }
-    
     function isTipper(address user) external view returns (bool) {
-        return _tippers.contains(user);
+        return _tippers[user];
     }
 
-    function getCastTippers(address cast) external view returns (address[] memory) {
-        return _castTippers[cast].values();
-    }
-    
     function isCastTipper(address cast, address user) external view returns (bool) {
-        return _castTippers[cast].contains(user);
+        return _castTippers[cast][user];
     }
 
     /**
