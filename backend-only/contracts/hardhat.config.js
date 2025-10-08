@@ -2,7 +2,7 @@ require("@nomicfoundation/hardhat-toolbox");
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
-  solidity: "0.8.30",
+  solidity: "0.8.0",
   networks: {
     base: {
       url: "https://mainnet.base.org",
