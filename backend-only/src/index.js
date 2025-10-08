@@ -433,7 +433,7 @@ app.post('/api/add-all-users-to-webhook', async (req, res) => {
             parent_author_fids: allFids     // Fires when someone replies/quotes user's cast
           },
           "reaction.created": {
-            author_fids: allFids            // ✅ FIXED: Fires when someone likes/recasts user's cast
+            parent_author_fids: allFids     // ✅ Fires when someone likes/recasts casts authored by these FIDs
           },
           "follow.created": {
             target_fids: allFids            // Fires when someone follows user
@@ -505,7 +505,7 @@ app.post('/api/set-webhook-fids', async (req, res) => {
             parent_author_fids: fids
           },
           "reaction.created": { 
-            author_fids: fids  // ✅ FIXED
+            parent_author_fids: fids
           },
           "follow.created": { 
             target_fids: fids
@@ -559,7 +559,7 @@ app.post('/api/manual-add-fid', async (req, res) => {
             parent_author_fids: [parseInt(fid)]
           },
           "reaction.created": {
-            author_fids: [parseInt(fid)]  // ✅ FIXED
+            parent_author_fids: [parseInt(fid)]
           },
           "follow.created": {
             target_fids: [parseInt(fid)]
@@ -791,7 +791,7 @@ app.post('/api/config', async (req, res) => {
                     parent_author_fids: updatedFids     // Fires when someone replies/quotes user's cast (for tips)
                   },
                   "reaction.created": {
-                    author_fids: updatedFids            // ✅ FIXED: Fires when someone likes/recasts USER'S cast directly
+                    parent_author_fids: updatedFids     // ✅ Fires when someone likes/recasts casts AUTHORED BY these FIDs
                   },
                   "follow.created": {
                     target_fids: updatedFids            // Fires when someone follows user (for tips)
