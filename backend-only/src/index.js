@@ -1540,6 +1540,76 @@ app.get('/api/debug/webhook-status', async (req, res) => {
   }
 });
 
+// FORCE UPDATE webhook with current tracked FIDs (fixes likes/recasts not working)
+app.post('/api/force-update-webhook', async (req, res) => {
+  try {
+    console.log('🔄 FORCE UPDATING WEBHOOK...');
+    
+    const webhookId = await database.getWebhookId();
+    const trackedFids = await database.getTrackedFids();
+    
+    if (!webhookId) {
+      return res.status(400).json({ error: 'No webhook ID found' });
+    }
+    
+    if (trackedFids.length === 0) {
+      return res.status(400).json({ error: 'No tracked FIDs found' });
+    }
+    
+    console.log('📡 Updating webhook with FIDs:', trackedFids);
+    
+    const webhookUrl = `https://${req.get('host')}/webhook/neynar`;
+    const webhookPayload = {
+      webhook_id: webhookId,
+      name: "Ecion Farcaster Events Webhook",
+      url: webhookUrl,
+      subscription: {
+        "cast.created": {
+          author_fids: trackedFids,           // When user posts (update earnable cast)
+          parent_author_fids: trackedFids     // When someone replies/quotes
+        },
+        "reaction.created": {
+          parent_author_fids: trackedFids     // When someone likes/recasts user's cast
+        },
+        "follow.created": {
+          target_fids: trackedFids            // When someone follows user
+        }
+      }
+    };
+    
+    console.log('📡 Webhook payload:', JSON.stringify(webhookPayload, null, 2));
+    
+    const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook/`, {
+      method: 'PUT',
+      headers: {
+        'x-api-key': process.env.NEYNAR_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(webhookPayload)
+    });
+    
+    if (webhookResponse.ok) {
+      const result = await webhookResponse.json();
+      console.log('✅ Webhook updated successfully');
+      res.json({
+        success: true,
+        message: 'Webhook updated with all tracked FIDs',
+        webhookId,
+        trackedFids,
+        result
+      });
+    } else {
+      const errorText = await webhookResponse.text();
+      console.error('❌ Webhook update failed:', errorText);
+      res.status(500).json({ error: 'Failed to update webhook', details: errorText });
+    }
+    
+  } catch (error) {
+    console.error('Error force updating webhook:', error);
+    res.status(500).json({ error: 'Failed to force update webhook' });
+  }
+});
+
 // Debug endpoint to get FID from address and check webhook tracking
 app.get('/api/debug/check-fid/:address', async (req, res) => {
   try {
