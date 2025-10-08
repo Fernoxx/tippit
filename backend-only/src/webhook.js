@@ -238,7 +238,7 @@ async function webhookHandler(req, res) {
     
     console.log('✅ Valid webhook received:', eventData.type);
     
-    // Handle cast.created events to track user's latest casts
+    // Handle cast.created events to track user's latest casts AND quote casts
     if (eventData.type === 'cast.created') {
       const castData = eventData.data;
       const authorFid = castData.author?.fid;
@@ -255,6 +255,28 @@ async function webhookHandler(req, res) {
             console.log(`📝 Tracked user FID ${authorFid} posted new main cast: ${castHash}`);
             // Update this as their latest earnable cast
             await database.addUserCast(authorFid, castHash, true);
+          }
+        }
+        
+        // ALSO check if this cast quotes ANY tracked user's cast
+        if (castData.embeds?.some(embed => embed.cast_id)) {
+          console.log(`🔍 Cast has embeds, checking if it quotes a tracked user...`);
+          const trackedFids = await database.getTrackedFids();
+          
+          // Check each embed to see if it's quoting a tracked user
+          for (const embed of castData.embeds) {
+            if (embed.cast_id?.hash) {
+              try {
+                const quotedCast = await getCastByHash(embed.cast_id.hash);
+                if (quotedCast && quotedCast.author && trackedFids.includes(quotedCast.author.fid)) {
+                  console.log(`🎯 QUOTE DETECTED! FID ${authorFid} quoted tracked user FID ${quotedCast.author.fid}'s cast`);
+                  // This will be processed by parseWebhookEvent below
+                  break;
+                }
+              } catch (error) {
+                console.log(`⚠️ Error checking quoted cast:`, error.message);
+              }
+            }
           }
         }
       }

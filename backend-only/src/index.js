@@ -1566,10 +1566,10 @@ app.post('/api/force-update-webhook', async (req, res) => {
       subscription: {
         "cast.created": {
           author_fids: trackedFids,           // When user posts (update earnable cast)
-          parent_author_fids: trackedFids     // When someone replies/quotes
+          parent_author_fids: trackedFids     // When someone replies to user's cast
         },
         "reaction.created": {
-          target_fids: trackedFids            // ✅ CORRECT: When someone likes/recasts user's cast
+          target_fids: trackedFids            // When someone likes/recasts user's cast
         },
         "follow.created": {
           target_fids: trackedFids            // When someone follows user
