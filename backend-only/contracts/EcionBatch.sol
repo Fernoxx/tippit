@@ -43,7 +43,7 @@ contract EcionBatch is Ownable {
         _;
     }
 
-    constructor() Ownable(msg.sender) {}
+    constructor() Ownable() {}
 
     function batchTip(
         address[] calldata froms, 
