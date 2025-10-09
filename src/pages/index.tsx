@@ -205,19 +205,31 @@ export default function Home() {
                         {cast.tipper.likeAmount > 0 && (
                           <span className="flex items-center space-x-1">
                             <span>❤️</span>
-                            <span className="text-green-700">${cast.tipper.likeAmount.toFixed(3)}</span>
+                            <span className="text-green-700">
+                              ${cast.tipper.likeAmount >= 0.01 
+                                ? cast.tipper.likeAmount.toString() 
+                                : cast.tipper.likeAmount.toFixed(3)}
+                            </span>
                           </span>
                         )}
                         {cast.tipper.recastAmount > 0 && (
                           <span className="flex items-center space-x-1">
                             <span>🔄</span>
-                            <span className="text-green-700">${cast.tipper.recastAmount.toFixed(3)}</span>
+                            <span className="text-green-700">
+                              ${cast.tipper.recastAmount >= 0.01 
+                                ? cast.tipper.recastAmount.toString() 
+                                : cast.tipper.recastAmount.toFixed(3)}
+                            </span>
                           </span>
                         )}
                         {cast.tipper.replyAmount > 0 && (
                           <span className="flex items-center space-x-1">
                             <span>💬</span>
-                            <span className="text-green-700">${cast.tipper.replyAmount.toFixed(3)}</span>
+                            <span className="text-green-700">
+                              ${cast.tipper.replyAmount >= 0.01 
+                                ? cast.tipper.replyAmount.toString() 
+                                : cast.tipper.replyAmount.toFixed(3)}
+                            </span>
                           </span>
                         )}
                       </div>
