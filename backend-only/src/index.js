@@ -1137,10 +1137,22 @@ app.get('/api/homepage', async (req, res) => {
                 let totalEngagementValue = 0;
                 
                 if (isUSDC && userConfig) {
-                  const likeAmount = parseFloat(userConfig.likeAmount || 0);
-                  const recastAmount = parseFloat(userConfig.recastAmount || 0);
-                  const replyAmount = parseFloat(userConfig.replyAmount || 0);
+                  const likeAmount = parseFloat(userConfig.likeAmount || '0');
+                  const recastAmount = parseFloat(userConfig.recastAmount || '0');
+                  const replyAmount = parseFloat(userConfig.replyAmount || '0');
                   totalEngagementValue = likeAmount + recastAmount + replyAmount;
+                  
+                  console.log(`💰 User ${userAddress} amounts:`, {
+                    likeAmount,
+                    recastAmount,
+                    replyAmount,
+                    totalEngagementValue,
+                    rawConfig: {
+                      like: userConfig.likeAmount,
+                      recast: userConfig.recastAmount,
+                      reply: userConfig.replyAmount
+                    }
+                  });
                 }
                 
                 usersWithAllowance.push({
@@ -1154,9 +1166,9 @@ app.get('/api/homepage', async (req, res) => {
                       pfpUrl: farcasterUser.pfp_url,
                       fid: farcasterUser.fid,
                       totalEngagementValue: isUSDC ? totalEngagementValue : null, // Only for USDC users
-                      likeAmount: isUSDC ? parseFloat(userConfig.likeAmount || 0) : null,
-                      recastAmount: isUSDC ? parseFloat(userConfig.recastAmount || 0) : null,
-                      replyAmount: isUSDC ? parseFloat(userConfig.replyAmount || 0) : null,
+                      likeAmount: isUSDC ? parseFloat(userConfig?.likeAmount || '0') : undefined,
+                      recastAmount: isUSDC ? parseFloat(userConfig?.recastAmount || '0') : undefined,
+                      replyAmount: isUSDC ? parseFloat(userConfig?.replyAmount || '0') : undefined,
                       criteria: userConfig ? {
                         audience: userConfig.audience,
                         minFollowerCount: userConfig.minFollowerCount,
