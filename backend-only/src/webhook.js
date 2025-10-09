@@ -25,17 +25,8 @@ function verifyWebhookSignature(req) {
   
   const webhookSecret = process.env.WEBHOOK_SECRET;
   
-  console.log('🔐 Signature verification:', {
-    hasSignature: !!signature,
-    hasSecret: !!webhookSecret,
-    signature: signature ? signature.substring(0, 10) + '...' : 'none',
-    secretLength: webhookSecret ? webhookSecret.length : 0,
-    bodyType: typeof req.body,
-    bodyLength: req.body ? req.body.length : 0,
-    rawBodyType: typeof req.rawBody,
-    rawBodyLength: req.rawBody ? req.rawBody.length : 0,
-    allHeaders: Object.keys(req.headers).filter(h => h.toLowerCase().includes('signature') || h.toLowerCase().includes('neynar'))
-  });
+  // Reduced logging for rate limit
+  // console.log('🔐 Signature verification:', { hasSignature: !!signature, hasSecret: !!webhookSecret });
   
   if (!signature || !webhookSecret) {
     console.log('❌ Missing signature or secret');
@@ -51,12 +42,6 @@ function verifyWebhookSignature(req) {
   const expectedSignature = hmac.digest('hex');
   
   const isValid = signature === expectedSignature;
-  console.log('🔐 Signature check:', {
-    received: signature.substring(0, 10) + '...',
-    expected: expectedSignature.substring(0, 10) + '...',
-    rawBodyLength: rawBody.length,
-    isValid
-  });
   
   if (!isValid) {
     console.log('❌ Invalid webhook signature');
@@ -142,15 +127,6 @@ async function parseWebhookEvent(event) {
     return null;
   }
   
-  console.log(`✅ Parsed interaction:`, {
-    interactionType,
-    authorFid,
-    interactorFid,
-    castHash
-  });
-  
-  console.log(`🔍 About to get user data for address lookup...`);
-  
   // Get user data to get Ethereum addresses
   const authorUser = await getUserByFid(authorFid);
   const interactorUser = await getUserByFid(interactorFid);
@@ -160,19 +136,6 @@ async function parseWebhookEvent(event) {
                        authorUser?.verified_addresses?.eth_addresses?.[0];
   const interactorAddress = interactorUser?.verified_addresses?.primary?.eth_address || 
                            interactorUser?.verified_addresses?.eth_addresses?.[0];
-  
-  console.log('🔍 Address lookup:', {
-    authorFid,
-    authorAddress,
-    authorAddressLower: authorAddress?.toLowerCase(),
-    interactorFid, 
-    interactorAddress,
-    interactorAddressLower: interactorAddress?.toLowerCase(),
-    authorVerifiedAddresses: authorUser?.verified_addresses,
-    interactorVerifiedAddresses: interactorUser?.verified_addresses,
-    fullAuthorUser: authorUser,
-    fullInteractorUser: interactorUser
-  });
   
   if (!authorAddress || !interactorAddress) {
     console.log('❌ No verified addresses found');
@@ -203,12 +166,6 @@ async function webhookHandler(req, res) {
       eventData = req.body;
     }
     
-    console.log('🔔 Webhook received:', {
-      type: eventData.type,
-      timestamp: new Date().toISOString(),
-      data: JSON.stringify(eventData, null, 2)
-    });
-    
     // Verify webhook signature
     const isValidSignature = verifyWebhookSignature(req);
     if (!isValidSignature) {
@@ -216,9 +173,7 @@ async function webhookHandler(req, res) {
       return res.status(401).json({ error: 'Invalid signature' });
     }
     
-    console.log('✅ Signature verification passed');
-    
-    console.log('✅ Valid webhook received:', eventData.type);
+    console.log('✅ Webhook:', eventData.type);
     
     // Handle cast.created events to track user's latest casts AND quote casts
     if (eventData.type === 'cast.created') {
@@ -245,10 +200,7 @@ async function webhookHandler(req, res) {
     // Parse the event
     const interaction = await parseWebhookEvent(eventData);
     
-    console.log(`🔍 Parse result:`, { hasInteraction: !!interaction });
-    
     if (!interaction) {
-      console.log(`❌ No interaction parsed - returning early`);
       return res.status(200).json({ 
         success: true, 
         processed: false,
@@ -256,12 +208,8 @@ async function webhookHandler(req, res) {
       });
     }
     
-    console.log(`✅ Interaction parsed successfully, proceeding to validation...`);
-    
     // Check if author has active tipping config
-    console.log(`🔍 Getting config for author address: ${interaction.authorAddress}`);
     const authorConfig = await database.getUserConfig(interaction.authorAddress);
-    console.log(`🔍 Author config result:`, { hasConfig: !!authorConfig, isActive: authorConfig?.isActive });
     
     if (!authorConfig || !authorConfig.isActive) {
       console.log(`❌ Author ${interaction.authorAddress} has no active tipping config`);
@@ -308,11 +256,10 @@ async function webhookHandler(req, res) {
     }
 
     // Process tip through batch system (like Noice - 1 minute batches for gas efficiency)
-    console.log(`🔄 Adding tip to batch: ${interaction.interactionType} from ${interaction.interactorFid} to ${interaction.authorFid}`);
     const result = await batchTransferManager.addTipToBatch(interaction, authorConfig);
     
     if (result.success) {
-      console.log(`✅ TIP BATCHED SUCCESS: ${interaction.interactionType} tip added to batch (${result.batchSize} total pending)`);
+      console.log(`✅ BATCHED: ${interaction.interactionType} | ${interaction.interactorFid}→${interaction.authorFid} | Queue: ${result.batchSize}`);
       res.status(200).json({
         success: true,
         processed: true,
@@ -322,7 +269,7 @@ async function webhookHandler(req, res) {
         message: 'Tip added to batch for gas-efficient processing'
       });
     } else {
-      console.log(`❌ TIP BATCH FAILED: ${result.reason}`);
+      console.log(`❌ REJECTED: ${interaction.interactionType} | Reason: ${result.reason}`);
       res.status(200).json({
         success: true,
         processed: false,
