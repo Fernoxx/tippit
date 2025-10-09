@@ -202,7 +202,7 @@ export default function Home() {
                   {cast.tipper?.totalEngagementValue && cast.tipper.totalEngagementValue > 0 && (
                     <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
                       <div className="flex items-center justify-center space-x-6 text-sm font-medium">
-                        {cast.tipper.likeAmount > 0 && (
+                        {cast.tipper?.likeAmount && cast.tipper.likeAmount > 0 && (
                           <span className="flex items-center space-x-1">
                             <span>❤️</span>
                             <span className="text-green-700">
@@ -212,7 +212,7 @@ export default function Home() {
                             </span>
                           </span>
                         )}
-                        {cast.tipper.recastAmount > 0 && (
+                        {cast.tipper?.recastAmount && cast.tipper.recastAmount > 0 && (
                           <span className="flex items-center space-x-1">
                             <span>🔄</span>
                             <span className="text-green-700">
@@ -222,7 +222,7 @@ export default function Home() {
                             </span>
                           </span>
                         )}
-                        {cast.tipper.replyAmount > 0 && (
+                        {cast.tipper?.replyAmount && cast.tipper.replyAmount > 0 && (
                           <span className="flex items-center space-x-1">
                             <span>💬</span>
                             <span className="text-green-700">
