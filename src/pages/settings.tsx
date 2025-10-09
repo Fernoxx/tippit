@@ -293,31 +293,11 @@ export default function Settings() {
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="text-center"
+        className="text-center mb-6"
       >
         <p className="text-xl text-gray-700">
           Configure your tipping preferences
         </p>
-      </motion.div>
-
-      {/* Add gap */}
-      <div className="mb-6"></div>
-
-      {/* Connected Wallet Info */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="bg-white rounded-2xl p-6 card-shadow mb-8"
-      >
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs text-gray-500 mb-1">Connected Wallet</p>
-            <p className="font-mono text-sm text-gray-700">
-              {address.slice(0, 6)}...{address.slice(-4)}
-            </p>
-          </div>
-        </div>
       </motion.div>
 
       {/* Tab Navigation */}
@@ -381,15 +361,15 @@ export default function Settings() {
                     </div>
                     <button
                       onClick={() => setTippingToggles(prev => ({ ...prev, [key]: !prev[key as keyof typeof tippingToggles] }))}
-                      className={`relative w-12 h-6 rounded-full transition-colors ${
+                      className={`relative w-11 h-6 rounded-full transition-colors ${
                         tippingToggles[key as keyof typeof tippingToggles]
                           ? 'bg-yellow-400'
                           : 'bg-gray-300'
                       }`}
                     >
                       <span
-                        className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform ${
-                          tippingToggles[key as keyof typeof tippingToggles] ? 'translate-x-6' : 'translate-x-0'
+                        className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform ${
+                          tippingToggles[key as keyof typeof tippingToggles] ? 'left-5' : 'left-0.5'
                         }`}
                       />
                     </button>
@@ -589,10 +569,10 @@ export default function Settings() {
                 <button
                   onClick={handleApproveAllowance}
                   disabled={isApprovingLocal || isApproving || !allowanceAmount || !isValidToken}
-                  className="flex-1 bg-green-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center justify-center"
+                  className="flex-1 border-2 border-green-600 text-green-600 py-3 px-4 rounded-lg font-medium hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                 >
                   {isApprovingLocal || isApproving ? (
-                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-green-600 border-t-transparent"></div>
                   ) : (
                     'Approve'
                   )}
@@ -600,10 +580,10 @@ export default function Settings() {
                 <button
                   onClick={handleRevokeAllowance}
                   disabled={isRevokingLocal || isRevokingAllowance || !tokenAllowance || tokenAllowance === '0'}
-                  className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center"
+                  className="flex-1 border-2 border-red-600 text-red-600 py-3 px-4 rounded-lg font-medium hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                 >
                   {isRevokingLocal || isRevokingAllowance ? (
-                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-red-600 border-t-transparent"></div>
                   ) : (
                     'Revoke'
                   )}
