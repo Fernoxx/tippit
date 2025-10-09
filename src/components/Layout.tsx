@@ -5,6 +5,8 @@ import Image from 'next/image';
 import { Home, Settings, Trophy } from 'lucide-react';
 import { useFarcasterWallet } from '@/hooks/useFarcasterWallet';
 
+const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001').replace(/\/$/, '');
+
 interface LayoutProps {
   children: ReactNode;
 }
@@ -13,6 +15,7 @@ export default function Layout({ children }: LayoutProps) {
   const router = useRouter();
   const [currentPage, setCurrentPage] = useState(0);
   const { isConnected, currentUser } = useFarcasterWallet();
+  const [neynarScore, setNeynarScore] = useState<number | null>(null);
 
   const pages = [
     { href: '/', icon: Home, label: 'Home' },
@@ -29,6 +32,25 @@ export default function Layout({ children }: LayoutProps) {
     }
   }, [router.pathname]);
 
+  // Fetch Neynar score when user connects
+  useEffect(() => {
+    const fetchNeynarScore = async () => {
+      if (currentUser?.fid) {
+        try {
+          const response = await fetch(`${BACKEND_URL}/api/neynar/user/score/${currentUser.fid}`);
+          if (response.ok) {
+            const data = await response.json();
+            setNeynarScore(data.score || null);
+          }
+        } catch (error) {
+          console.error('Failed to fetch Neynar score:', error);
+        }
+      }
+    };
+    
+    fetchNeynarScore();
+  }, [currentUser?.fid]);
+
   return (
     <div className="min-h-screen bg-yellow-50 flex flex-col">
       {/* Header with Logo and FID */}
@@ -42,13 +64,20 @@ export default function Layout({ children }: LayoutProps) {
               height={64}
               className="w-16 h-16"
             />
-            {/* FID Display with Green Dot */}
+            {/* FID Display with Green Dot and Neynar Score */}
             {isConnected && currentUser?.fid && (
               <div className="absolute right-4 flex items-center space-x-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-sm font-medium text-gray-700">
-                  FID: {currentUser.fid}
-                </span>
+                <div className="text-right">
+                  <div className="text-sm font-medium text-gray-700">
+                    FID: {currentUser.fid}
+                  </div>
+                  {neynarScore !== null && (
+                    <div className="text-xs text-gray-500">
+                      Score: {neynarScore.toFixed(2)}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>

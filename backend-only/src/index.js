@@ -1034,6 +1034,34 @@ app.get('/api/neynar/auth-url', async (req, res) => {
   }
 });
 
+// Get user's Neynar score
+app.get('/api/neynar/user/score/:fid', async (req, res) => {
+  try {
+    const { fid } = req.params;
+    const response = await fetch(
+      `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`,
+      {
+        headers: { 'x-api-key': process.env.NEYNAR_API_KEY }
+      }
+    );
+    
+    if (response.ok) {
+      const data = await response.json();
+      const user = data.users?.[0];
+      res.json({ 
+        score: user?.score || 0,
+        fid: user?.fid,
+        username: user?.username
+      });
+    } else {
+      res.status(500).json({ error: 'Failed to fetch user score' });
+    }
+  } catch (error) {
+    console.error('Neynar score fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch Neynar score' });
+  }
+});
+
 // Homepage endpoint - Show casts from users with remaining allowance (sorted by allowance)
 app.get('/api/homepage', async (req, res) => {
   try {
