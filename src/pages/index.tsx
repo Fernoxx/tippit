@@ -198,14 +198,15 @@ export default function Home() {
                     )}
                   </div>
 
-                  {/* Tip Amounts - Only for USDC users */}
-                  {cast.tipper?.totalEngagementValue && cast.tipper.totalEngagementValue > 0 && (
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
-                      <div className="flex items-center justify-center space-x-6 text-sm font-medium">
+                  {/* Engagement Stats - Show tip amounts inline */}
+                  <div className="flex items-center space-x-6 text-sm mb-3">
+                    {cast.tipper?.totalEngagementValue && cast.tipper.totalEngagementValue > 0 ? (
+                      <>
+                        {/* Show tip amounts for USDC users */}
                         {typeof cast.tipper.likeAmount === 'number' && cast.tipper.likeAmount > 0 && (
                           <span className="flex items-center space-x-1">
                             <span>❤️</span>
-                            <span className="text-green-700">
+                            <span className="font-semibold text-green-600">
                               ${cast.tipper.likeAmount >= 0.01 
                                 ? cast.tipper.likeAmount.toString() 
                                 : cast.tipper.likeAmount.toFixed(3)}
@@ -215,7 +216,7 @@ export default function Home() {
                         {typeof cast.tipper.recastAmount === 'number' && cast.tipper.recastAmount > 0 && (
                           <span className="flex items-center space-x-1">
                             <span>🔄</span>
-                            <span className="text-green-700">
+                            <span className="font-semibold text-green-600">
                               ${cast.tipper.recastAmount >= 0.01 
                                 ? cast.tipper.recastAmount.toString() 
                                 : cast.tipper.recastAmount.toFixed(3)}
@@ -225,16 +226,32 @@ export default function Home() {
                         {typeof cast.tipper.replyAmount === 'number' && cast.tipper.replyAmount > 0 && (
                           <span className="flex items-center space-x-1">
                             <span>💬</span>
-                            <span className="text-green-700">
+                            <span className="font-semibold text-green-600">
                               ${cast.tipper.replyAmount >= 0.01 
                                 ? cast.tipper.replyAmount.toString() 
                                 : cast.tipper.replyAmount.toFixed(3)}
                             </span>
                           </span>
                         )}
-                      </div>
-                    </div>
-                  )}
+                      </>
+                    ) : (
+                      <>
+                        {/* Show regular counts for non-USDC users */}
+                        <span className="flex items-center space-x-1 text-gray-500">
+                          <span>❤️</span>
+                          <span>{cast.reactions?.likes_count || 0}</span>
+                        </span>
+                        <span className="flex items-center space-x-1 text-gray-500">
+                          <span>🔄</span>
+                          <span>{cast.reactions?.recasts_count || 0}</span>
+                        </span>
+                        <span className="flex items-center space-x-1 text-gray-500">
+                          <span>💬</span>
+                          <span>{cast.replies?.count || 0}</span>
+                        </span>
+                      </>
+                    )}
+                  </div>
 
                   {/* Tipper Criteria */}
                   {cast.tipper?.criteria && (
