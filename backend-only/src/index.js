@@ -1089,9 +1089,9 @@ app.get('/api/homepage', async (req, res) => {
         const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
         const allowanceUSDC = parseFloat(ethers.formatUnits(allowance, 6));
         
-        // Skip users with 0 allowance
-        if (allowanceUSDC <= 0) {
-          console.log(`⏭️ Skipping ${userAddress} - no remaining allowance`);
+        // Skip users with EXACTLY 0 allowance (not 0.1 or 0.2, must be 0.000000)
+        if (allowanceUSDC === 0) {
+          console.log(`⏭️ Skipping ${userAddress} - allowance is exactly 0`);
           continue;
         }
         
@@ -1190,17 +1190,14 @@ app.get('/api/homepage', async (req, res) => {
       }
     }
     
-    // Sort by: 1) Total engagement value (highest first), 2) Allowance, 3) Timestamp
+    // Sort by: 1) Total engagement value (highest total tips first), 2) Timestamp
     usersWithAllowance.sort((a, b) => {
-      // First priority: Total engagement value (for USDC users)
-      if (Math.abs(a.totalEngagementValue - b.totalEngagementValue) > 0.001) {
+      // Primary sort: Total engagement value (like + recast + reply combined)
+      // User offering $0.045 total shows before user offering $0.033 total
+      if (Math.abs(a.totalEngagementValue - b.totalEngagementValue) > 0.0001) {
         return b.totalEngagementValue - a.totalEngagementValue;
       }
-      // Second priority: Remaining allowance
-      if (Math.abs(a.allowance - b.allowance) > 0.01) {
-        return b.allowance - a.allowance;
-      }
-      // Third priority: Newest casts first
+      // Secondary sort: Newest casts first (if same total value)
       return b.timestamp - a.timestamp;
     });
     
