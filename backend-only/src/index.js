@@ -1034,26 +1034,40 @@ app.get('/api/neynar/auth-url', async (req, res) => {
   }
 });
 
-// Homepage endpoint - Recent MAIN CASTS ONLY from approved users (no replies)
+// Homepage endpoint - Show casts from users with remaining allowance (sorted by allowance)
 app.get('/api/homepage', async (req, res) => {
   try {
-    const { timeFilter = '24h', page = 1, limit = 10 } = req.query;
+    const { timeFilter = '24h', page = 1, limit = 50 } = req.query;
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
-    const offset = (pageNum - 1) * limitNum;
     
     // Get users with active configurations and token approvals
     const activeUsers = await database.getActiveUsersWithApprovals();
+    const { ethers } = require('ethers');
+    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     
-    // Get paginated slice of users
-    const paginatedUsers = activeUsers.slice(offset, offset + limitNum);
+    // Get allowance and cast for each user
+    const usersWithAllowance = [];
     
-    // Fetch recent casts for each approved user
-    const userCasts = [];
-    
-    for (const userAddress of paginatedUsers) {
+    for (const userAddress of activeUsers) {
       try {
-        // Get user's Farcaster profile first
+        // Check user's remaining USDC allowance
+        const tokenAddress = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC
+        const tokenContract = new ethers.Contract(tokenAddress, [
+          "function allowance(address owner, address spender) view returns (uint256)"
+        ], provider);
+        
+        const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
+        const allowanceUSDC = parseFloat(ethers.formatUnits(allowance, 6));
+        
+        // Skip users with 0 allowance
+        if (allowanceUSDC <= 0) {
+          console.log(`⏭️ Skipping ${userAddress} - no remaining allowance`);
+          continue;
+        }
+        
+        // Get user's Farcaster profile
         const userResponse = await fetch(
           `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${userAddress}`,
           {
@@ -1069,99 +1083,78 @@ app.get('/api/homepage', async (req, res) => {
           const farcasterUser = userData[userAddress]?.[0];
           
           if (farcasterUser) {
-            // Fetch user's recent casts (last 10 to find main casts)
-            const castsResponse = await fetch(
-              `https://api.neynar.com/v2/farcaster/feed/user/casts?fid=${farcasterUser.fid}&limit=10`,
-              {
-                headers: { 'x-api-key': process.env.NEYNAR_API_KEY }
-              }
-            );
+            // Get user's latest earnable cast from DATABASE (not API - faster!)
+            const eligibleCasts = await database.getEligibleCasts(farcasterUser.fid);
             
-            if (castsResponse.ok) {
-              const castsData = await castsResponse.json();
-              const casts = castsData.casts || [];
+            if (eligibleCasts.length > 0) {
+              const castHash = eligibleCasts[0];
               
-              // Debug logging for your address - show all casts
-              if (userAddress.toLowerCase() === '0x3cf87b76d2a1d36f9542b4da2a6b4b3dc0f0bb2e') {
-                console.log(`🔍 DEBUG ${userAddress}: Found ${casts.length} total casts`);
-                casts.forEach((cast, index) => {
-                  console.log(`  Cast ${index + 1}: ${cast.hash}`);
-                  console.log(`    - parent_hash: ${cast.parent_hash}`);
-                  console.log(`    - parent_author:`, cast.parent_author);
-                  console.log(`    - text: ${cast.text.substring(0, 100)}...`);
-                  console.log(`    - timestamp: ${new Date(cast.timestamp).toISOString()}`);
+              // Fetch cast details from Neynar
+              const castResponse = await fetch(
+                `https://api.neynar.com/v2/farcaster/cast?identifier=${castHash}&type=hash`,
+                {
+                  headers: { 'x-api-key': process.env.NEYNAR_API_KEY }
+                }
+              );
+              
+              if (castResponse.ok) {
+                const castData = await castResponse.json();
+                const cast = castData.cast;
+                
+                // Get user config for criteria
+                const userConfig = await database.getUserConfig(userAddress);
+                
+                usersWithAllowance.push({
+                  cast: {
+                    ...cast,
+                    farcasterUrl: `https://warpcast.com/${farcasterUser.username}/${cast.hash}`,
+                    tipper: {
+                      userAddress,
+                      username: farcasterUser.username,
+                      displayName: farcasterUser.display_name,
+                      pfpUrl: farcasterUser.pfp_url,
+                      fid: farcasterUser.fid,
+                      criteria: userConfig ? {
+                        audience: userConfig.audience,
+                        minFollowerCount: userConfig.minFollowerCount,
+                        minNeynarScore: userConfig.minNeynarScore
+                      } : null
+                    }
+                  },
+                  allowance: allowanceUSDC,
+                  timestamp: new Date(cast.timestamp).getTime(),
+                  userAddress
                 });
               }
-              
-              // Filter to only show MAIN CASTS (not replies) - NO CUTOFF DATE
-              const mainCasts = casts.filter(cast => {
-                // Only main casts (no parent_hash and no parent_author with valid fid)
-                const isMainCast = !cast.parent_hash && (!cast.parent_author || !cast.parent_author.fid || cast.parent_author.fid === null);
-                // Additional check: ensure parent_author.fid is null or undefined
-                const hasNoParentAuthor = !cast.parent_author || cast.parent_author.fid === null || cast.parent_author.fid === undefined;
-                
-                return isMainCast && hasNoParentAuthor;
-              }).slice(0, 1); // Take only the 1 most recent main cast per user
-              
-              // Debug logging for main casts
-              if (userAddress.toLowerCase() === '0x3cf87b76d2a1d36f9542b4da2a6b4b3dc0f0bb2e') {
-                console.log(`🔍 DEBUG ${userAddress}: Found ${mainCasts.length} main casts`);
-                if (mainCasts.length > 0) {
-                  console.log(`  ✅ Latest main cast: ${mainCasts[0].hash}`);
-                  console.log(`  - text: ${mainCasts[0].text.substring(0, 100)}...`);
-                } else {
-                  console.log(`  ❌ No main casts found in last 10 posts`);
-                }
-              }
-              
-              // Get user's tipping criteria
-              const userConfig = await database.getUserConfig(userAddress);
-              
-              // Add user info and clickable URL to each cast
-              const enrichedCasts = mainCasts.map(cast => ({
-                ...cast,
-                farcasterUrl: `https://warpcast.com/${farcasterUser.username}/${cast.hash}`,
-                tipper: {
-                  userAddress,
-                  username: farcasterUser.username,
-                  displayName: farcasterUser.display_name,
-                  pfpUrl: farcasterUser.pfp_url,
-                  fid: farcasterUser.fid,
-                  criteria: userConfig ? {
-                    audience: userConfig.audience,
-                    minFollowerCount: userConfig.minFollowerCount,
-                    minNeynarScore: userConfig.minNeynarScore
-                  } : null
-                }
-              }));
-              
-              userCasts.push(...enrichedCasts);
             }
           }
         }
       } catch (error) {
-        console.log(`Could not fetch casts for user ${userAddress}:`, error.message);
+        console.log(`Could not process user ${userAddress}:`, error.message);
       }
     }
     
-    // Sort by timestamp (most recent first)
-    userCasts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    // Sort by allowance (highest first), then by timestamp (newest first)
+    usersWithAllowance.sort((a, b) => {
+      if (Math.abs(a.allowance - b.allowance) > 0.01) {
+        return b.allowance - a.allowance; // Higher allowance first
+      }
+      return b.timestamp - a.timestamp; // Then newer casts first
+    });
     
-    // Calculate pagination info
-    const totalUsers = activeUsers.length;
-    const totalPages = Math.ceil(totalUsers / limitNum);
-    const hasMore = pageNum < totalPages;
+    // Paginate results
+    const paginatedResults = usersWithAllowance.slice((pageNum - 1) * limitNum, pageNum * limitNum);
     
     res.json({ 
-      casts: userCasts,
-      users: paginatedUsers,
-      amounts: paginatedUsers.map(() => '0'),
+      casts: paginatedResults.map(r => r.cast),
+      users: paginatedResults.map(r => r.userAddress),
+      amounts: paginatedResults.map(r => r.allowance.toString()),
       pagination: {
         page: pageNum,
         limit: limitNum,
-        totalUsers,
-        totalPages,
-        hasMore
+        totalUsers: usersWithAllowance.length,
+        totalPages: Math.ceil(usersWithAllowance.length / limitNum),
+        hasMore: pageNum * limitNum < usersWithAllowance.length
       }
     });
   } catch (error) {
