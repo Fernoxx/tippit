@@ -366,23 +366,27 @@ export default function Settings() {
                 { key: 'follow', label: 'Follow', icon: UserPlus, default: '0' },
               ].map(({ key, label, icon: Icon, default: defaultAmount }) => (
                 <div key={key} className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
                       <Icon className="w-5 h-5 text-gray-600" />
                       <span className="font-medium">{label}</span>
                     </div>
                     <button
                       onClick={() => setTippingToggles(prev => ({ ...prev, [key]: !prev[key as keyof typeof tippingToggles] }))}
-                      className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${
+                      className={`relative w-12 h-6 rounded-full transition-colors ${
                         tippingToggles[key as keyof typeof tippingToggles]
-                          ? 'bg-green-500 text-white'
-                          : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                          ? 'bg-yellow-400'
+                          : 'bg-gray-300'
                       }`}
                     >
-                      {tippingToggles[key as keyof typeof tippingToggles] ? <Check className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
+                      <span
+                        className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform ${
+                          tippingToggles[key as keyof typeof tippingToggles] ? 'translate-x-6' : 'translate-x-0'
+                        }`}
+                      />
                     </button>
                   </div>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 mt-2">
                     <input
                       type="number"
                       step="0.001"
