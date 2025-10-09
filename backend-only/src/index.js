@@ -1132,6 +1132,17 @@ app.get('/api/homepage', async (req, res) => {
                 // Get user config for criteria
                 const userConfig = await database.getUserConfig(userAddress);
                 
+                // Calculate total engagement value (like + recast + reply) for USDC only
+                const isUSDC = userConfig?.tokenAddress?.toLowerCase() === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
+                let totalEngagementValue = 0;
+                
+                if (isUSDC && userConfig) {
+                  const likeAmount = parseFloat(userConfig.likeAmount || 0);
+                  const recastAmount = parseFloat(userConfig.recastAmount || 0);
+                  const replyAmount = parseFloat(userConfig.replyAmount || 0);
+                  totalEngagementValue = likeAmount + recastAmount + replyAmount;
+                }
+                
                 usersWithAllowance.push({
                   cast: {
                     ...cast,
@@ -1142,6 +1153,7 @@ app.get('/api/homepage', async (req, res) => {
                       displayName: farcasterUser.display_name,
                       pfpUrl: farcasterUser.pfp_url,
                       fid: farcasterUser.fid,
+                      totalEngagementValue: isUSDC ? totalEngagementValue : null, // Only for USDC users
                       criteria: userConfig ? {
                         audience: userConfig.audience,
                         minFollowerCount: userConfig.minFollowerCount,
@@ -1150,6 +1162,7 @@ app.get('/api/homepage', async (req, res) => {
                     }
                   },
                   allowance: allowanceUSDC,
+                  totalEngagementValue: isUSDC ? totalEngagementValue : 0,
                   timestamp: new Date(cast.timestamp).getTime(),
                   userAddress
                 });
@@ -1162,12 +1175,18 @@ app.get('/api/homepage', async (req, res) => {
       }
     }
     
-    // Sort by allowance (highest first), then by timestamp (newest first)
+    // Sort by: 1) Total engagement value (highest first), 2) Allowance, 3) Timestamp
     usersWithAllowance.sort((a, b) => {
-      if (Math.abs(a.allowance - b.allowance) > 0.01) {
-        return b.allowance - a.allowance; // Higher allowance first
+      // First priority: Total engagement value (for USDC users)
+      if (Math.abs(a.totalEngagementValue - b.totalEngagementValue) > 0.001) {
+        return b.totalEngagementValue - a.totalEngagementValue;
       }
-      return b.timestamp - a.timestamp; // Then newer casts first
+      // Second priority: Remaining allowance
+      if (Math.abs(a.allowance - b.allowance) > 0.01) {
+        return b.allowance - a.allowance;
+      }
+      // Third priority: Newest casts first
+      return b.timestamp - a.timestamp;
     });
     
     // Paginate results

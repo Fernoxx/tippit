@@ -23,6 +23,7 @@ interface CastTipper {
   displayName?: string;
   pfpUrl?: string;
   fid?: number;
+  totalEngagementValue?: number | null;
   criteria?: {
     audience: number;
     minFollowerCount: number;
@@ -209,6 +210,23 @@ export default function Home() {
                       <span>{cast.reactions?.likes_count || 0}</span>
                     </span>
                   </div>
+
+                  {/* Total Engagement Value - Only for USDC users */}
+                  {cast.tipper?.totalEngagementValue && cast.tipper.totalEngagementValue > 0 && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-green-900">
+                          💰 Engage to earn up to
+                        </span>
+                        <span className="text-lg font-bold text-green-700">
+                          ${cast.tipper.totalEngagementValue.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="text-xs text-green-700 mt-1">
+                        Like + Recast + Reply combined
+                      </div>
+                    </div>
+                  )}
 
                   {/* Tipper Criteria */}
                   {cast.tipper?.criteria && (
