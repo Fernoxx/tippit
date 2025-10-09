@@ -37,7 +37,7 @@ export default function Settings() {
   } = useEcion();
 
   const [mounted, setMounted] = useState(false);
-  const [activeTab, setActiveTab] = useState<'amounts' | 'criteria' | 'allowance'>('amounts');
+  const [activeTab, setActiveTab] = useState<'amounts' | 'criteria' | 'allowance'>('allowance');
   
   // Form states
   const [allowanceAmount, setAllowanceAmount] = useState('');
@@ -47,6 +47,8 @@ export default function Settings() {
   const [showTokenDropdown, setShowTokenDropdown] = useState(false);
   const [isValidToken, setIsValidToken] = useState(true);
   const [amountErrors, setAmountErrors] = useState<{[key: string]: string}>({});
+  const [isApprovingLocal, setIsApprovingLocal] = useState(false);
+  const [isRevokingLocal, setIsRevokingLocal] = useState(false);
   
   // Validate tip amount (minimum $0.005)
   const validateAmount = (value: string, key: string) => {
@@ -232,9 +234,12 @@ export default function Settings() {
     }
 
     try {
+      setIsApprovingLocal(true);
       await approveToken(selectedToken, allowanceAmount);
     } catch (error: any) {
       toast.error('Failed to approve allowance: ' + error.message, { duration: 2000 });
+    } finally {
+      setIsApprovingLocal(false);
     }
   };
 
@@ -245,9 +250,12 @@ export default function Settings() {
     }
 
     try {
+      setIsRevokingLocal(true);
       await revokeTokenAllowance(selectedToken);
     } catch (error: any) {
       toast.error('Failed to revoke allowance: ' + error.message, { duration: 2000 });
+    } finally {
+      setIsRevokingLocal(false);
     }
   };
 
@@ -315,6 +323,16 @@ export default function Settings() {
       {/* Tab Navigation */}
       <div className="flex space-x-1 mb-8 bg-gray-100 p-1 rounded-lg">
         <button
+          onClick={() => setActiveTab('allowance')}
+          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+            activeTab === 'allowance'
+              ? 'bg-white text-accent shadow-sm'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          Approve Allowance
+        </button>
+        <button
           onClick={() => setActiveTab('amounts')}
           className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
             activeTab === 'amounts'
@@ -333,16 +351,6 @@ export default function Settings() {
           }`}
         >
           Set Criteria
-        </button>
-        <button
-          onClick={() => setActiveTab('allowance')}
-          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-            activeTab === 'allowance'
-              ? 'bg-white text-accent shadow-sm'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          Approve Allowance
         </button>
       </div>
 
@@ -401,7 +409,7 @@ export default function Settings() {
                       }`}
                       placeholder={defaultAmount}
                     />
-                    <span className="text-sm text-gray-600">USDC</span>
+                    <span className="text-sm text-gray-600">{tokenName}</span>
                   </div>
                   {amountErrors[key] && (
                     <div className="text-red-500 text-xs mt-1">
@@ -580,17 +588,25 @@ export default function Settings() {
               <div className="flex space-x-3">
                 <button
                   onClick={handleApproveAllowance}
-                  disabled={isApproving || !allowanceAmount || !isValidToken}
-                  className="flex-1 bg-green-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+                  disabled={isApprovingLocal || isApproving || !allowanceAmount || !isValidToken}
+                  className="flex-1 bg-green-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center justify-center"
                 >
-                  {isApproving ? 'Approving...' : 'Approve'}
+                  {isApprovingLocal || isApproving ? (
+                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                  ) : (
+                    'Approve'
+                  )}
                 </button>
                 <button
                   onClick={handleRevokeAllowance}
-                  disabled={isRevokingAllowance || !tokenAllowance || tokenAllowance === '0'}
-                  className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
+                  disabled={isRevokingLocal || isRevokingAllowance || !tokenAllowance || tokenAllowance === '0'}
+                  className="flex-1 bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center"
                 >
-                  {isRevokingAllowance ? 'Revoking...' : 'Revoke'}
+                  {isRevokingLocal || isRevokingAllowance ? (
+                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                  ) : (
+                    'Revoke'
+                  )}
                 </button>
               </div>
             </div>
