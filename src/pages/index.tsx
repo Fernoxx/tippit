@@ -24,6 +24,9 @@ interface CastTipper {
   pfpUrl?: string;
   fid?: number;
   totalEngagementValue?: number | null;
+  likeAmount?: number;
+  recastAmount?: number;
+  replyAmount?: number;
   criteria?: {
     audience: number;
     minFollowerCount: number;
@@ -195,35 +198,28 @@ export default function Home() {
                     )}
                   </div>
 
-                  {/* Cast Stats */}
-                  <div className="flex items-center space-x-6 text-sm text-gray-500 mb-3">
-                    <span className="flex items-center space-x-1">
-                      <span>💬</span>
-                      <span>{cast.replies?.count || 0}</span>
-                    </span>
-                    <span className="flex items-center space-x-1">
-                      <span>🔄</span>
-                      <span>{cast.reactions?.recasts_count || 0}</span>
-                    </span>
-                    <span className="flex items-center space-x-1">
-                      <span>❤️</span>
-                      <span>{cast.reactions?.likes_count || 0}</span>
-                    </span>
-                  </div>
-
-                  {/* Total Engagement Value - Only for USDC users */}
+                  {/* Tip Amounts - Only for USDC users */}
                   {cast.tipper?.totalEngagementValue && cast.tipper.totalEngagementValue > 0 && (
                     <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-green-900">
-                          💰 Engage to earn up to
-                        </span>
-                        <span className="text-lg font-bold text-green-700">
-                          ${cast.tipper.totalEngagementValue.toFixed(2)}
-                        </span>
-                      </div>
-                      <div className="text-xs text-green-700 mt-1">
-                        Like + Recast + Reply combined
+                      <div className="flex items-center justify-center space-x-6 text-sm font-medium">
+                        {cast.tipper.likeAmount > 0 && (
+                          <span className="flex items-center space-x-1">
+                            <span>❤️</span>
+                            <span className="text-green-700">${cast.tipper.likeAmount.toFixed(3)}</span>
+                          </span>
+                        )}
+                        {cast.tipper.recastAmount > 0 && (
+                          <span className="flex items-center space-x-1">
+                            <span>🔄</span>
+                            <span className="text-green-700">${cast.tipper.recastAmount.toFixed(3)}</span>
+                          </span>
+                        )}
+                        {cast.tipper.replyAmount > 0 && (
+                          <span className="flex items-center space-x-1">
+                            <span>💬</span>
+                            <span className="text-green-700">${cast.tipper.replyAmount.toFixed(3)}</span>
+                          </span>
+                        )}
                       </div>
                     </div>
                   )}

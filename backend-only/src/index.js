@@ -1154,6 +1154,9 @@ app.get('/api/homepage', async (req, res) => {
                       pfpUrl: farcasterUser.pfp_url,
                       fid: farcasterUser.fid,
                       totalEngagementValue: isUSDC ? totalEngagementValue : null, // Only for USDC users
+                      likeAmount: isUSDC ? parseFloat(userConfig.likeAmount || 0) : null,
+                      recastAmount: isUSDC ? parseFloat(userConfig.recastAmount || 0) : null,
+                      replyAmount: isUSDC ? parseFloat(userConfig.replyAmount || 0) : null,
                       criteria: userConfig ? {
                         audience: userConfig.audience,
                         minFollowerCount: userConfig.minFollowerCount,

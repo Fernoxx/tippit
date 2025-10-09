@@ -64,20 +64,17 @@ export default function Layout({ children }: LayoutProps) {
               height={64}
               className="w-16 h-16"
             />
-            {/* FID Display with Green Dot and Neynar Score */}
+            {/* FID Display and Neynar Score */}
             {isConnected && currentUser?.fid && (
-              <div className="absolute right-4 flex items-center space-x-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <div className="text-right">
-                  <div className="text-sm font-medium text-gray-700">
-                    FID: {currentUser.fid}
-                  </div>
-                  {neynarScore !== null && (
-                    <div className="text-xs text-gray-500">
-                      Score: {neynarScore.toFixed(2)}
-                    </div>
-                  )}
+              <div className="absolute right-4 text-right">
+                <div className="text-sm font-medium text-gray-700">
+                  FID: {currentUser.fid}
                 </div>
+                {neynarScore !== null && (
+                  <div className="text-xs text-gray-500">
+                    Score: {neynarScore.toFixed(2)}
+                  </div>
+                )}
               </div>
             )}
           </div>
