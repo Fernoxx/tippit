@@ -81,7 +81,7 @@ export default function Leaderboard() {
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        className="bg-white rounded-2xl p-8 card-shadow"
+        className="bg-white rounded-2xl p-5 card-shadow"
       >
         {/* Title and Time Filter on Same Line */}
         <div className="flex items-center justify-between mb-6">
@@ -108,25 +108,25 @@ export default function Leaderboard() {
         </div>
         
         {isLoading ? (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {[1, 2, 3, 4, 5].map((i) => (
               <div key={i} className="animate-pulse">
-                <div className="flex items-center justify-between p-4 rounded-xl bg-gray-100">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex items-center justify-center w-8">
-                      <div className="w-6 h-4 bg-gray-300 rounded"></div>
+                <div className="flex items-center justify-between p-3 rounded-lg bg-gray-100">
+                  <div className="flex items-center space-x-3">
+                    <div className="flex items-center justify-center w-6">
+                      <div className="w-4 h-3 bg-gray-300 rounded"></div>
                     </div>
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-2">
                       <div className="w-8 h-8 bg-gray-300 rounded-full"></div>
                       <div>
-                        <div className="w-24 h-4 bg-gray-300 rounded mb-1"></div>
-                        <div className="w-16 h-3 bg-gray-300 rounded"></div>
+                        <div className="w-20 h-3 bg-gray-300 rounded mb-1"></div>
+                        <div className="w-14 h-2 bg-gray-300 rounded"></div>
                       </div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="w-16 h-5 bg-gray-300 rounded mb-1"></div>
-                    <div className="w-12 h-3 bg-gray-300 rounded"></div>
+                    <div className="w-14 h-4 bg-gray-300 rounded mb-1"></div>
+                    <div className="w-10 h-2 bg-gray-300 rounded"></div>
                   </div>
                 </div>
               </div>
@@ -144,15 +144,15 @@ export default function Leaderboard() {
                 key={user.userAddress}
                 variants={itemVariants}
                 whileHover={{ x: 10 }}
-                className={`flex items-center justify-between p-4 rounded-xl transition-all duration-200 ${getRankStyle(
+                className={`flex items-center justify-between p-3 rounded-lg transition-all duration-200 ${getRankStyle(
                   index
                 )}`}
               >
-                <div className="flex items-center space-x-4">
-                  <div className="flex items-center justify-center w-8">
+                <div className="flex items-center space-x-3">
+                  <div className="flex items-center justify-center w-6">
                     {getRankIcon(index)}
                   </div>
-                  <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-2">
                     {user.pfpUrl ? (
                       <img
                         src={user.pfpUrl}
@@ -167,20 +167,20 @@ export default function Leaderboard() {
                       </div>
                     )}
                     <div>
-                      <p className="font-medium text-gray-900">
+                      <p className="font-medium text-sm text-gray-900">
                         {user.displayName || user.username || `${user.userAddress.slice(0, 6)}...${user.userAddress.slice(-4)}`}
                       </p>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-xs text-gray-500">
                         {user.username ? `@${user.username}` : `Address`}
                       </p>
                     </div>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-lg font-semibold text-gray-900">
+                  <p className="text-sm font-semibold text-gray-900">
                     {user.totalAmount.toFixed(2)} USDC
                   </p>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-xs text-gray-500">
                     {activeTab === 'tipped' ? 'tipped' : 'earned'}
                   </p>
                 </div>

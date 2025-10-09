@@ -138,7 +138,7 @@ export default function Home() {
               casts.map((cast: Cast, index: number) => (
                 <div
                   key={cast.hash}
-                  className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow cursor-pointer"
+                  className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
                   onClick={() => {
                     if (cast.farcasterUrl) {
                       window.open(cast.farcasterUrl, '_blank');
@@ -146,38 +146,36 @@ export default function Home() {
                   }}
                 >
                   {/* User Info */}
-                  <div className="flex items-center space-x-3 mb-3">
+                  <div className="flex items-center space-x-2 mb-2">
                     {cast.tipper?.pfpUrl ? (
                       <img
                         src={cast.tipper.pfpUrl}
                         alt={cast.tipper.displayName || cast.tipper.username}
-                        className="w-12 h-12 rounded-full"
+                        className="w-10 h-10 rounded-full"
                       />
                     ) : (
-                      <div className="w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center">
-                        <span className="text-lg font-bold text-gray-600">
+                      <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
+                        <span className="text-sm font-bold text-gray-600">
                           {(cast.tipper?.displayName || cast.tipper?.username || 'U')[0].toUpperCase()}
                         </span>
                       </div>
                     )}
-                    <div>
-                      <p className="font-semibold text-gray-900">
+                    <div className="flex-1">
+                      <p className="font-semibold text-sm text-gray-900">
                         {cast.tipper?.displayName || cast.tipper?.username || 'Anonymous Tipper'}
                       </p>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-xs text-gray-500">
                         @{cast.tipper?.username || 'unknown'} • {new Date(cast.timestamp).toLocaleDateString()}
                       </p>
                     </div>
-                    <div className="ml-auto">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 whitespace-nowrap">
-                        Active Tipper
-                      </span>
-                    </div>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      Active
+                    </span>
                   </div>
 
                   {/* Cast Content */}
-                  <div className="mb-3">
-                    <p className="text-gray-900 leading-relaxed">
+                  <div className="mb-2">
+                    <p className="text-sm text-gray-900 leading-relaxed">
                       {cast.text}
                     </p>
                     
@@ -199,7 +197,7 @@ export default function Home() {
                   </div>
 
                   {/* Engagement Stats - Show tip amounts inline */}
-                  <div className="flex items-center space-x-6 text-sm mb-3">
+                  <div className="flex items-center space-x-4 text-xs mb-2">
                     {/* Like */}
                     <span className="flex items-center space-x-1">
                       <span>❤️</span>
@@ -245,8 +243,8 @@ export default function Home() {
 
                   {/* Tipper Criteria */}
                   {cast.tipper?.criteria && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
-                      <div className="space-y-1 text-gray-700">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 text-xs">
+                      <div className="space-y-0.5 text-gray-700">
                         {cast.tipper.criteria.audience === 0 && (
                           <div>• Must be followed by @{cast.tipper.username}</div>
                         )}
