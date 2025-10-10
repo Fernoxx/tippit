@@ -16,9 +16,9 @@ contract EcionTipnV2 is Ownable {
     EnumerableSet.AddressSet private _executors;
     EnumerableSet.AddressSet private _claimants;
     
-    uint private _feeRate = 1000; // 10%
-    uint private _maxFee = 10000; // $0.01 (in USDC units)
-    uint private _minFee = 1000; // $0.001 (in USDC units)
+    uint private _feeRate = 500; // 5%
+    uint private _maxFee = 5000; // $0.005 (in USDC units)
+    uint private _minFee = 500; // $0.0005 (in USDC units)
 
     IERC20 public constant USDC = IERC20(0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913);
 
