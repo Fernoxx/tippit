@@ -1894,6 +1894,27 @@ app.post('/api/debug/force-process-batch', async (req, res) => {
   }
 });
 
+// Check current gas prices on Base
+app.get('/api/debug/gas-prices', async (req, res) => {
+  try {
+    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const gasPrice = await provider.getGasPrice();
+    const feeData = await provider.getFeeData();
+    
+    res.json({
+      success: true,
+      gasPrice: gasPrice.toString(),
+      gasPriceGwei: ethers.formatUnits(gasPrice, 'gwei'),
+      maxFeePerGas: feeData.maxFeePerGas?.toString(),
+      maxPriorityFeePerGas: feeData.maxPriorityFeePerGas?.toString(),
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error getting gas prices:', error);
+    res.status(500).json({ error: 'Failed to get gas prices' });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Ecion Backend running on port ${PORT}`);

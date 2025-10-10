@@ -338,12 +338,17 @@ class BatchTransferManager {
               const finalNonce = await this.provider.getTransactionCount(authorAddress, 'pending');
               console.log(`🔢 Using nonce ${finalNonce} for author ${authorAddress}`);
             
+            // Get dynamic gas price for Base network
+            const gasPrice = await this.provider.getGasPrice();
+            const increasedGasPrice = gasPrice * 110n / 100n; // 10% higher for reliability
+            
             const tx = await tokenContract.transferFrom(
               tip.interaction.authorAddress,
               tip.interaction.interactorAddress,
               ethers.parseUnits(tip.amount.toString(), 6),
               { 
-                gasLimit: 100000,
+                gasLimit: 200000, // Increased gas limit for Base
+                gasPrice: increasedGasPrice,
                 nonce: finalNonce
               }
             );
