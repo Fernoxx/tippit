@@ -34,7 +34,7 @@
     "tagline": "Boost your casts with ecion",
     "ogTitle": "Ecion – Tip Your Audience",
     "ogDescription": "With Ecion you can boost your casts by tipping engagers for their interactions easily.",
-    "ogImageUrl": "https://tippit-production.up.railway.app/og-image.png",
+    "ogImageUrl": "https://ecion.vercel.app/og-image.png",
     "castShareUrl": "https://warpcast.com/~/compose?text=Check+out+Ecion+-+tip+your+audience+for+engagement%21",
     "webhookUrl": "https://tippit-production.up.railway.app/api/webhook"
   },
