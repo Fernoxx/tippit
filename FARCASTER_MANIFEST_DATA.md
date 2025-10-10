@@ -31,7 +31,8 @@
 
 ### Technical Configuration
 - **Home URL**: `https://ecion.vercel.app`
-- **Webhook URL**: `https://ecion.vercel.app/api/webhook`
+- **Webhook URL**: `https://ecion-backend-production.up.railway.app/api/webhook`
+- **Hosted Manifest URL**: `https://api.farcaster.xyz/miniapps/hosted-manifest/0199cdd4-e949-c107-d2af-c04b270cc1b2`
 - **Required Chains**: `["eip155:8453"]` (Base network)
 - **Required Capabilities**: 
   ```
