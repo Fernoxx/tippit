@@ -2,11 +2,11 @@
   "miniapp": {
     "version": "1",
     "name": "Ecion",
-    "iconUrl": "https://tippit-production.up.railway.app/icon.png",
-    "homeUrl": "https://tippit-production.up.railway.app",
-    "imageUrl": "https://tippit-production.up.railway.app/image.png",
+    "iconUrl": "https://ecion.vercel.app/icon.png",
+    "homeUrl": "https://ecion.vercel.app",
+    "imageUrl": "https://ecion.vercel.app/image.png",
     "buttonTitle": "Start Tipping",
-    "splashImageUrl": "https://tippit-production.up.railway.app/splash.png",
+    "splashImageUrl": "https://ecion.vercel.app/splash.png",
     "splashBackgroundColor": "#fef3c7",
     "requiredChains": [
       "eip155:8453"
@@ -18,9 +18,9 @@
     "subtitle": "Connect and share instantly",
     "description": "With Ecion you can boost your casts by tipping engagers for their interactions easily.",
     "screenshotUrls": [
-      "https://tippit-production.up.railway.app/screenshot1.png",
-      "https://tippit-production.up.railway.app/screenshot2.png",
-      "https://tippit-production.up.railway.app/screenshot3.png"
+      "https://ecion.vercel.app/screenshot1.png",
+      "https://ecion.vercel.app/screenshot2.png",
+      "https://ecion.vercel.app/screenshot3.png"
     ],
     "primaryCategory": "social",
     "tags": [
@@ -30,7 +30,7 @@
       "ecion",
       "engage"
     ],
-    "heroImageUrl": "https://tippit-production.up.railway.app/hero.png",
+    "heroImageUrl": "https://ecion.vercel.app/hero.png",
     "tagline": "Boost your casts with ecion",
     "ogTitle": "Ecion – Tip Your Audience",
     "ogDescription": "With Ecion you can boost your casts by tipping engagers for their interactions easily.",
