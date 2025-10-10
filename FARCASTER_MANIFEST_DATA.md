@@ -21,9 +21,9 @@
 - **Splash Background Color**: `#fef3c7` (yellow theme to match your app)
 
 ### Engagement & Discovery
-- **Search Tags**: `tipping, rewards, engagement, farcaster, social, crypto`
-- **Marketing Tagline**: `Boost Your Casts with Tips`
-- **Button Title**: `💰 Start Tipping`
+- **Search Tags**: `tip, tipping, noice, ecion, engage`
+- **Marketing Tagline**: `Boost your casts with ecion`
+- **Button Title**: `Start Tipping`
 - **Social Share Title**: `Ecion – Tip Your Audience`
 - **Social Share Description**: `With Ecion you can boost your casts by tipping engagers for their interactions easily.`
 - **Social Share Image**: `https://ecion.vercel.app/og-image.png`

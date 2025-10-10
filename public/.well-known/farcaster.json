@@ -5,7 +5,7 @@
     "iconUrl": "https://ecion.vercel.app/icon.png",
     "homeUrl": "https://ecion.vercel.app",
     "imageUrl": "https://ecion.vercel.app/image.png",
-    "buttonTitle": "💰 Start Tipping",
+    "buttonTitle": "Start Tipping",
     "splashImageUrl": "https://ecion.vercel.app/splash.png",
     "splashBackgroundColor": "#fef3c7",
     "requiredChains": [
@@ -25,19 +25,23 @@
     ],
     "primaryCategory": "social",
     "tags": [
+      "tip",
       "tipping",
-      "rewards",
-      "engagement",
-      "farcaster",
-      "social",
-      "crypto"
+      "noice",
+      "ecion",
+      "engage"
     ],
     "heroImageUrl": "https://ecion.vercel.app/hero.png",
-    "tagline": "Boost Your Casts with Tips",
+    "tagline": "Boost your casts with ecion",
     "ogTitle": "Ecion – Tip Your Audience",
     "ogDescription": "With Ecion you can boost your casts by tipping engagers for their interactions easily.",
     "ogImageUrl": "https://ecion.vercel.app/og-image.png",
     "castShareUrl": "https://warpcast.com/~/compose?text=Check+out+Ecion+-+tip+your+audience+for+engagement%21",
     "webhookUrl": "https://ecion.vercel.app/api/webhook"
+  },
+  "accountAssociation": {
+    "header": "eyJmaWQiOjI0MjU5NywidHlwZSI6ImF1dGgiLCJrZXkiOiIweDNjRjg3Qjc2ZDJBMUQzNkY5NTQyQjREYTJhNkI0QjNEYzBmMEJiMmUifQ",
+    "payload": "eyJkb21haW4iOiJlY2lvbi52ZXJjZWwuYXBwIn0",
+    "signature": "Q37Zxy8zYsD8y+ApNsKmrrCJjVXqM/et6Ih4ogKcZQJHa60bhOmgUDxrenhkJM9mKZvLfk2s3+6HJ+YEk/SzSRw="
   }
 }
