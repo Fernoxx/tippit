@@ -13,8 +13,7 @@
     ],
     "requiredCapabilities": [
       "actions.signIn",
-      "wallet.getEthereumProvider",
-      "wallet.switchChain"
+      "wallet.getEthereumProvider"
     ],
     "subtitle": "Connect and share instantly",
     "description": "With Ecion you can boost your casts by tipping engagers for their interactions easily.",
