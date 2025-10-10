@@ -47,6 +47,7 @@ class BatchTransferManager {
   startBatchTimer() {
     setInterval(async () => {
       if (!this.isProcessing && this.pendingTips.length > 0) {
+        console.log(`⏰ Timer triggered - processing ${this.pendingTips.length} pending tips`);
         await this.processBatch();
       }
     }, this.batchIntervalMs);
@@ -77,10 +78,12 @@ class BatchTransferManager {
     this.pendingTips.push(tipData);
     console.log(`📝 Added tip to batch. Total pending: ${this.pendingTips.length}`);
 
-    // Process immediately if batch is full
+    // Process immediately if batch is full (but not for single tips)
     if (this.pendingTips.length >= this.maxBatchSize) {
       console.log(`🚀 Batch size reached (${this.maxBatchSize}), processing immediately`);
       await this.processBatch();
+    } else {
+      console.log(`⏳ Tip queued. Processing in ${this.batchIntervalMs / 1000} seconds or when batch is full`);
     }
 
     return { success: true, queued: true, batchSize: this.pendingTips.length };
@@ -236,6 +239,7 @@ class BatchTransferManager {
         } catch (error) {
           console.log(`❌ EcionBatch failed: ${error.message}`);
           console.log(`🔄 Falling back to Multicall3...`);
+          // Continue to Multicall3 fallback
         }
       }
       

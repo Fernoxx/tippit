@@ -219,7 +219,8 @@ class EcionBatchManager {
           results: successResults
         };
       } else {
-        throw new Error('Batch tip transaction reverted');
+        console.log(`❌ EcionBatch transaction reverted: ${tx.hash} (Status: ${receipt.status})`);
+        throw new Error(`Batch tip transaction reverted: ${tx.hash}`);
       }
       
     } catch (error) {

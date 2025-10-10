@@ -1864,6 +1864,36 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 
+// Debug endpoint to check batch status and force process
+app.get('/api/debug/batch-status', async (req, res) => {
+  try {
+    const batchStatus = batchTransferManager.getBatchStatus();
+    res.json({
+      success: true,
+      ...batchStatus,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error getting batch status:', error);
+    res.status(500).json({ error: 'Failed to get batch status' });
+  }
+});
+
+// Force process current batch (for testing)
+app.post('/api/debug/force-process-batch', async (req, res) => {
+  try {
+    await batchTransferManager.forceProcessBatch();
+    res.json({
+      success: true,
+      message: 'Batch processing triggered',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error forcing batch process:', error);
+    res.status(500).json({ error: 'Failed to force process batch' });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Ecion Backend running on port ${PORT}`);
