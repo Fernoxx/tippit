@@ -363,7 +363,7 @@ export default function Settings() {
                       onClick={() => setTippingToggles(prev => ({ ...prev, [key]: !prev[key as keyof typeof tippingToggles] }))}
                       className={`relative w-11 h-6 rounded-full transition-colors ${
                         tippingToggles[key as keyof typeof tippingToggles]
-                          ? 'bg-yellow-400'
+                          ? 'bg-[#fef3c7]'
                           : 'bg-gray-300'
                       }`}
                     >

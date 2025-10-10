@@ -68,3 +68,28 @@
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-blue-600;
 }
+
+/* Override browser default selection and focus colors */
+::selection {
+  background-color: #fef3c7;
+  color: #000000;
+}
+
+::-moz-selection {
+  background-color: #fef3c7;
+  color: #000000;
+}
+
+/* Override any default focus outlines that might show yellow */
+*:focus {
+  outline: none;
+}
+
+/* Ensure no yellow colors appear on focus or active states */
+button:focus,
+input:focus,
+textarea:focus,
+select:focus {
+  outline: 2px solid #4169E1;
+  outline-offset: 2px;
+}
