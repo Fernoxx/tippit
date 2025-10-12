@@ -51,6 +51,19 @@ export default function Document() {
         <meta name="farcaster:app:category" content="social" />
         <meta name="farcaster:app:tags" content="tip,tipping,noice,ecion,engage" />
         
+        {/* Farcaster embed recognition */}
+        <meta name="farcaster:miniapp" content="true" />
+        <meta name="farcaster:miniapp:url" content="https://ecion.vercel.app" />
+        <meta name="farcaster:miniapp:manifest" content="https://ecion.vercel.app/.well-known/farcaster.json" />
+        
+        {/* Additional Farcaster meta tags for embed recognition */}
+        <meta property="farcaster:miniapp" content="true" />
+        <meta property="farcaster:miniapp:name" content="Ecion" />
+        <meta property="farcaster:miniapp:version" content="1" />
+        <meta property="farcaster:miniapp:category" content="social" />
+        <meta property="farcaster:miniapp:button" content="Start Tipping" />
+        <meta property="farcaster:miniapp:image" content="https://ecion.vercel.app/image.png" />
+        
         {/* Favicon */}
         <link rel="icon" href="/icon.png" />
         <link rel="apple-touch-icon" href="/icon.png" />
@@ -58,6 +71,24 @@ export default function Document() {
         {/* Preconnect to external domains */}
         <link rel="preconnect" href="https://api.farcaster.xyz" />
         <link rel="preconnect" href="https://ecion.vercel.app" />
+        
+        {/* Farcaster miniapp initialization script */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              // Initialize Farcaster miniapp context
+              if (typeof window !== 'undefined') {
+                window.farcasterMiniapp = {
+                  name: 'Ecion',
+                  version: '1',
+                  category: 'social',
+                  url: 'https://ecion.vercel.app',
+                  manifest: 'https://ecion.vercel.app/.well-known/farcaster.json'
+                };
+              }
+            `,
+          }}
+        />
       </Head>
       <body>
         <Main />
