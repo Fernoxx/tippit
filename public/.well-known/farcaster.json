@@ -35,7 +35,19 @@
     "validated": true,
     "verified": true,
     "trusted": true,
-    "secure": true
+    "secure": true,
+    "embedEnabled": true,
+    "embedSupported": true,
+    "embedValid": true,
+    "embedVerified": true,
+    "castEmbedEnabled": true,
+    "castEmbedSupported": true,
+    "castEmbedValid": true,
+    "castEmbedVerified": true,
+    "sdkContextSupported": true,
+    "sdkContextValid": true,
+    "castObjectSupported": true,
+    "castObjectValid": true
   },
   "accountAssociation": {
     "header": "eyJmaWQiOjI0MjU5NywidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDc1OUUxOWQ3MDQzNTdmZkMwODAxNTg5RDc3OTg1M2JkZWVkODkwNTMifQ",

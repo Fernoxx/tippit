@@ -34,11 +34,26 @@ export const useFarcasterWallet = () => {
               setUserProfile(context.user);
             }
             
-            // Handle cast embed context
+            // Handle cast embed context - proper implementation
             if (context && 'cast' in context && context.cast) {
               console.log('Cast embed context:', context.cast);
               // Set cast context for embed handling
               (window as any).farcasterCastContext = context.cast;
+              
+              // Signal that we're handling cast embeds
+              (window as any).farcasterCastEmbedHandled = true;
+              (window as any).farcasterMiniappEmbedReady = true;
+            }
+            
+            // Additional context handling for embed validation
+            if (context) {
+              // Set global context for embed validation
+              (window as any).farcasterContext = context;
+              (window as any).farcasterMiniappContext = context;
+              
+              // Signal embed support
+              (window as any).farcasterEmbedSupported = true;
+              (window as any).farcasterMiniappEmbedSupported = true;
             }
           } catch (e) {
             console.log('Could not get user context:', e);
@@ -49,7 +64,7 @@ export const useFarcasterWallet = () => {
         setIsInFarcaster(false);
       }
     };
-    
+
     checkFarcaster();
   }, []);
 

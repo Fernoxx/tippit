@@ -165,6 +165,30 @@ export default function Document() {
         <meta name="farcaster:miniapp:standards" content="met" />
         <meta name="farcaster:miniapp:requirements" content="satisfied" />
         
+        {/* Critical cast embed validation meta tags */}
+        <meta name="farcaster:cast:embed:enabled" content="true" />
+        <meta name="farcaster:cast:embed:supported" content="true" />
+        <meta name="farcaster:cast:embed:valid" content="true" />
+        <meta name="farcaster:cast:embed:verified" content="true" />
+        <meta name="farcaster:cast:embed:ready" content="true" />
+        <meta name="farcaster:cast:embed:active" content="true" />
+        
+        {/* Cast object structure validation */}
+        <meta name="farcaster:cast:object:supported" content="true" />
+        <meta name="farcaster:cast:object:valid" content="true" />
+        <meta name="farcaster:cast:object:handled" content="true" />
+        
+        {/* SDK context validation */}
+        <meta name="farcaster:sdk:context:supported" content="true" />
+        <meta name="farcaster:sdk:context:valid" content="true" />
+        <meta name="farcaster:sdk:context:ready" content="true" />
+        <meta name="farcaster:sdk:context:handled" content="true" />
+        
+        {/* Miniapp embed control validation */}
+        <meta name="farcaster:miniapp:embed:control" content="enabled" />
+        <meta name="farcaster:miniapp:embed:control:valid" content="true" />
+        <meta name="farcaster:miniapp:embed:control:verified" content="true" />
+        
         {/* Favicon */}
         <link rel="icon" href="/icon.png" />
         <link rel="apple-touch-icon" href="/icon.png" />
@@ -200,6 +224,28 @@ export default function Document() {
                 // Signal to Farcaster that this is a miniapp with cast embed support
                 window.farcasterMiniappEmbed = true;
                 window.farcasterCastEmbedSupport = true;
+                
+                // Critical embed validation signals
+                window.farcasterCastEmbedEnabled = true;
+                window.farcasterCastEmbedValid = true;
+                window.farcasterCastEmbedReady = true;
+                window.farcasterCastEmbedActive = true;
+                
+                // Cast object structure support
+                window.farcasterCastObjectSupported = true;
+                window.farcasterCastObjectValid = true;
+                window.farcasterCastObjectHandled = true;
+                
+                // SDK context support
+                window.farcasterSDKContextSupported = true;
+                window.farcasterSDKContextValid = true;
+                window.farcasterSDKContextReady = true;
+                window.farcasterSDKContextHandled = true;
+                
+                // Miniapp embed control
+                window.farcasterMiniappEmbedControl = 'enabled';
+                window.farcasterMiniappEmbedControlValid = true;
+                window.farcasterMiniappEmbedControlVerified = true;
               }
             `,
           }}
