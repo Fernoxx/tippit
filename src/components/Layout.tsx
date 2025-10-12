@@ -2,6 +2,7 @@ import { ReactNode, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
+import Head from 'next/head';
 import { Home, Settings, Trophy } from 'lucide-react';
 import { useFarcasterWallet } from '@/hooks/useFarcasterWallet';
 
@@ -52,7 +53,63 @@ export default function Layout({ children }: LayoutProps) {
   }, [currentUser?.fid]);
 
   return (
-    <div className="min-h-screen bg-yellow-50 flex flex-col">
+    <>
+      <Head>
+        {/* Open Graph Meta Tags for Farcaster Embed */}
+        <meta property="og:title" content="Ecion – Tip Your Audience" />
+        <meta property="og:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
+        <meta property="og:image" content="https://ecion.vercel.app/og-image.png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:type" content="image/png" />
+        <meta property="og:url" content="https://ecion.vercel.app" />
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Ecion" />
+        
+        {/* Twitter Card Meta Tags */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Ecion – Tip Your Audience" />
+        <meta name="twitter:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
+        <meta name="twitter:image" content="https://ecion.vercel.app/og-image.png" />
+        <meta name="twitter:image:alt" content="Ecion - Tip Your Audience" />
+        
+        {/* Farcaster Miniapp Meta Tags */}
+        <meta name="farcaster:miniapp" content="true" />
+        <meta name="farcaster:miniapp:name" content="Ecion" />
+        <meta name="farcaster:miniapp:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
+        <meta name="farcaster:miniapp:image" content="https://ecion.vercel.app/image.png" />
+        <meta name="farcaster:miniapp:button" content="Start Tipping" />
+        <meta name="farcaster:miniapp:url" content="https://ecion.vercel.app" />
+        <meta name="farcaster:miniapp:manifest" content="https://ecion.vercel.app/.well-known/farcaster.json" />
+        
+        {/* Critical Farcaster embed recognition tags */}
+        <meta property="farcaster:miniapp" content="true" />
+        <meta property="farcaster:miniapp:name" content="Ecion" />
+        <meta property="farcaster:miniapp:version" content="1" />
+        <meta property="farcaster:miniapp:category" content="social" />
+        <meta property="farcaster:miniapp:button" content="Start Tipping" />
+        <meta property="farcaster:miniapp:image" content="https://ecion.vercel.app/image.png" />
+        
+        {/* Additional embed recognition */}
+        <meta name="farcaster:app" content="Ecion" />
+        <meta name="farcaster:app:version" content="1" />
+        <meta name="farcaster:app:category" content="social" />
+        <meta name="farcaster:app:tags" content="tip,tipping,noice,ecion,engage" />
+        
+        {/* Additional Meta Tags */}
+        <meta name="description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
+        <meta name="keywords" content="tip, tipping, noice, ecion, engage, farcaster, crypto, social" />
+        <meta name="author" content="Ecion" />
+        
+        {/* Critical meta tag for Farcaster embed recognition */}
+        <meta name="farcaster:embed" content="true" />
+        <meta name="farcaster:embed:type" content="miniapp" />
+        <meta name="farcaster:embed:url" content="https://ecion.vercel.app" />
+        <meta name="farcaster:embed:title" content="Ecion – Tip Your Audience" />
+        <meta name="farcaster:embed:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
+        <meta name="farcaster:embed:image" content="https://ecion.vercel.app/og-image.png" />
+      </Head>
+      <div className="min-h-screen bg-yellow-50 flex flex-col">
       {/* Header with Logo and FID */}
       <header className="border-b border-gray-100">
         <div className="max-w-4xl mx-auto px-4">
@@ -114,5 +171,6 @@ export default function Layout({ children }: LayoutProps) {
         </div>
       </nav>
     </div>
+    </>
   );
 }
