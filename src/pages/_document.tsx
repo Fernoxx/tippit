@@ -97,6 +97,19 @@ export default function Document() {
         <meta name="farcaster:app:verified" content="true" />
         <meta name="farcaster:app:active" content="true" />
         
+        {/* Critical cast embed meta tags */}
+        <meta name="farcaster:cast:embed" content="true" />
+        <meta name="farcaster:cast:embed:type" content="miniapp" />
+        <meta name="farcaster:cast:embed:url" content="https://ecion.vercel.app" />
+        <meta name="farcaster:cast:embed:title" content="Ecion – Tip Your Audience" />
+        <meta name="farcaster:cast:embed:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
+        <meta name="farcaster:cast:embed:image" content="https://ecion.vercel.app/og-image.png" />
+        
+        {/* Additional embed recognition */}
+        <meta name="farcaster:miniapp:cast:embed" content="true" />
+        <meta name="farcaster:miniapp:cast:embed:enabled" content="true" />
+        <meta name="farcaster:miniapp:cast:embed:supported" content="true" />
+        
         {/* Favicon */}
         <link rel="icon" href="/icon.png" />
         <link rel="apple-touch-icon" href="/icon.png" />
@@ -118,6 +131,20 @@ export default function Document() {
                   url: 'https://ecion.vercel.app',
                   manifest: 'https://ecion.vercel.app/.well-known/farcaster.json'
                 };
+                
+                // Initialize cast embed context
+                window.farcasterCastEmbed = {
+                  enabled: true,
+                  type: 'miniapp',
+                  url: 'https://ecion.vercel.app',
+                  title: 'Ecion – Tip Your Audience',
+                  description: 'With Ecion you can boost your casts by tipping engagers for their interactions easily.',
+                  image: 'https://ecion.vercel.app/og-image.png'
+                };
+                
+                // Signal to Farcaster that this is a miniapp with cast embed support
+                window.farcasterMiniappEmbed = true;
+                window.farcasterCastEmbedSupport = true;
               }
             `,
           }}

@@ -33,6 +33,13 @@ export const useFarcasterWallet = () => {
             if (context?.user) {
               setUserProfile(context.user);
             }
+            
+            // Handle cast embed context
+            if (context?.cast) {
+              console.log('Cast embed context:', context.cast);
+              // Set cast context for embed handling
+              (window as any).farcasterCastContext = context.cast;
+            }
           } catch (e) {
             console.log('Could not get user context:', e);
           }
