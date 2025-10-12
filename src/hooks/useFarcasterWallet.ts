@@ -35,7 +35,7 @@ export const useFarcasterWallet = () => {
             }
             
             // Handle cast embed context
-            if (context?.cast) {
+            if (context && 'cast' in context && context.cast) {
               console.log('Cast embed context:', context.cast);
               // Set cast context for embed handling
               (window as any).farcasterCastContext = context.cast;
