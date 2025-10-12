@@ -31,23 +31,7 @@
       "https://ecion.vercel.app/screenshot3.png"
     ],
     "heroImageUrl": "https://ecion.vercel.app/hero.png",
-    "castShareUrl": "https://warpcast.com/~/compose?text=Check+out+Ecion+-+tip+your+audience+for+engagement%21",
-    "validated": true,
-    "verified": true,
-    "trusted": true,
-    "secure": true,
-    "embedEnabled": true,
-    "embedSupported": true,
-    "embedValid": true,
-    "embedVerified": true,
-    "castEmbedEnabled": true,
-    "castEmbedSupported": true,
-    "castEmbedValid": true,
-    "castEmbedVerified": true,
-    "sdkContextSupported": true,
-    "sdkContextValid": true,
-    "castObjectSupported": true,
-    "castObjectValid": true
+    "castShareUrl": "https://warpcast.com/~/compose?text=Check+out+Ecion+-+tip+your+audience+for+engagement%21"
   },
   "accountAssociation": {
     "header": "eyJmaWQiOjI0MjU5NywidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDc1OUUxOWQ3MDQzNTdmZkMwODAxNTg5RDc3OTg1M2JkZWVkODkwNTMifQ",
