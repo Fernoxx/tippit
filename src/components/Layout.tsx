@@ -55,7 +55,15 @@ export default function Layout({ children }: LayoutProps) {
   return (
     <>
       <Head>
-        {/* Essential Farcaster Miniapp Meta Tags - SIMPLIFIED */}
+        {/* Essential Open Graph Meta Tags */}
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="Ecion – Tip Your Audience" />
+        <meta property="og:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
+        <meta property="og:image" content="https://ecion.vercel.app/og-image.png" />
+        <meta property="og:url" content="https://ecion.vercel.app" />
+        <meta property="og:site_name" content="Ecion" />
+        
+        {/* Essential Farcaster Miniapp Meta Tags */}
         <meta name="farcaster:miniapp" content="true" />
         <meta name="farcaster:miniapp:name" content="Ecion" />
         <meta name="farcaster:miniapp:url" content="https://ecion.vercel.app" />
@@ -63,6 +71,14 @@ export default function Layout({ children }: LayoutProps) {
         <meta name="farcaster:miniapp:button" content="Start Tipping" />
         <meta name="farcaster:miniapp:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
         <meta name="farcaster:miniapp:manifest" content="https://ecion.vercel.app/.well-known/farcaster.json" />
+        
+        {/* Essential embed recognition */}
+        <meta name="farcaster:embed" content="true" />
+        <meta name="farcaster:embed:type" content="miniapp" />
+        <meta name="farcaster:embed:url" content="https://ecion.vercel.app" />
+        <meta name="farcaster:embed:title" content="Ecion – Tip Your Audience" />
+        <meta name="farcaster:embed:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
+        <meta name="farcaster:embed:image" content="https://ecion.vercel.app/og-image.png" />
       </Head>
       <div className="min-h-screen bg-yellow-50 flex flex-col">
       {/* Header with Logo and FID */}

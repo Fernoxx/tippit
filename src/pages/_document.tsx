@@ -14,8 +14,12 @@ export default function Document() {
         <meta property="og:title" content="Ecion – Tip Your Audience" />
         <meta property="og:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
         <meta property="og:image" content="https://ecion.vercel.app/og-image.png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:type" content="image/png" />
         <meta property="og:url" content="https://ecion.vercel.app" />
         <meta property="og:site_name" content="Ecion" />
+        <meta property="og:locale" content="en_US" />
         
         {/* Essential Twitter Card Meta Tags */}
         <meta name="twitter:card" content="summary_large_image" />
@@ -23,7 +27,7 @@ export default function Document() {
         <meta name="twitter:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
         <meta name="twitter:image" content="https://ecion.vercel.app/og-image.png" />
         
-        {/* ESSENTIAL Farcaster Miniapp Meta Tags - SIMPLIFIED */}
+        {/* ESSENTIAL Farcaster Miniapp Meta Tags */}
         <meta name="farcaster:miniapp" content="true" />
         <meta name="farcaster:miniapp:name" content="Ecion" />
         <meta name="farcaster:miniapp:url" content="https://ecion.vercel.app" />
@@ -31,6 +35,14 @@ export default function Document() {
         <meta name="farcaster:miniapp:button" content="Start Tipping" />
         <meta name="farcaster:miniapp:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
         <meta name="farcaster:miniapp:manifest" content="https://ecion.vercel.app/.well-known/farcaster.json" />
+        
+        {/* Essential embed recognition */}
+        <meta name="farcaster:embed" content="true" />
+        <meta name="farcaster:embed:type" content="miniapp" />
+        <meta name="farcaster:embed:url" content="https://ecion.vercel.app" />
+        <meta name="farcaster:embed:title" content="Ecion – Tip Your Audience" />
+        <meta name="farcaster:embed:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
+        <meta name="farcaster:embed:image" content="https://ecion.vercel.app/og-image.png" />
         
         {/* Basic Meta Tags */}
         <meta name="description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
