@@ -24,11 +24,18 @@
     "ogDescription": "With Ecion you can boost your casts by tipping engagers for their interactions easily.",
     "ogImageUrl": "https://ecion.vercel.app/og-image.png",
     "requiredChains": ["eip155:8453"],
-    "requiredCapabilities": ["actions.signIn", "wallet.getEthereumProvider"]
+    "requiredCapabilities": ["actions.signIn", "wallet.getEthereumProvider"],
+    "screenshotUrls": [
+      "https://ecion.vercel.app/screenshot1.png",
+      "https://ecion.vercel.app/screenshot2.png",
+      "https://ecion.vercel.app/screenshot3.png"
+    ],
+    "heroImageUrl": "https://ecion.vercel.app/hero.png",
+    "castShareUrl": "https://warpcast.com/~/compose?text=Check+out+Ecion+-+tip+your+audience+for+engagement%21"
   },
   "accountAssociation": {
-    "header": "eyJmaWQiOjI0MjU5NywidHlwZSI6ImF1dGgiLCJrZXkiOiIweDNjRjg3Qjc2ZDJBMUQzNkY5NTQyQjREYTJhNkI0QjNEYzBmMEJiMmUifQ",
+    "header": "eyJmaWQiOjI0MjU5NywidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDc1OUUxOWQ3MDQzNTdmZkMwODAxNTg5RDc3OTg1M2JkZWVkODkwNTMifQ",
     "payload": "eyJkb21haW4iOiJlY2lvbi52ZXJjZWwuYXBwIn0",
-    "signature": "Q37Zxy8zYsD8y+ApNsKmrrCJjVXqM/et6Ih4ogKcZQJHa60bhOmgUDxrenhkJM9mKZvLfk2s3+6HJ+YEk/SzSRw="
+    "signature": "MHgzZDU0MjE1MDg1YWE1ZDBjYWUyOWM3YmY0YWIxNTE0NWEwMjMwYjZhODgwNGU3N2Q0YmE1NmM4M2YwOGE5MzhmNzg0YzA1NDI5OWViNGU5OTAwOWNjYTk0NmNiMDUxNjAxMWJiODA2ZDEwNTNiOTY2ODE3YmVmMzVkZjI1M2Q1NjFj"
   }
 }
