@@ -2,6 +2,7 @@ import { useHomepageData, useLeaderboardData } from '@/hooks/usePIT';
 import { useFarcasterWallet } from '@/hooks/useFarcasterWallet';
 import { formatAmount } from '@/utils/contracts';
 import { useState, useEffect } from 'react';
+import Head from 'next/head';
 
 interface CastEmbed {
   url?: string;
@@ -67,7 +68,21 @@ export default function Home() {
   if (!mounted) return null;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 bg-yellow-50 min-h-full">
+    <>
+      <Head>
+        <title>Ecion – Tip Your Audience</title>
+        <meta name="description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
+        <meta property="og:title" content="Ecion – Tip Your Audience" />
+        <meta property="og:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
+        <meta property="og:image" content="https://ecion.vercel.app/og-image.png" />
+        <meta property="og:url" content="https://ecion.vercel.app" />
+        <meta property="og:type" content="website" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Ecion – Tip Your Audience" />
+        <meta name="twitter:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
+        <meta name="twitter:image" content="https://ecion.vercel.app/og-image.png" />
+      </Head>
+      <div className="max-w-4xl mx-auto px-4 py-8 bg-yellow-50 min-h-full">
         {/* Hero Section */}
         <div className="text-center py-6">
           <h2 className="text-3xl font-bold text-gray-900 mb-4">
@@ -290,5 +305,6 @@ export default function Home() {
         </div>
 
     </div>
+    </>
   );
 }
