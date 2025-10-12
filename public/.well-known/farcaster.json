@@ -1,17 +1,17 @@
 {
-  "frame": {
+  "miniapp": {
     "name": "Ecion",
     "version": "1",
     "iconUrl": "https://ecion.vercel.app/icon.png",
     "homeUrl": "https://ecion.vercel.app",
     "imageUrl": "https://ecion.vercel.app/image.png",
-    "buttonTitle": "start tipping",
+    "buttonTitle": "Start Tipping",
     "splashImageUrl": "https://ecion.vercel.app/splash.png",
     "splashBackgroundColor": "#fef3c7",
     "webhookUrl": "https://tippit-production.up.railway.app/api/webhook",
-    "subtitle": "Boost your casts with ecion",
+    "subtitle": "Connect and share instantly",
     "description": "With Ecion you can boost your casts by tipping engagers for their interactions easily.",
-    "primaryCategory": "utility",
+    "primaryCategory": "social",
     "tags": [
       "tip",
       "tipping",
@@ -22,7 +22,9 @@
     "tagline": "Boost your casts with ecion",
     "ogTitle": "Ecion – Tip Your Audience",
     "ogDescription": "With Ecion you can boost your casts by tipping engagers for their interactions easily.",
-    "ogImageUrl": "https://ecion.vercel.app/og-image.png"
+    "ogImageUrl": "https://ecion.vercel.app/og-image.png",
+    "requiredChains": ["eip155:8453"],
+    "requiredCapabilities": ["actions.signIn", "wallet.getEthereumProvider"]
   },
   "accountAssociation": {
     "header": "eyJmaWQiOjI0MjU5NywidHlwZSI6ImF1dGgiLCJrZXkiOiIweDNjRjg3Qjc2ZDJBMUQzNkY5NTQyQjREYTJhNkI0QjNEYzBmMEJiMmUifQ",

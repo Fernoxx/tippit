@@ -27,17 +27,29 @@ export default function Document() {
         <meta name="twitter:image" content="https://ecion.vercel.app/og-image.png" />
         <meta name="twitter:image:alt" content="Ecion - Tip Your Audience" />
         
-        {/* Farcaster Meta Tags */}
-        <meta property="fc:frame" content="vNext" />
-        <meta property="fc:frame:image" content="https://ecion.vercel.app/image.png" />
-        <meta property="fc:frame:button:1" content="Start Tipping" />
-        <meta property="fc:frame:button:1:action" content="link" />
-        <meta property="fc:frame:button:1:target" content="https://ecion.vercel.app" />
+        {/* Farcaster Miniapp Meta Tags */}
+        <meta name="farcaster:miniapp" content="true" />
+        <meta name="farcaster:miniapp:name" content="Ecion" />
+        <meta name="farcaster:miniapp:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
+        <meta name="farcaster:miniapp:image" content="https://ecion.vercel.app/image.png" />
+        <meta name="farcaster:miniapp:button" content="Start Tipping" />
+        
+        {/* Additional Open Graph for better compatibility */}
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:type" content="image/png" />
+        <meta property="og:locale" content="en_US" />
         
         {/* Additional Meta Tags */}
         <meta name="description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
         <meta name="keywords" content="tip, tipping, noice, ecion, engage, farcaster, crypto, social" />
         <meta name="author" content="Ecion" />
+        
+        {/* Farcaster specific meta tags */}
+        <meta name="farcaster:app" content="Ecion" />
+        <meta name="farcaster:app:version" content="1" />
+        <meta name="farcaster:app:category" content="social" />
+        <meta name="farcaster:app:tags" content="tip,tipping,noice,ecion,engage" />
         
         {/* Favicon */}
         <link rel="icon" href="/icon.png" />
