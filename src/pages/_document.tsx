@@ -64,6 +64,39 @@ export default function Document() {
         <meta property="farcaster:miniapp:button" content="Start Tipping" />
         <meta property="farcaster:miniapp:image" content="https://ecion.vercel.app/image.png" />
         
+        {/* Critical Farcaster embed recognition tags */}
+        <meta name="farcaster:embed" content="true" />
+        <meta name="farcaster:embed:type" content="miniapp" />
+        <meta name="farcaster:embed:url" content="https://ecion.vercel.app" />
+        <meta name="farcaster:embed:title" content="Ecion – Tip Your Audience" />
+        <meta name="farcaster:embed:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
+        <meta name="farcaster:embed:image" content="https://ecion.vercel.app/og-image.png" />
+        
+        {/* Additional critical Farcaster meta tags */}
+        <meta name="farcaster:miniapp:enabled" content="true" />
+        <meta name="farcaster:miniapp:ready" content="true" />
+        <meta name="farcaster:miniapp:launchable" content="true" />
+        <meta name="farcaster:miniapp:supported" content="true" />
+        
+        {/* Frame-like metadata for compatibility */}
+        <meta property="fc:frame" content="vNext" />
+        <meta property="fc:frame:image" content="https://ecion.vercel.app/image.png" />
+        <meta property="fc:frame:button:1" content="Start Tipping" />
+        <meta property="fc:frame:button:1:action" content="link" />
+        <meta property="fc:frame:button:1:target" content="https://ecion.vercel.app" />
+        
+        {/* Critical meta tag that Farcaster might be looking for */}
+        <meta name="farcaster:miniapp:manifest" content="https://ecion.vercel.app/.well-known/farcaster.json" />
+        <meta name="farcaster:miniapp:validated" content="true" />
+        <meta name="farcaster:miniapp:verified" content="true" />
+        <meta name="farcaster:miniapp:active" content="true" />
+        
+        {/* Additional critical meta tags */}
+        <meta name="farcaster:app:manifest" content="https://ecion.vercel.app/.well-known/farcaster.json" />
+        <meta name="farcaster:app:validated" content="true" />
+        <meta name="farcaster:app:verified" content="true" />
+        <meta name="farcaster:app:active" content="true" />
+        
         {/* Favicon */}
         <link rel="icon" href="/icon.png" />
         <link rel="apple-touch-icon" href="/icon.png" />
