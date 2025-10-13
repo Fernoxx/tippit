@@ -278,7 +278,11 @@ class EcionBatchManager {
    */
   async isContractReady() {
     try {
+      console.log(`🔍 Checking EcionBatch contract: ${this.contractAddress}`);
+      console.log(`🔍 Backend wallet: ${this.wallet.address}`);
+      
       if (this.contractAddress === '0x0000000000000000000000000000000000000000') {
+        console.log(`❌ EcionBatch contract address not set`);
         return false;
       }
       
@@ -288,7 +292,24 @@ class EcionBatchManager {
         this.wallet
       );
       
-      await contract.owner();
+      // Check if contract exists
+      const code = await this.wallet.provider.getCode(this.contractAddress);
+      if (code === '0x') {
+        console.log(`❌ EcionBatch contract not deployed at ${this.contractAddress}`);
+        return false;
+      }
+      
+      // Check if backend wallet is an executor
+      const isExecutor = await contract.isExecutor(this.wallet.address);
+      console.log(`🔍 Is backend wallet an executor: ${isExecutor}`);
+      
+      if (!isExecutor) {
+        console.log(`❌ Backend wallet ${this.wallet.address} is not an executor on EcionBatch contract`);
+        console.log(`💡 Contract owner needs to call: addExecutor("${this.wallet.address}")`);
+        return false;
+      }
+      
+      console.log(`✅ EcionBatch contract ready: ${this.contractAddress}`);
       return true;
     } catch (error) {
       console.log(`❌ EcionBatch contract not ready: ${error.message}`);

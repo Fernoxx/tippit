@@ -213,6 +213,8 @@ class BatchTransferManager {
       
       // Try EcionBatch first (most efficient)
       const isEcionBatchReady = await this.ecionBatchManager.isContractReady();
+      console.log(`🔍 EcionBatch ready status: ${isEcionBatchReady}`);
+      
       if (isEcionBatchReady) {
         console.log(`🎯 Trying EcionBatch contract first...`);
         try {
