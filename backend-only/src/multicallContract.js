@@ -171,7 +171,7 @@ class MulticallContract {
           
           // Execute batch using Multicall3
           // Get dynamic gas price for Base network
-          const gasPrice = await this.provider.getGasPrice();
+          const gasPrice = await this.wallet.provider.getGasPrice();
           const increasedGasPrice = gasPrice * 110n / 100n; // 10% higher for reliability
           
           const tx = await this.multicallContract.multicall(multicallData, {
