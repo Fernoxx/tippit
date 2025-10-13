@@ -210,16 +210,39 @@ class EcionBatchManager {
       const amounts = [];
       for (let i = 0; i < tips.length; i++) {
         const tip = tips[i];
+        let decimals = 18; // Default to 18 decimals
+        let amountToConvert = tip.amount;
+        
         try {
-          // Get token decimals dynamically
+          // Get token decimals dynamically with retry logic
           const tokenContract = new ethers.Contract(tip.token, [
             "function decimals() view returns (uint8)"
           ], this.provider);
           
-          const decimals = await tokenContract.decimals();
+          let decimalRetryCount = 0;
+          const maxDecimalRetries = 2;
+          
+          while (decimalRetryCount < maxDecimalRetries) {
+            try {
+              decimals = await tokenContract.decimals();
+              console.log(`✅ Got decimals for token ${tip.token}: ${decimals}`);
+              break;
+            } catch (decimalError) {
+              decimalRetryCount++;
+              console.log(`❌ Decimal fetch attempt ${decimalRetryCount} failed for token ${tip.token}: ${decimalError.message}`);
+              
+              if (decimalRetryCount >= maxDecimalRetries) {
+                console.log(`⚠️ Using default 18 decimals for token ${tip.token} after ${maxDecimalRetries} failed attempts`);
+                decimals = 18;
+                break;
+              }
+              
+              // Wait before retry
+              await new Promise(resolve => setTimeout(resolve, 500 * decimalRetryCount));
+            }
+          }
           
           // For 18-decimal tokens, limit the amount to prevent overflow
-          let amountToConvert = tip.amount;
           if (decimals === 18 && parseFloat(tip.amount) > 1000) {
             console.log(`⚠️ Token has 18 decimals, limiting amount from ${tip.amount} to 1000 to prevent overflow`);
             amountToConvert = 1000;
@@ -232,11 +255,9 @@ class EcionBatchManager {
           
           amounts.push(amountInSmallestUnit);
         } catch (error) {
-          console.log(`❌ Could not get decimals for token ${tip.token}, defaulting to 18: ${error.message}`);
-          // Default to 18 decimals if we can't get the token decimals
-          const amountInSmallestUnit = ethers.parseUnits(tip.amount.toString(), 18);
-          console.log(`💰 Converting ${tip.amount} ${tip.token} to ${amountInSmallestUnit.toString()} (18 decimals default)`);
-          amounts.push(amountInSmallestUnit);
+          console.log(`❌ Critical error processing token ${tip.token}, skipping: ${error.message}`);
+          // Skip this tip if we can't process it
+          throw new Error(`Failed to process token ${tip.token}: ${error.message}`);
         }
       }
       
@@ -248,44 +269,102 @@ class EcionBatchManager {
       });
       
       // Execute batch tip (4 parameters: froms, tos, tokens, amounts)
-      // Get dynamic gas price for Base network (EIP-1559)
+      // Get dynamic gas price for Base network (EIP-1559) with retry logic
       let gasOptions = {};
-      try {
-        // Try getGasPrice first (legacy)
-        console.log('🔍 Attempting to get gas price...');
-        const gasPrice = await this.provider.getGasPrice();
-        console.log(`🔍 Raw gas price: ${gasPrice.toString()} wei`);
-        const increasedGasPrice = gasPrice * 110n / 100n; // 10% higher for reliability
-        gasOptions = {
-          gasLimit: 2000000,
-          gasPrice: increasedGasPrice
-        };
-        console.log(`⛽ Using legacy gas pricing: ${increasedGasPrice.toString()} wei`);
-      } catch (error) {
-        console.log('getGasPrice failed, using EIP-1559 gas pricing...');
-        console.log(`🔍 getGasPrice error: ${error.message}`);
-        // Use EIP-1559 gas pricing for Base network
-        const feeData = await this.provider.getFeeData();
-        console.log(`🔍 Fee data:`, {
-          gasPrice: feeData.gasPrice?.toString(),
-          maxFeePerGas: feeData.maxFeePerGas?.toString(),
-          maxPriorityFeePerGas: feeData.maxPriorityFeePerGas?.toString()
-        });
-        gasOptions = {
-          gasLimit: 2000000,
-          maxFeePerGas: feeData.maxFeePerGas ? feeData.maxFeePerGas * 110n / 100n : undefined,
-          maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ? feeData.maxPriorityFeePerGas * 110n / 100n : undefined
-        };
-        console.log(`⛽ Using EIP-1559 gas pricing:`, {
-          maxFeePerGas: gasOptions.maxFeePerGas?.toString(),
-          maxPriorityFeePerGas: gasOptions.maxPriorityFeePerGas?.toString(),
-          gasPrice: gasOptions.gasPrice?.toString()
-        });
+      let gasRetryCount = 0;
+      const maxGasRetries = 3;
+      
+      while (gasRetryCount < maxGasRetries) {
+        try {
+          // Always use EIP-1559 for Base network (more reliable)
+          console.log(`🔍 Getting gas pricing (attempt ${gasRetryCount + 1}/${maxGasRetries})...`);
+          const feeData = await this.provider.getFeeData();
+          console.log(`🔍 Fee data:`, {
+            gasPrice: feeData.gasPrice?.toString(),
+            maxFeePerGas: feeData.maxFeePerGas?.toString(),
+            maxPriorityFeePerGas: feeData.maxPriorityFeePerGas?.toString()
+          });
+          
+          // Use EIP-1559 with higher gas limits for reliability
+          gasOptions = {
+            gasLimit: 2500000, // Increased gas limit for safety
+            maxFeePerGas: feeData.maxFeePerGas ? feeData.maxFeePerGas * 120n / 100n : undefined, // 20% higher
+            maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ? feeData.maxPriorityFeePerGas * 120n / 100n : undefined // 20% higher
+          };
+          
+          // Remove gasPrice if using EIP-1559 to avoid conflicts
+          if (gasOptions.maxFeePerGas && gasOptions.maxPriorityFeePerGas) {
+            delete gasOptions.gasPrice;
+          }
+          
+          console.log(`⛽ Using EIP-1559 gas pricing:`, {
+            maxFeePerGas: gasOptions.maxFeePerGas?.toString(),
+            maxPriorityFeePerGas: gasOptions.maxPriorityFeePerGas?.toString(),
+            gasLimit: gasOptions.gasLimit
+          });
+          break; // Success, exit retry loop
+          
+        } catch (error) {
+          gasRetryCount++;
+          console.log(`❌ Gas pricing attempt ${gasRetryCount} failed: ${error.message}`);
+          
+          if (gasRetryCount >= maxGasRetries) {
+            console.log('❌ All gas pricing attempts failed, using fallback...');
+            // Fallback to basic gas pricing
+            gasOptions = {
+              gasLimit: 2500000,
+              gasPrice: ethers.parseUnits('0.001', 'gwei') // Fallback gas price
+            };
+            break;
+          }
+          
+          // Wait before retry
+          await new Promise(resolve => setTimeout(resolve, 1000 * gasRetryCount));
+        }
       }
       
       console.log(`🚀 Submitting batch tip transaction with gas options:`, gasOptions);
       
-      const tx = await contract.batchTip(froms, tos, tokens, amounts, gasOptions);
+      // Add transaction retry logic
+      let tx = null;
+      let txRetryCount = 0;
+      const maxTxRetries = 3;
+      
+      while (txRetryCount < maxTxRetries) {
+        try {
+          tx = await contract.batchTip(froms, tos, tokens, amounts, gasOptions);
+          console.log(`✅ Transaction submitted successfully on attempt ${txRetryCount + 1}`);
+          break;
+        } catch (txError) {
+          txRetryCount++;
+          console.log(`❌ Transaction attempt ${txRetryCount} failed: ${txError.message}`);
+          
+          if (txRetryCount >= maxTxRetries) {
+            console.log(`❌ All transaction attempts failed after ${maxTxRetries} tries`);
+            throw txError;
+          }
+          
+          // Wait before retry and refresh gas pricing
+          console.log(`⏳ Waiting ${txRetryCount * 2} seconds before retry...`);
+          await new Promise(resolve => setTimeout(resolve, 2000 * txRetryCount));
+          
+          // Refresh gas pricing for retry
+          try {
+            const feeData = await this.provider.getFeeData();
+            gasOptions = {
+              gasLimit: 2500000,
+              maxFeePerGas: feeData.maxFeePerGas ? feeData.maxFeePerGas * 130n / 100n : undefined, // Even higher for retry
+              maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ? feeData.maxPriorityFeePerGas * 130n / 100n : undefined
+            };
+            if (gasOptions.maxFeePerGas && gasOptions.maxPriorityFeePerGas) {
+              delete gasOptions.gasPrice;
+            }
+            console.log(`⛽ Updated gas pricing for retry:`, gasOptions);
+          } catch (gasError) {
+            console.log(`⚠️ Could not refresh gas pricing for retry: ${gasError.message}`);
+          }
+        }
+      }
       
       console.log(`✅ Batch tip transaction submitted: ${tx.hash}`);
       console.log(`📊 Transaction details:`, {
