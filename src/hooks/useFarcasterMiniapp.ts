@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { farcasterSDK } from '@/utils/farcasterSDK';
 
 interface FarcasterUser {
   fid: number;
@@ -55,8 +56,8 @@ export const useFarcasterMiniapp = () => {
                 });
               }
               
-              // IMPORTANT: Call ready() to dismiss splash screen
-              await sdk.actions.ready();
+              // IMPORTANT: Call ready() to dismiss splash screen using centralized manager
+              await farcasterSDK.ensureReady();
               
             } catch (sdkError) {
               console.log('Farcaster SDK not available, using fallback');
