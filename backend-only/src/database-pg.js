@@ -290,8 +290,15 @@ class PostgresDatabase {
       console.log(`🔍 Leaderboard Debug - ${timeFilter}:`, {
         totalTips: totalResult.rows[0].total,
         recentTips: recentResult.rows[0].recent,
-        timeFilter: timeMs
+        timeFilter: timeMs,
+        query: `processed_at > NOW() - INTERVAL '${timeMs}'`
       });
+      
+      // Show some recent tips for debugging
+      if (totalResult.rows[0].total > 0) {
+        const sampleTips = await this.pool.query('SELECT from_address, to_address, amount, processed_at FROM tip_history ORDER BY processed_at DESC LIMIT 3');
+        console.log('📋 Sample recent tips:', sampleTips.rows);
+      }
       
       const result = await this.pool.query(`
         SELECT 

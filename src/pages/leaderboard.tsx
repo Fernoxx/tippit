@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 
 export default function Leaderboard() {
   const [timeFilter, setTimeFilter] = useState<'24h' | '7d' | '30d'>('24h');
-  const { tippers, earners, users, amounts, isLoading, isLoadingMore, hasMore, loadMore, refetch } = useLeaderboardData(timeFilter);
+  const { tippers, earners, users, amounts, isLoading, isLoadingMore, hasMore, loadMore } = useLeaderboardData(timeFilter);
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<'tipped' | 'earned'>('tipped');
 
@@ -90,21 +90,6 @@ export default function Leaderboard() {
           </h2>
           
           <div className="flex items-center space-x-3">
-            {/* Manual Refresh Button */}
-            <button
-              onClick={() => {
-                console.log('🔄 Manual refresh triggered');
-                if (activeTab === 'tipped') {
-                  refetch();
-                } else {
-                  refetch();
-                }
-              }}
-              className="px-3 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
-            >
-              🔄 Refresh
-            </button>
-            
             {/* Time Filter - Smaller */}
             <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
               {(['24h', '7d', '30d'] as const).map((period) => (

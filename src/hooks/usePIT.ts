@@ -393,15 +393,7 @@ export const useHomepageData = (timeFilter: '24h' | '7d' | '30d' = '24h') => {
     fetchHomepageData(1, true); // Reset to page 1 when timeFilter changes
   }, [timeFilter]);
 
-  // Auto-refresh homepage data every 30 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      console.log('🔄 Auto-refreshing homepage data...');
-      fetchHomepageData(1, true);
-    }, 30000); // 30 seconds
-
-    return () => clearInterval(interval);
-  }, [timeFilter]);
+  // No auto-refresh - only refresh when user changes time filter
 
   const fetchHomepageData = async (page: number = 1, reset: boolean = false) => {
     if (page === 1) {
@@ -481,15 +473,7 @@ export const useLeaderboardData = (timeFilter: '24h' | '7d' | '30d' = '24h') => 
     fetchLeaderboardData(1, true); // Reset to page 1 when timeFilter changes
   }, [timeFilter]);
 
-  // Auto-refresh leaderboard every 5 seconds for real-time updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      console.log('🔄 Auto-refreshing leaderboard data...');
-      fetchLeaderboardData(1, true);
-    }, 5000); // 5 seconds for real-time updates
-
-    return () => clearInterval(interval);
-  }, [timeFilter]);
+  // No auto-refresh - only refresh when user changes time filter
 
   const fetchLeaderboardData = async (page: number = 1, reset: boolean = false) => {
     if (page === 1) {
