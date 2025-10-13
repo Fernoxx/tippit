@@ -1268,10 +1268,11 @@ app.get('/api/leaderboard', async (req, res) => {
     const paginatedTippers = topTippers.slice(offset, offset + limitNum);
     const paginatedEarners = topEarners.slice(offset, offset + limitNum);
     
-    // Enrich tippers with user profiles
+    // Enrich tippers with user profiles and token info
     const enrichedTippers = [];
     for (const tipper of paginatedTippers) {
       try {
+        // Fetch user profile
         const userResponse = await fetch(
           `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${tipper.userAddress}`,
           {
@@ -1282,29 +1283,56 @@ app.get('/api/leaderboard', async (req, res) => {
           }
         );
         
+        let farcasterUser = null;
         if (userResponse.ok) {
           const userData = await userResponse.json();
-          const farcasterUser = userData[tipper.userAddress]?.[0];
-          
-          enrichedTippers.push({
-            ...tipper,
-            username: farcasterUser?.username,
-            displayName: farcasterUser?.display_name,
-            pfpUrl: farcasterUser?.pfp_url
-          });
-        } else {
-          enrichedTippers.push(tipper);
+          farcasterUser = userData[tipper.userAddress]?.[0];
         }
+        
+        // Fetch token info
+        let tokenInfo = null;
+        try {
+          const { ethers } = require('ethers');
+          const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+          const tokenContract = new ethers.Contract(tipper.tokenAddress, [
+            "function name() view returns (string)",
+            "function symbol() view returns (string)",
+            "function decimals() view returns (uint8)"
+          ], provider);
+          
+          const [name, symbol, decimals] = await Promise.all([
+            tokenContract.name(),
+            tokenContract.symbol(),
+            tokenContract.decimals()
+          ]);
+          
+          tokenInfo = { name, symbol, decimals: Number(decimals) };
+        } catch (error) {
+          console.log(`Could not fetch token info for ${tipper.tokenAddress}:`, error.message);
+          tokenInfo = { name: 'Unknown', symbol: 'UNK', decimals: 18 };
+        }
+        
+        enrichedTippers.push({
+          ...tipper,
+          username: farcasterUser?.username,
+          displayName: farcasterUser?.display_name,
+          pfpUrl: farcasterUser?.pfp_url,
+          tokenInfo: tokenInfo
+        });
       } catch (error) {
         console.log(`Could not fetch profile for tipper ${tipper.userAddress}:`, error.message);
-        enrichedTippers.push(tipper);
+        enrichedTippers.push({
+          ...tipper,
+          tokenInfo: { name: 'Unknown', symbol: 'UNK', decimals: 18 }
+        });
       }
     }
     
-    // Enrich earners with user profiles
+    // Enrich earners with user profiles and token info
     const enrichedEarners = [];
     for (const earner of paginatedEarners) {
       try {
+        // Fetch user profile
         const userResponse = await fetch(
           `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${earner.userAddress}`,
           {
@@ -1315,22 +1343,48 @@ app.get('/api/leaderboard', async (req, res) => {
           }
         );
         
+        let farcasterUser = null;
         if (userResponse.ok) {
           const userData = await userResponse.json();
-          const farcasterUser = userData[earner.userAddress]?.[0];
-          
-          enrichedEarners.push({
-            ...earner,
-            username: farcasterUser?.username,
-            displayName: farcasterUser?.display_name,
-            pfpUrl: farcasterUser?.pfp_url
-          });
-        } else {
-          enrichedEarners.push(earner);
+          farcasterUser = userData[earner.userAddress]?.[0];
         }
+        
+        // Fetch token info
+        let tokenInfo = null;
+        try {
+          const { ethers } = require('ethers');
+          const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+          const tokenContract = new ethers.Contract(earner.tokenAddress, [
+            "function name() view returns (string)",
+            "function symbol() view returns (string)",
+            "function decimals() view returns (uint8)"
+          ], provider);
+          
+          const [name, symbol, decimals] = await Promise.all([
+            tokenContract.name(),
+            tokenContract.symbol(),
+            tokenContract.decimals()
+          ]);
+          
+          tokenInfo = { name, symbol, decimals: Number(decimals) };
+        } catch (error) {
+          console.log(`Could not fetch token info for ${earner.tokenAddress}:`, error.message);
+          tokenInfo = { name: 'Unknown', symbol: 'UNK', decimals: 18 };
+        }
+        
+        enrichedEarners.push({
+          ...earner,
+          username: farcasterUser?.username,
+          displayName: farcasterUser?.display_name,
+          pfpUrl: farcasterUser?.pfp_url,
+          tokenInfo: tokenInfo
+        });
       } catch (error) {
         console.log(`Could not fetch profile for earner ${earner.userAddress}:`, error.message);
-        enrichedEarners.push(earner);
+        enrichedEarners.push({
+          ...earner,
+          tokenInfo: { name: 'Unknown', symbol: 'UNK', decimals: 18 }
+        });
       }
     }
     

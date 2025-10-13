@@ -207,12 +207,27 @@ class EcionBatchManager {
       const froms = tips.map(tip => tip.from);
       const tos = tips.map(tip => tip.to);
       const tokens = tips.map(tip => tip.token); // Token addresses
-      const amounts = tips.map(tip => {
-        // Convert decimal amount to token's smallest unit (6 decimals for USDC)
-        const amountInSmallestUnit = Math.floor(parseFloat(tip.amount) * 1000000);
-        console.log(`💰 Converting ${tip.amount} to ${amountInSmallestUnit} (smallest unit)`);
-        return amountInSmallestUnit;
-      });
+      const amounts = [];
+      for (let i = 0; i < tips.length; i++) {
+        const tip = tips[i];
+        try {
+          // Get token decimals dynamically
+          const tokenContract = new ethers.Contract(tip.token, [
+            "function decimals() view returns (uint8)"
+          ], this.provider);
+          
+          const decimals = await tokenContract.decimals();
+          const amountInSmallestUnit = Math.floor(parseFloat(tip.amount) * Math.pow(10, decimals));
+          console.log(`💰 Converting ${tip.amount} ${tip.token} to ${amountInSmallestUnit} (${decimals} decimals)`);
+          amounts.push(amountInSmallestUnit);
+        } catch (error) {
+          console.log(`❌ Could not get decimals for token ${tip.token}, defaulting to 18: ${error.message}`);
+          // Default to 18 decimals if we can't get the token decimals
+          const amountInSmallestUnit = Math.floor(parseFloat(tip.amount) * Math.pow(10, 18));
+          console.log(`💰 Converting ${tip.amount} ${tip.token} to ${amountInSmallestUnit} (18 decimals default)`);
+          amounts.push(amountInSmallestUnit);
+        }
+      }
       
       console.log(`📋 Batch data prepared:`, {
         froms: froms.length,

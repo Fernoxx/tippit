@@ -276,11 +276,12 @@ class PostgresDatabase {
       const result = await this.pool.query(`
         SELECT 
           from_address as user_address,
+          token_address,
           SUM(CAST(amount AS DECIMAL)) as total_amount,
           COUNT(*) as tip_count
         FROM tip_history 
         WHERE processed_at > NOW() - INTERVAL '${timeMs}'
-        GROUP BY from_address 
+        GROUP BY from_address, token_address 
         ORDER BY total_amount DESC 
         LIMIT 50
       `);
@@ -288,6 +289,7 @@ class PostgresDatabase {
       
       return result.rows.map(row => ({
         userAddress: row.user_address,
+        tokenAddress: row.token_address,
         totalAmount: parseFloat(row.total_amount),
         tipCount: parseInt(row.tip_count)
       }));
@@ -305,17 +307,19 @@ class PostgresDatabase {
       const result = await this.pool.query(`
         SELECT 
           to_address as user_address,
+          token_address,
           SUM(CAST(amount AS DECIMAL)) as total_amount,
           COUNT(*) as tip_count
         FROM tip_history 
         WHERE processed_at > NOW() - INTERVAL '${timeMs}'
-        GROUP BY to_address 
+        GROUP BY to_address, token_address 
         ORDER BY total_amount DESC 
         LIMIT 50
       `);
       
       return result.rows.map(row => ({
         userAddress: row.user_address,
+        tokenAddress: row.token_address,
         totalAmount: parseFloat(row.total_amount),
         tipCount: parseInt(row.tip_count)
       }));
