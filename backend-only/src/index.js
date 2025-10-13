@@ -1289,42 +1289,15 @@ app.get('/api/leaderboard', async (req, res) => {
           farcasterUser = userData[tipper.userAddress]?.[0];
         }
         
-        // Fetch token info
-        let tokenInfo = null;
-        try {
-          const { ethers } = require('ethers');
-          const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-          const tokenContract = new ethers.Contract(tipper.tokenAddress, [
-            "function name() view returns (string)",
-            "function symbol() view returns (string)",
-            "function decimals() view returns (uint8)"
-          ], provider);
-          
-          const [name, symbol, decimals] = await Promise.all([
-            tokenContract.name(),
-            tokenContract.symbol(),
-            tokenContract.decimals()
-          ]);
-          
-          tokenInfo = { name, symbol, decimals: Number(decimals) };
-        } catch (error) {
-          console.log(`Could not fetch token info for ${tipper.tokenAddress}:`, error.message);
-          tokenInfo = { name: 'Unknown', symbol: 'UNK', decimals: 18 };
-        }
-        
         enrichedTippers.push({
           ...tipper,
           username: farcasterUser?.username,
           displayName: farcasterUser?.display_name,
-          pfpUrl: farcasterUser?.pfp_url,
-          tokenInfo: tokenInfo
+          pfpUrl: farcasterUser?.pfp_url
         });
       } catch (error) {
         console.log(`Could not fetch profile for tipper ${tipper.userAddress}:`, error.message);
-        enrichedTippers.push({
-          ...tipper,
-          tokenInfo: { name: 'Unknown', symbol: 'UNK', decimals: 18 }
-        });
+        enrichedTippers.push(tipper);
       }
     }
     
@@ -1349,42 +1322,15 @@ app.get('/api/leaderboard', async (req, res) => {
           farcasterUser = userData[earner.userAddress]?.[0];
         }
         
-        // Fetch token info
-        let tokenInfo = null;
-        try {
-          const { ethers } = require('ethers');
-          const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-          const tokenContract = new ethers.Contract(earner.tokenAddress, [
-            "function name() view returns (string)",
-            "function symbol() view returns (string)",
-            "function decimals() view returns (uint8)"
-          ], provider);
-          
-          const [name, symbol, decimals] = await Promise.all([
-            tokenContract.name(),
-            tokenContract.symbol(),
-            tokenContract.decimals()
-          ]);
-          
-          tokenInfo = { name, symbol, decimals: Number(decimals) };
-        } catch (error) {
-          console.log(`Could not fetch token info for ${earner.tokenAddress}:`, error.message);
-          tokenInfo = { name: 'Unknown', symbol: 'UNK', decimals: 18 };
-        }
-        
         enrichedEarners.push({
           ...earner,
           username: farcasterUser?.username,
           displayName: farcasterUser?.display_name,
-          pfpUrl: farcasterUser?.pfp_url,
-          tokenInfo: tokenInfo
+          pfpUrl: farcasterUser?.pfp_url
         });
       } catch (error) {
         console.log(`Could not fetch profile for earner ${earner.userAddress}:`, error.message);
-        enrichedEarners.push({
-          ...earner,
-          tokenInfo: { name: 'Unknown', symbol: 'UNK', decimals: 18 }
-        });
+        enrichedEarners.push(earner);
       }
     }
     
