@@ -166,10 +166,41 @@ class EcionBatchManager {
         this.wallet
       );
       
+      // Verify provider is working
+      try {
+        const network = await this.provider.getNetwork();
+        console.log(`✅ Provider connected to network: ${network.name} (chainId: ${network.chainId})`);
+      } catch (error) {
+        console.log(`❌ Provider connection failed: ${error.message}`);
+        throw new Error('Provider not accessible: ' + error.message);
+      }
+      
+      // Verify contract is deployed and accessible
+      try {
+        const code = await this.provider.getCode(this.contractAddress);
+        if (code === '0x') {
+          throw new Error('Contract not deployed at address: ' + this.contractAddress);
+        }
+        console.log(`✅ Contract verified at address: ${this.contractAddress}`);
+      } catch (error) {
+        console.log(`❌ Contract verification failed: ${error.message}`);
+        throw new Error('Contract not accessible: ' + error.message);
+      }
+      
       // Check if we're an executor
       const isExecutor = await contract.isExecutor(this.wallet.address);
       if (!isExecutor) {
         throw new Error('Backend wallet is not an executor on EcionBatch contract');
+      }
+      console.log(`✅ Backend wallet is verified as executor: ${this.wallet.address}`);
+      
+      // Test contract function accessibility
+      try {
+        const owner = await contract.owner();
+        console.log(`✅ Contract owner: ${owner}`);
+      } catch (error) {
+        console.log(`❌ Contract function test failed: ${error.message}`);
+        throw new Error('Contract functions not accessible: ' + error.message);
       }
       
       // Prepare batch data (only 4 parameters needed)
@@ -186,16 +217,56 @@ class EcionBatchManager {
       });
       
       // Execute batch tip (4 parameters: froms, tos, tokens, amounts)
-      // Get dynamic gas price for Base network
-      const gasPrice = await this.wallet.provider.getGasPrice();
-      const increasedGasPrice = gasPrice * 110n / 100n; // 10% higher for reliability
+      // Get dynamic gas price for Base network (EIP-1559)
+      let gasOptions = {};
+      try {
+        // Try getGasPrice first (legacy)
+        console.log('🔍 Attempting to get gas price...');
+        const gasPrice = await this.provider.getGasPrice();
+        console.log(`🔍 Raw gas price: ${gasPrice.toString()} wei`);
+        const increasedGasPrice = gasPrice * 110n / 100n; // 10% higher for reliability
+        gasOptions = {
+          gasLimit: 2000000,
+          gasPrice: increasedGasPrice
+        };
+        console.log(`⛽ Using legacy gas pricing: ${increasedGasPrice.toString()} wei`);
+      } catch (error) {
+        console.log('getGasPrice failed, using EIP-1559 gas pricing...');
+        console.log(`🔍 getGasPrice error: ${error.message}`);
+        // Use EIP-1559 gas pricing for Base network
+        const feeData = await this.provider.getFeeData();
+        console.log(`🔍 Fee data:`, {
+          gasPrice: feeData.gasPrice?.toString(),
+          maxFeePerGas: feeData.maxFeePerGas?.toString(),
+          maxPriorityFeePerGas: feeData.maxPriorityFeePerGas?.toString()
+        });
+        gasOptions = {
+          gasLimit: 2000000,
+          maxFeePerGas: feeData.maxFeePerGas ? feeData.maxFeePerGas * 110n / 100n : undefined,
+          maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ? feeData.maxPriorityFeePerGas * 110n / 100n : undefined,
+          gasPrice: feeData.gasPrice ? feeData.gasPrice * 110n / 100n : undefined
+        };
+        console.log(`⛽ Using EIP-1559 gas pricing:`, {
+          maxFeePerGas: gasOptions.maxFeePerGas?.toString(),
+          maxPriorityFeePerGas: gasOptions.maxPriorityFeePerGas?.toString(),
+          gasPrice: gasOptions.gasPrice?.toString()
+        });
+      }
       
-      const tx = await contract.batchTip(froms, tos, tokens, amounts, {
-        gasLimit: 2000000, // Increased gas limit for Base
-        gasPrice: increasedGasPrice
-      });
+      console.log(`🚀 Submitting batch tip transaction with gas options:`, gasOptions);
+      
+      const tx = await contract.batchTip(froms, tos, tokens, amounts, gasOptions);
       
       console.log(`✅ Batch tip transaction submitted: ${tx.hash}`);
+      console.log(`📊 Transaction details:`, {
+        hash: tx.hash,
+        from: tx.from,
+        to: tx.to,
+        gasLimit: tx.gasLimit?.toString(),
+        gasPrice: tx.gasPrice?.toString(),
+        maxFeePerGas: tx.maxFeePerGas?.toString(),
+        maxPriorityFeePerGas: tx.maxPriorityFeePerGas?.toString()
+      });
       
       // Wait for confirmation
       const receipt = await tx.wait();
@@ -230,6 +301,12 @@ class EcionBatchManager {
       
     } catch (error) {
       console.log(`❌ EcionBatch batch tip failed: ${error.message}`);
+      console.log(`❌ Error details:`, {
+        name: error.name,
+        code: error.code,
+        reason: error.reason,
+        stack: error.stack
+      });
       throw error;
     }
   }

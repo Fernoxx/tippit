@@ -170,14 +170,29 @@ class MulticallContract {
           const multicallData = callData.map(call => call.callData);
           
           // Execute batch using Multicall3
-          // Get dynamic gas price for Base network
-          const gasPrice = await this.wallet.provider.getGasPrice();
-          const increasedGasPrice = gasPrice * 110n / 100n; // 10% higher for reliability
+          // Get dynamic gas price for Base network (EIP-1559)
+          let gasOptions = {};
+          try {
+            // Try getGasPrice first (legacy)
+            const gasPrice = await this.provider.getGasPrice();
+            const increasedGasPrice = gasPrice * 110n / 100n; // 10% higher for reliability
+            gasOptions = {
+              gasLimit: 3000000,
+              gasPrice: increasedGasPrice
+            };
+          } catch (error) {
+            console.log('getGasPrice failed, using EIP-1559 gas pricing...');
+            // Use EIP-1559 gas pricing for Base network
+            const feeData = await this.provider.getFeeData();
+            gasOptions = {
+              gasLimit: 3000000,
+              maxFeePerGas: feeData.maxFeePerGas ? feeData.maxFeePerGas * 110n / 100n : undefined,
+              maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ? feeData.maxPriorityFeePerGas * 110n / 100n : undefined,
+              gasPrice: feeData.gasPrice ? feeData.gasPrice * 110n / 100n : undefined
+            };
+          }
           
-          const tx = await this.multicallContract.multicall(multicallData, {
-            gasLimit: 3000000, // Increased gas limit for Base
-            gasPrice: increasedGasPrice
-          });
+          const tx = await this.multicallContract.multicall(multicallData, gasOptions);
           
           console.log(`✅ Batch transaction submitted: ${tx.hash}`);
           
