@@ -3,6 +3,7 @@ import { useLeaderboardData } from '@/hooks/usePIT';
 import { formatAmount } from '@/utils/contracts';
 import { Trophy, Medal, Award, Crown, Star } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import LoadingSpinner from '@/components/LoadingSpinner';
 
 export default function Leaderboard() {
   const [timeFilter, setTimeFilter] = useState<'24h' | '7d' | '30d'>('24h');
@@ -14,7 +15,13 @@ export default function Leaderboard() {
     setMounted(true);
   }, []);
 
-  if (!mounted) return null;
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-yellow-50 flex items-center justify-center">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
 
   const containerVariants = {
     hidden: { opacity: 0 },

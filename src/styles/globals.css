@@ -93,3 +93,20 @@ select:focus {
   outline: 2px solid #4169E1;
   outline-offset: 2px;
 }
+
+/* Mobile browser restoration handling */
+@media screen and (max-width: 768px) {
+  /* Prevent mobile browser from showing blank yellow during app restoration */
+  body {
+    background-color: #fef3c7 !important;
+    min-height: 100vh;
+    min-height: 100dvh; /* Dynamic viewport height for mobile */
+  }
+  
+  /* Ensure loading states are visible during restoration */
+  .loading-container {
+    background-color: #fef3c7;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+}

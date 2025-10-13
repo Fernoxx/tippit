@@ -3,6 +3,7 @@ import { useFarcasterWallet } from '@/hooks/useFarcasterWallet';
 import { formatAmount } from '@/utils/contracts';
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
+import LoadingSpinner from '@/components/LoadingSpinner';
 
 interface CastEmbed {
   url?: string;
@@ -65,7 +66,13 @@ export default function Home() {
     }
   };
 
-  if (!mounted) return null;
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-yellow-50 flex items-center justify-center">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
 
   return (
     <>
