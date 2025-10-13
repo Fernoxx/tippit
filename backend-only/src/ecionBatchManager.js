@@ -217,16 +217,18 @@ class EcionBatchManager {
           ], this.provider);
           
           const decimals = await tokenContract.decimals();
-          // Use ethers.parseUnits for proper BigInt conversion
-          const amountInSmallestUnit = ethers.parseUnits(tip.amount.toString(), decimals);
-          console.log(`💰 Converting ${tip.amount} ${tip.token} to ${amountInSmallestUnit.toString()} (${decimals} decimals)`);
-          console.log(`🔍 Debug: ${tip.amount} * 10^${decimals} = ${amountInSmallestUnit.toString()}`);
           
-          // Check if amount is within uint256 limits
-          const maxUint256 = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
-          if (amountInSmallestUnit > maxUint256) {
-            throw new Error(`Amount ${amountInSmallestUnit.toString()} exceeds uint256 limit`);
+          // For 18-decimal tokens, limit the amount to prevent overflow
+          let amountToConvert = tip.amount;
+          if (decimals === 18 && parseFloat(tip.amount) > 1000) {
+            console.log(`⚠️ Token has 18 decimals, limiting amount from ${tip.amount} to 1000 to prevent overflow`);
+            amountToConvert = 1000;
           }
+          
+          // Use ethers.parseUnits for proper BigInt conversion
+          const amountInSmallestUnit = ethers.parseUnits(amountToConvert.toString(), decimals);
+          console.log(`💰 Converting ${amountToConvert} ${tip.token} to ${amountInSmallestUnit.toString()} (${decimals} decimals)`);
+          console.log(`🔍 Debug: ${amountToConvert} * 10^${decimals} = ${amountInSmallestUnit.toString()}`);
           
           amounts.push(amountInSmallestUnit);
         } catch (error) {
