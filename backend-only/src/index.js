@@ -2032,6 +2032,8 @@ app.post('/api/debug/simulate-tip', async (req, res) => {
       return res.status(400).json({ error: 'fromAddress and toAddress are required' });
     }
     
+    console.log(`🧪 SIMULATING TIP: ${fromAddress} → ${toAddress} (${amount} ${actionType})`);
+    
     // Simulate a tip being recorded
     await database.addTipHistory({
       fromAddress: fromAddress.toLowerCase(),
@@ -2043,7 +2045,11 @@ app.post('/api/debug/simulate-tip', async (req, res) => {
       transactionHash: '0xtest' + Date.now()
     });
     
-    console.log(`🧪 SIMULATED TIP: ${fromAddress} → ${toAddress} (${amount} ${actionType})`);
+    console.log(`✅ TIP SIMULATED AND SAVED`);
+    
+    // Immediately check if it appears in 24h leaderboard
+    const topTippers = await database.getTopTippers('24h');
+    const topEarners = await database.getTopEarners('24h');
     
     res.json({
       success: true,
@@ -2054,11 +2060,17 @@ app.post('/api/debug/simulate-tip', async (req, res) => {
         amount,
         actionType
       },
+      verification: {
+        tippersIn24h: topTippers.length,
+        earnersIn24h: topEarners.length,
+        foundTipper: topTippers.find(t => t.userAddress.toLowerCase() === fromAddress.toLowerCase()),
+        foundEarner: topEarners.find(e => e.userAddress.toLowerCase() === toAddress.toLowerCase())
+      },
       timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error('Error simulating tip:', error);
-    res.status(500).json({ error: 'Failed to simulate tip' });
+    res.status(500).json({ error: 'Failed to simulate tip', details: error.message });
   }
 });
 

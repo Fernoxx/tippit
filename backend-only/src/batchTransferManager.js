@@ -77,6 +77,14 @@ class BatchTransferManager {
 
     this.pendingTips.push(tipData);
     console.log(`📝 Added tip to batch. Total pending: ${this.pendingTips.length}`);
+    console.log(`💡 New tip details:`, {
+      from: interaction.authorAddress,
+      to: interaction.interactorAddress,
+      amount: validation.amount,
+      type: interaction.interactionType,
+      token: authorConfig.tokenAddress,
+      timestamp: new Date().toISOString()
+    });
 
     // Process immediately if batch is full (but not for single tips)
     if (this.pendingTips.length >= this.maxBatchSize) {
