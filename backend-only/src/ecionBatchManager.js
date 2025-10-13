@@ -217,14 +217,15 @@ class EcionBatchManager {
           ], this.provider);
           
           const decimals = await tokenContract.decimals();
-          const amountInSmallestUnit = Math.floor(parseFloat(tip.amount) * Math.pow(10, decimals));
-          console.log(`💰 Converting ${tip.amount} ${tip.token} to ${amountInSmallestUnit} (${decimals} decimals)`);
+          // Use ethers.parseUnits for proper BigInt conversion
+          const amountInSmallestUnit = ethers.parseUnits(tip.amount.toString(), decimals);
+          console.log(`💰 Converting ${tip.amount} ${tip.token} to ${amountInSmallestUnit.toString()} (${decimals} decimals)`);
           amounts.push(amountInSmallestUnit);
         } catch (error) {
           console.log(`❌ Could not get decimals for token ${tip.token}, defaulting to 18: ${error.message}`);
           // Default to 18 decimals if we can't get the token decimals
-          const amountInSmallestUnit = Math.floor(parseFloat(tip.amount) * Math.pow(10, 18));
-          console.log(`💰 Converting ${tip.amount} ${tip.token} to ${amountInSmallestUnit} (18 decimals default)`);
+          const amountInSmallestUnit = ethers.parseUnits(tip.amount.toString(), 18);
+          console.log(`💰 Converting ${tip.amount} ${tip.token} to ${amountInSmallestUnit.toString()} (18 decimals default)`);
           amounts.push(amountInSmallestUnit);
         }
       }
