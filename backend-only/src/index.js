@@ -882,6 +882,29 @@ app.get('/api/config/:userAddress', async (req, res) => {
   }
 });
 
+// Helper function to get token decimals
+async function getTokenDecimals(tokenAddress) {
+  try {
+    // Known tokens
+    if (tokenAddress.toLowerCase() === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913') {
+      return 6; // USDC
+    }
+    
+    // Query contract for decimals
+    const { ethers } = require('ethers');
+    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const tokenContract = new ethers.Contract(tokenAddress, [
+      "function decimals() view returns (uint8)"
+    ], provider);
+    
+    const decimals = await tokenContract.decimals();
+    return Number(decimals);
+  } catch (error) {
+    console.log(`Could not get decimals for token ${tokenAddress}, defaulting to 18`);
+    return 18; // Default to 18 decimals
+  }
+}
+
 // Token allowance endpoint
 app.get('/api/allowance/:userAddress/:tokenAddress', async (req, res) => {
   try {
@@ -898,12 +921,16 @@ app.get('/api/allowance/:userAddress/:tokenAddress', async (req, res) => {
     ], provider);
     
     const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
-    const tokenDecimals = tokenAddress.toLowerCase() === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913' ? 6 : 18;
+    const tokenDecimals = await getTokenDecimals(tokenAddress);
     const formattedAllowance = ethers.formatUnits(allowance, tokenDecimals);
     
-    console.log(`📊 Allowance check: User ${userAddress} approved ${formattedAllowance} to EcionBatch contract ${ecionBatchAddress}`);
+    console.log(`📊 Allowance check: User ${userAddress} approved ${formattedAllowance} tokens (${tokenAddress}) to EcionBatch contract ${ecionBatchAddress}`);
     
-    res.json({ allowance: formattedAllowance });
+    res.json({ 
+      allowance: formattedAllowance,
+      tokenAddress: tokenAddress,
+      decimals: tokenDecimals
+    });
   } catch (error) {
     console.error('Allowance fetch error:', error);
     res.status(500).json({ error: 'Failed to fetch allowance' });
@@ -1080,17 +1107,20 @@ app.get('/api/homepage', async (req, res) => {
     
     for (const userAddress of activeUsers) {
       try {
-        // Check user's remaining USDC allowance
-        const tokenAddress = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC
+        // Get user's configured token address
+        const userConfig = await database.getUserConfig(userAddress);
+        const tokenAddress = userConfig?.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // Default to USDC
+        const tokenDecimals = await getTokenDecimals(tokenAddress);
+        
         const tokenContract = new ethers.Contract(tokenAddress, [
           "function allowance(address owner, address spender) view returns (uint256)"
         ], provider);
         
         const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
-        const allowanceUSDC = parseFloat(ethers.formatUnits(allowance, 6));
+        const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
         
         // Skip users with EXACTLY 0 allowance (not 0.1 or 0.2, must be 0.000000)
-        if (allowanceUSDC === 0) {
+        if (allowanceAmount === 0) {
           console.log(`⏭️ Skipping ${userAddress} - allowance is exactly 0`);
           continue;
         }
@@ -1176,7 +1206,7 @@ app.get('/api/homepage', async (req, res) => {
                       } : null
                     }
                   },
-                  allowance: allowanceUSDC,
+                  allowance: allowanceAmount,
                   totalEngagementValue: isUSDC ? totalEngagementValue : 0,
                   timestamp: new Date(cast.timestamp).getTime(),
                   userAddress
@@ -2029,6 +2059,54 @@ app.post('/api/debug/simulate-tip', async (req, res) => {
   } catch (error) {
     console.error('Error simulating tip:', error);
     res.status(500).json({ error: 'Failed to simulate tip' });
+  }
+});
+
+// Debug endpoint to check user's token configuration
+app.get('/api/debug/user-token/:userAddress', async (req, res) => {
+  try {
+    const { userAddress } = req.params;
+    const userConfig = await database.getUserConfig(userAddress.toLowerCase());
+    
+    if (!userConfig) {
+      return res.json({
+        success: false,
+        message: 'No user config found',
+        userAddress: userAddress.toLowerCase()
+      });
+    }
+    
+    // Get token info
+    let tokenInfo = null;
+    if (userConfig.tokenAddress) {
+      try {
+        const tokenDecimals = await getTokenDecimals(userConfig.tokenAddress);
+        tokenInfo = {
+          address: userConfig.tokenAddress,
+          decimals: tokenDecimals
+        };
+      } catch (error) {
+        tokenInfo = { error: 'Could not fetch token info' };
+      }
+    }
+    
+    res.json({
+      success: true,
+      userAddress: userAddress.toLowerCase(),
+      config: {
+        tokenAddress: userConfig.tokenAddress,
+        isActive: userConfig.isActive,
+        likeAmount: userConfig.likeAmount,
+        replyAmount: userConfig.replyAmount,
+        recastAmount: userConfig.recastAmount,
+        spendingLimit: userConfig.spendingLimit
+      },
+      tokenInfo,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error getting user token config:', error);
+    res.status(500).json({ error: 'Failed to get user token config' });
   }
 });
 

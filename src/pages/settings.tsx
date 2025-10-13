@@ -41,9 +41,9 @@ export default function Settings() {
   
   // Form states
   const [allowanceAmount, setAllowanceAmount] = useState('');
-  const [selectedToken, setSelectedToken] = useState('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'); // USDC on Base
-  const [customTokenAddress, setCustomTokenAddress] = useState('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913');
-  const [tokenName, setTokenName] = useState('USDC');
+  const [selectedToken, setSelectedToken] = useState(''); // Will be set from userConfig
+  const [customTokenAddress, setCustomTokenAddress] = useState('');
+  const [tokenName, setTokenName] = useState('');
   const [showTokenDropdown, setShowTokenDropdown] = useState(false);
   const [isValidToken, setIsValidToken] = useState(true);
   const [amountErrors, setAmountErrors] = useState<{[key: string]: string}>({});
@@ -104,10 +104,22 @@ export default function Settings() {
         minFollowerCount: userConfig.minFollowerCount || 25,
         minNeynarScore: userConfig.minNeynarScore || 0.5,
       });
-      if (userConfig.tokenAddress) {
-        setSelectedToken(userConfig.tokenAddress);
-        setCustomTokenAddress(userConfig.tokenAddress);
-      }
+      
+      // CRITICAL FIX: Always load user's saved token, don't default to USDC
+      const userTokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+      console.log('🔍 Loading user token from config:', userTokenAddress);
+      setSelectedToken(userTokenAddress);
+      setCustomTokenAddress(userTokenAddress);
+      
+      // Lookup token name for the user's saved token
+      lookupTokenName(userTokenAddress);
+    } else {
+      // Only set USDC as default if no user config exists yet
+      const defaultToken = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+      setSelectedToken(defaultToken);
+      setCustomTokenAddress(defaultToken);
+      setTokenName('USDC');
+      console.log('🔍 No user config, setting default USDC token');
     }
   }, [userConfig]);
 

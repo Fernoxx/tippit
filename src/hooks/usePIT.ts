@@ -93,6 +93,14 @@ export const useEcion = () => {
     fetchBackendWalletAddress();
   }, [address]);
 
+  // Fetch token allowance when user config loads or token changes
+  useEffect(() => {
+    if (address && userConfig?.tokenAddress) {
+      console.log('🔍 Fetching allowance for user token:', userConfig.tokenAddress);
+      fetchTokenAllowance(userConfig.tokenAddress);
+    }
+  }, [address, userConfig?.tokenAddress]);
+
   const fetchUserConfig = async () => {
     try {
       const response = await fetch(`${BACKEND_URL}/api/config/${address}`);
@@ -161,8 +169,19 @@ export const useEcion = () => {
       
       console.log('Approving EXACT amount:', amount, 'tokens to EcionBatch contract');
       console.log('EcionBatch contract address:', contractAddress);
+      console.log('Token address:', tokenAddress);
       
-      const tokenDecimals = tokenAddress.toLowerCase() === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913' ? 6 : 18;
+      // Get token decimals from backend
+      const tokenInfoResponse = await fetch(`${BACKEND_URL}/api/token-info/${tokenAddress}`);
+      let tokenDecimals = 18; // Default
+      if (tokenInfoResponse.ok) {
+        const tokenInfo = await tokenInfoResponse.json();
+        tokenDecimals = tokenInfo.decimals || 18;
+      } else if (tokenAddress.toLowerCase() === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913') {
+        tokenDecimals = 6; // USDC
+      }
+      
+      console.log('Token decimals:', tokenDecimals);
       const amountWei = parseUnits(amount, tokenDecimals);
       
       writeContract({
@@ -256,16 +275,19 @@ export const useEcion = () => {
     if (!address) return;
     
     try {
-      const tokenDecimals = tokenAddress.toLowerCase() === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913' ? 6 : 18;
-      
-      // Use wagmi to read allowance
+      console.log('🔍 Fetching allowance for token:', tokenAddress);
       const response = await fetch(`${BACKEND_URL}/api/allowance/${address}/${tokenAddress}`);
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ Allowance response:', data);
         setTokenAllowance(data.allowance);
+      } else {
+        console.error('❌ Failed to fetch allowance:', response.status);
+        setTokenAllowance('0');
       }
     } catch (error) {
       console.error('Error fetching token allowance:', error);
+      setTokenAllowance('0');
     }
   };
 
