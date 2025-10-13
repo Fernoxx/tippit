@@ -351,7 +351,7 @@ class PostgresDatabase {
 
   async getTotalTransactions() {
     try {
-      const result = await this.pool.query('SELECT COUNT(DISTINCT tx_hash) as count FROM tip_history WHERE tx_hash IS NOT NULL');
+      const result = await this.pool.query('SELECT COUNT(DISTINCT transaction_hash) as count FROM tip_history WHERE transaction_hash IS NOT NULL');
       return parseInt(result.rows[0].count);
     } catch (error) {
       console.error('Error getting total transactions:', error);
@@ -367,9 +367,9 @@ class PostgresDatabase {
           to_address,
           amount,
           token_address,
-          tx_hash,
+          transaction_hash,
           processed_at,
-          interaction_type
+          action_type
         FROM tip_history 
         ORDER BY processed_at DESC 
         LIMIT $1
@@ -380,9 +380,9 @@ class PostgresDatabase {
         toAddress: row.to_address,
         amount: parseFloat(row.amount),
         tokenAddress: row.token_address,
-        txHash: row.tx_hash,
+        txHash: row.transaction_hash,
         processedAt: row.processed_at,
-        interactionType: row.interaction_type
+        interactionType: row.action_type
       }));
     } catch (error) {
       console.error('Error getting recent tips:', error);
