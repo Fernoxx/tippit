@@ -242,19 +242,7 @@ class PostgresDatabase {
         tip.transactionHash
       ]);
       
-      console.log(`💾 TIP RECORDED:`, {
-        id: result.rows[0].id,
-        from: tip.fromAddress,
-        to: tip.toAddress,
-        amount: tip.amount,
-        action: tip.actionType,
-        txHash: tip.transactionHash,
-        processedAt: result.rows[0].processed_at
-      });
-      
-      // Force leaderboard refresh by logging current stats
-      const totalTips = await this.pool.query('SELECT COUNT(*) as count FROM tip_history');
-      console.log(`📊 TOTAL TIPS IN DB: ${totalTips.rows[0].count}`);
+      console.log(`💾 Tip recorded: ${tip.fromAddress} → ${tip.toAddress} (${tip.amount} ${tip.actionType})`);
       
     } catch (error) {
       console.error('Error adding tip history:', error);
@@ -283,28 +271,8 @@ class PostgresDatabase {
       const timeMs = timeFilter === '24h' ? '24 hours' :
                      timeFilter === '7d' ? '7 days' : '30 days';
       
-      // Debug: Check total tips in database
-      const totalResult = await this.pool.query('SELECT COUNT(*) as total FROM tip_history');
-      const recentResult = await this.pool.query(`SELECT COUNT(*) as recent FROM tip_history WHERE processed_at > NOW() - INTERVAL '${timeMs}'`);
-      
-      console.log(`🔍 Leaderboard Debug - ${timeFilter}:`, {
-        totalTips: totalResult.rows[0].total,
-        recentTips: recentResult.rows[0].recent,
-        timeFilter: timeMs,
-        query: `processed_at > NOW() - INTERVAL '${timeMs}'`
-      });
-      
-      // Show some recent tips for debugging
-      if (totalResult.rows[0].total > 0) {
-        const sampleTips = await this.pool.query('SELECT from_address, to_address, amount, processed_at FROM tip_history ORDER BY processed_at DESC LIMIT 3');
-        console.log('📋 Sample recent tips:', sampleTips.rows);
-      }
-      
-      // Use parameterized query to avoid SQL injection and ensure proper parsing
-      const intervalValue = timeFilter === '24h' ? '1 day' :
-                           timeFilter === '7d' ? '7 days' : '30 days';
-      
-      console.log(`🔍 SQL Query: SELECT from_address, SUM(amount), COUNT(*) FROM tip_history WHERE processed_at > NOW() - INTERVAL '${intervalValue}'`);
+      // Clean up old data (older than 30 days) to save space
+      await this.cleanupOldTips();
       
       const result = await this.pool.query(`
         SELECT 
@@ -312,13 +280,12 @@ class PostgresDatabase {
           SUM(CAST(amount AS DECIMAL)) as total_amount,
           COUNT(*) as tip_count
         FROM tip_history 
-        WHERE processed_at > NOW() - INTERVAL $1
+        WHERE processed_at > NOW() - INTERVAL '${timeMs}'
         GROUP BY from_address 
         ORDER BY total_amount DESC 
         LIMIT 50
-      `, [intervalValue]);
+      `);
       
-      console.log(`🔍 Top Tippers Result (${timeFilter}):`, result.rows.length, 'tippers found');
       
       return result.rows.map(row => ({
         userAddress: row.user_address,
@@ -333,11 +300,8 @@ class PostgresDatabase {
 
   async getTopEarners(timeFilter = '30d') {
     try {
-      // Use consistent interval format
-      const intervalValue = timeFilter === '24h' ? '1 day' :
-                           timeFilter === '7d' ? '7 days' : '30 days';
-      
-      console.log(`🔍 Earners SQL Query: SELECT to_address, SUM(amount), COUNT(*) FROM tip_history WHERE processed_at > NOW() - INTERVAL '${intervalValue}'`);
+      const timeMs = timeFilter === '24h' ? '24 hours' :
+                     timeFilter === '7d' ? '7 days' : '30 days';
       
       const result = await this.pool.query(`
         SELECT 
@@ -345,11 +309,11 @@ class PostgresDatabase {
           SUM(CAST(amount AS DECIMAL)) as total_amount,
           COUNT(*) as tip_count
         FROM tip_history 
-        WHERE processed_at > NOW() - INTERVAL $1
+        WHERE processed_at > NOW() - INTERVAL '${timeMs}'
         GROUP BY to_address 
         ORDER BY total_amount DESC 
         LIMIT 50
-      `, [intervalValue]);
+      `);
       
       return result.rows.map(row => ({
         userAddress: row.user_address,
@@ -431,6 +395,55 @@ class PostgresDatabase {
     } catch (error) {
       console.error('Error getting recent tips:', error);
       return [];
+    }
+  }
+
+  // Clean up tips older than 30 days to save database space
+  async cleanupOldTips() {
+    try {
+      // Only run cleanup once per day to avoid performance issues
+      const lastCleanup = await this.pool.query(`
+        SELECT value FROM app_settings WHERE key = 'last_cleanup' LIMIT 1
+      `).catch(() => ({ rows: [] }));
+      
+      const today = new Date().toDateString();
+      if (lastCleanup.rows.length > 0 && lastCleanup.rows[0].value === today) {
+        return; // Already cleaned up today
+      }
+      
+      // Delete tips older than 30 days
+      const result = await this.pool.query(`
+        DELETE FROM tip_history 
+        WHERE processed_at < NOW() - INTERVAL '30 days'
+      `);
+      
+      if (result.rowCount > 0) {
+        console.log(`🧹 Cleaned up ${result.rowCount} old tips (older than 30 days)`);
+      }
+      
+      // Update last cleanup date
+      await this.pool.query(`
+        INSERT INTO app_settings (key, value) 
+        VALUES ('last_cleanup', $1)
+        ON CONFLICT (key) DO UPDATE SET value = $1
+      `, [today]).catch(() => {
+        // Create table if it doesn't exist
+        this.pool.query(`
+          CREATE TABLE IF NOT EXISTS app_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT NOW()
+          )
+        `).then(() => {
+          this.pool.query(`
+            INSERT INTO app_settings (key, value) VALUES ('last_cleanup', $1)
+          `, [today]);
+        });
+      });
+      
+    } catch (error) {
+      console.error('Error during cleanup:', error);
+      // Don't fail the main query if cleanup fails
     }
   }
   
