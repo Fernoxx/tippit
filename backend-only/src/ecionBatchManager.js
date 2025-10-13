@@ -220,6 +220,7 @@ class EcionBatchManager {
           // Use ethers.parseUnits for proper BigInt conversion
           const amountInSmallestUnit = ethers.parseUnits(tip.amount.toString(), decimals);
           console.log(`💰 Converting ${tip.amount} ${tip.token} to ${amountInSmallestUnit.toString()} (${decimals} decimals)`);
+          console.log(`🔍 Debug: ${tip.amount} * 10^${decimals} = ${amountInSmallestUnit.toString()}`);
           amounts.push(amountInSmallestUnit);
         } catch (error) {
           console.log(`❌ Could not get decimals for token ${tip.token}, defaulting to 18: ${error.message}`);
