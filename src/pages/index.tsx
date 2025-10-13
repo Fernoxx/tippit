@@ -3,6 +3,7 @@ import { useFarcasterWallet } from '@/hooks/useFarcasterWallet';
 import { formatAmount } from '@/utils/contracts';
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
+import SafeImage from '@/components/SafeImage';
 
 interface CastEmbed {
   url?: string;
@@ -162,19 +163,18 @@ export default function Home() {
                 >
                   {/* User Info */}
                   <div className="flex items-center space-x-2 mb-2">
-                    {cast.tipper?.pfpUrl ? (
-                      <img
-                        src={cast.tipper.pfpUrl}
-                        alt={cast.tipper.displayName || cast.tipper.username}
-                        className="w-10 h-10 rounded-full"
-                      />
-                    ) : (
-                      <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
-                        <span className="text-sm font-bold text-gray-600">
-                          {(cast.tipper?.displayName || cast.tipper?.username || 'U')[0].toUpperCase()}
-                        </span>
-                      </div>
-                    )}
+                    <SafeImage
+                      src={cast.tipper?.pfpUrl || ''}
+                      alt={cast.tipper?.displayName || cast.tipper?.username || 'Profile'}
+                      className="w-10 h-10 rounded-full"
+                      fallback={
+                        <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
+                          <span className="text-sm font-bold text-gray-600">
+                            {(cast.tipper?.displayName || cast.tipper?.username || 'U')[0].toUpperCase()}
+                          </span>
+                        </div>
+                      }
+                    />
                     <div className="flex-1">
                       <p className="font-semibold text-sm text-gray-900">
                         {cast.tipper?.displayName || cast.tipper?.username || 'Anonymous Tipper'}
@@ -199,11 +199,16 @@ export default function Home() {
                       <div className="mt-3 grid grid-cols-2 gap-2">
                         {cast.embeds.slice(0, 4).map((embed: CastEmbed, embedIndex: number) => (
                           embed.url && embed.url.match(/\.(jpeg|jpg|gif|png)$/i) && (
-                            <img
+                            <SafeImage
                               key={embedIndex}
                               src={embed.url}
                               alt="Cast embed"
                               className="rounded-lg max-h-48 w-full object-cover"
+                              fallback={
+                                <div className="rounded-lg max-h-48 w-full bg-gray-200 flex items-center justify-center">
+                                  <span className="text-gray-500 text-sm">Image failed to load</span>
+                                </div>
+                              }
                             />
                           )
                         ))}

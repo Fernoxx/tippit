@@ -43,6 +43,11 @@ export default function FarcasterAuth() {
                   src={currentUser.pfpUrl}
                   alt={currentUser.displayName}
                   className="w-12 h-12 rounded-full"
+                  onError={(e) => {
+                    console.log('Failed to load profile image:', currentUser.pfpUrl);
+                    e.currentTarget.style.display = 'none';
+                  }}
+                  loading="lazy"
                 />
               ) : (
                 <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold">

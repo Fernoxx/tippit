@@ -158,6 +158,11 @@ export default function Leaderboard() {
                         src={user.pfpUrl}
                         alt={user.displayName || user.username}
                         className="w-8 h-8 rounded-full"
+                        onError={(e) => {
+                          console.log('Failed to load profile image:', user.pfpUrl);
+                          e.currentTarget.style.display = 'none';
+                        }}
+                        loading="lazy"
                       />
                     ) : (
                       <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">

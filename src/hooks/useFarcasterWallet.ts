@@ -1,6 +1,7 @@
 import { useConnect, useAccount, useDisconnect } from 'wagmi';
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
+import { farcasterSDK } from '@/utils/farcasterSDK';
 
 export const useFarcasterWallet = () => {
   const { connect, connectors, isPending } = useConnect();
@@ -19,10 +20,9 @@ export const useFarcasterWallet = () => {
         setIsInFarcaster(isMini);
         
         if (isMini) {
-          // CRITICAL: Call ready() to dismiss splash screen
+          // CRITICAL: Call ready() to dismiss splash screen using centralized manager
           try {
-            await sdk.actions.ready();
-            console.log('SDK ready() called successfully');
+            await farcasterSDK.ensureReady();
           } catch (readyError) {
             console.log('SDK ready() error:', readyError);
           }
