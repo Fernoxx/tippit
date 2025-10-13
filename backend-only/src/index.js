@@ -1957,6 +1957,81 @@ app.get('/api/admin/recent-tips', async (req, res) => {
   }
 });
 
+// Debug endpoint to check leaderboard data in real-time
+app.get('/api/debug/leaderboard-data', async (req, res) => {
+  try {
+    const { timeFilter = '24h' } = req.query;
+    
+    // Get raw data for debugging
+    const topTippers = await database.getTopTippers(timeFilter);
+    const topEarners = await database.getTopEarners(timeFilter);
+    const totalTips = await database.getTotalTips();
+    const recentTips = await database.getRecentTips(10);
+    
+    res.json({
+      success: true,
+      debug: {
+        timeFilter,
+        totalTipsInDB: totalTips,
+        topTippers: topTippers.length,
+        topEarners: topEarners.length,
+        tippersData: topTippers,
+        earnersData: topEarners,
+        recentTips: recentTips.map(tip => ({
+          from: tip.fromAddress,
+          to: tip.toAddress,
+          amount: tip.amount,
+          action: tip.interactionType,
+          processedAt: tip.processedAt
+        }))
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error getting leaderboard debug data:', error);
+    res.status(500).json({ error: 'Failed to get leaderboard debug data' });
+  }
+});
+
+// Test endpoint to simulate a tip (for debugging leaderboard updates)
+app.post('/api/debug/simulate-tip', async (req, res) => {
+  try {
+    const { fromAddress, toAddress, amount = '0.01', actionType = 'like' } = req.body;
+    
+    if (!fromAddress || !toAddress) {
+      return res.status(400).json({ error: 'fromAddress and toAddress are required' });
+    }
+    
+    // Simulate a tip being recorded
+    await database.addTipHistory({
+      fromAddress: fromAddress.toLowerCase(),
+      toAddress: toAddress.toLowerCase(),
+      tokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // USDC
+      amount: amount,
+      actionType: actionType,
+      castHash: 'test-cast-hash-' + Date.now(),
+      transactionHash: '0xtest' + Date.now()
+    });
+    
+    console.log(`🧪 SIMULATED TIP: ${fromAddress} → ${toAddress} (${amount} ${actionType})`);
+    
+    res.json({
+      success: true,
+      message: 'Tip simulated successfully',
+      tip: {
+        fromAddress,
+        toAddress,
+        amount,
+        actionType
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error simulating tip:', error);
+    res.status(500).json({ error: 'Failed to simulate tip' });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Ecion Backend running on port ${PORT}`);

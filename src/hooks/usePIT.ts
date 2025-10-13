@@ -459,12 +459,12 @@ export const useLeaderboardData = (timeFilter: '24h' | '7d' | '30d' = '24h') => 
     fetchLeaderboardData(1, true); // Reset to page 1 when timeFilter changes
   }, [timeFilter]);
 
-  // Auto-refresh leaderboard every 30 seconds
+  // Auto-refresh leaderboard every 5 seconds for real-time updates
   useEffect(() => {
     const interval = setInterval(() => {
       console.log('🔄 Auto-refreshing leaderboard data...');
       fetchLeaderboardData(1, true);
-    }, 30000); // 30 seconds
+    }, 5000); // 5 seconds for real-time updates
 
     return () => clearInterval(interval);
   }, [timeFilter]);

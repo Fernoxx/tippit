@@ -227,10 +227,11 @@ class PostgresDatabase {
   // Tip history
   async addTipHistory(tip) {
     try {
-      await this.pool.query(`
+      const result = await this.pool.query(`
         INSERT INTO tip_history 
         (from_address, to_address, token_address, amount, action_type, cast_hash, transaction_hash)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING id, processed_at
       `, [
         tip.fromAddress,
         tip.toAddress,
@@ -240,9 +241,24 @@ class PostgresDatabase {
         tip.castHash,
         tip.transactionHash
       ]);
-      console.log(`📋 Added tip history: ${tip.amount} from ${tip.fromAddress} to ${tip.toAddress}`);
+      
+      console.log(`💾 TIP RECORDED:`, {
+        id: result.rows[0].id,
+        from: tip.fromAddress,
+        to: tip.toAddress,
+        amount: tip.amount,
+        action: tip.actionType,
+        txHash: tip.transactionHash,
+        processedAt: result.rows[0].processed_at
+      });
+      
+      // Force leaderboard refresh by logging current stats
+      const totalTips = await this.pool.query('SELECT COUNT(*) as count FROM tip_history');
+      console.log(`📊 TOTAL TIPS IN DB: ${totalTips.rows[0].count}`);
+      
     } catch (error) {
       console.error('Error adding tip history:', error);
+      throw error;
     }
   }
 
@@ -267,6 +283,16 @@ class PostgresDatabase {
       const timeMs = timeFilter === '24h' ? '24 hours' :
                      timeFilter === '7d' ? '7 days' : '30 days';
       
+      // Debug: Check total tips in database
+      const totalResult = await this.pool.query('SELECT COUNT(*) as total FROM tip_history');
+      const recentResult = await this.pool.query(`SELECT COUNT(*) as recent FROM tip_history WHERE processed_at > NOW() - INTERVAL '${timeMs}'`);
+      
+      console.log(`🔍 Leaderboard Debug - ${timeFilter}:`, {
+        totalTips: totalResult.rows[0].total,
+        recentTips: recentResult.rows[0].recent,
+        timeFilter: timeMs
+      });
+      
       const result = await this.pool.query(`
         SELECT 
           from_address as user_address,
@@ -278,6 +304,8 @@ class PostgresDatabase {
         ORDER BY total_amount DESC 
         LIMIT 50
       `);
+      
+      console.log(`🔍 Top Tippers Result (${timeFilter}):`, result.rows.length, 'tippers found');
       
       return result.rows.map(row => ({
         userAddress: row.user_address,

@@ -89,21 +89,38 @@ export default function Leaderboard() {
             {activeTab === 'tipped' ? 'Tippers' : 'Earners'}
           </h2>
           
-          {/* Time Filter - Smaller */}
-          <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
-            {(['24h', '7d', '30d'] as const).map((period) => (
-              <button
-                key={period}
-                onClick={() => setTimeFilter(period)}
-                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                  timeFilter === period
-                    ? 'bg-accent text-white'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                {period}
-              </button>
-            ))}
+          <div className="flex items-center space-x-3">
+            {/* Manual Refresh Button */}
+            <button
+              onClick={() => {
+                console.log('🔄 Manual refresh triggered');
+                if (activeTab === 'tipped') {
+                  refetch();
+                } else {
+                  refetch();
+                }
+              }}
+              className="px-3 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
+            >
+              🔄 Refresh
+            </button>
+            
+            {/* Time Filter - Smaller */}
+            <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
+              {(['24h', '7d', '30d'] as const).map((period) => (
+                <button
+                  key={period}
+                  onClick={() => setTimeFilter(period)}
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                    timeFilter === period
+                      ? 'bg-accent text-white'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  {period}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
         
