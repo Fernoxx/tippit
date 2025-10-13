@@ -56,7 +56,7 @@ export const useFarcasterWallet = () => {
               (window as any).farcasterMiniappEmbedSupported = true;
               
               // Check if composeCast is available for embeds
-              if (sdk?.actions?.composeCast) {
+              if (sdk?.actions?.composeCast && typeof sdk.actions.composeCast === 'function') {
                 console.log('✅ Embed Present: composeCast action available');
                 (window as any).farcasterEmbedPresent = true;
                 (window as any).farcasterEmbedValid = true;

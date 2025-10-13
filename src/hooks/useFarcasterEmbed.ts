@@ -27,8 +27,8 @@ export const useFarcasterEmbed = () => {
         return false;
       }
       
-      // Check if composeCast action is available
-      if (sdk?.actions?.composeCast) {
+      // Check if composeCast action is available and callable
+      if (sdk?.actions?.composeCast && typeof sdk.actions.composeCast === 'function') {
         console.log('✅ Embed Present: composeCast action available');
         return true;
       } else {
@@ -54,8 +54,8 @@ export const useFarcasterEmbed = () => {
         return false;
       }
       
-      // Check if composeCast action exists
-      if (!sdk?.actions?.composeCast) {
+      // Check if composeCast action exists and is callable
+      if (!sdk?.actions?.composeCast || typeof sdk.actions.composeCast !== 'function') {
         console.log('❌ Embed Valid: composeCast action not available');
         return false;
       }
@@ -92,8 +92,8 @@ export const useFarcasterEmbed = () => {
       console.log('📱 Is in MiniApp:', isInMiniApp);
       
       if (isInMiniApp) {
-        // Check if composeCast is available
-        if (sdk?.actions?.composeCast) {
+        // Check if composeCast is available and callable
+        if (sdk?.actions?.composeCast && typeof sdk.actions.composeCast === 'function') {
           console.log('📝 Composing cast via SDK...');
           
           try {
@@ -132,7 +132,7 @@ export const useFarcasterEmbed = () => {
       
     } catch (error) {
       console.error('❌ Share failed completely:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   };
 
@@ -161,7 +161,7 @@ export const useFarcasterEmbed = () => {
           isPresent: false,
           isValid: false,
           isLoading: false,
-          error: error.message
+          error: error instanceof Error ? error.message : 'Unknown error'
         });
       }
     };
