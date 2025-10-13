@@ -2110,6 +2110,59 @@ app.get('/api/debug/user-token/:userAddress', async (req, res) => {
   }
 });
 
+// Debug endpoint to verify EcionBatch contract status
+app.get('/api/debug/ecionbatch-status', async (req, res) => {
+  try {
+    const { ethers } = require('ethers');
+    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY, provider);
+    
+    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    
+    // Check if contract exists
+    const code = await provider.getCode(ecionBatchAddress);
+    const contractExists = code !== '0x';
+    
+    let contractInfo = {
+      address: ecionBatchAddress,
+      exists: contractExists,
+      backendWallet: wallet.address
+    };
+    
+    if (contractExists) {
+      try {
+        // Check if backend wallet is an executor
+        const contract = new ethers.Contract(ecionBatchAddress, [
+          "function isExecutor(address executor) external view returns (bool)",
+          "function owner() public view virtual returns (address)"
+        ], provider);
+        
+        const isExecutor = await contract.isExecutor(wallet.address);
+        const owner = await contract.owner();
+        
+        contractInfo.isExecutor = isExecutor;
+        contractInfo.owner = owner;
+        contractInfo.status = isExecutor ? 'Ready' : 'Backend wallet not authorized as executor';
+      } catch (error) {
+        contractInfo.error = error.message;
+        contractInfo.status = 'Contract call failed';
+      }
+    } else {
+      contractInfo.status = 'Contract not deployed at this address';
+    }
+    
+    res.json({
+      success: true,
+      contract: contractInfo,
+      note: 'EcionBatch supports all ERC20 tokens via tokens[] parameter',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error checking EcionBatch status:', error);
+    res.status(500).json({ error: 'Failed to check EcionBatch status' });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Ecion Backend running on port ${PORT}`);
