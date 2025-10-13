@@ -221,6 +221,13 @@ class EcionBatchManager {
           const amountInSmallestUnit = ethers.parseUnits(tip.amount.toString(), decimals);
           console.log(`💰 Converting ${tip.amount} ${tip.token} to ${amountInSmallestUnit.toString()} (${decimals} decimals)`);
           console.log(`🔍 Debug: ${tip.amount} * 10^${decimals} = ${amountInSmallestUnit.toString()}`);
+          
+          // Check if amount is within uint256 limits
+          const maxUint256 = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
+          if (amountInSmallestUnit > maxUint256) {
+            throw new Error(`Amount ${amountInSmallestUnit.toString()} exceeds uint256 limit`);
+          }
+          
           amounts.push(amountInSmallestUnit);
         } catch (error) {
           console.log(`❌ Could not get decimals for token ${tip.token}, defaulting to 18: ${error.message}`);
