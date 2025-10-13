@@ -187,7 +187,7 @@ class EcionBatchManager {
       
       // Execute batch tip (4 parameters: froms, tos, tokens, amounts)
       // Get dynamic gas price for Base network
-      const gasPrice = await this.provider.getGasPrice();
+      const gasPrice = await this.wallet.provider.getGasPrice();
       const increasedGasPrice = gasPrice * 110n / 100n; // 10% higher for reliability
       
       const tx = await contract.batchTip(froms, tos, tokens, amounts, {
