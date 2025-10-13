@@ -209,86 +209,26 @@ class BatchTransferManager {
     let failed = 0;
 
     try {
-      console.log(`💸 Executing ${tips.length} transfers (ALL tokens) in ONE transaction...`);
+      console.log(`🎯 EXECUTING ${tips.length} TIPS USING ONLY ECIONBATCH CONTRACT: 0x2f47bcc17665663d1b63e8d882faa0a366907bb8`);
       
-      // Try EcionBatch first (most efficient)
-      const isEcionBatchReady = await this.ecionBatchManager.isContractReady();
-      console.log(`🔍 EcionBatch ready status: ${isEcionBatchReady}`);
-      
-      if (isEcionBatchReady) {
-        console.log(`🎯 Trying EcionBatch contract first...`);
-        try {
-          // Prepare transfer data for EcionBatch - ALL tips in one batch
-          const transfers = tips.map(tip => ({
-            tokenAddress: tip.tokenAddress,
-            from: tip.interaction.authorAddress,
-            to: tip.interaction.interactorAddress,
-            amount: ethers.parseUnits(tip.amount.toString(), 6), // USDC has 6 decimals
-            cast: tip.interaction.castHash || ethers.ZeroAddress
-          }));
-
-          const tipData = this.ecionBatchManager.prepareTokenTips(transfers);
-          const results = await this.ecionBatchManager.executeBatchTips(tipData);
-          
-          console.log(`✅ EcionBatch successful: ${results.results.length} tips processed`);
-          
-          // Update database for all successful tips
-          for (const result of results.results) {
-            if (result.success) {
-              const tip = tips.find(t => t.interaction.interactorAddress === result.to);
-              if (tip) {
-                await this.updateUserSpending(tip.interaction.authorAddress, tip.amount);
-                await database.addTipHistory({
-                  fromAddress: tip.interaction.authorAddress,
-                  toAddress: tip.interaction.interactorAddress,
-                  tokenAddress: tip.tokenAddress,
-                  amount: tip.amount.toString(),
-                  actionType: tip.interaction.interactionType,
-                  castHash: tip.interaction.castHash,
-                  transactionHash: results.hash,
-                  timestamp: Date.now()
-                });
-                processed++;
-              }
-            }
-          }
-
-          return { processed, failed };
-        } catch (error) {
-          console.log(`❌ EcionBatch failed: ${error.message}`);
-          console.log(`🔄 Falling back to Multicall3...`);
-          // Continue to Multicall3 fallback
-        }
-      }
-      
-      // Fallback to Multicall3
-      console.log(`💸 Using Multicall3 batch system...`);
-      
-      // Prepare transfer data for multicall
+      // Prepare transfer data for EcionBatch - ALL tips in one batch
       const transfers = tips.map(tip => ({
         tokenAddress: tip.tokenAddress,
         from: tip.interaction.authorAddress,
         to: tip.interaction.interactorAddress,
-        amount: ethers.parseUnits(tip.amount.toString(), 6) // USDC has 6 decimals
+        amount: tip.amount
       }));
 
-      // Calculate gas savings
-      const gasSavings = this.multicallContract.calculateGasSavings(tips.length);
-      console.log(`💰 Gas savings: ${gasSavings.savingsPercent.toFixed(1)}% (${gasSavings.savings} gas saved)`);
-
-      // Execute batch transfer using multicall (like Noice)
-      console.log(`🔄 Attempting batch transfer with ${transfers.length} transfers...`);
-      const results = await this.multicallContract.executeBatchTransfers(transfers);
+      const tipData = this.ecionBatchManager.prepareTokenTips(transfers);
+      const results = await this.ecionBatchManager.executeBatchTips(tipData);
       
-      console.log(`✅ Multicall batch successful: ${results.length} token batches processed`);
+      console.log(`✅ EcionBatch successful: ${results.results.length} tips processed`);
       
       // Update database for all successful tips
-      for (const result of results) {
+      for (const result of results.results) {
         if (result.success) {
-          // Find tips for this token
-          const tokenTips = tips.filter(tip => tip.tokenAddress === result.tokenAddress);
-          
-          for (const tip of tokenTips) {
+          const tip = tips.find(t => t.interaction.interactorAddress === result.to);
+          if (tip) {
             await this.updateUserSpending(tip.interaction.authorAddress, tip.amount);
             await database.addTipHistory({
               fromAddress: tip.interaction.authorAddress,
@@ -297,23 +237,21 @@ class BatchTransferManager {
               amount: tip.amount.toString(),
               actionType: tip.interaction.interactionType,
               castHash: tip.interaction.castHash,
-              transactionHash: result.transactionHash,
-              timestamp: Date.now()
+              transactionHash: results.hash
             });
+            processed++;
           }
-          
-          processed += tokenTips.length;
+        } else {
+          failed++;
         }
       }
 
     } catch (error) {
-      console.error('❌ Multicall batch transfer failed:', error);
-      
-      // Fallback to individual transfers if multicall fails
-      console.log('🔄 Falling back to individual transfers...');
-      return await this.executeIndividualTransfers(tokenAddress, tips);
+      console.error('❌ EcionBatch transfer failed:', error);
+      failed = tips.length; // All tips failed if EcionBatch fails
     }
 
+    console.log(`✅ Batch processing complete: ${processed} processed, ${failed} failed`);
     return { processed, failed };
   }
 
