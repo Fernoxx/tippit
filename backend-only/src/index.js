@@ -2304,6 +2304,11 @@ app.listen(PORT, () => {
   if (process.env.NODE_ENV === 'production') {
     console.log(`🌐 Frontend also served from this Railway service`);
   }
+  
+  // Run cleanup once on startup (non-blocking)
+  setTimeout(() => {
+    database.cleanupOldTips().catch(err => console.log('Cleanup failed:', err.message));
+  }, 30000); // Wait 30 seconds after startup
 });
 
 module.exports = app;

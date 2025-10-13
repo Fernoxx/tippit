@@ -271,8 +271,7 @@ class PostgresDatabase {
       const timeMs = timeFilter === '24h' ? '24 hours' :
                      timeFilter === '7d' ? '7 days' : '30 days';
       
-      // Clean up old data (older than 30 days) to save space
-      await this.cleanupOldTips();
+      // Note: Cleanup moved to a separate scheduled task to avoid blocking batch processing
       
       const result = await this.pool.query(`
         SELECT 
