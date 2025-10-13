@@ -204,7 +204,8 @@ class Database {
                    30 * 24 * 60 * 60 * 1000;
     
     const filtered = history.filter(tip => 
-      tip.processedAt > (now - timeMs)
+      tip.processedAt > (now - timeMs) &&
+      tip.tokenAddress === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
     );
     
     // Group by receiver and sum amounts
