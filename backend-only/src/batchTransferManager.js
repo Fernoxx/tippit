@@ -1,5 +1,4 @@
 const { ethers } = require('ethers');
-const MulticallContract = require('./multicallContract');
 const BatchTipManager = require('./batchTipManager');
 const EcionBatchManager = require('./ecionBatchManager');
 // Use PostgreSQL database if available, fallback to file storage
@@ -20,7 +19,6 @@ class BatchTransferManager {
     this.wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY, this.provider);
     
     // Initialize batch managers
-    this.multicallContract = new MulticallContract(this.provider, this.wallet);
     this.batchTipManager = new BatchTipManager(this.provider, this.wallet);
     this.ecionBatchManager = new EcionBatchManager(this.provider, this.wallet);
     
@@ -33,8 +31,7 @@ class BatchTransferManager {
     this.pendingTips = [];
     this.isProcessing = false;
     
-    // Initialize multicall contract for gas-efficient batch transfers
-    this.multicallContract = new MulticallContract(this.provider, this.wallet);
+    // Batch processing is handled by EcionBatch contract
     
     // Start batch processing timer
     this.startBatchTimer();
