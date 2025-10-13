@@ -19,12 +19,12 @@ export const useFarcasterWallet = () => {
         setIsInFarcaster(isMini);
         
         if (isMini) {
-          // CRITICAL: Call ready() to dismiss splash screen
+          // CRITICAL: Call ready() to dismiss splash screen and initialize embeds
           try {
             await sdk.actions.ready();
-            console.log('SDK ready() called successfully');
+            console.log('✅ SDK ready() called successfully - embeds should be available');
           } catch (readyError) {
-            console.log('SDK ready() error:', readyError);
+            console.log('❌ SDK ready() error:', readyError);
           }
           
           // Get user context if in miniapp
@@ -36,7 +36,7 @@ export const useFarcasterWallet = () => {
             
             // Handle cast embed context - proper implementation
             if (context && 'cast' in context && context.cast) {
-              console.log('Cast embed context:', context.cast);
+              console.log('✅ Cast embed context detected:', context.cast);
               // Set cast context for embed handling
               (window as any).farcasterCastContext = context.cast;
               
@@ -54,6 +54,17 @@ export const useFarcasterWallet = () => {
               // Signal embed support
               (window as any).farcasterEmbedSupported = true;
               (window as any).farcasterMiniappEmbedSupported = true;
+              
+              // Check if composeCast is available for embeds
+              if (sdk?.actions?.composeCast) {
+                console.log('✅ Embed Present: composeCast action available');
+                (window as any).farcasterEmbedPresent = true;
+                (window as any).farcasterEmbedValid = true;
+              } else {
+                console.log('❌ Embed Present: composeCast action not available');
+                (window as any).farcasterEmbedPresent = false;
+                (window as any).farcasterEmbedValid = false;
+              }
             }
           } catch (e) {
             console.log('Could not get user context:', e);

@@ -21,6 +21,14 @@ function AutoConnect({ children }: { children: React.ReactNode }) {
         const { sdk } = await import('@farcaster/miniapp-sdk');
         const isMini = await sdk.isInMiniApp();
         if (isMini) {
+          // Call ready() to initialize embeds
+          try {
+            await sdk.actions.ready();
+            console.log('✅ SDK ready() called in _app.tsx - embeds initialized');
+          } catch (readyError) {
+            console.log('❌ SDK ready() error in _app.tsx:', readyError);
+          }
+          
           const mini = connectors.find(c => c.id === 'farcaster');
           if (mini) {
             console.log('⚡ Auto-connecting via Farcaster MiniApp connector');

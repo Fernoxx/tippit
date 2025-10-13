@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import EmbedTest from '@/components/EmbedTest';
 import { useEcion } from '@/hooks/usePIT';
 import { formatAmount } from '@/utils/contracts';
 import toast from 'react-hot-toast';
@@ -611,6 +612,15 @@ export default function Settings() {
             </div>
           </div>
         )}
+      </motion.div>
+
+      {/* Embed Test Component */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mt-8"
+      >
+        <EmbedTest />
       </motion.div>
 
     </div>
