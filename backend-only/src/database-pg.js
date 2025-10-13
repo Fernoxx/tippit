@@ -300,17 +300,23 @@ class PostgresDatabase {
         console.log('📋 Sample recent tips:', sampleTips.rows);
       }
       
+      // Use parameterized query to avoid SQL injection and ensure proper parsing
+      const intervalValue = timeFilter === '24h' ? '1 day' :
+                           timeFilter === '7d' ? '7 days' : '30 days';
+      
+      console.log(`🔍 SQL Query: SELECT from_address, SUM(amount), COUNT(*) FROM tip_history WHERE processed_at > NOW() - INTERVAL '${intervalValue}'`);
+      
       const result = await this.pool.query(`
         SELECT 
           from_address as user_address,
           SUM(CAST(amount AS DECIMAL)) as total_amount,
           COUNT(*) as tip_count
         FROM tip_history 
-        WHERE processed_at > NOW() - INTERVAL '${timeMs}'
+        WHERE processed_at > NOW() - INTERVAL $1
         GROUP BY from_address 
         ORDER BY total_amount DESC 
         LIMIT 50
-      `);
+      `, [intervalValue]);
       
       console.log(`🔍 Top Tippers Result (${timeFilter}):`, result.rows.length, 'tippers found');
       
@@ -327,8 +333,11 @@ class PostgresDatabase {
 
   async getTopEarners(timeFilter = '30d') {
     try {
-      const timeMs = timeFilter === '24h' ? '24 hours' :
-                     timeFilter === '7d' ? '7 days' : '30 days';
+      // Use consistent interval format
+      const intervalValue = timeFilter === '24h' ? '1 day' :
+                           timeFilter === '7d' ? '7 days' : '30 days';
+      
+      console.log(`🔍 Earners SQL Query: SELECT to_address, SUM(amount), COUNT(*) FROM tip_history WHERE processed_at > NOW() - INTERVAL '${intervalValue}'`);
       
       const result = await this.pool.query(`
         SELECT 
@@ -336,11 +345,11 @@ class PostgresDatabase {
           SUM(CAST(amount AS DECIMAL)) as total_amount,
           COUNT(*) as tip_count
         FROM tip_history 
-        WHERE processed_at > NOW() - INTERVAL '${timeMs}'
+        WHERE processed_at > NOW() - INTERVAL $1
         GROUP BY to_address 
         ORDER BY total_amount DESC 
         LIMIT 50
-      `);
+      `, [intervalValue]);
       
       return result.rows.map(row => ({
         userAddress: row.user_address,

@@ -2122,6 +2122,79 @@ app.get('/api/debug/user-token/:userAddress', async (req, res) => {
   }
 });
 
+// Test SQL query directly
+app.get('/api/debug/test-sql', async (req, res) => {
+  try {
+    const { timeFilter = '24h' } = req.query;
+    
+    if (!database.pool) {
+      return res.status(500).json({ error: 'No database pool available' });
+    }
+    
+    const intervalValue = timeFilter === '24h' ? '1 day' :
+                         timeFilter === '7d' ? '7 days' : '30 days';
+    
+    console.log(`🧪 Testing SQL query with interval: ${intervalValue}`);
+    
+    // Test the exact queries used in leaderboard
+    const tippersQuery = `
+      SELECT 
+        from_address as user_address,
+        SUM(CAST(amount AS DECIMAL)) as total_amount,
+        COUNT(*) as tip_count,
+        MIN(processed_at) as earliest_tip,
+        MAX(processed_at) as latest_tip
+      FROM tip_history 
+      WHERE processed_at > NOW() - INTERVAL $1
+      GROUP BY from_address 
+      ORDER BY total_amount DESC 
+      LIMIT 10
+    `;
+    
+    const earnersQuery = `
+      SELECT 
+        to_address as user_address,
+        SUM(CAST(amount AS DECIMAL)) as total_amount,
+        COUNT(*) as tip_count,
+        MIN(processed_at) as earliest_tip,
+        MAX(processed_at) as latest_tip
+      FROM tip_history 
+      WHERE processed_at > NOW() - INTERVAL $1
+      GROUP BY to_address 
+      ORDER BY total_amount DESC 
+      LIMIT 10
+    `;
+    
+    const [tippersResult, earnersResult, allTipsResult] = await Promise.all([
+      database.pool.query(tippersQuery, [intervalValue]),
+      database.pool.query(earnersQuery, [intervalValue]),
+      database.pool.query(`
+        SELECT from_address, to_address, amount, processed_at, 
+               NOW() as current_time,
+               NOW() - INTERVAL $1 as cutoff_time
+        FROM tip_history 
+        ORDER BY processed_at DESC 
+        LIMIT 5
+      `, [intervalValue])
+    ]);
+    
+    res.json({
+      success: true,
+      timeFilter,
+      intervalValue,
+      results: {
+        tippers: tippersResult.rows,
+        earners: earnersResult.rows,
+        recentTips: allTipsResult.rows
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ SQL test failed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Simple endpoint to check database connection and tip count
 app.get('/api/debug/db-status', async (req, res) => {
   try {
