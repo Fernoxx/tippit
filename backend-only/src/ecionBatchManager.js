@@ -248,8 +248,7 @@ class EcionBatchManager {
         gasOptions = {
           gasLimit: 2000000,
           maxFeePerGas: feeData.maxFeePerGas ? feeData.maxFeePerGas * 110n / 100n : undefined,
-          maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ? feeData.maxPriorityFeePerGas * 110n / 100n : undefined,
-          gasPrice: feeData.gasPrice ? feeData.gasPrice * 110n / 100n : undefined
+          maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ? feeData.maxPriorityFeePerGas * 110n / 100n : undefined
         };
         console.log(`⛽ Using EIP-1559 gas pricing:`, {
           maxFeePerGas: gasOptions.maxFeePerGas?.toString(),

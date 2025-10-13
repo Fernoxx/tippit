@@ -187,8 +187,7 @@ class MulticallContract {
             gasOptions = {
               gasLimit: 3000000,
               maxFeePerGas: feeData.maxFeePerGas ? feeData.maxFeePerGas * 110n / 100n : undefined,
-              maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ? feeData.maxPriorityFeePerGas * 110n / 100n : undefined,
-              gasPrice: feeData.gasPrice ? feeData.gasPrice * 110n / 100n : undefined
+              maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ? feeData.maxPriorityFeePerGas * 110n / 100n : undefined
             };
           }
           
