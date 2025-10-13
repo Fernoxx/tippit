@@ -2065,9 +2065,12 @@ app.get('/api/debug/leaderboard-data', async (req, res) => {
           from: tip.fromAddress,
           to: tip.toAddress,
           amount: tip.amount,
+          tokenAddress: tip.tokenAddress,
           action: tip.interactionType,
           processedAt: tip.processedAt
-        }))
+        })),
+        uniqueTokens: [...new Set(recentTips.map(tip => tip.tokenAddress))],
+        usdcAddress: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
       },
       timestamp: new Date().toISOString()
     });
