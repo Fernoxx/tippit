@@ -2110,6 +2110,54 @@ app.get('/api/debug/user-token/:userAddress', async (req, res) => {
   }
 });
 
+// Simple endpoint to check database connection and tip count
+app.get('/api/debug/db-status', async (req, res) => {
+  try {
+    console.log('🔍 Checking database status...');
+    
+    // Check database connection
+    const totalTips = await database.getTotalTips();
+    const recentTips = await database.getRecentTips(5);
+    
+    // Check if we can query tip_history table directly
+    let directQuery = null;
+    try {
+      if (database.pool) {
+        const result = await database.pool.query('SELECT COUNT(*) as count, MAX(processed_at) as latest FROM tip_history');
+        directQuery = {
+          totalCount: result.rows[0].count,
+          latestTip: result.rows[0].latest
+        };
+      }
+    } catch (error) {
+      directQuery = { error: error.message };
+    }
+    
+    res.json({
+      success: true,
+      database: {
+        totalTips,
+        recentTipsCount: recentTips.length,
+        recentTips: recentTips.map(tip => ({
+          from: tip.fromAddress,
+          to: tip.toAddress,
+          amount: tip.amount,
+          processedAt: tip.processedAt
+        })),
+        directQuery
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Database status check failed:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Debug endpoint to verify EcionBatch contract status
 app.get('/api/debug/ecionbatch-status', async (req, res) => {
   try {

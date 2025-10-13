@@ -165,11 +165,19 @@ class BatchTransferManager {
 
   async processBatch() {
     if (this.isProcessing || this.pendingTips.length === 0) {
+      console.log(`⏭️ Batch processing skipped: isProcessing=${this.isProcessing}, pendingTips=${this.pendingTips.length}`);
       return;
     }
 
     this.isProcessing = true;
     console.log(`🔄 Processing batch of ${this.pendingTips.length} tips in ONE transaction...`);
+    console.log(`📋 Tips in batch:`, this.pendingTips.map(tip => ({
+      from: tip.interaction.authorAddress,
+      to: tip.interaction.interactorAddress,
+      amount: tip.amount,
+      type: tip.interaction.interactionType,
+      timestamp: new Date(tip.timestamp).toISOString()
+    })));
 
     try {
       // Process ALL tips in ONE transaction (even with different tokens)
