@@ -207,7 +207,12 @@ class EcionBatchManager {
       const froms = tips.map(tip => tip.from);
       const tos = tips.map(tip => tip.to);
       const tokens = tips.map(tip => tip.token); // Token addresses
-      const amounts = tips.map(tip => tip.amount);
+      const amounts = tips.map(tip => {
+        // Convert decimal amount to token's smallest unit (6 decimals for USDC)
+        const amountInSmallestUnit = Math.floor(parseFloat(tip.amount) * 1000000);
+        console.log(`💰 Converting ${tip.amount} to ${amountInSmallestUnit} (smallest unit)`);
+        return amountInSmallestUnit;
+      });
       
       console.log(`📋 Batch data prepared:`, {
         froms: froms.length,
