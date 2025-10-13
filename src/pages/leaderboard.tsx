@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 
 export default function Leaderboard() {
   const [timeFilter, setTimeFilter] = useState<'24h' | '7d' | '30d'>('24h');
-  const { tippers, earners, users, amounts, isLoading, isLoadingMore, hasMore, loadMore } = useLeaderboardData(timeFilter);
+  const { tippers, earners, users, amounts, isLoading, isLoadingMore, hasMore, loadMore, refetch } = useLeaderboardData(timeFilter);
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<'tipped' | 'earned'>('tipped');
 
