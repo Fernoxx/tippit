@@ -317,6 +317,78 @@ class PostgresDatabase {
       return [];
     }
   }
+
+  // Admin functions for total stats
+  async getTotalTips() {
+    try {
+      const result = await this.pool.query('SELECT COUNT(*) as count FROM tip_history');
+      return parseInt(result.rows[0].count);
+    } catch (error) {
+      console.error('Error getting total tips:', error);
+      return 0;
+    }
+  }
+
+  async getTotalAmountTipped() {
+    try {
+      const result = await this.pool.query('SELECT SUM(CAST(amount AS DECIMAL)) as total FROM tip_history');
+      return parseFloat(result.rows[0].total || 0);
+    } catch (error) {
+      console.error('Error getting total amount tipped:', error);
+      return 0;
+    }
+  }
+
+  async getTotalUsers() {
+    try {
+      const result = await this.pool.query('SELECT COUNT(DISTINCT from_address) as count FROM tip_history');
+      return parseInt(result.rows[0].count);
+    } catch (error) {
+      console.error('Error getting total users:', error);
+      return 0;
+    }
+  }
+
+  async getTotalTransactions() {
+    try {
+      const result = await this.pool.query('SELECT COUNT(DISTINCT tx_hash) as count FROM tip_history WHERE tx_hash IS NOT NULL');
+      return parseInt(result.rows[0].count);
+    } catch (error) {
+      console.error('Error getting total transactions:', error);
+      return 0;
+    }
+  }
+
+  async getRecentTips(limit = 50) {
+    try {
+      const result = await this.pool.query(`
+        SELECT 
+          from_address,
+          to_address,
+          amount,
+          token_address,
+          tx_hash,
+          processed_at,
+          interaction_type
+        FROM tip_history 
+        ORDER BY processed_at DESC 
+        LIMIT $1
+      `, [limit]);
+      
+      return result.rows.map(row => ({
+        fromAddress: row.from_address,
+        toAddress: row.to_address,
+        amount: parseFloat(row.amount),
+        tokenAddress: row.token_address,
+        txHash: row.tx_hash,
+        processedAt: row.processed_at,
+        interactionType: row.interaction_type
+      }));
+    } catch (error) {
+      console.error('Error getting recent tips:', error);
+      return [];
+    }
+  }
   
   // Webhook configuration methods
   async setWebhookId(webhookId) {

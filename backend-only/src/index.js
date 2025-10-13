@@ -1915,6 +1915,48 @@ app.get('/api/debug/gas-prices', async (req, res) => {
   }
 });
 
+// ADMIN ENDPOINTS - Total App Statistics
+app.get('/api/admin/total-stats', async (req, res) => {
+  try {
+    // Get total tips count and amount
+    const totalTips = await database.getTotalTips();
+    const totalAmount = await database.getTotalAmountTipped();
+    const totalUsers = await database.getTotalUsers();
+    const totalTransactions = await database.getTotalTransactions();
+    
+    res.json({
+      success: true,
+      stats: {
+        totalTips: totalTips,
+        totalAmountTipped: totalAmount,
+        totalUsers: totalUsers,
+        totalTransactions: totalTransactions,
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('Error getting total stats:', error);
+    res.status(500).json({ error: 'Failed to get total stats' });
+  }
+});
+
+// Get recent tips for admin monitoring
+app.get('/api/admin/recent-tips', async (req, res) => {
+  try {
+    const { limit = 50 } = req.query;
+    const recentTips = await database.getRecentTips(parseInt(limit));
+    
+    res.json({
+      success: true,
+      tips: recentTips,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error getting recent tips:', error);
+    res.status(500).json({ error: 'Failed to get recent tips' });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Ecion Backend running on port ${PORT}`);

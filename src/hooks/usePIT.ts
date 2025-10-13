@@ -371,6 +371,16 @@ export const useHomepageData = (timeFilter: '24h' | '7d' | '30d' = '24h') => {
     fetchHomepageData(1, true); // Reset to page 1 when timeFilter changes
   }, [timeFilter]);
 
+  // Auto-refresh homepage data every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      console.log('🔄 Auto-refreshing homepage data...');
+      fetchHomepageData(1, true);
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [timeFilter]);
+
   const fetchHomepageData = async (page: number = 1, reset: boolean = false) => {
     if (page === 1) {
       setIsLoading(true);
@@ -447,6 +457,16 @@ export const useLeaderboardData = (timeFilter: '24h' | '7d' | '30d' = '24h') => 
 
   useEffect(() => {
     fetchLeaderboardData(1, true); // Reset to page 1 when timeFilter changes
+  }, [timeFilter]);
+
+  // Auto-refresh leaderboard every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      console.log('🔄 Auto-refreshing leaderboard data...');
+      fetchLeaderboardData(1, true);
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
   }, [timeFilter]);
 
   const fetchLeaderboardData = async (page: number = 1, reset: boolean = false) => {

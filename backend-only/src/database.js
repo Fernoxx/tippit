@@ -223,6 +223,75 @@ class Database {
       .sort((a, b) => b.totalAmount - a.totalAmount)
       .slice(0, 50);
   }
+
+  // Admin functions for total stats
+  async getTotalTips() {
+    try {
+      const data = await fs.readFile(this.tipHistoryFile, 'utf8');
+      const history = JSON.parse(data);
+      return history.length;
+    } catch (error) {
+      console.error('Error getting total tips:', error);
+      return 0;
+    }
+  }
+
+  async getTotalAmountTipped() {
+    try {
+      const data = await fs.readFile(this.tipHistoryFile, 'utf8');
+      const history = JSON.parse(data);
+      return history.reduce((sum, tip) => sum + parseFloat(tip.amount || 0), 0);
+    } catch (error) {
+      console.error('Error getting total amount tipped:', error);
+      return 0;
+    }
+  }
+
+  async getTotalUsers() {
+    try {
+      const data = await fs.readFile(this.tipHistoryFile, 'utf8');
+      const history = JSON.parse(data);
+      const uniqueUsers = new Set(history.map(tip => tip.fromAddress).filter(Boolean));
+      return uniqueUsers.size;
+    } catch (error) {
+      console.error('Error getting total users:', error);
+      return 0;
+    }
+  }
+
+  async getTotalTransactions() {
+    try {
+      const data = await fs.readFile(this.tipHistoryFile, 'utf8');
+      const history = JSON.parse(data);
+      const uniqueTxs = new Set(history.filter(tip => tip.txHash).map(tip => tip.txHash));
+      return uniqueTxs.size;
+    } catch (error) {
+      console.error('Error getting total transactions:', error);
+      return 0;
+    }
+  }
+
+  async getRecentTips(limit = 50) {
+    try {
+      const data = await fs.readFile(this.tipHistoryFile, 'utf8');
+      const history = JSON.parse(data);
+      return history
+        .sort((a, b) => b.processedAt - a.processedAt)
+        .slice(0, limit)
+        .map(tip => ({
+          fromAddress: tip.fromAddress,
+          toAddress: tip.toAddress,
+          amount: parseFloat(tip.amount || 0),
+          tokenAddress: tip.tokenAddress,
+          txHash: tip.txHash,
+          processedAt: tip.processedAt,
+          interactionType: tip.interactionType
+        }));
+    } catch (error) {
+      console.error('Error getting recent tips:', error);
+      return [];
+    }
+  }
 }
 
 module.exports = new Database();
