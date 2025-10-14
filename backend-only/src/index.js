@@ -843,6 +843,13 @@ app.post('/api/config', async (req, res) => {
       console.error('⚠️ Webhook filter update failed (non-critical):', webhookError.message);
     }
     
+    // Update webhook status based on allowance
+    try {
+      await updateUserWebhookStatus(userAddress);
+    } catch (webhookStatusError) {
+      console.error('⚠️ Webhook status update failed (non-critical):', webhookStatusError.message);
+    }
+    
     res.json({ success: true });
   } catch (error) {
     console.error('Config update error:', error);
@@ -1088,6 +1095,252 @@ app.get('/api/neynar/user/score/:fid', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch Neynar score' });
   }
 });
+
+// ===== DYNAMIC FID MANAGEMENT SYSTEM =====
+
+// Store user address to FID mapping
+const userFidMap = new Map();
+
+// Get FID from user address
+async function getUserFid(userAddress) {
+  // Check cache first
+  if (userFidMap.has(userAddress.toLowerCase())) {
+    return userFidMap.get(userAddress.toLowerCase());
+  }
+  
+  try {
+    // Get FID from Neynar API
+    const response = await fetch(
+      `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${userAddress}`,
+      {
+        headers: { 
+          'x-api-key': process.env.NEYNAR_API_KEY,
+          'x-neynar-experimental': 'false'
+        }
+      }
+    );
+    
+    if (response.ok) {
+      const data = await response.json();
+      const user = data.users?.[0];
+      if (user?.fid) {
+        // Cache the FID
+        userFidMap.set(userAddress.toLowerCase(), user.fid);
+        return user.fid;
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error getting FID for address:', userAddress, error);
+  }
+  
+  return null;
+}
+
+// Check if user has sufficient allowance for at least one tip
+async function checkUserAllowanceForWebhook(userAddress) {
+  try {
+    const { ethers } = require('ethers');
+    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    
+    // Get user config
+    const userConfig = await database.getUserConfig(userAddress);
+    if (!userConfig) return false;
+    
+    const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+    
+    // Get token decimals
+    const tokenContract = new ethers.Contract(tokenAddress, [
+      "function decimals() view returns (uint8)"
+    ], provider);
+    const decimals = await tokenContract.decimals();
+    
+    // Get allowance
+    const allowanceContract = new ethers.Contract(tokenAddress, [
+      "function allowance(address owner, address spender) view returns (uint256)"
+    ], provider);
+    const allowance = await allowanceContract.allowance(userAddress, ecionBatchAddress);
+    const allowanceAmount = parseFloat(ethers.formatUnits(allowance, decimals));
+    
+    // Calculate minimum tip amount
+    const likeAmount = parseFloat(userConfig.likeAmount || '0');
+    const recastAmount = parseFloat(userConfig.recastAmount || '0');
+    const replyAmount = parseFloat(userConfig.replyAmount || '0');
+    const tipAmounts = [likeAmount, recastAmount, replyAmount].filter(amount => amount > 0);
+    const minTipAmount = tipAmounts.length > 0 ? Math.min(...tipAmounts) : 0;
+    
+    return allowanceAmount >= minTipAmount;
+  } catch (error) {
+    console.error('❌ Error checking allowance for webhook:', userAddress, error);
+    return false;
+  }
+}
+
+// Add FID to webhook filter
+async function addFidToWebhook(fid) {
+  try {
+    const webhookId = await database.getWebhookId();
+    if (!webhookId) {
+      console.log('❌ No webhook ID found');
+      return false;
+    }
+    
+    const trackedFids = await database.getTrackedFids();
+    if (trackedFids.includes(fid)) {
+      console.log(`✅ FID ${fid} already in webhook filter`);
+      return true;
+    }
+    
+    const updatedFids = [...trackedFids, fid];
+    
+    const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook`, {
+      method: 'PUT',
+      headers: {
+        'x-api-key': process.env.NEYNAR_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        webhook_id: webhookId,
+        name: "Ecion Farcaster Events Webhook",
+        subscription: {
+          "cast.created": { 
+            author_fids: updatedFids,
+            parent_author_fids: updatedFids
+          },
+          "reaction.created": { 
+            target_fids: updatedFids
+          },
+          "follow.created": { 
+            target_fids: updatedFids
+          }
+        }
+      })
+    });
+    
+    if (webhookResponse.ok) {
+      await database.setTrackedFids(updatedFids);
+      console.log(`✅ Added FID ${fid} to webhook filter`);
+      return true;
+    } else {
+      console.error('❌ Failed to add FID to webhook:', await webhookResponse.text());
+      return false;
+    }
+  } catch (error) {
+    console.error('❌ Error adding FID to webhook:', error);
+    return false;
+  }
+}
+
+// Remove FID from webhook filter
+async function removeFidFromWebhook(fid) {
+  try {
+    const webhookId = await database.getWebhookId();
+    if (!webhookId) {
+      console.log('❌ No webhook ID found');
+      return false;
+    }
+    
+    const trackedFids = await database.getTrackedFids();
+    if (!trackedFids.includes(fid)) {
+      console.log(`✅ FID ${fid} not in webhook filter`);
+      return true;
+    }
+    
+    const updatedFids = trackedFids.filter(f => f !== fid);
+    
+    const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook`, {
+      method: 'PUT',
+      headers: {
+        'x-api-key': process.env.NEYNAR_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        webhook_id: webhookId,
+        name: "Ecion Farcaster Events Webhook",
+        subscription: {
+          "cast.created": { 
+            author_fids: updatedFids,
+            parent_author_fids: updatedFids
+          },
+          "reaction.created": { 
+            target_fids: updatedFids
+          },
+          "follow.created": { 
+            target_fids: updatedFids
+          }
+        }
+      })
+    });
+    
+    if (webhookResponse.ok) {
+      await database.setTrackedFids(updatedFids);
+      console.log(`✅ Removed FID ${fid} from webhook filter`);
+      return true;
+    } else {
+      console.error('❌ Failed to remove FID from webhook:', await webhookResponse.text());
+      return false;
+    }
+  } catch (error) {
+    console.error('❌ Error removing FID from webhook:', error);
+    return false;
+  }
+}
+
+// Update user's webhook status based on allowance
+async function updateUserWebhookStatus(userAddress) {
+  try {
+    const fid = await getUserFid(userAddress);
+    if (!fid) {
+      console.log(`❌ No FID found for address: ${userAddress}`);
+      return false;
+    }
+    
+    const hasAllowance = await checkUserAllowanceForWebhook(userAddress);
+    
+    if (hasAllowance) {
+      await addFidToWebhook(fid);
+      console.log(`✅ User ${userAddress} (FID: ${fid}) has sufficient allowance - added to webhook`);
+    } else {
+      await removeFidFromWebhook(fid);
+      console.log(`❌ User ${userAddress} (FID: ${fid}) has insufficient allowance - removed from webhook`);
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('❌ Error updating webhook status for user:', userAddress, error);
+    return false;
+  }
+}
+
+// Periodic cleanup - remove users with insufficient allowance
+setInterval(async () => {
+  try {
+    console.log('🧹 Running periodic webhook cleanup...');
+    const activeUsers = await database.getActiveUsersWithApprovals();
+    
+    for (const userAddress of activeUsers) {
+      const hasAllowance = await checkUserAllowanceForWebhook(userAddress);
+      if (!hasAllowance) {
+        await updateUserWebhookStatus(userAddress);
+      }
+    }
+    
+    console.log('✅ Periodic webhook cleanup completed');
+  } catch (error) {
+    console.error('❌ Error in periodic webhook cleanup:', error);
+  }
+}, 5 * 60 * 1000); // Run every 5 minutes
+
+// ===== END DYNAMIC FID MANAGEMENT SYSTEM =====
+
+// Export functions for use in other modules
+module.exports = {
+  updateUserWebhookStatus,
+  getUserFid,
+  checkUserAllowanceForWebhook,
+  addFidToWebhook,
+  removeFidFromWebhook
+};
 
 // Homepage endpoint - Show casts from users with remaining allowance (sorted by allowance)
 app.get('/api/homepage', async (req, res) => {

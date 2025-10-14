@@ -236,6 +236,9 @@ class BatchTransferManager {
       this.pendingTips = [];
       
       console.log(`✅ Batch processing complete: ${result.processed} processed, ${result.failed} failed`);
+      
+      // Update webhook status for users who might have insufficient allowance now
+      await this.updateWebhookStatusForProcessedTips(tips);
 
     } catch (error) {
       console.error('❌ Batch processing error:', error);
@@ -550,6 +553,38 @@ class BatchTransferManager {
       await this.processBatch();
     } else {
       console.log('📭 No pending tips to process');
+    }
+  }
+
+  // Update webhook status for users after tip processing
+  async updateWebhookStatusForProcessedTips(tips) {
+    try {
+      console.log('🔄 Updating webhook status for processed tips...');
+      
+      // Get unique user addresses from processed tips
+      const uniqueUsers = [...new Set(tips.map(tip => tip.interaction.authorAddress))];
+      
+      for (const userAddress of uniqueUsers) {
+        try {
+          // Check if user still has sufficient allowance
+          const allowanceCheck = await this.checkUserAllowance(userAddress, tips.find(t => t.interaction.authorAddress === userAddress).authorConfig);
+          
+          if (!allowanceCheck.canAfford) {
+            console.log(`🔄 User ${userAddress} has insufficient allowance after tip - updating webhook status`);
+            // Call the webhook status update function from index.js
+            const { updateUserWebhookStatus } = require('./index');
+            if (updateUserWebhookStatus) {
+              await updateUserWebhookStatus(userAddress);
+            }
+          }
+        } catch (error) {
+          console.error(`❌ Error updating webhook status for user ${userAddress}:`, error);
+        }
+      }
+      
+      console.log('✅ Webhook status update completed');
+    } catch (error) {
+      console.error('❌ Error in webhook status update:', error);
     }
   }
 }
