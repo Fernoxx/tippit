@@ -1125,6 +1125,30 @@ app.get('/api/homepage', async (req, res) => {
           continue;
         }
         
+        // Get user config to check minimum tip amounts
+        const userConfig = await database.getUserConfig(userAddress);
+        if (!userConfig) {
+          console.log(`⏭️ Skipping ${userAddress} - no user config found`);
+          continue;
+        }
+        
+        // Calculate minimum tip amount (smallest of like, recast, reply)
+        const likeAmount = parseFloat(userConfig.likeAmount || '0');
+        const recastAmount = parseFloat(userConfig.recastAmount || '0');
+        const replyAmount = parseFloat(userConfig.replyAmount || '0');
+        
+        // Find the minimum non-zero tip amount
+        const tipAmounts = [likeAmount, recastAmount, replyAmount].filter(amount => amount > 0);
+        const minTipAmount = tipAmounts.length > 0 ? Math.min(...tipAmounts) : 0;
+        
+        // Skip if allowance is less than minimum tip amount
+        if (allowanceAmount < minTipAmount) {
+          console.log(`⏭️ Skipping ${userAddress} - allowance ${allowanceAmount} < min tip ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount})`);
+          continue;
+        }
+        
+        console.log(`✅ User ${userAddress} - allowance ${allowanceAmount} >= min tip ${minTipAmount} - keeping cast`);
+        
         // Get user's Farcaster profile
         const userResponse = await fetch(
           `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${userAddress}`,
@@ -1159,8 +1183,7 @@ app.get('/api/homepage', async (req, res) => {
                 const castData = await castResponse.json();
                 const cast = castData.cast;
                 
-                // Get user config for criteria
-                const userConfig = await database.getUserConfig(userAddress);
+                // User config already fetched above for allowance checking
                 
                 // Calculate total engagement value (like + recast + reply) for USDC only
                 const isUSDC = userConfig?.tokenAddress?.toLowerCase() === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
@@ -1653,6 +1676,77 @@ app.get('/api/debug/test-homepage', async (req, res) => {
   } catch (error) {
     console.error('Error testing homepage:', error);
     res.status(500).json({ error: 'Failed to test homepage' });
+  }
+});
+
+// Debug endpoint to check allowance-based filtering
+app.get('/api/debug/allowance-filtering', async (req, res) => {
+  try {
+    console.log('🔍 Debug: Checking allowance-based filtering...');
+    
+    const activeUsers = await database.getActiveUsersWithApprovals();
+    const { ethers } = require('ethers');
+    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    
+    const filteringResults = [];
+    
+    for (const userAddress of activeUsers.slice(0, 10)) { // Check first 10 users
+      try {
+        const userConfig = await database.getUserConfig(userAddress);
+        if (!userConfig) continue;
+        
+        const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+        const tokenDecimals = await getTokenDecimals(tokenAddress);
+        
+        const tokenContract = new ethers.Contract(tokenAddress, [
+          "function allowance(address owner, address spender) view returns (uint256)"
+        ], provider);
+        
+        const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
+        const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
+        
+        const likeAmount = parseFloat(userConfig.likeAmount || '0');
+        const recastAmount = parseFloat(userConfig.recastAmount || '0');
+        const replyAmount = parseFloat(userConfig.replyAmount || '0');
+        
+        const tipAmounts = [likeAmount, recastAmount, replyAmount].filter(amount => amount > 0);
+        const minTipAmount = tipAmounts.length > 0 ? Math.min(...tipAmounts) : 0;
+        
+        const willShow = allowanceAmount >= minTipAmount;
+        
+        filteringResults.push({
+          userAddress,
+          allowanceAmount,
+          likeAmount,
+          recastAmount,
+          replyAmount,
+          minTipAmount,
+          willShow,
+          reason: willShow ? 'Sufficient allowance' : 'Insufficient allowance'
+        });
+        
+      } catch (error) {
+        filteringResults.push({
+          userAddress,
+          error: error.message
+        });
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: 'Allowance filtering debug completed',
+      results: filteringResults,
+      summary: {
+        total: filteringResults.length,
+        willShow: filteringResults.filter(r => r.willShow).length,
+        willHide: filteringResults.filter(r => !r.willShow).length
+      }
+    });
+  } catch (error) {
+    console.error('Error in allowance filtering debug:', error);
+    res.status(500).json({ error: 'Failed to debug allowance filtering' });
   }
 });
 
