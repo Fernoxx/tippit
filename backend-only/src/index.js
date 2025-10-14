@@ -1633,20 +1633,22 @@ async function sendDailyEarningsNotifications() {
         }
         
         // Create daily earnings message with exact amounts
-        let dailyEarningsMessage = "You earned from Ecion in the last 24 hours:\n\n";
+        let dailyEarningsMessage = "";
+        const tokenEarningsList = [];
         
         for (const [tokenAddress, amount] of Object.entries(tokenEarnings)) {
           const symbol = await getTokenSymbol(tokenAddress);
           const formattedAmount = amount.toFixed(6).replace(/\.?0+$/, ''); // Remove trailing zeros
-          dailyEarningsMessage += `💰 ${formattedAmount} $${symbol}\n`;
+          tokenEarningsList.push(`Earned ${formattedAmount} $${symbol}`);
         }
         
-        dailyEarningsMessage += `\nTotal: ${totalDailyEarnings.toFixed(6).replace(/\.?0+$/, '')} tokens earned! 🎉`;
+        // Join all earnings with " and " separator
+        dailyEarningsMessage = tokenEarningsList.join(" and ");
         
         // Send notification
         const success = await sendNeynarNotification(
           fid,
-          "Daily Earnings from Ecion! 💰",
+          "You earned from Ecion in the last 24 hours",
           dailyEarningsMessage,
           "https://ecion.vercel.app"
         );
