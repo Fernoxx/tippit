@@ -229,8 +229,11 @@ class BatchTransferManager {
     })));
 
     try {
+      // Store tips before processing for webhook status update
+      const tipsToProcess = [...this.pendingTips];
+      
       // Process ALL tips in ONE transaction (even with different tokens)
-      const result = await this.executeBatchTransfer(this.pendingTips);
+      const result = await this.executeBatchTransfer(tipsToProcess);
       
       // Clear processed tips
       this.pendingTips = [];
@@ -238,7 +241,7 @@ class BatchTransferManager {
       console.log(`✅ Batch processing complete: ${result.processed} processed, ${result.failed} failed`);
       
       // Update webhook status for users who might have insufficient allowance now
-      await this.updateWebhookStatusForProcessedTips(tips);
+      await this.updateWebhookStatusForProcessedTips(tipsToProcess);
 
     } catch (error) {
       console.error('❌ Batch processing error:', error);
