@@ -287,11 +287,34 @@ class BatchTransferManager {
               transactionHash: results.hash
             });
             
-            // Update lastActivity for the user
+            // Update lastActivity and allowance for the user
             const userConfig = await database.getUserConfig(tip.interaction.authorAddress);
             if (userConfig) {
               userConfig.lastActivity = Date.now();
+              
+              // Update allowance (subtract tip amount)
+              const currentAllowance = userConfig.lastAllowance || 0;
+              const newAllowance = Math.max(0, currentAllowance - parseFloat(tip.amount));
+              userConfig.lastAllowance = newAllowance;
+              userConfig.lastAllowanceCheck = Date.now();
+              
               await database.setUserConfig(tip.interaction.authorAddress, userConfig);
+              console.log(`💾 Updated allowance for ${tip.interaction.authorAddress}: ${currentAllowance} → ${newAllowance}`);
+              
+              // Check if user should be removed from webhook
+              const likeAmount = parseFloat(userConfig.likeAmount || '0');
+              const recastAmount = parseFloat(userConfig.recastAmount || '0');
+              const replyAmount = parseFloat(userConfig.replyAmount || '0');
+              const tipAmounts = [likeAmount, recastAmount, replyAmount].filter(amount => amount > 0);
+              const minTipAmount = tipAmounts.length > 0 ? Math.min(...tipAmounts) : 0;
+              
+              if (newAllowance < minTipAmount) {
+                console.log(`🚫 User ${tip.interaction.authorAddress} allowance ${newAllowance} < min tip ${minTipAmount} - removing from webhook`);
+                const { updateUserWebhookStatus } = require('./index');
+                if (updateUserWebhookStatus) {
+                  await updateUserWebhookStatus(tip.interaction.authorAddress);
+                }
+              }
             }
             processed++;
           }

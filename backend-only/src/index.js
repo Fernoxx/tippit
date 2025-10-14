@@ -700,7 +700,9 @@ app.post('/api/config', async (req, res) => {
       ...config,
       isActive: true,
       totalSpent: '0',
-      lastActivity: Date.now()
+      lastActivity: Date.now(),
+      lastAllowance: 0, // Initialize allowance tracking
+      lastAllowanceCheck: 0
     });
     
     // Automatically add user's FID to webhook filter
@@ -1416,6 +1418,43 @@ setInterval(async () => {
   }
 }, 5 * 60 * 1000); // Check every 5 minutes but only process every 30 minutes
 
+// Update allowance in database (no API calls needed)
+async function updateDatabaseAllowance(userAddress, allowanceAmount) {
+  try {
+    const userConfig = await database.getUserConfig(userAddress);
+    if (userConfig) {
+      userConfig.lastAllowance = allowanceAmount;
+      userConfig.lastAllowanceCheck = Date.now();
+      userConfig.lastActivity = Date.now();
+      await database.setUserConfig(userAddress, userConfig);
+      console.log(`💾 Updated database allowance for ${userAddress}: ${allowanceAmount}`);
+      
+      // Check if user should be removed from webhook
+      const likeAmount = parseFloat(userConfig.likeAmount || '0');
+      const recastAmount = parseFloat(userConfig.recastAmount || '0');
+      const replyAmount = parseFloat(userConfig.replyAmount || '0');
+      const tipAmounts = [likeAmount, recastAmount, replyAmount].filter(amount => amount > 0);
+      const minTipAmount = tipAmounts.length > 0 ? Math.min(...tipAmounts) : 0;
+      
+      if (allowanceAmount < minTipAmount) {
+        console.log(`🚫 User ${userAddress} allowance ${allowanceAmount} < min tip ${minTipAmount} - removing from webhook`);
+        const fid = await getUserFid(userAddress);
+        if (fid) {
+          await removeFidFromWebhook(fid);
+        }
+      } else {
+        console.log(`✅ User ${userAddress} allowance ${allowanceAmount} >= min tip ${minTipAmount} - keeping in webhook`);
+        const fid = await getUserFid(userAddress);
+        if (fid) {
+          await addFidToWebhook(fid);
+        }
+      }
+    }
+  } catch (error) {
+    console.log(`⚠️ Error updating database allowance for ${userAddress}: ${error.message}`);
+  }
+}
+
 // ===== END DYNAMIC FID MANAGEMENT SYSTEM =====
 
 // Export functions for use in other modules
@@ -1454,8 +1493,9 @@ app.get('/api/homepage', async (req, res) => {
           "function allowance(address owner, address spender) view returns (uint256)"
         ], provider);
         
-        const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
-        const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
+        // Use database allowance (no API calls needed)
+        const allowanceAmount = userConfig.lastAllowance || 0;
+        console.log(`💾 Using database allowance for ${userAddress}: ${allowanceAmount}`);
         
         // Skip users with EXACTLY 0 allowance (not 0.1 or 0.2, must be 0.000000)
         if (allowanceAmount === 0) {
