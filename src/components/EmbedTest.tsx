@@ -1,8 +1,28 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useFarcasterEmbed } from '@/hooks/useFarcasterEmbed';
 
 const EmbedTest: React.FC = () => {
-  const { isPresent, isValid, isLoading, handleShare } = useFarcasterEmbed();
+  const { isPresent, isValid, isLoading, handleShare, debugInfo } = useFarcasterEmbed();
+
+  // Call ready() when component mounts and we're in miniapp
+  useEffect(() => {
+    const initializeSDK = async () => {
+      try {
+        const { sdk } = await import('@farcaster/miniapp-sdk');
+        const isInMiniApp = await sdk.isInMiniApp();
+        
+        if (isInMiniApp) {
+          console.log('📱 Calling sdk.actions.ready() from EmbedTest component');
+          await sdk.actions.ready();
+          console.log('✅ SDK ready() completed');
+        }
+      } catch (error) {
+        console.error('❌ Error calling SDK ready():', error);
+      }
+    };
+    
+    initializeSDK();
+  }, []);
 
   const testShare = async () => {
     const shareText = "Testing embed functionality from Ecion! 🚀";
@@ -39,6 +59,26 @@ const EmbedTest: React.FC = () => {
           </span>
         </div>
       </div>
+
+      {/* Debug Information */}
+      {debugInfo && (
+        <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+          <h4 className="text-sm font-medium mb-2">Debug Information:</h4>
+          <div className="text-xs space-y-1">
+            <div><strong>SDK Available:</strong> {debugInfo.sdkAvailable ? '✅' : '❌'}</div>
+            <div><strong>Is in MiniApp:</strong> {debugInfo.isInMiniApp ? '✅' : '❌'}</div>
+            <div><strong>Ready Called:</strong> {debugInfo.readyCalled ? '✅' : '❌'}</div>
+            <div><strong>ComposeCast Type:</strong> {debugInfo.actions?.composeCast || 'undefined'}</div>
+            <div><strong>All Actions:</strong> {debugInfo.actions?.allActions?.join(', ') || 'none'}</div>
+            {debugInfo.context?.user && (
+              <div><strong>User FID:</strong> {debugInfo.context.user.fid}</div>
+            )}
+            {debugInfo.error && (
+              <div className="text-red-600"><strong>Error:</strong> {debugInfo.error}</div>
+            )}
+          </div>
+        </div>
+      )}
       
       <button 
         onClick={testShare} 

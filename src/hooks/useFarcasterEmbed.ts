@@ -5,14 +5,77 @@ interface EmbedStatus {
   isValid: boolean;
   isLoading: boolean;
   error?: string;
+  debugInfo?: any;
 }
 
 export const useFarcasterEmbed = () => {
   const [embedStatus, setEmbedStatus] = useState<EmbedStatus>({
     isPresent: false,
     isValid: false,
-    isLoading: true
+    isLoading: true,
+    debugInfo: {}
   });
+
+  // Enhanced debug function
+  const debugSDK = async () => {
+    const debugInfo: any = {
+      timestamp: new Date().toISOString(),
+      userAgent: navigator.userAgent,
+      url: window.location.href,
+      searchParams: window.location.search,
+      sdkAvailable: false,
+      isInMiniApp: false,
+      context: null,
+      actions: null,
+      readyCalled: false
+    };
+
+    try {
+      // Check if SDK can be imported
+      const { sdk } = await import('@farcaster/miniapp-sdk');
+      debugInfo.sdkAvailable = true;
+      debugInfo.sdkVersion = sdk.version || 'unknown';
+
+      // Check if we're in miniapp
+      const isInMiniApp = await sdk.isInMiniApp();
+      debugInfo.isInMiniApp = isInMiniApp;
+
+      if (isInMiniApp) {
+        // Get context
+        try {
+          const context = await sdk.context;
+          debugInfo.context = {
+            user: context?.user ? {
+              fid: context.user.fid,
+              username: context.user.username,
+              displayName: context.user.displayName
+            } : null
+          };
+
+          // Check actions
+          debugInfo.actions = {
+            composeCast: typeof sdk.actions?.composeCast,
+            ready: typeof sdk.actions?.ready,
+            allActions: Object.keys(sdk.actions || {})
+          };
+
+          // Try to call ready
+          try {
+            await sdk.actions.ready();
+            debugInfo.readyCalled = true;
+          } catch (readyError) {
+            debugInfo.readyError = readyError.message;
+          }
+        } catch (contextError) {
+          debugInfo.contextError = contextError.message;
+        }
+      }
+    } catch (importError) {
+      debugInfo.importError = importError.message;
+    }
+
+    return debugInfo;
+  };
 
   // Check if embeds are present/available
   const checkEmbedPresent = async (): Promise<boolean> => {
@@ -21,14 +84,20 @@ export const useFarcasterEmbed = () => {
       
       // Check if we're in a miniapp context
       const isInMiniApp = await sdk.isInMiniApp();
+      console.log('🔍 isInMiniApp result:', isInMiniApp);
       
       if (!isInMiniApp) {
         console.log('❌ Not in miniapp - embeds not available');
         return false;
       }
       
-      // Check if composeCast action is available and callable
-      if (sdk?.actions?.composeCast && typeof sdk.actions.composeCast === 'function') {
+      // Check if composeCast action is available
+      const hasComposeCast = sdk?.actions?.composeCast && typeof sdk.actions.composeCast === 'function';
+      console.log('🔍 composeCast available:', hasComposeCast);
+      console.log('🔍 sdk.actions:', sdk.actions);
+      console.log('🔍 sdk.actions.composeCast:', sdk.actions?.composeCast);
+      
+      if (hasComposeCast) {
         console.log('✅ Embed Present: composeCast action available');
         return true;
       } else {
@@ -48,6 +117,7 @@ export const useFarcasterEmbed = () => {
       
       // First check if we're in miniapp
       const isInMiniApp = await sdk.isInMiniApp();
+      console.log('🔍 Valid check - isInMiniApp:', isInMiniApp);
       
       if (!isInMiniApp) {
         console.log('❌ Not in miniapp - embeds not valid');
@@ -55,7 +125,10 @@ export const useFarcasterEmbed = () => {
       }
       
       // Check if composeCast action exists and is callable
-      if (!sdk?.actions?.composeCast || typeof sdk.actions.composeCast !== 'function') {
+      const hasComposeCast = sdk?.actions?.composeCast && typeof sdk.actions.composeCast === 'function';
+      console.log('🔍 Valid check - hasComposeCast:', hasComposeCast);
+      
+      if (!hasComposeCast) {
         console.log('❌ Embed Valid: composeCast action not available');
         return false;
       }
@@ -142,6 +215,10 @@ export const useFarcasterEmbed = () => {
       setEmbedStatus(prev => ({ ...prev, isLoading: true }));
       
       try {
+        // Get debug info
+        const debugInfo = await debugSDK();
+        console.log('🔍 Debug Info:', debugInfo);
+        
         // Check if embeds are present
         const present = await checkEmbedPresent();
         
@@ -153,7 +230,8 @@ export const useFarcasterEmbed = () => {
         setEmbedStatus({
           isPresent: present,
           isValid: valid,
-          isLoading: false
+          isLoading: false,
+          debugInfo
         });
       } catch (error) {
         console.error('❌ Error checking embeds:', error);
@@ -166,7 +244,8 @@ export const useFarcasterEmbed = () => {
       }
     };
     
-    checkEmbeds();
+    // Add a small delay to ensure everything is loaded
+    setTimeout(checkEmbeds, 1000);
   }, []);
 
   return {

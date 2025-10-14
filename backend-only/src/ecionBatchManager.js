@@ -330,24 +330,24 @@ class EcionBatchManager {
           let baseGasLimit = 3500000; // Base gas limit
           let complexityMultiplier = 1;
           
-          // Increase gas for complex patterns
+          // Increase gas for complex patterns (reduced multipliers for lower fees)
           if (uniquePairs.size === tips.length) {
-            complexityMultiplier = 1.5; // 50% more gas for all unique pairs
-            console.log(`🔧 Complex pattern detected: Using 1.5x gas multiplier`);
+            complexityMultiplier = 1.2; // 20% more gas for all unique pairs (reduced from 1.5x)
+            console.log(`🔧 Complex pattern detected: Using 1.2x gas multiplier`);
           } else if (uniqueTokens.size > 2) {
-            complexityMultiplier = 1.3; // 30% more gas for multiple tokens
-            console.log(`🔧 Multiple tokens detected: Using 1.3x gas multiplier`);
+            complexityMultiplier = 1.1; // 10% more gas for multiple tokens (reduced from 1.3x)
+            console.log(`🔧 Multiple tokens detected: Using 1.1x gas multiplier`);
           } else if (tips.length > 10) {
-            complexityMultiplier = 1.2; // 20% more gas for large batches
-            console.log(`🔧 Large batch detected: Using 1.2x gas multiplier`);
+            complexityMultiplier = 1.05; // 5% more gas for large batches (reduced from 1.2x)
+            console.log(`🔧 Large batch detected: Using 1.05x gas multiplier`);
           }
           
           const dynamicGasLimit = Math.floor(baseGasLimit * Number(complexityMultiplier));
           
           gasOptions = {
             gasLimit: dynamicGasLimit,
-            maxFeePerGas: feeData.maxFeePerGas ? feeData.maxFeePerGas * 120n / 100n : undefined, // 20% higher
-            maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ? feeData.maxPriorityFeePerGas * 120n / 100n : undefined // 20% higher
+            maxFeePerGas: feeData.maxFeePerGas ? feeData.maxFeePerGas * 105n / 100n : undefined, // 5% higher (reduced from 20%)
+            maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ? feeData.maxPriorityFeePerGas * 105n / 100n : undefined // 5% higher (reduced from 20%)
           };
           
           console.log(`⛽ Dynamic gas limit: ${baseGasLimit} × ${complexityMultiplier} = ${dynamicGasLimit}`);
@@ -389,12 +389,12 @@ class EcionBatchManager {
       try {
         console.log('🔍 Estimating gas usage for batch transaction...');
         const estimatedGas = await contract.batchTip.estimateGas(froms, tos, tokens, amounts);
-        const gasWithBuffer = estimatedGas * 120n / 100n; // 20% buffer
+        const gasWithBuffer = estimatedGas * 110n / 100n; // 10% buffer (reduced from 20%)
         const minGasLimit = BigInt(Math.floor(gasOptions.gasLimit)); // Use our dynamic gas limit as minimum
         const finalGasLimit = gasWithBuffer > minGasLimit ? gasWithBuffer : minGasLimit;
         
         gasOptions.gasLimit = Number(finalGasLimit);
-        console.log(`✅ Gas estimation successful: ${estimatedGas.toString()} + 20% buffer = ${finalGasLimit.toString()}`);
+        console.log(`✅ Gas estimation successful: ${estimatedGas.toString()} + 10% buffer = ${finalGasLimit.toString()}`);
         console.log(`📊 Gas efficiency: ${(estimatedGas * 100n / finalGasLimit).toString()}% of limit used`);
         console.log(`📊 Dynamic vs estimated: ${gasOptions.gasLimit} vs ${finalGasLimit.toString()}`);
       } catch (estimateError) {
@@ -433,8 +433,8 @@ class EcionBatchManager {
             const retryGasLimit = Math.floor(3500000 * Number(complexityMultiplier));
             gasOptions = {
               gasLimit: retryGasLimit,
-              maxFeePerGas: feeData.maxFeePerGas ? feeData.maxFeePerGas * 130n / 100n : undefined, // Even higher for retry
-              maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ? feeData.maxPriorityFeePerGas * 130n / 100n : undefined
+              maxFeePerGas: feeData.maxFeePerGas ? feeData.maxFeePerGas * 110n / 100n : undefined, // 10% higher for retry (reduced from 30%)
+              maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ? feeData.maxPriorityFeePerGas * 110n / 100n : undefined
             };
             console.log(`⛽ Retry gas limit: ${retryGasLimit} (${complexityMultiplier}x multiplier)`);
             if (gasOptions.maxFeePerGas && gasOptions.maxPriorityFeePerGas) {
