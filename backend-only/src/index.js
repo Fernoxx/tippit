@@ -699,7 +699,8 @@ app.post('/api/config', async (req, res) => {
     await database.setUserConfig(userAddress, {
       ...config,
       isActive: true,
-      totalSpent: '0'
+      totalSpent: '0',
+      lastActivity: Date.now()
     });
     
     // Automatically add user's FID to webhook filter
@@ -1359,20 +1360,41 @@ async function updateUserWebhookStatus(userAddress) {
   }
 }
 
-// Periodic cleanup - remove users with insufficient allowance
+// SMART periodic cleanup - only check users who might have changed
+let lastCleanupTime = 0;
+const CLEANUP_INTERVAL = 30 * 60 * 1000; // Run every 30 minutes instead of 5
+
 setInterval(async () => {
   try {
-    console.log('🧹 Running periodic webhook cleanup...');
+    const now = Date.now();
+    if (now - lastCleanupTime < CLEANUP_INTERVAL) {
+      return; // Skip if not enough time has passed
+    }
+    
+    console.log('🧹 Running SMART periodic webhook cleanup...');
     const activeUsers = await database.getActiveUsersWithApprovals();
     
     let processedCount = 0;
     let errorCount = 0;
     
+    // Only check users who haven't been checked recently
     for (const userAddress of activeUsers) {
       try {
         // Validate address format
         if (!userAddress || !userAddress.startsWith('0x') || userAddress.length !== 42) {
-          console.log(`⚠️ Invalid address format in cleanup: ${userAddress} - skipping`);
+          continue;
+        }
+        
+        // Only check if user has been active recently (has config changes or tips)
+        const userConfig = await database.getUserConfig(userAddress);
+        if (!userConfig) continue;
+        
+        // Check if user was recently active (within last 2 hours)
+        const lastActivity = userConfig.lastActivity || 0;
+        const twoHoursAgo = now - (2 * 60 * 60 * 1000);
+        
+        if (lastActivity < twoHoursAgo) {
+          console.log(`⏭️ Skipping ${userAddress} - no recent activity`);
           continue;
         }
         
@@ -1387,11 +1409,12 @@ setInterval(async () => {
       }
     }
     
-    console.log(`✅ Periodic webhook cleanup completed - processed: ${processedCount}, errors: ${errorCount}`);
+    lastCleanupTime = now;
+    console.log(`✅ SMART periodic webhook cleanup completed - processed: ${processedCount}, errors: ${errorCount}`);
   } catch (error) {
     console.log(`⚠️ Error in periodic webhook cleanup: ${error.message} - will retry next cycle`);
   }
-}, 5 * 60 * 1000); // Run every 5 minutes
+}, 5 * 60 * 1000); // Check every 5 minutes but only process every 30 minutes
 
 // ===== END DYNAMIC FID MANAGEMENT SYSTEM =====
 

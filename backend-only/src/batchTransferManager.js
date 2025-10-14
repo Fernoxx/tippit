@@ -286,6 +286,13 @@ class BatchTransferManager {
               castHash: tip.interaction.castHash,
               transactionHash: results.hash
             });
+            
+            // Update lastActivity for the user
+            const userConfig = await database.getUserConfig(tip.interaction.authorAddress);
+            if (userConfig) {
+              userConfig.lastActivity = Date.now();
+              await database.setUserConfig(tip.interaction.authorAddress, userConfig);
+            }
             processed++;
           }
         } else {
