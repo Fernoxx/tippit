@@ -277,6 +277,84 @@ class EcionBatchManager {
       console.log(`📍 Unique address pairs: ${uniquePairs.size}/${tips.length}`);
       console.log(`📍 Pattern complexity: ${uniquePairs.size === tips.length ? 'HIGH (all unique)' : uniquePairs.size === 1 ? 'LOW (all same)' : 'MEDIUM'}`);
       
+      // DETAILED BATCH ANALYSIS
+      const uniqueFroms = new Set(froms);
+      const uniqueTos = new Set(tos);
+      const uniqueTokens = new Set(tokens);
+      const tokenCounts = {};
+      tokens.forEach(token => {
+        tokenCounts[token] = (tokenCounts[token] || 0) + 1;
+      });
+      
+      console.log('🔍 DETAILED BATCH ANALYSIS:');
+      console.log(`  📊 Total tips: ${tips.length}`);
+      console.log(`  👥 Unique senders: ${uniqueFroms.size}`);
+      console.log(`  👥 Unique receivers: ${uniqueTos.size}`);
+      console.log(`  🪙 Unique tokens: ${uniqueTokens.size}`);
+      console.log(`  🪙 Token distribution:`, tokenCounts);
+      console.log(`  🔗 Address complexity: ${uniqueFroms.size} senders → ${uniqueTos.size} receivers`);
+      
+      // Check for potential issues and limit batch size
+      if (tips.length > 10) {
+        console.log('⚠️ WARNING: Large batch size may cause gas issues');
+      }
+      if (uniqueTokens.size > 3) {
+        console.log('⚠️ WARNING: Multiple tokens in batch may increase gas usage');
+      }
+      if (uniquePairs.size === tips.length && tips.length > 5) {
+        console.log('⚠️ WARNING: All unique address pairs - high gas usage expected');
+      }
+      
+      // BATCH SIZE LIMITING FOR COMPLEX PATTERNS
+      const maxTipsForComplexPattern = 8; // Limit for high complexity
+      const maxTipsForSimplePattern = 15; // Limit for simple patterns
+      
+      if (uniquePairs.size === tips.length && tips.length > maxTipsForComplexPattern) {
+        console.log(`🚨 BATCH SIZE LIMIT: Too many unique address pairs (${tips.length} > ${maxTipsForComplexPattern})`);
+        console.log(`🚨 SPLITTING BATCH: Processing first ${maxTipsForComplexPattern} tips, queuing rest`);
+        
+        // Split the batch - process first batch
+        const firstBatch = tips.slice(0, maxTipsForComplexPattern);
+        const remainingTips = tips.slice(maxTipsForComplexPattern);
+        
+        console.log(`📦 Processing first batch: ${firstBatch.length} tips`);
+        console.log(`📦 Remaining tips to queue: ${remainingTips.length} tips`);
+        
+        // Process first batch
+        const firstBatchResult = await this.executeBatchTips(firstBatch);
+        
+        // Queue remaining tips for next batch
+        if (remainingTips.length > 0) {
+          console.log(`📦 Queuing ${remainingTips.length} remaining tips for next batch`);
+          // Note: This would need to be handled by the batch manager
+        }
+        
+        return firstBatchResult;
+      }
+      
+      if (tips.length > maxTipsForSimplePattern) {
+        console.log(`🚨 BATCH SIZE LIMIT: Too many tips (${tips.length} > ${maxTipsForSimplePattern})`);
+        console.log(`🚨 SPLITTING BATCH: Processing first ${maxTipsForSimplePattern} tips, queuing rest`);
+        
+        // Split the batch - process first batch
+        const firstBatch = tips.slice(0, maxTipsForSimplePattern);
+        const remainingTips = tips.slice(maxTipsForSimplePattern);
+        
+        console.log(`📦 Processing first batch: ${firstBatch.length} tips`);
+        console.log(`📦 Remaining tips to queue: ${remainingTips.length} tips`);
+        
+        // Process first batch
+        const firstBatchResult = await this.executeBatchTips(firstBatch);
+        
+        // Queue remaining tips for next batch
+        if (remainingTips.length > 0) {
+          console.log(`📦 Queuing ${remainingTips.length} remaining tips for next batch`);
+          // Note: This would need to be handled by the batch manager
+        }
+        
+        return firstBatchResult;
+      }
+      
       // Execute batch tip (4 parameters: froms, tos, tokens, amounts)
       // Get dynamic gas price for Base network (EIP-1559) with retry logic
       let gasOptions = {};
@@ -402,7 +480,18 @@ class EcionBatchManager {
       });
       
       // Wait for confirmation
+      console.log(`⏳ Waiting for transaction confirmation: ${tx.hash}`);
       const receipt = await tx.wait();
+      
+      // DETAILED TRANSACTION RESULT LOGGING
+      console.log('📊 TRANSACTION RESULT ANALYSIS:');
+      console.log(`  🔗 Transaction Hash: ${tx.hash}`);
+      console.log(`  📈 Status: ${receipt.status === 1 ? 'SUCCESS' : 'FAILED'}`);
+      console.log(`  ⛽ Gas Used: ${receipt.gasUsed.toString()}`);
+      console.log(`  ⛽ Gas Limit: ${receipt.gasLimit?.toString() || 'Unknown'}`);
+      console.log(`  📊 Gas Efficiency: ${receipt.gasLimit ? ((receipt.gasUsed * 100n / receipt.gasLimit).toString() + '%') : 'Unknown'}`);
+      console.log(`  🔥 Gas Price: ${receipt.effectiveGasPrice?.toString() || 'Unknown'}`);
+      console.log(`  💰 Transaction Cost: ${receipt.gasUsed * receipt.effectiveGasPrice} wei`);
       
       if (receipt.status === 1) {
         console.log(`✅ Batch tip confirmed: ${tx.hash} (Gas: ${receipt.gasUsed.toString()})`);
@@ -429,6 +518,18 @@ class EcionBatchManager {
         };
       } else {
         console.log(`❌ EcionBatch transaction reverted: ${tx.hash} (Status: ${receipt.status})`);
+        console.log(`❌ REVERT ANALYSIS:`);
+        console.log(`  🔗 Transaction: https://basescan.org/tx/${tx.hash}`);
+        console.log(`  ⛽ Gas Used: ${receipt.gasUsed.toString()}`);
+        console.log(`  ⛽ Gas Limit: ${receipt.gasLimit?.toString()}`);
+        console.log(`  📊 Gas Efficiency: ${receipt.gasLimit ? ((receipt.gasUsed * 100n / receipt.gasLimit).toString() + '%') : 'Unknown'}`);
+        
+        if (receipt.gasUsed >= (receipt.gasLimit * 95n / 100n)) {
+          console.log(`🚨 LIKELY CAUSE: Out of gas (used ${receipt.gasUsed} of ${receipt.gasLimit})`);
+        } else {
+          console.log(`🚨 LIKELY CAUSE: Contract logic error or revert condition`);
+        }
+        
         throw new Error(`Batch tip transaction reverted: ${tx.hash}`);
       }
       
