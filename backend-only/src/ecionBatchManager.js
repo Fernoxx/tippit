@@ -342,7 +342,7 @@ class EcionBatchManager {
             console.log(`🔧 Large batch detected: Using 1.2x gas multiplier`);
           }
           
-          const dynamicGasLimit = Math.floor(baseGasLimit * complexityMultiplier);
+          const dynamicGasLimit = Math.floor(baseGasLimit * Number(complexityMultiplier));
           
           gasOptions = {
             gasLimit: dynamicGasLimit,
@@ -371,7 +371,7 @@ class EcionBatchManager {
           if (gasRetryCount >= maxGasRetries) {
             console.log('❌ All gas pricing attempts failed, using fallback...');
             // Fallback to basic gas pricing with dynamic gas limit
-            const fallbackGasLimit = Math.floor(3500000 * complexityMultiplier);
+            const fallbackGasLimit = Math.floor(3500000 * Number(complexityMultiplier));
             gasOptions = {
               gasLimit: fallbackGasLimit,
               gasPrice: ethers.parseUnits('0.001', 'gwei') // Fallback gas price
@@ -430,7 +430,7 @@ class EcionBatchManager {
           // Refresh gas pricing for retry
           try {
             const feeData = await this.provider.getFeeData();
-            const retryGasLimit = Math.floor(3500000 * complexityMultiplier);
+            const retryGasLimit = Math.floor(3500000 * Number(complexityMultiplier));
             gasOptions = {
               gasLimit: retryGasLimit,
               maxFeePerGas: feeData.maxFeePerGas ? feeData.maxFeePerGas * 130n / 100n : undefined, // Even higher for retry
@@ -470,7 +470,7 @@ class EcionBatchManager {
       console.log(`  ⛽ Gas Limit: ${receipt.gasLimit?.toString() || 'Unknown'}`);
       console.log(`  📊 Gas Efficiency: ${receipt.gasLimit ? ((receipt.gasUsed * 100n / receipt.gasLimit).toString() + '%') : 'Unknown'}`);
       console.log(`  🔥 Gas Price: ${receipt.effectiveGasPrice?.toString() || 'Unknown'}`);
-      console.log(`  💰 Transaction Cost: ${receipt.gasUsed * receipt.effectiveGasPrice} wei`);
+      console.log(`  💰 Transaction Cost: ${(receipt.gasUsed * receipt.effectiveGasPrice).toString()} wei`);
       
       if (receipt.status === 1) {
         console.log(`✅ Batch tip confirmed: ${tx.hash} (Gas: ${receipt.gasUsed.toString()})`);
