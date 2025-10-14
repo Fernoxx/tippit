@@ -327,7 +327,7 @@ class EcionBatchManager {
           
           // Use EIP-1559 with higher gas limits for large batches
           // Calculate dynamic gas limit based on batch complexity
-          let baseGasLimit = 3500000; // Base gas limit
+          let baseGasLimit = 5500000; // Base gas limit increased to 5.5M
           let complexityMultiplier = 1;
           
           // Increase gas for complex patterns (reduced multipliers for lower fees)
