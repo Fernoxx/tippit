@@ -1572,53 +1572,56 @@ async function sendDailyEarningsNotifications() {
       return;
     }
     
-    // Get tips from last 24 hours
+    // Get tips from last 24 hours (exactly 24 hours ago to now)
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const tips = await database.getTipsSince(twentyFourHoursAgo);
     
     if (!tips || tips.length === 0) {
-      console.log('📊 No tips found in last 24 hours');
+      console.log('📊 No tips found in last 24 hours - no notifications to send');
       // Still mark as sent to avoid checking again today
       await database.setConfig('lastDailyNotificationDate', today);
       return;
     }
     
-    // Group tips by recipient and token
-    const earningsByUser = {};
+    // Group tips by recipient and token for exact daily calculation
+    const dailyEarningsByUser = {};
     
     for (const tip of tips) {
       const recipientAddress = tip.toAddress;
       const tokenAddress = tip.tokenAddress;
       const amount = parseFloat(tip.amount);
       
-      if (!earningsByUser[recipientAddress]) {
-        earningsByUser[recipientAddress] = {};
+      if (!dailyEarningsByUser[recipientAddress]) {
+        dailyEarningsByUser[recipientAddress] = {};
       }
       
-      if (!earningsByUser[recipientAddress][tokenAddress]) {
-        earningsByUser[recipientAddress][tokenAddress] = 0;
+      if (!dailyEarningsByUser[recipientAddress][tokenAddress]) {
+        dailyEarningsByUser[recipientAddress][tokenAddress] = 0;
       }
       
-      earningsByUser[recipientAddress][tokenAddress] += amount;
+      // Add to daily earnings for this specific token
+      dailyEarningsByUser[recipientAddress][tokenAddress] += amount;
     }
     
-    console.log(`📊 Found earnings for ${Object.keys(earningsByUser).length} users`);
+    console.log(`📊 Found daily earnings for ${Object.keys(dailyEarningsByUser).length} users`);
     
-    // Send notifications to each user (only if total earnings >= 0.1)
+    // Send notifications only to users who earned 0.1+ tokens in the last 24 hours
     let notificationsSent = 0;
-    const MINIMUM_EARNINGS = 0.1; // Minimum 0.1 tokens to get notification
+    let usersSkipped = 0;
+    const MINIMUM_DAILY_EARNINGS = 0.1; // Minimum 0.1 tokens to get notification
     
-    for (const [userAddress, tokenEarnings] of Object.entries(earningsByUser)) {
+    for (const [userAddress, tokenEarnings] of Object.entries(dailyEarningsByUser)) {
       try {
-        // Calculate total earnings across all tokens
-        let totalEarnings = 0;
+        // Calculate total daily earnings across all tokens
+        let totalDailyEarnings = 0;
         for (const amount of Object.values(tokenEarnings)) {
-          totalEarnings += amount;
+          totalDailyEarnings += amount;
         }
         
-        // Skip if total earnings is less than 0.1
-        if (totalEarnings < MINIMUM_EARNINGS) {
-          console.log(`⏭️ Skipping ${userAddress} - total earnings ${totalEarnings} < ${MINIMUM_EARNINGS}`);
+        // Skip if daily earnings is less than 0.1 tokens
+        if (totalDailyEarnings < MINIMUM_DAILY_EARNINGS) {
+          usersSkipped++;
+          console.log(`⏭️ Skipping ${userAddress} - daily earnings ${totalDailyEarnings} < ${MINIMUM_DAILY_EARNINGS}`);
           continue;
         }
         
@@ -1629,42 +1632,42 @@ async function sendDailyEarningsNotifications() {
           continue;
         }
         
-        // Create earnings message
-        let earningsMessage = "You earned from Ecion in the last 24 hours:\n\n";
+        // Create daily earnings message with exact amounts
+        let dailyEarningsMessage = "You earned from Ecion in the last 24 hours:\n\n";
         
         for (const [tokenAddress, amount] of Object.entries(tokenEarnings)) {
           const symbol = await getTokenSymbol(tokenAddress);
           const formattedAmount = amount.toFixed(6).replace(/\.?0+$/, ''); // Remove trailing zeros
-          earningsMessage += `💰 ${formattedAmount} $${symbol}\n`;
+          dailyEarningsMessage += `💰 ${formattedAmount} $${symbol}\n`;
         }
         
-        earningsMessage += `\nTotal: ${totalEarnings.toFixed(6).replace(/\.?0+$/, '')} tokens earned! 🎉`;
+        dailyEarningsMessage += `\nTotal: ${totalDailyEarnings.toFixed(6).replace(/\.?0+$/, '')} tokens earned! 🎉`;
         
         // Send notification
         const success = await sendNeynarNotification(
           fid,
           "Daily Earnings from Ecion! 💰",
-          earningsMessage,
+          dailyEarningsMessage,
           "https://ecion.vercel.app"
         );
         
         if (success) {
           notificationsSent++;
-          console.log(`✅ Sent earnings notification to ${userAddress} (FID: ${fid}) - Total: ${totalEarnings}`);
+          console.log(`✅ Sent daily earnings notification to ${userAddress} (FID: ${fid}) - Daily Total: ${totalDailyEarnings}`);
         }
         
         // Small delay to avoid rate limits
         await new Promise(resolve => setTimeout(resolve, 100));
         
       } catch (error) {
-        console.log(`⚠️ Error sending earnings notification to ${userAddress}: ${error.message}`);
+        console.log(`⚠️ Error sending daily earnings notification to ${userAddress}: ${error.message}`);
       }
     }
     
     // Mark notifications as sent for today
     await database.setConfig('lastDailyNotificationDate', today);
     
-    console.log(`📊 Daily earnings notifications completed: ${notificationsSent} sent (minimum ${MINIMUM_EARNINGS} tokens required)`);
+    console.log(`📊 Daily earnings notifications completed: ${notificationsSent} sent, ${usersSkipped} skipped (minimum ${MINIMUM_DAILY_EARNINGS} tokens required)`);
     
   } catch (error) {
     console.log(`⚠️ Error in daily earnings notification process: ${error.message}`);
@@ -1691,6 +1694,88 @@ app.post('/api/test-daily-earnings', async (req, res) => {
   } catch (error) {
     console.error('Test daily earnings error:', error);
     res.status(500).json({ error: 'Failed to send daily earnings notifications' });
+  }
+});
+
+// Test endpoint to check daily earnings calculation without sending notifications
+app.get('/api/test-daily-earnings-calculation', async (req, res) => {
+  try {
+    console.log('📊 Testing daily earnings calculation...');
+    
+    // Get tips from last 24 hours
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const tips = await database.getTipsSince(twentyFourHoursAgo);
+    
+    if (!tips || tips.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No tips found in last 24 hours',
+        dailyEarnings: {},
+        totalUsers: 0,
+        usersAboveThreshold: 0
+      });
+    }
+    
+    // Group tips by recipient and token for exact daily calculation
+    const dailyEarningsByUser = {};
+    
+    for (const tip of tips) {
+      const recipientAddress = tip.toAddress;
+      const tokenAddress = tip.tokenAddress;
+      const amount = parseFloat(tip.amount);
+      
+      if (!dailyEarningsByUser[recipientAddress]) {
+        dailyEarningsByUser[recipientAddress] = {};
+      }
+      
+      if (!dailyEarningsByUser[recipientAddress][tokenAddress]) {
+        dailyEarningsByUser[recipientAddress][tokenAddress] = 0;
+      }
+      
+      dailyEarningsByUser[recipientAddress][tokenAddress] += amount;
+    }
+    
+    // Calculate totals and check thresholds
+    const MINIMUM_DAILY_EARNINGS = 0.1;
+    let usersAboveThreshold = 0;
+    const results = {};
+    
+    for (const [userAddress, tokenEarnings] of Object.entries(dailyEarningsByUser)) {
+      let totalDailyEarnings = 0;
+      const tokenBreakdown = {};
+      
+      for (const [tokenAddress, amount] of Object.entries(tokenEarnings)) {
+        totalDailyEarnings += amount;
+        tokenBreakdown[tokenAddress] = amount;
+      }
+      
+      results[userAddress] = {
+        totalDailyEarnings,
+        tokenBreakdown,
+        aboveThreshold: totalDailyEarnings >= MINIMUM_DAILY_EARNINGS
+      };
+      
+      if (totalDailyEarnings >= MINIMUM_DAILY_EARNINGS) {
+        usersAboveThreshold++;
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: 'Daily earnings calculation completed',
+      dailyEarnings: results,
+      totalUsers: Object.keys(dailyEarningsByUser).length,
+      usersAboveThreshold,
+      minimumThreshold: MINIMUM_DAILY_EARNINGS,
+      timeRange: {
+        from: twentyFourHoursAgo.toISOString(),
+        to: new Date().toISOString()
+      }
+    });
+    
+  } catch (error) {
+    console.error('Test daily earnings calculation error:', error);
+    res.status(500).json({ error: 'Failed to calculate daily earnings' });
   }
 });
 
