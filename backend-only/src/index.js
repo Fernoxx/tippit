@@ -1103,6 +1103,12 @@ const userFidMap = new Map();
 
 // Get FID from user address
 async function getUserFid(userAddress) {
+  // Validate address format
+  if (!userAddress || !userAddress.startsWith('0x') || userAddress.length !== 42) {
+    console.log(`⚠️ Invalid address format for FID lookup: ${userAddress} - skipping`);
+    return null;
+  }
+  
   // Check cache first
   if (userFidMap.has(userAddress.toLowerCase())) {
     return userFidMap.get(userAddress.toLowerCase());
@@ -1126,11 +1132,18 @@ async function getUserFid(userAddress) {
       if (user?.fid) {
         // Cache the FID
         userFidMap.set(userAddress.toLowerCase(), user.fid);
+        console.log(`✅ Found FID ${user.fid} for address ${userAddress}`);
         return user.fid;
+      } else {
+        console.log(`⚠️ No Farcaster account found for address: ${userAddress}`);
       }
+    } else if (response.status === 402) {
+      console.log(`⚠️ Neynar API requires payment for address lookup - skipping ${userAddress}`);
+    } else {
+      console.log(`⚠️ Neynar API error for ${userAddress}: ${response.status} - skipping`);
     }
   } catch (error) {
-    console.error('❌ Error getting FID for address:', userAddress, error);
+    console.log(`⚠️ Error getting FID for ${userAddress}: ${error.message} - skipping`);
   }
   
   return null;
@@ -1139,28 +1152,49 @@ async function getUserFid(userAddress) {
 // Check if user has sufficient allowance for at least one tip
 async function checkUserAllowanceForWebhook(userAddress) {
   try {
+    // Validate address format
+    if (!userAddress || !userAddress.startsWith('0x') || userAddress.length !== 42) {
+      console.log(`⚠️ Invalid address format: ${userAddress} - skipping`);
+      return false;
+    }
+    
     const { ethers } = require('ethers');
     const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     
     // Get user config
     const userConfig = await database.getUserConfig(userAddress);
-    if (!userConfig) return false;
+    if (!userConfig) {
+      console.log(`⚠️ No config found for ${userAddress} - skipping`);
+      return false;
+    }
     
     const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
     
-    // Get token decimals
-    const tokenContract = new ethers.Contract(tokenAddress, [
-      "function decimals() view returns (uint8)"
-    ], provider);
-    const decimals = await tokenContract.decimals();
+    // Get token decimals with error handling
+    let decimals;
+    try {
+      const tokenContract = new ethers.Contract(tokenAddress, [
+        "function decimals() view returns (uint8)"
+      ], provider);
+      decimals = await tokenContract.decimals();
+    } catch (decimalsError) {
+      console.log(`⚠️ Could not get decimals for token ${tokenAddress} - using default 6`);
+      decimals = 6; // Default to USDC decimals
+    }
     
-    // Get allowance
-    const allowanceContract = new ethers.Contract(tokenAddress, [
-      "function allowance(address owner, address spender) view returns (uint256)"
-    ], provider);
-    const allowance = await allowanceContract.allowance(userAddress, ecionBatchAddress);
-    const allowanceAmount = parseFloat(ethers.formatUnits(allowance, decimals));
+    // Get allowance with error handling
+    let allowanceAmount = 0;
+    try {
+      const allowanceContract = new ethers.Contract(tokenAddress, [
+        "function allowance(address owner, address spender) view returns (uint256)"
+      ], provider);
+      const allowance = await allowanceContract.allowance(userAddress, ecionBatchAddress);
+      allowanceAmount = parseFloat(ethers.formatUnits(allowance, decimals));
+    } catch (allowanceError) {
+      console.log(`⚠️ Could not get allowance for ${userAddress} - assuming 0`);
+      allowanceAmount = 0;
+    }
     
     // Calculate minimum tip amount
     const likeAmount = parseFloat(userConfig.likeAmount || '0');
@@ -1169,9 +1203,12 @@ async function checkUserAllowanceForWebhook(userAddress) {
     const tipAmounts = [likeAmount, recastAmount, replyAmount].filter(amount => amount > 0);
     const minTipAmount = tipAmounts.length > 0 ? Math.min(...tipAmounts) : 0;
     
-    return allowanceAmount >= minTipAmount;
+    const hasAllowance = allowanceAmount >= minTipAmount;
+    console.log(`🔍 Allowance check: ${userAddress} - allowance: ${allowanceAmount}, min tip: ${minTipAmount}, has allowance: ${hasAllowance}`);
+    
+    return hasAllowance;
   } catch (error) {
-    console.error('❌ Error checking allowance for webhook:', userAddress, error);
+    console.log(`⚠️ Error checking allowance for ${userAddress}: ${error.message} - assuming no allowance`);
     return false;
   }
 }
@@ -1289,25 +1326,35 @@ async function removeFidFromWebhook(fid) {
 // Update user's webhook status based on allowance
 async function updateUserWebhookStatus(userAddress) {
   try {
+    // Validate address format
+    if (!userAddress || !userAddress.startsWith('0x') || userAddress.length !== 42) {
+      console.log(`⚠️ Invalid address format for webhook update: ${userAddress} - skipping`);
+      return false;
+    }
+    
     const fid = await getUserFid(userAddress);
     if (!fid) {
-      console.log(`❌ No FID found for address: ${userAddress}`);
+      console.log(`⚠️ No FID found for address: ${userAddress} - skipping webhook update`);
       return false;
     }
     
     const hasAllowance = await checkUserAllowanceForWebhook(userAddress);
     
     if (hasAllowance) {
-      await addFidToWebhook(fid);
-      console.log(`✅ User ${userAddress} (FID: ${fid}) has sufficient allowance - added to webhook`);
+      const success = await addFidToWebhook(fid);
+      if (success) {
+        console.log(`✅ User ${userAddress} (FID: ${fid}) has sufficient allowance - added to webhook`);
+      }
     } else {
-      await removeFidFromWebhook(fid);
-      console.log(`❌ User ${userAddress} (FID: ${fid}) has insufficient allowance - removed from webhook`);
+      const success = await removeFidFromWebhook(fid);
+      if (success) {
+        console.log(`✅ User ${userAddress} (FID: ${fid}) has insufficient allowance - removed from webhook`);
+      }
     }
     
     return true;
   } catch (error) {
-    console.error('❌ Error updating webhook status for user:', userAddress, error);
+    console.log(`⚠️ Error updating webhook status for ${userAddress}: ${error.message} - skipping`);
     return false;
   }
 }
@@ -1318,16 +1365,31 @@ setInterval(async () => {
     console.log('🧹 Running periodic webhook cleanup...');
     const activeUsers = await database.getActiveUsersWithApprovals();
     
+    let processedCount = 0;
+    let errorCount = 0;
+    
     for (const userAddress of activeUsers) {
-      const hasAllowance = await checkUserAllowanceForWebhook(userAddress);
-      if (!hasAllowance) {
-        await updateUserWebhookStatus(userAddress);
+      try {
+        // Validate address format
+        if (!userAddress || !userAddress.startsWith('0x') || userAddress.length !== 42) {
+          console.log(`⚠️ Invalid address format in cleanup: ${userAddress} - skipping`);
+          continue;
+        }
+        
+        const hasAllowance = await checkUserAllowanceForWebhook(userAddress);
+        if (!hasAllowance) {
+          await updateUserWebhookStatus(userAddress);
+        }
+        processedCount++;
+      } catch (userError) {
+        errorCount++;
+        console.log(`⚠️ Error processing user ${userAddress} in cleanup: ${userError.message} - continuing`);
       }
     }
     
-    console.log('✅ Periodic webhook cleanup completed');
+    console.log(`✅ Periodic webhook cleanup completed - processed: ${processedCount}, errors: ${errorCount}`);
   } catch (error) {
-    console.error('❌ Error in periodic webhook cleanup:', error);
+    console.log(`⚠️ Error in periodic webhook cleanup: ${error.message} - will retry next cycle`);
   }
 }, 5 * 60 * 1000); // Run every 5 minutes
 

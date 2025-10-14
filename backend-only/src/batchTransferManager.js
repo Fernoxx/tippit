@@ -564,8 +564,17 @@ class BatchTransferManager {
       // Get unique user addresses from processed tips
       const uniqueUsers = [...new Set(tips.map(tip => tip.interaction.authorAddress))];
       
+      let processedCount = 0;
+      let errorCount = 0;
+      
       for (const userAddress of uniqueUsers) {
         try {
+          // Validate address format
+          if (!userAddress || !userAddress.startsWith('0x') || userAddress.length !== 42) {
+            console.log(`⚠️ Invalid address format in webhook update: ${userAddress} - skipping`);
+            continue;
+          }
+          
           // Check if user still has sufficient allowance
           const allowanceCheck = await this.checkUserAllowance(userAddress, tips.find(t => t.interaction.authorAddress === userAddress).authorConfig);
           
@@ -577,14 +586,16 @@ class BatchTransferManager {
               await updateUserWebhookStatus(userAddress);
             }
           }
+          processedCount++;
         } catch (error) {
-          console.error(`❌ Error updating webhook status for user ${userAddress}:`, error);
+          errorCount++;
+          console.log(`⚠️ Error updating webhook status for user ${userAddress}: ${error.message} - continuing`);
         }
       }
       
-      console.log('✅ Webhook status update completed');
+      console.log(`✅ Webhook status update completed - processed: ${processedCount}, errors: ${errorCount}`);
     } catch (error) {
-      console.error('❌ Error in webhook status update:', error);
+      console.log(`⚠️ Error in webhook status update: ${error.message} - continuing`);
     }
   }
 }
