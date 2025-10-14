@@ -1469,7 +1469,7 @@ async function updateDatabaseAllowance(userAddress, allowanceAmount) {
             await sendNeynarNotification(
               fid,
               "Allowance Empty",
-              "Your allowance is insufficient for tipping. Please approve more USDC to continue earning!",
+              "Approve more USDC to continue tip your audience!",
               "https://ecion.vercel.app"
             );
             
