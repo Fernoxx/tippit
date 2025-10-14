@@ -1418,27 +1418,30 @@ setInterval(async () => {
   }
 }, 5 * 60 * 1000); // Check every 5 minutes but only process every 30 minutes
 
-// Send Neynar Frame V2 notification
-async function sendNeynarNotification(recipientFid, title, message, imageUrl = "https://ecion.vercel.app/logo.png") {
+// Send Neynar Frame V2 notification using correct API
+async function sendNeynarNotification(recipientFid, title, message, targetUrl = "https://ecion.vercel.app") {
   try {
-    const response = await fetch('https://api.neynar.com/v2/farcaster/notification', {
+    // Use the correct Neynar API format from docs
+    const response = await fetch('https://api.neynar.com/v2/farcaster/notifications', {
       method: 'POST',
       headers: {
         'x-api-key': process.env.NEYNAR_API_KEY,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        recipient_fid: recipientFid,
-        title: title,
-        message: message,
-        image_url: imageUrl,
-        action_url: 'https://ecion.vercel.app',
-        action_text: 'Open Ecion'
+        target_fids: [recipientFid], // Target specific FID
+        filters: {}, // No additional filters
+        notification: {
+          title: title,
+          body: message,
+          target_url: targetUrl
+        }
       })
     });
     
     if (response.ok) {
-      console.log(`✅ Notification sent to FID ${recipientFid}: ${title}`);
+      const result = await response.json();
+      console.log(`✅ Notification sent to FID ${recipientFid}: ${title}`, result);
       return true;
     } else {
       const errorText = await response.text();
@@ -1447,6 +1450,41 @@ async function sendNeynarNotification(recipientFid, title, message, imageUrl = "
     }
   } catch (error) {
     console.log(`⚠️ Error sending notification to FID ${recipientFid}: ${error.message}`);
+    return false;
+  }
+}
+
+// Send notification to multiple users with filters
+async function sendBulkNotification(targetFids, title, message, filters = {}, targetUrl = "https://ecion.vercel.app") {
+  try {
+    const response = await fetch('https://api.neynar.com/v2/farcaster/notifications', {
+      method: 'POST',
+      headers: {
+        'x-api-key': process.env.NEYNAR_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        target_fids: targetFids, // Array of FIDs or empty for all users
+        filters: filters, // Filtering criteria
+        notification: {
+          title: title,
+          body: message,
+          target_url: targetUrl
+        }
+      })
+    });
+    
+    if (response.ok) {
+      const result = await response.json();
+      console.log(`✅ Bulk notification sent to ${targetFids.length} users: ${title}`, result);
+      return true;
+    } else {
+      const errorText = await response.text();
+      console.log(`❌ Failed to send bulk notification: ${errorText}`);
+      return false;
+    }
+  } catch (error) {
+    console.log(`⚠️ Error sending bulk notification: ${error.message}`);
     return false;
   }
 }
@@ -1496,6 +1534,35 @@ async function updateDatabaseAllowance(userAddress, allowanceAmount) {
   }
 }
 
+// Test endpoint for bulk notifications with filters
+app.post('/api/test-bulk-notification', async (req, res) => {
+  try {
+    const { targetFids = [], filters = {}, title, message, targetUrl } = req.body;
+    
+    if (!title || !message) {
+      return res.status(400).json({ error: 'Title and message are required' });
+    }
+    
+    const result = await sendBulkNotification(
+      targetFids,
+      title,
+      message,
+      filters,
+      targetUrl || 'https://ecion.vercel.app'
+    );
+    
+    res.json({ 
+      success: result,
+      message: 'Bulk notification sent',
+      targetFids: targetFids.length,
+      filters: filters
+    });
+  } catch (error) {
+    console.error('Test bulk notification error:', error);
+    res.status(500).json({ error: 'Failed to send bulk notification' });
+  }
+});
+
 // ===== END DYNAMIC FID MANAGEMENT SYSTEM =====
 
 // Export functions for use in other modules
@@ -1506,6 +1573,7 @@ module.exports = {
   addFidToWebhook,
   removeFidFromWebhook,
   sendNeynarNotification,
+  sendBulkNotification,
   updateDatabaseAllowance
 };
 
