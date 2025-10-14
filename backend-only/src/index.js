@@ -1781,6 +1781,124 @@ app.get('/api/test-daily-earnings-calculation', async (req, res) => {
   }
 });
 
+// Sync all users' allowances from blockchain to database
+async function syncAllUsersAllowancesFromBlockchain() {
+  try {
+    console.log('🔄 Starting blockchain allowance sync for all users...');
+    
+    // Get all active users with configurations
+    const activeUsers = await database.getActiveUsersWithApprovals();
+    
+    if (!activeUsers || activeUsers.length === 0) {
+      console.log('📊 No active users found for allowance sync');
+      return { success: true, message: 'No active users found', synced: 0, errors: 0 };
+    }
+    
+    console.log(`📊 Found ${activeUsers.length} active users to sync`);
+    
+    const { ethers } = require('ethers');
+    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    
+    let syncedCount = 0;
+    let errorCount = 0;
+    const results = [];
+    
+    for (const userAddress of activeUsers) {
+      try {
+        // Get user config to determine token address
+        const userConfig = await database.getUserConfig(userAddress);
+        if (!userConfig) {
+          console.log(`⚠️ No config found for ${userAddress}, skipping`);
+          continue;
+        }
+        
+        const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+        
+        // Get token decimals
+        const tokenContract = new ethers.Contract(tokenAddress, [
+          "function decimals() view returns (uint8)"
+        ], provider);
+        
+        const decimals = await tokenContract.decimals();
+        
+        // Get allowance from blockchain
+        const allowanceContract = new ethers.Contract(tokenAddress, [
+          "function allowance(address owner, address spender) view returns (uint256)"
+        ], provider);
+        
+        const allowance = await allowanceContract.allowance(userAddress, ecionBatchAddress);
+        const allowanceAmount = parseFloat(ethers.formatUnits(allowance, decimals));
+        
+        // Update database with blockchain allowance
+        await updateDatabaseAllowance(userAddress, allowanceAmount);
+        
+        syncedCount++;
+        results.push({
+          userAddress,
+          tokenAddress,
+          blockchainAllowance: allowanceAmount,
+          previousAllowance: userConfig.lastAllowance || 0,
+          synced: true
+        });
+        
+        console.log(`✅ Synced ${userAddress}: ${userConfig.lastAllowance || 0} → ${allowanceAmount} ${tokenAddress}`);
+        
+        // Small delay to avoid rate limits
+        await new Promise(resolve => setTimeout(resolve, 50));
+        
+      } catch (error) {
+        errorCount++;
+        console.log(`⚠️ Error syncing ${userAddress}: ${error.message}`);
+        results.push({
+          userAddress,
+          error: error.message,
+          synced: false
+        });
+      }
+    }
+    
+    console.log(`🔄 Blockchain allowance sync completed: ${syncedCount} synced, ${errorCount} errors`);
+    
+    return {
+      success: true,
+      message: 'Blockchain allowance sync completed',
+      synced: syncedCount,
+      errors: errorCount,
+      totalUsers: activeUsers.length,
+      results: results
+    };
+    
+  } catch (error) {
+    console.log(`⚠️ Error in blockchain allowance sync: ${error.message}`);
+    return {
+      success: false,
+      message: 'Blockchain allowance sync failed',
+      error: error.message
+    };
+  }
+}
+
+// Test endpoint to sync all users' allowances from blockchain
+app.post('/api/sync-allowances-from-blockchain', async (req, res) => {
+  try {
+    const result = await syncAllUsersAllowancesFromBlockchain();
+    res.json(result);
+  } catch (error) {
+    console.error('Sync allowances error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to sync allowances from blockchain' 
+    });
+  }
+});
+
+// Schedule daily allowance sync (run every 6 hours)
+setInterval(async () => {
+  console.log('🔄 Running scheduled allowance sync...');
+  await syncAllUsersAllowancesFromBlockchain();
+}, 6 * 60 * 60 * 1000); // Every 6 hours
+
 // Test endpoint for bulk notifications with filters
 app.post('/api/test-bulk-notification', async (req, res) => {
   try {
