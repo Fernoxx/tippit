@@ -268,6 +268,15 @@ class EcionBatchManager {
         amounts: amounts.length
       });
       
+      // Log address patterns for debugging
+      const addressPatterns = tips.map(tip => 
+        `${tip.from.slice(0,6)}...${tip.from.slice(-4)} → ${tip.to.slice(0,6)}...${tip.to.slice(-4)}`
+      );
+      const uniquePairs = new Set(addressPatterns);
+      console.log('📍 Address patterns in batch:', addressPatterns);
+      console.log(`📍 Unique address pairs: ${uniquePairs.size}/${tips.length}`);
+      console.log(`📍 Pattern complexity: ${uniquePairs.size === tips.length ? 'HIGH (all unique)' : uniquePairs.size === 1 ? 'LOW (all same)' : 'MEDIUM'}`);
+      
       // Execute batch tip (4 parameters: froms, tos, tokens, amounts)
       // Get dynamic gas price for Base network (EIP-1559) with retry logic
       let gasOptions = {};
@@ -287,7 +296,7 @@ class EcionBatchManager {
           
           // Use EIP-1559 with higher gas limits for reliability
           gasOptions = {
-            gasLimit: 2500000, // Increased gas limit for safety
+            gasLimit: 3500000, // Increased gas limit to 3.5M for complex address patterns
             maxFeePerGas: feeData.maxFeePerGas ? feeData.maxFeePerGas * 120n / 100n : undefined, // 20% higher
             maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ? feeData.maxPriorityFeePerGas * 120n / 100n : undefined // 20% higher
           };
@@ -312,7 +321,7 @@ class EcionBatchManager {
             console.log('❌ All gas pricing attempts failed, using fallback...');
             // Fallback to basic gas pricing
             gasOptions = {
-              gasLimit: 2500000,
+              gasLimit: 3500000,
               gasPrice: ethers.parseUnits('0.001', 'gwei') // Fallback gas price
             };
             break;
@@ -321,6 +330,21 @@ class EcionBatchManager {
           // Wait before retry
           await new Promise(resolve => setTimeout(resolve, 1000 * gasRetryCount));
         }
+      }
+      
+      // Try gas estimation for better accuracy
+      try {
+        console.log('🔍 Estimating gas usage for batch transaction...');
+        const estimatedGas = await contract.batchTip.estimateGas(froms, tos, tokens, amounts);
+        const gasWithBuffer = estimatedGas * 120n / 100n; // 20% buffer
+        const finalGasLimit = gasWithBuffer > 3500000n ? gasWithBuffer : 3500000n; // Min 3.5M
+        
+        gasOptions.gasLimit = finalGasLimit;
+        console.log(`✅ Gas estimation successful: ${estimatedGas.toString()} + 20% buffer = ${finalGasLimit.toString()}`);
+        console.log(`📊 Gas efficiency: ${(estimatedGas * 100n / finalGasLimit).toString()}% of limit used`);
+      } catch (estimateError) {
+        console.log(`⚠️ Gas estimation failed, using default 3.5M: ${estimateError.message}`);
+        gasOptions.gasLimit = 3500000;
       }
       
       console.log(`🚀 Submitting batch tip transaction with gas options:`, gasOptions);
@@ -352,7 +376,7 @@ class EcionBatchManager {
           try {
             const feeData = await this.provider.getFeeData();
             gasOptions = {
-              gasLimit: 2500000,
+              gasLimit: 3500000,
               maxFeePerGas: feeData.maxFeePerGas ? feeData.maxFeePerGas * 130n / 100n : undefined, // Even higher for retry
               maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ? feeData.maxPriorityFeePerGas * 130n / 100n : undefined
             };
