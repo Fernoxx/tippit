@@ -315,6 +315,22 @@ class BatchTransferManager {
                   await updateUserWebhookStatus(tip.interaction.authorAddress);
                 }
               }
+              
+              // Send earned tip notification to recipient
+              try {
+                const { sendNeynarNotification, getUserFid } = require('./index');
+                const recipientFid = await getUserFid(tip.interaction.interactorAddress);
+                if (recipientFid) {
+                  await sendNeynarNotification(
+                    recipientFid,
+                    "Earned from Ecion!",
+                    `You earned ${tip.amount} USDC from a ${tip.interaction.interactionType}!`,
+                    "https://ecion.vercel.app/logo.png"
+                  );
+                }
+              } catch (notificationError) {
+                console.log(`⚠️ Error sending earned notification: ${notificationError.message}`);
+              }
             }
             processed++;
           }

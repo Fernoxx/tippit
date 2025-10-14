@@ -1418,6 +1418,39 @@ setInterval(async () => {
   }
 }, 5 * 60 * 1000); // Check every 5 minutes but only process every 30 minutes
 
+// Send Neynar Frame V2 notification
+async function sendNeynarNotification(recipientFid, title, message, imageUrl = "https://ecion.vercel.app/logo.png") {
+  try {
+    const response = await fetch('https://api.neynar.com/v2/farcaster/notification', {
+      method: 'POST',
+      headers: {
+        'x-api-key': process.env.NEYNAR_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        recipient_fid: recipientFid,
+        title: title,
+        message: message,
+        image_url: imageUrl,
+        action_url: 'https://ecion.vercel.app',
+        action_text: 'Open Ecion'
+      })
+    });
+    
+    if (response.ok) {
+      console.log(`✅ Notification sent to FID ${recipientFid}: ${title}`);
+      return true;
+    } else {
+      const errorText = await response.text();
+      console.log(`❌ Failed to send notification to FID ${recipientFid}: ${errorText}`);
+      return false;
+    }
+  } catch (error) {
+    console.log(`⚠️ Error sending notification to FID ${recipientFid}: ${error.message}`);
+    return false;
+  }
+}
+
 // Update allowance in database (no API calls needed)
 async function updateDatabaseAllowance(userAddress, allowanceAmount) {
   try {
@@ -1441,6 +1474,14 @@ async function updateDatabaseAllowance(userAddress, allowanceAmount) {
         const fid = await getUserFid(userAddress);
         if (fid) {
           await removeFidFromWebhook(fid);
+          
+          // Send allowance empty notification
+          await sendNeynarNotification(
+            fid,
+            "Allowance Empty",
+            "Your allowance is insufficient for tipping. Please approve more USDC to continue earning!",
+            "https://ecion.vercel.app/logo.png"
+          );
         }
       } else {
         console.log(`✅ User ${userAddress} allowance ${allowanceAmount} >= min tip ${minTipAmount} - keeping in webhook`);
@@ -1463,7 +1504,9 @@ module.exports = {
   getUserFid,
   checkUserAllowanceForWebhook,
   addFidToWebhook,
-  removeFidFromWebhook
+  removeFidFromWebhook,
+  sendNeynarNotification,
+  updateDatabaseAllowance
 };
 
 // Homepage endpoint - Show casts from users with remaining allowance (sorted by allowance)
