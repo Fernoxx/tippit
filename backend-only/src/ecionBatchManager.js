@@ -390,10 +390,10 @@ class EcionBatchManager {
         console.log('🔍 Estimating gas usage for batch transaction...');
         const estimatedGas = await contract.batchTip.estimateGas(froms, tos, tokens, amounts);
         const gasWithBuffer = estimatedGas * 120n / 100n; // 20% buffer
-        const minGasLimit = BigInt(gasOptions.gasLimit); // Use our dynamic gas limit as minimum
+        const minGasLimit = BigInt(Math.floor(gasOptions.gasLimit)); // Use our dynamic gas limit as minimum
         const finalGasLimit = gasWithBuffer > minGasLimit ? gasWithBuffer : minGasLimit;
         
-        gasOptions.gasLimit = finalGasLimit;
+        gasOptions.gasLimit = Number(finalGasLimit);
         console.log(`✅ Gas estimation successful: ${estimatedGas.toString()} + 20% buffer = ${finalGasLimit.toString()}`);
         console.log(`📊 Gas efficiency: ${(estimatedGas * 100n / finalGasLimit).toString()}% of limit used`);
         console.log(`📊 Dynamic vs estimated: ${gasOptions.gasLimit} vs ${finalGasLimit.toString()}`);
@@ -470,7 +470,7 @@ class EcionBatchManager {
       console.log(`  ⛽ Gas Limit: ${receipt.gasLimit?.toString() || 'Unknown'}`);
       console.log(`  📊 Gas Efficiency: ${receipt.gasLimit ? ((receipt.gasUsed * 100n / receipt.gasLimit).toString() + '%') : 'Unknown'}`);
       console.log(`  🔥 Gas Price: ${receipt.effectiveGasPrice?.toString() || 'Unknown'}`);
-      console.log(`  💰 Transaction Cost: ${(receipt.gasUsed * receipt.effectiveGasPrice).toString()} wei`);
+      console.log(`  💰 Transaction Cost: ${receipt.effectiveGasPrice ? (receipt.gasUsed * receipt.effectiveGasPrice).toString() : 'Unknown'} wei`);
       
       if (receipt.status === 1) {
         console.log(`✅ Batch tip confirmed: ${tx.hash} (Gas: ${receipt.gasUsed.toString()})`);
