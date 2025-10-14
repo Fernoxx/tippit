@@ -1440,11 +1440,13 @@ async function updateDatabaseAllowance(userAddress, allowanceAmount) {
   try {
     const userConfig = await database.getUserConfig(userAddress);
     if (userConfig) {
+      const previousAllowance = userConfig.lastAllowance || 0;
+      
       userConfig.lastAllowance = allowanceAmount;
       userConfig.lastAllowanceCheck = Date.now();
       userConfig.lastActivity = Date.now();
       await database.setUserConfig(userAddress, userConfig);
-      console.log(`💾 Updated database allowance for ${userAddress}: ${allowanceAmount}`);
+      console.log(`💾 Updated database allowance for ${userAddress}: ${previousAllowance} → ${allowanceAmount}`);
       
       // Check if user should be removed from webhook
       const likeAmount = parseFloat(userConfig.likeAmount || '0');
@@ -1459,19 +1461,38 @@ async function updateDatabaseAllowance(userAddress, allowanceAmount) {
         if (fid) {
           await removeFidFromWebhook(fid);
           
-          // Send allowance empty notification
-          await sendNeynarNotification(
-            fid,
-            "Allowance Empty",
-            "Your allowance is insufficient for tipping. Please approve more USDC to continue earning!",
-            "https://ecion.vercel.app/logo.png"
-          );
+          // Send allowance empty notification ONLY if:
+          // 1. Previous allowance was > 0 (user had allowance before)
+          // 2. Current allowance is 0 (now empty)
+          // 3. Haven't sent notification yet for this allowance drop
+          if (previousAllowance > 0 && allowanceAmount === 0 && !userConfig.allowanceEmptyNotificationSent) {
+            await sendNeynarNotification(
+              fid,
+              "Allowance Empty",
+              "Your allowance is insufficient for tipping. Please approve more USDC to continue earning!",
+              "https://ecion.vercel.app"
+            );
+            
+            // Mark notification as sent
+            userConfig.allowanceEmptyNotificationSent = true;
+            await database.setUserConfig(userAddress, userConfig);
+            console.log(`📧 Sent allowance empty notification to ${userAddress} (one-time)`);
+          } else if (previousAllowance > 0 && allowanceAmount === 0) {
+            console.log(`⏭️ Skipping allowance empty notification for ${userAddress} - already sent`);
+          }
         }
       } else {
         console.log(`✅ User ${userAddress} allowance ${allowanceAmount} >= min tip ${minTipAmount} - keeping in webhook`);
         const fid = await getUserFid(userAddress);
         if (fid) {
           await addFidToWebhook(fid);
+          
+          // Reset notification flag if user approved more tokens (allowance went from 0 to >0)
+          if (previousAllowance === 0 && allowanceAmount > 0) {
+            userConfig.allowanceEmptyNotificationSent = false;
+            await database.setUserConfig(userAddress, userConfig);
+            console.log(`🔄 Reset allowance empty notification flag for ${userAddress} - user approved more tokens`);
+          }
         }
       }
     }
