@@ -389,12 +389,12 @@ class EcionBatchManager {
       try {
         console.log('🔍 Estimating gas usage for batch transaction...');
         const estimatedGas = await contract.batchTip.estimateGas(froms, tos, tokens, amounts);
-        const gasWithBuffer = estimatedGas * 110n / 100n; // 10% buffer (reduced from 20%)
+        const gasWithBuffer = estimatedGas * 150n / 100n; // 50% buffer to prevent execution reverts
         const minGasLimit = BigInt(Math.floor(gasOptions.gasLimit)); // Use our dynamic gas limit as minimum
         const finalGasLimit = gasWithBuffer > minGasLimit ? gasWithBuffer : minGasLimit;
         
         gasOptions.gasLimit = Number(finalGasLimit);
-        console.log(`✅ Gas estimation successful: ${estimatedGas.toString()} + 10% buffer = ${finalGasLimit.toString()}`);
+        console.log(`✅ Gas estimation successful: ${estimatedGas.toString()} + 50% buffer = ${finalGasLimit.toString()}`);
         console.log(`📊 Gas efficiency: ${(estimatedGas * 100n / finalGasLimit).toString()}% of limit used`);
         console.log(`📊 Dynamic vs estimated: ${gasOptions.gasLimit} vs ${finalGasLimit.toString()}`);
       } catch (estimateError) {

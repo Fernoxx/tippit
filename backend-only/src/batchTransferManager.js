@@ -55,6 +55,13 @@ class BatchTransferManager {
   async addTipToBatch(interaction, authorConfig) {
     const userKey = interaction.authorAddress.toLowerCase();
     
+    // Check allowance first - skip if user can't afford any tip
+    const allowanceCheck = await this.checkUserAllowance(interaction.authorAddress, authorConfig);
+    if (!allowanceCheck.canAfford) {
+      console.log(`⏭️ Skipping tip - user ${interaction.authorAddress} has insufficient allowance: ${allowanceCheck.allowanceAmount} < ${allowanceCheck.minTipAmount}`);
+      return { success: false, reason: 'Insufficient allowance' };
+    }
+    
     // Validate the tip first
     const validation = await this.validateTip(interaction, authorConfig);
     if (!validation.valid) {
@@ -92,6 +99,43 @@ class BatchTransferManager {
     }
 
     return { success: true, queued: true, batchSize: this.pendingTips.length };
+  }
+
+  async checkUserAllowance(userAddress, authorConfig) {
+    try {
+      const { ethers } = require('ethers');
+      const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+      const tokenAddress = authorConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+      
+      // Get token decimals
+      const tokenContract = new ethers.Contract(tokenAddress, [
+        "function decimals() view returns (uint8)"
+      ], this.provider);
+      const decimals = await tokenContract.decimals();
+      
+      // Get allowance
+      const allowanceContract = new ethers.Contract(tokenAddress, [
+        "function allowance(address owner, address spender) view returns (uint256)"
+      ], this.provider);
+      const allowance = await allowanceContract.allowance(userAddress, ecionBatchAddress);
+      const allowanceAmount = parseFloat(ethers.formatUnits(allowance, decimals));
+      
+      // Calculate minimum tip amount
+      const likeAmount = parseFloat(authorConfig.likeAmount || '0');
+      const recastAmount = parseFloat(authorConfig.recastAmount || '0');
+      const replyAmount = parseFloat(authorConfig.replyAmount || '0');
+      const tipAmounts = [likeAmount, recastAmount, replyAmount].filter(amount => amount > 0);
+      const minTipAmount = tipAmounts.length > 0 ? Math.min(...tipAmounts) : 0;
+      
+      return {
+        canAfford: allowanceAmount >= minTipAmount,
+        allowanceAmount,
+        minTipAmount
+      };
+    } catch (error) {
+      console.error('❌ Error checking allowance:', error);
+      return { canAfford: false, allowanceAmount: 0, minTipAmount: 0 };
+    }
   }
 
   async validateTip(interaction, authorConfig) {
