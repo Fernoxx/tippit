@@ -1362,61 +1362,7 @@ async function updateUserWebhookStatus(userAddress) {
   }
 }
 
-// SMART periodic cleanup - only check users who might have changed
-let lastCleanupTime = 0;
-const CLEANUP_INTERVAL = 30 * 60 * 1000; // Run every 30 minutes instead of 5
-
-setInterval(async () => {
-  try {
-    const now = Date.now();
-    if (now - lastCleanupTime < CLEANUP_INTERVAL) {
-      return; // Skip if not enough time has passed
-    }
-    
-    console.log('🧹 Running SMART periodic webhook cleanup...');
-    const activeUsers = await database.getActiveUsersWithApprovals();
-    
-    let processedCount = 0;
-    let errorCount = 0;
-    
-    // Only check users who haven't been checked recently
-    for (const userAddress of activeUsers) {
-      try {
-        // Validate address format
-        if (!userAddress || !userAddress.startsWith('0x') || userAddress.length !== 42) {
-          continue;
-        }
-        
-        // Only check if user has been active recently (has config changes or tips)
-        const userConfig = await database.getUserConfig(userAddress);
-        if (!userConfig) continue;
-        
-        // Check if user was recently active (within last 2 hours)
-        const lastActivity = userConfig.lastActivity || 0;
-        const twoHoursAgo = now - (2 * 60 * 60 * 1000);
-        
-        if (lastActivity < twoHoursAgo) {
-          console.log(`⏭️ Skipping ${userAddress} - no recent activity`);
-          continue;
-        }
-        
-        const hasAllowance = await checkUserAllowanceForWebhook(userAddress);
-        if (!hasAllowance) {
-          await updateUserWebhookStatus(userAddress);
-        }
-        processedCount++;
-      } catch (userError) {
-        errorCount++;
-        console.log(`⚠️ Error processing user ${userAddress} in cleanup: ${userError.message} - continuing`);
-      }
-    }
-    
-    lastCleanupTime = now;
-    console.log(`✅ SMART periodic webhook cleanup completed - processed: ${processedCount}, errors: ${errorCount}`);
-  } catch (error) {
-    console.log(`⚠️ Error in periodic webhook cleanup: ${error.message} - will retry next cycle`);
-  }
-}, 5 * 60 * 1000); // Check every 5 minutes but only process every 30 minutes
+// OLD PERIODIC CLEANUP REMOVED - Now using allowance sync system that updates webhooks every 3 hours
 
 // Send Neynar Frame V2 notification using correct API
 async function sendNeynarNotification(recipientFid, title, message, targetUrl = "https://ecion.vercel.app") {
