@@ -1534,6 +1534,141 @@ async function updateDatabaseAllowance(userAddress, allowanceAmount) {
   }
 }
 
+// Get token symbol from token address
+async function getTokenSymbol(tokenAddress) {
+  try {
+    const { ethers } = require('ethers');
+    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    
+    const tokenContract = new ethers.Contract(tokenAddress, [
+      "function symbol() view returns (string)"
+    ], provider);
+    
+    const symbol = await tokenContract.symbol();
+    return symbol;
+  } catch (error) {
+    console.log(`⚠️ Could not get symbol for token ${tokenAddress}, using default`);
+    // Default symbols for common tokens
+    const defaultSymbols = {
+      '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913': 'USDC',
+      '0x4200000000000000000000000000000000000006': 'WETH',
+      '0x50c5725949a6f0c72e6c4a641f24049a917db0cb': 'DAI'
+    };
+    return defaultSymbols[tokenAddress.toLowerCase()] || 'TOKEN';
+  }
+}
+
+// Send daily earnings notification to users who earned tips in last 24 hours
+async function sendDailyEarningsNotifications() {
+  try {
+    console.log('📊 Starting daily earnings notification process...');
+    
+    // Get tips from last 24 hours
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const tips = await database.getTipsSince(twentyFourHoursAgo);
+    
+    if (!tips || tips.length === 0) {
+      console.log('📊 No tips found in last 24 hours');
+      return;
+    }
+    
+    // Group tips by recipient and token
+    const earningsByUser = {};
+    
+    for (const tip of tips) {
+      const recipientAddress = tip.toAddress;
+      const tokenAddress = tip.tokenAddress;
+      const amount = parseFloat(tip.amount);
+      
+      if (!earningsByUser[recipientAddress]) {
+        earningsByUser[recipientAddress] = {};
+      }
+      
+      if (!earningsByUser[recipientAddress][tokenAddress]) {
+        earningsByUser[recipientAddress][tokenAddress] = 0;
+      }
+      
+      earningsByUser[recipientAddress][tokenAddress] += amount;
+    }
+    
+    console.log(`📊 Found earnings for ${Object.keys(earningsByUser).length} users`);
+    
+    // Send notifications to each user
+    let notificationsSent = 0;
+    
+    for (const [userAddress, tokenEarnings] of Object.entries(earningsByUser)) {
+      try {
+        // Get user's FID
+        const fid = await getUserFid(userAddress);
+        if (!fid) {
+          console.log(`⚠️ No FID found for user ${userAddress}, skipping notification`);
+          continue;
+        }
+        
+        // Create earnings message
+        let earningsMessage = "You earned from Ecion in the last 24 hours:\n\n";
+        let totalEarnings = 0;
+        
+        for (const [tokenAddress, amount] of Object.entries(tokenEarnings)) {
+          const symbol = await getTokenSymbol(tokenAddress);
+          const formattedAmount = amount.toFixed(6).replace(/\.?0+$/, ''); // Remove trailing zeros
+          earningsMessage += `💰 ${formattedAmount} $${symbol}\n`;
+          totalEarnings += amount;
+        }
+        
+        earningsMessage += `\nTotal: ${totalEarnings.toFixed(6).replace(/\.?0+$/, '')} tokens earned! 🎉`;
+        
+        // Send notification
+        const success = await sendNeynarNotification(
+          fid,
+          "Daily Earnings from Ecion! 💰",
+          earningsMessage,
+          "https://ecion.vercel.app"
+        );
+        
+        if (success) {
+          notificationsSent++;
+          console.log(`✅ Sent earnings notification to ${userAddress} (FID: ${fid})`);
+        }
+        
+        // Small delay to avoid rate limits
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+      } catch (error) {
+        console.log(`⚠️ Error sending earnings notification to ${userAddress}: ${error.message}`);
+      }
+    }
+    
+    console.log(`📊 Daily earnings notifications completed: ${notificationsSent} sent`);
+    
+  } catch (error) {
+    console.log(`⚠️ Error in daily earnings notification process: ${error.message}`);
+  }
+}
+
+// Schedule daily earnings notifications (run every 24 hours at 9 AM UTC)
+const DAILY_NOTIFICATION_HOUR = 9; // 9 AM UTC
+setInterval(async () => {
+  const now = new Date();
+  if (now.getUTCHours() === DAILY_NOTIFICATION_HOUR) {
+    await sendDailyEarningsNotifications();
+  }
+}, 60 * 60 * 1000); // Check every hour
+
+// Test endpoint for daily earnings notifications
+app.post('/api/test-daily-earnings', async (req, res) => {
+  try {
+    await sendDailyEarningsNotifications();
+    res.json({ 
+      success: true,
+      message: 'Daily earnings notifications sent'
+    });
+  } catch (error) {
+    console.error('Test daily earnings error:', error);
+    res.status(500).json({ error: 'Failed to send daily earnings notifications' });
+  }
+});
+
 // Test endpoint for bulk notifications with filters
 app.post('/api/test-bulk-notification', async (req, res) => {
   try {

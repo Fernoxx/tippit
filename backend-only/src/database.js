@@ -294,6 +294,25 @@ class Database {
       return [];
     }
   }
+
+  // Get tips since a specific date
+  async getTipsSince(sinceDate) {
+    try {
+      const data = await fs.readFile(this.tipHistoryFile, 'utf8');
+      const history = JSON.parse(data);
+      
+      const sinceTimestamp = sinceDate.getTime();
+      const filtered = history.filter(tip => 
+        new Date(tip.timestamp).getTime() >= sinceTimestamp
+      );
+      
+      console.log(`📊 Found ${filtered.length} tips since ${sinceDate.toISOString()}`);
+      return filtered;
+    } catch (error) {
+      console.error('Error getting tips since date:', error);
+      return [];
+    }
+  }
 }
 
 module.exports = new Database();

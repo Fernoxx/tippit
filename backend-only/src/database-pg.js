@@ -584,6 +584,31 @@ class PostgresDatabase {
       return false;
     }
   }
+
+  // Get tips since a specific date
+  async getTipsSince(sinceDate) {
+    try {
+      const result = await this.pool.query(`
+        SELECT 
+          from_address as "fromAddress",
+          to_address as "toAddress", 
+          token_address as "tokenAddress",
+          amount,
+          action_type as "actionType",
+          cast_hash as "castHash",
+          timestamp
+        FROM tip_history 
+        WHERE timestamp >= $1
+        ORDER BY timestamp DESC
+      `, [sinceDate]);
+      
+      console.log(`📊 Found ${result.rows.length} tips since ${sinceDate.toISOString()}`);
+      return result.rows;
+    } catch (error) {
+      console.error('Error getting tips since date:', error);
+      return [];
+    }
+  }
 }
 
 module.exports = new PostgresDatabase();
