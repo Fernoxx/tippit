@@ -313,6 +313,43 @@ class Database {
       return [];
     }
   }
+
+  // Get a config value
+  async getConfig(key) {
+    try {
+      const configFile = path.join(__dirname, 'config.json');
+      if (!fs.existsSync(configFile)) {
+        return null;
+      }
+      
+      const data = await fs.readFile(configFile, 'utf8');
+      const config = JSON.parse(data);
+      return config[key] || null;
+    } catch (error) {
+      console.error('Error getting config:', error);
+      return null;
+    }
+  }
+
+  // Set a config value
+  async setConfig(key, value) {
+    try {
+      const configFile = path.join(__dirname, 'config.json');
+      let config = {};
+      
+      if (fs.existsSync(configFile)) {
+        const data = await fs.readFile(configFile, 'utf8');
+        config = JSON.parse(data);
+      }
+      
+      config[key] = value;
+      await fs.writeFile(configFile, JSON.stringify(config, null, 2));
+      
+      console.log(`💾 Config updated: ${key} = ${value}`);
+    } catch (error) {
+      console.error('Error setting config:', error);
+    }
+  }
 }
 
 module.exports = new Database();

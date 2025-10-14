@@ -1563,12 +1563,23 @@ async function sendDailyEarningsNotifications() {
   try {
     console.log('📊 Starting daily earnings notification process...');
     
+    // Check if we already sent notifications today
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    const lastNotificationDate = await database.getConfig('lastDailyNotificationDate');
+    
+    if (lastNotificationDate === today) {
+      console.log('📊 Daily earnings notifications already sent today, skipping');
+      return;
+    }
+    
     // Get tips from last 24 hours
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const tips = await database.getTipsSince(twentyFourHoursAgo);
     
     if (!tips || tips.length === 0) {
       console.log('📊 No tips found in last 24 hours');
+      // Still mark as sent to avoid checking again today
+      await database.setConfig('lastDailyNotificationDate', today);
       return;
     }
     
@@ -1593,11 +1604,24 @@ async function sendDailyEarningsNotifications() {
     
     console.log(`📊 Found earnings for ${Object.keys(earningsByUser).length} users`);
     
-    // Send notifications to each user
+    // Send notifications to each user (only if total earnings >= 0.1)
     let notificationsSent = 0;
+    const MINIMUM_EARNINGS = 0.1; // Minimum 0.1 tokens to get notification
     
     for (const [userAddress, tokenEarnings] of Object.entries(earningsByUser)) {
       try {
+        // Calculate total earnings across all tokens
+        let totalEarnings = 0;
+        for (const amount of Object.values(tokenEarnings)) {
+          totalEarnings += amount;
+        }
+        
+        // Skip if total earnings is less than 0.1
+        if (totalEarnings < MINIMUM_EARNINGS) {
+          console.log(`⏭️ Skipping ${userAddress} - total earnings ${totalEarnings} < ${MINIMUM_EARNINGS}`);
+          continue;
+        }
+        
         // Get user's FID
         const fid = await getUserFid(userAddress);
         if (!fid) {
@@ -1607,13 +1631,11 @@ async function sendDailyEarningsNotifications() {
         
         // Create earnings message
         let earningsMessage = "You earned from Ecion in the last 24 hours:\n\n";
-        let totalEarnings = 0;
         
         for (const [tokenAddress, amount] of Object.entries(tokenEarnings)) {
           const symbol = await getTokenSymbol(tokenAddress);
           const formattedAmount = amount.toFixed(6).replace(/\.?0+$/, ''); // Remove trailing zeros
           earningsMessage += `💰 ${formattedAmount} $${symbol}\n`;
-          totalEarnings += amount;
         }
         
         earningsMessage += `\nTotal: ${totalEarnings.toFixed(6).replace(/\.?0+$/, '')} tokens earned! 🎉`;
@@ -1628,7 +1650,7 @@ async function sendDailyEarningsNotifications() {
         
         if (success) {
           notificationsSent++;
-          console.log(`✅ Sent earnings notification to ${userAddress} (FID: ${fid})`);
+          console.log(`✅ Sent earnings notification to ${userAddress} (FID: ${fid}) - Total: ${totalEarnings}`);
         }
         
         // Small delay to avoid rate limits
@@ -1639,7 +1661,10 @@ async function sendDailyEarningsNotifications() {
       }
     }
     
-    console.log(`📊 Daily earnings notifications completed: ${notificationsSent} sent`);
+    // Mark notifications as sent for today
+    await database.setConfig('lastDailyNotificationDate', today);
+    
+    console.log(`📊 Daily earnings notifications completed: ${notificationsSent} sent (minimum ${MINIMUM_EARNINGS} tokens required)`);
     
   } catch (error) {
     console.log(`⚠️ Error in daily earnings notification process: ${error.message}`);

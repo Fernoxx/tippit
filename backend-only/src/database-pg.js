@@ -609,6 +609,36 @@ class PostgresDatabase {
       return [];
     }
   }
+
+  // Get a config value
+  async getConfig(key) {
+    try {
+      const result = await this.pool.query(`
+        SELECT value FROM app_config WHERE key = $1
+      `, [key]);
+      
+      return result.rows.length > 0 ? result.rows[0].value : null;
+    } catch (error) {
+      console.error('Error getting config:', error);
+      return null;
+    }
+  }
+
+  // Set a config value
+  async setConfig(key, value) {
+    try {
+      await this.pool.query(`
+        INSERT INTO app_config (key, value) 
+        VALUES ($1, $2) 
+        ON CONFLICT (key) 
+        DO UPDATE SET value = $2, updated_at = NOW()
+      `, [key, value]);
+      
+      console.log(`💾 Config updated: ${key} = ${value}`);
+    } catch (error) {
+      console.error('Error setting config:', error);
+    }
+  }
 }
 
 module.exports = new PostgresDatabase();
