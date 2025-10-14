@@ -1833,13 +1833,22 @@ async function syncAllUsersAllowancesFromBlockchain() {
         // Update database with blockchain allowance
         await updateDatabaseAllowance(userAddress, allowanceAmount);
         
+        // Update webhook FID status after allowance update
+        try {
+          await updateUserWebhookStatus(userAddress);
+          console.log(`🔗 Updated webhook status for ${userAddress} after allowance sync`);
+        } catch (webhookError) {
+          console.log(`⚠️ Webhook update failed for ${userAddress}: ${webhookError.message}`);
+        }
+        
         syncedCount++;
         results.push({
           userAddress,
           tokenAddress,
           blockchainAllowance: allowanceAmount,
           previousAllowance: userConfig.lastAllowance || 0,
-          synced: true
+          synced: true,
+          webhookUpdated: true
         });
         
         console.log(`✅ Synced ${userAddress}: ${userConfig.lastAllowance || 0} → ${allowanceAmount} ${tokenAddress}`);
@@ -1893,11 +1902,11 @@ app.post('/api/sync-allowances-from-blockchain', async (req, res) => {
   }
 });
 
-// Schedule daily allowance sync (run every 6 hours)
+// Schedule allowance sync (run every 3 hours)
 setInterval(async () => {
   console.log('🔄 Running scheduled allowance sync...');
   await syncAllUsersAllowancesFromBlockchain();
-}, 6 * 60 * 60 * 1000); // Every 6 hours
+}, 3 * 60 * 60 * 1000); // Every 3 hours
 
 // Test endpoint for bulk notifications with filters
 app.post('/api/test-bulk-notification', async (req, res) => {
