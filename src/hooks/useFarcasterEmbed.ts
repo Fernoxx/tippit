@@ -34,7 +34,7 @@ export const useFarcasterEmbed = () => {
       // Check if SDK can be imported
       const { sdk } = await import('@farcaster/miniapp-sdk');
       debugInfo.sdkAvailable = true;
-      debugInfo.sdkVersion = sdk.version || 'unknown';
+      debugInfo.sdkVersion = '0.1.6'; // Fixed version since sdk.version doesn't exist
 
       // Check if we're in miniapp
       const isInMiniApp = await sdk.isInMiniApp();
@@ -64,14 +64,14 @@ export const useFarcasterEmbed = () => {
             await sdk.actions.ready();
             debugInfo.readyCalled = true;
           } catch (readyError) {
-            debugInfo.readyError = readyError.message;
+            debugInfo.readyError = readyError instanceof Error ? readyError.message : 'Unknown error';
           }
         } catch (contextError) {
-          debugInfo.contextError = contextError.message;
+          debugInfo.contextError = contextError instanceof Error ? contextError.message : 'Unknown error';
         }
       }
     } catch (importError) {
-      debugInfo.importError = importError.message;
+      debugInfo.importError = importError instanceof Error ? importError.message : 'Unknown error';
     }
 
     return debugInfo;
