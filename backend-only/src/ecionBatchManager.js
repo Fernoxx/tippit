@@ -305,55 +305,8 @@ class EcionBatchManager {
         console.log('⚠️ WARNING: All unique address pairs - high gas usage expected');
       }
       
-      // BATCH SIZE LIMITING FOR COMPLEX PATTERNS
-      const maxTipsForComplexPattern = 8; // Limit for high complexity
-      const maxTipsForSimplePattern = 15; // Limit for simple patterns
-      
-      if (uniquePairs.size === tips.length && tips.length > maxTipsForComplexPattern) {
-        console.log(`🚨 BATCH SIZE LIMIT: Too many unique address pairs (${tips.length} > ${maxTipsForComplexPattern})`);
-        console.log(`🚨 SPLITTING BATCH: Processing first ${maxTipsForComplexPattern} tips, queuing rest`);
-        
-        // Split the batch - process first batch
-        const firstBatch = tips.slice(0, maxTipsForComplexPattern);
-        const remainingTips = tips.slice(maxTipsForComplexPattern);
-        
-        console.log(`📦 Processing first batch: ${firstBatch.length} tips`);
-        console.log(`📦 Remaining tips to queue: ${remainingTips.length} tips`);
-        
-        // Process first batch
-        const firstBatchResult = await this.executeBatchTips(firstBatch);
-        
-        // Queue remaining tips for next batch
-        if (remainingTips.length > 0) {
-          console.log(`📦 Queuing ${remainingTips.length} remaining tips for next batch`);
-          // Note: This would need to be handled by the batch manager
-        }
-        
-        return firstBatchResult;
-      }
-      
-      if (tips.length > maxTipsForSimplePattern) {
-        console.log(`🚨 BATCH SIZE LIMIT: Too many tips (${tips.length} > ${maxTipsForSimplePattern})`);
-        console.log(`🚨 SPLITTING BATCH: Processing first ${maxTipsForSimplePattern} tips, queuing rest`);
-        
-        // Split the batch - process first batch
-        const firstBatch = tips.slice(0, maxTipsForSimplePattern);
-        const remainingTips = tips.slice(maxTipsForSimplePattern);
-        
-        console.log(`📦 Processing first batch: ${firstBatch.length} tips`);
-        console.log(`📦 Remaining tips to queue: ${remainingTips.length} tips`);
-        
-        // Process first batch
-        const firstBatchResult = await this.executeBatchTips(firstBatch);
-        
-        // Queue remaining tips for next batch
-        if (remainingTips.length > 0) {
-          console.log(`📦 Queuing ${remainingTips.length} remaining tips for next batch`);
-          // Note: This would need to be handled by the batch manager
-        }
-        
-        return firstBatchResult;
-      }
+      // NO BATCH SIZE LIMITING - Process ALL tips in 1 minute in ONE transaction
+      console.log(`✅ Processing ALL ${tips.length} tips in single batch transaction`);
       
       // Execute batch tip (4 parameters: froms, tos, tokens, amounts)
       // Get dynamic gas price for Base network (EIP-1559) with retry logic
@@ -372,12 +325,32 @@ class EcionBatchManager {
             maxPriorityFeePerGas: feeData.maxPriorityFeePerGas?.toString()
           });
           
-          // Use EIP-1559 with higher gas limits for reliability
+          // Use EIP-1559 with higher gas limits for large batches
+          // Calculate dynamic gas limit based on batch complexity
+          let baseGasLimit = 3500000; // Base gas limit
+          let complexityMultiplier = 1;
+          
+          // Increase gas for complex patterns
+          if (uniquePairs.size === tips.length) {
+            complexityMultiplier = 1.5; // 50% more gas for all unique pairs
+            console.log(`🔧 Complex pattern detected: Using 1.5x gas multiplier`);
+          } else if (uniqueTokens.size > 2) {
+            complexityMultiplier = 1.3; // 30% more gas for multiple tokens
+            console.log(`🔧 Multiple tokens detected: Using 1.3x gas multiplier`);
+          } else if (tips.length > 10) {
+            complexityMultiplier = 1.2; // 20% more gas for large batches
+            console.log(`🔧 Large batch detected: Using 1.2x gas multiplier`);
+          }
+          
+          const dynamicGasLimit = Math.floor(baseGasLimit * complexityMultiplier);
+          
           gasOptions = {
-            gasLimit: 3500000, // Increased gas limit to 3.5M for complex address patterns
+            gasLimit: dynamicGasLimit,
             maxFeePerGas: feeData.maxFeePerGas ? feeData.maxFeePerGas * 120n / 100n : undefined, // 20% higher
             maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ? feeData.maxPriorityFeePerGas * 120n / 100n : undefined // 20% higher
           };
+          
+          console.log(`⛽ Dynamic gas limit: ${baseGasLimit} × ${complexityMultiplier} = ${dynamicGasLimit}`);
           
           // Remove gasPrice if using EIP-1559 to avoid conflicts
           if (gasOptions.maxFeePerGas && gasOptions.maxPriorityFeePerGas) {
@@ -397,11 +370,13 @@ class EcionBatchManager {
           
           if (gasRetryCount >= maxGasRetries) {
             console.log('❌ All gas pricing attempts failed, using fallback...');
-            // Fallback to basic gas pricing
+            // Fallback to basic gas pricing with dynamic gas limit
+            const fallbackGasLimit = Math.floor(3500000 * complexityMultiplier);
             gasOptions = {
-              gasLimit: 3500000,
+              gasLimit: fallbackGasLimit,
               gasPrice: ethers.parseUnits('0.001', 'gwei') // Fallback gas price
             };
+            console.log(`⛽ Fallback gas limit: ${fallbackGasLimit} (${complexityMultiplier}x multiplier)`);
             break;
           }
           
@@ -415,14 +390,16 @@ class EcionBatchManager {
         console.log('🔍 Estimating gas usage for batch transaction...');
         const estimatedGas = await contract.batchTip.estimateGas(froms, tos, tokens, amounts);
         const gasWithBuffer = estimatedGas * 120n / 100n; // 20% buffer
-        const finalGasLimit = gasWithBuffer > 3500000n ? gasWithBuffer : 3500000n; // Min 3.5M
+        const minGasLimit = BigInt(gasOptions.gasLimit); // Use our dynamic gas limit as minimum
+        const finalGasLimit = gasWithBuffer > minGasLimit ? gasWithBuffer : minGasLimit;
         
         gasOptions.gasLimit = finalGasLimit;
         console.log(`✅ Gas estimation successful: ${estimatedGas.toString()} + 20% buffer = ${finalGasLimit.toString()}`);
         console.log(`📊 Gas efficiency: ${(estimatedGas * 100n / finalGasLimit).toString()}% of limit used`);
+        console.log(`📊 Dynamic vs estimated: ${gasOptions.gasLimit} vs ${finalGasLimit.toString()}`);
       } catch (estimateError) {
-        console.log(`⚠️ Gas estimation failed, using default 3.5M: ${estimateError.message}`);
-        gasOptions.gasLimit = 3500000;
+        console.log(`⚠️ Gas estimation failed, using dynamic gas limit ${gasOptions.gasLimit}: ${estimateError.message}`);
+        // Keep the dynamic gas limit we calculated
       }
       
       console.log(`🚀 Submitting batch tip transaction with gas options:`, gasOptions);
@@ -453,11 +430,13 @@ class EcionBatchManager {
           // Refresh gas pricing for retry
           try {
             const feeData = await this.provider.getFeeData();
+            const retryGasLimit = Math.floor(3500000 * complexityMultiplier);
             gasOptions = {
-              gasLimit: 3500000,
+              gasLimit: retryGasLimit,
               maxFeePerGas: feeData.maxFeePerGas ? feeData.maxFeePerGas * 130n / 100n : undefined, // Even higher for retry
               maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ? feeData.maxPriorityFeePerGas * 130n / 100n : undefined
             };
+            console.log(`⛽ Retry gas limit: ${retryGasLimit} (${complexityMultiplier}x multiplier)`);
             if (gasOptions.maxFeePerGas && gasOptions.maxPriorityFeePerGas) {
               delete gasOptions.gasPrice;
             }
