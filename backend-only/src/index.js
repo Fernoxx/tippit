@@ -1125,8 +1125,7 @@ app.get('/api/homepage', async (req, res) => {
           continue;
         }
         
-        // Get user config to check minimum tip amounts
-        const userConfig = await database.getUserConfig(userAddress);
+        // Get user config to check minimum tip amounts (already declared above)
         if (!userConfig) {
           console.log(`⏭️ Skipping ${userAddress} - no user config found`);
           continue;
