@@ -1144,7 +1144,8 @@ app.get('/api/homepage', async (req, res) => {
         // Skip if allowance is less than minimum tip amount
         if (allowanceAmount < minTipAmount) {
           console.log(`⏭️ Skipping ${userAddress} - allowance ${allowanceAmount} < min tip ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount})`);
-          continue;
+          // TEMPORARILY DISABLED - DEBUGGING ALLOWANCE VALUES
+          // continue;
         }
         
         console.log(`✅ User ${userAddress} - allowance ${allowanceAmount} >= min tip ${minTipAmount} - keeping cast`);
