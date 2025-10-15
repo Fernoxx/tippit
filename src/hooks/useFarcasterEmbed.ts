@@ -27,7 +27,8 @@ export const useFarcasterEmbed = () => {
       isInMiniApp: false,
       context: null,
       actions: null,
-      readyCalled: false
+      readyCalled: false,
+      capabilities: null
     };
 
     try {
@@ -41,16 +42,40 @@ export const useFarcasterEmbed = () => {
       debugInfo.isInMiniApp = isInMiniApp;
 
       if (isInMiniApp) {
-        // Get context
+        // Get context with proper structure
         try {
           const context = await sdk.context;
           debugInfo.context = {
             user: context?.user ? {
               fid: context.user.fid,
               username: context.user.username,
-              displayName: context.user.displayName
+              displayName: context.user.displayName,
+              pfpUrl: context.user.pfpUrl
+            } : null,
+            location: context?.location ? {
+              type: context.location.type,
+              embed: context.location.type === 'cast_embed' ? (context.location as any).embed : undefined,
+              cast: context.location.type === 'cast_embed' || context.location.type === 'cast_share' ? (context.location as any).cast : undefined
+            } : null,
+            client: context?.client ? {
+              platformType: context.client.platformType,
+              clientFid: context.client.clientFid,
+              added: context.client.added,
+              safeAreaInsets: context.client.safeAreaInsets
+            } : null,
+            features: context?.features ? {
+              haptics: context.features.haptics,
+              cameraAndMicrophoneAccess: context.features.cameraAndMicrophoneAccess
             } : null
           };
+
+          // Get capabilities
+          try {
+            const capabilities = await sdk.getCapabilities();
+            debugInfo.capabilities = capabilities;
+          } catch (capabilitiesError) {
+            debugInfo.capabilitiesError = capabilitiesError instanceof Error ? capabilitiesError.message : 'Unknown error';
+          }
 
           // Check actions
           debugInfo.actions = {
@@ -99,14 +124,37 @@ export const useFarcasterEmbed = () => {
         console.log('⚠️ SDK ready() failed:', readyError);
       }
       
-      // Check if composeCast action is available
+      // Check capabilities first
+      try {
+        const capabilities = await sdk.getCapabilities();
+        console.log('🔍 Available capabilities:', capabilities);
+        
+        // Check if composeCast is in capabilities
+        const hasComposeCastCapability = capabilities.includes('actions.composeCast');
+        console.log('🔍 composeCast capability:', hasComposeCastCapability);
+        
+        if (hasComposeCastCapability) {
+          // Also check if the action is actually available
+          const hasComposeCast = sdk?.actions?.composeCast && typeof sdk.actions.composeCast === 'function';
+          console.log('🔍 composeCast action available:', hasComposeCast);
+          
+          if (hasComposeCast) {
+            console.log('✅ Embed Present: composeCast action available via capabilities');
+            return true;
+          }
+        }
+      } catch (capabilitiesError) {
+        console.log('⚠️ Capabilities check failed:', capabilitiesError);
+      }
+      
+      // Fallback to direct action check
       const hasComposeCast = sdk?.actions?.composeCast && typeof sdk.actions.composeCast === 'function';
-      console.log('🔍 composeCast available:', hasComposeCast);
+      console.log('🔍 composeCast available (fallback):', hasComposeCast);
       console.log('🔍 sdk.actions:', sdk.actions);
       console.log('🔍 sdk.actions.composeCast:', sdk.actions?.composeCast);
       
       if (hasComposeCast) {
-        console.log('✅ Embed Present: composeCast action available');
+        console.log('✅ Embed Present: composeCast action available (fallback)');
         return true;
       } else {
         console.log('❌ Embed Present: composeCast action not available');
@@ -138,6 +186,23 @@ export const useFarcasterEmbed = () => {
         console.log('✅ SDK ready() called successfully in valid check');
       } catch (readyError) {
         console.log('⚠️ SDK ready() failed in valid check:', readyError);
+      }
+      
+      // Check capabilities first
+      try {
+        const capabilities = await sdk.getCapabilities();
+        console.log('🔍 Valid check - capabilities:', capabilities);
+        
+        // Check if composeCast is in capabilities
+        const hasComposeCastCapability = capabilities.includes('actions.composeCast');
+        console.log('🔍 Valid check - composeCast capability:', hasComposeCastCapability);
+        
+        if (!hasComposeCastCapability) {
+          console.log('❌ Embed Valid: composeCast not in capabilities');
+          return false;
+        }
+      } catch (capabilitiesError) {
+        console.log('⚠️ Capabilities check failed in valid check:', capabilitiesError);
       }
       
       // Check if composeCast action exists and is callable
