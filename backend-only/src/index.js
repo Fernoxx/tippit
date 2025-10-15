@@ -1132,7 +1132,15 @@ async function getUserFid(userAddress) {
     if (response.ok) {
       const data = await response.json();
       console.log(`🔍 Neynar API response for ${userAddress}:`, JSON.stringify(data, null, 2));
-      const user = data.users?.[0];
+      
+      // Handle both response formats
+      let user = null;
+      if (data.users && data.users.length > 0) {
+        user = data.users[0];
+      } else if (data[userAddress.toLowerCase()] && data[userAddress.toLowerCase()].length > 0) {
+        user = data[userAddress.toLowerCase()][0];
+      }
+      
       if (user?.fid) {
         // Cache the FID
         userFidMap.set(userAddress.toLowerCase(), user.fid);

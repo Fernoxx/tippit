@@ -1,7 +1,19 @@
 const { ethers } = require('ethers');
 const BatchTipManager = require('./batchTipManager');
 const EcionBatchManager = require('./ecionBatchManager');
-const { getTokenDecimals } = require('./index');
+
+// Token decimals mapping (to avoid circular dependency)
+const TOKEN_DECIMALS = {
+  '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913': 6, // USDC
+  '0x4200000000000000000000000000000000000006': 18, // WETH
+  '0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb': 18, // DAI
+  '0x940181a94A35A4569E4529A3CDfB74e38FD98631': 18, // AERO
+};
+
+function getTokenDecimals(tokenAddress) {
+  return TOKEN_DECIMALS[tokenAddress.toLowerCase()] || 18; // Default to 18 decimals
+}
+
 // Use PostgreSQL database if available, fallback to file storage
 let database;
 try {
