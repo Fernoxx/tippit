@@ -1,6 +1,7 @@
 const { ethers } = require('ethers');
 const BatchTipManager = require('./batchTipManager');
 const EcionBatchManager = require('./ecionBatchManager');
+const { getTokenDecimals } = require('./index');
 // Use PostgreSQL database if available, fallback to file storage
 let database;
 try {
@@ -190,11 +191,16 @@ class BatchTransferManager {
         console.log(`💾 Updated database allowance to 0 for ${userAddress}`);
       }
       
-      // 2. Remove FID from webhook
+      // 2. Try to remove FID from webhook (if FID exists)
       const { updateUserWebhookStatus, removeUserFromHomepageCache } = require('./index');
       if (updateUserWebhookStatus) {
-        await updateUserWebhookStatus(userAddress);
-        console.log(`🔗 Updated webhook status for ${userAddress}`);
+        try {
+          await updateUserWebhookStatus(userAddress);
+          console.log(`🔗 Updated webhook status for ${userAddress}`);
+        } catch (webhookError) {
+          console.log(`⚠️ Webhook update failed for ${userAddress}: ${webhookError.message}`);
+          console.log(`📝 User ${userAddress} marked as inactive in database (webhook removal skipped)`);
+        }
       }
       
       // 3. Remove from homepage cache
