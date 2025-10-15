@@ -386,8 +386,8 @@ class BatchTransferManager {
               const tipAmounts = [likeAmount, recastAmount, replyAmount].filter(amount => amount > 0);
               const minTipAmount = tipAmounts.length > 0 ? Math.min(...tipAmounts) : 0;
               
-              if (newAllowance < minTipAmount) {
-                console.log(`🚫 User ${tip.interaction.authorAddress} allowance ${newAllowance} < min tip ${minTipAmount} - removing from webhook`);
+              if (currentBlockchainAllowance < minTipAmount) {
+                console.log(`🚫 User ${tip.interaction.authorAddress} allowance ${currentBlockchainAllowance} < min tip ${minTipAmount} - removing from webhook`);
                 const { updateUserWebhookStatus } = require('./index');
                 if (updateUserWebhookStatus) {
                   await updateUserWebhookStatus(tip.interaction.authorAddress);
