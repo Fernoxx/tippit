@@ -1869,11 +1869,11 @@ app.post('/api/sync-allowances-from-blockchain', async (req, res) => {
   }
 });
 
-// Schedule allowance sync (run every 3 hours)
+// Schedule allowance sync (run every 12 hours)
 setInterval(async () => {
   console.log('🔄 Running scheduled allowance sync...');
   await syncAllUsersAllowancesFromBlockchain();
-}, 3 * 60 * 60 * 1000); // Every 3 hours
+}, 12 * 60 * 60 * 1000); // Every 12 hours
 
 // Test endpoint for bulk notifications with filters
 app.post('/api/test-bulk-notification', async (req, res) => {

@@ -288,8 +288,8 @@ export const useFarcasterEmbed = () => {
       
       // Final fallback - open Warpcast compose
       const encoded = encodeURIComponent(finalShareText);
-      window.open(`https://warpcast.com/~/compose?text=${encoded}`, '_blank');
-      console.log('✅ Opened Warpcast compose');
+      window.open(`https://farcaster.xyz/~/compose?text=${encoded}`, '_blank');
+      console.log('✅ Opened Farcaster compose');
       return { success: true, method: 'warpcast' };
       
     } catch (error) {
