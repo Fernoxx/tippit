@@ -1131,6 +1131,7 @@ async function getUserFid(userAddress) {
     
     if (response.ok) {
       const data = await response.json();
+      console.log(`🔍 Neynar API response for ${userAddress}:`, JSON.stringify(data, null, 2));
       const user = data.users?.[0];
       if (user?.fid) {
         // Cache the FID
@@ -1139,11 +1140,13 @@ async function getUserFid(userAddress) {
         return user.fid;
       } else {
         console.log(`⚠️ No Farcaster account found for address: ${userAddress}`);
+        console.log(`📊 API returned:`, data);
       }
     } else if (response.status === 402) {
       console.log(`⚠️ Neynar API requires payment for address lookup - skipping ${userAddress}`);
     } else {
-      console.log(`⚠️ Neynar API error for ${userAddress}: ${response.status} - skipping`);
+      const errorText = await response.text();
+      console.log(`⚠️ Neynar API error for ${userAddress}: ${response.status} - ${errorText}`);
     }
   } catch (error) {
     console.log(`⚠️ Error getting FID for ${userAddress}: ${error.message} - skipping`);

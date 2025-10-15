@@ -191,7 +191,16 @@ class BatchTransferManager {
         console.log(`💾 Updated database allowance to 0 for ${userAddress}`);
       }
       
-      // 2. Try to remove FID from webhook (if FID exists)
+      // 2. Mark user as inactive in database (this will prevent tip processing)
+      const userConfig = await database.getUserConfig(userAddress);
+      if (userConfig) {
+        userConfig.isActive = false;
+        userConfig.lastAllowance = 0;
+        await database.setUserConfig(userAddress, userConfig);
+        console.log(`🚫 Marked user ${userAddress} as inactive in database`);
+      }
+      
+      // 3. Try to remove FID from webhook (if FID exists)
       const { updateUserWebhookStatus, removeUserFromHomepageCache } = require('./index');
       if (updateUserWebhookStatus) {
         try {
@@ -203,7 +212,7 @@ class BatchTransferManager {
         }
       }
       
-      // 3. Remove from homepage cache
+      // 4. Remove from homepage cache
       if (removeUserFromHomepageCache) {
         await removeUserFromHomepageCache(userAddress);
         console.log(`🏠 Removed ${userAddress} from homepage cache`);
