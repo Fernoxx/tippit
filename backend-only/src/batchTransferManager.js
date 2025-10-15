@@ -360,14 +360,24 @@ class BatchTransferManager {
             if (userConfig) {
               userConfig.lastActivity = Date.now();
               
-              // Update allowance (subtract tip amount)
-              const currentAllowance = userConfig.lastAllowance || 0;
-              const newAllowance = Math.max(0, currentAllowance - parseFloat(tip.amount));
-              userConfig.lastAllowance = newAllowance;
+              // Get current blockchain allowance and update database with it
+              const { ethers } = require('ethers');
+              const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+              const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+              
+              const tokenContract = new ethers.Contract(tip.tokenAddress, [
+                "function allowance(address owner, address spender) view returns (uint256)"
+              ], provider);
+              
+              const allowance = await tokenContract.allowance(tip.interaction.authorAddress, ecionBatchAddress);
+              const tokenDecimals = tip.tokenAddress === '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' ? 6 : 18;
+              const currentBlockchainAllowance = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
+              
+              userConfig.lastAllowance = currentBlockchainAllowance;
               userConfig.lastAllowanceCheck = Date.now();
               
               await database.setUserConfig(tip.interaction.authorAddress, userConfig);
-              console.log(`💾 Updated allowance for ${tip.interaction.authorAddress}: ${currentAllowance} → ${newAllowance}`);
+              console.log(`💾 Updated allowance for ${tip.interaction.authorAddress}: ${userConfig.lastAllowance || 0} → ${currentBlockchainAllowance} (from blockchain)`);
               
               // Check if user should be removed from webhook
               const likeAmount = parseFloat(userConfig.likeAmount || '0');
