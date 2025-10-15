@@ -91,6 +91,14 @@ export const useFarcasterEmbed = () => {
         return false;
       }
       
+      // Ensure SDK is ready before checking actions
+      try {
+        await sdk.actions.ready();
+        console.log('✅ SDK ready() called successfully');
+      } catch (readyError) {
+        console.log('⚠️ SDK ready() failed:', readyError);
+      }
+      
       // Check if composeCast action is available
       const hasComposeCast = sdk?.actions?.composeCast && typeof sdk.actions.composeCast === 'function';
       console.log('🔍 composeCast available:', hasComposeCast);
@@ -122,6 +130,14 @@ export const useFarcasterEmbed = () => {
       if (!isInMiniApp) {
         console.log('❌ Not in miniapp - embeds not valid');
         return false;
+      }
+      
+      // Ensure SDK is ready before checking actions
+      try {
+        await sdk.actions.ready();
+        console.log('✅ SDK ready() called successfully in valid check');
+      } catch (readyError) {
+        console.log('⚠️ SDK ready() failed in valid check:', readyError);
       }
       
       // Check if composeCast action exists and is callable
@@ -165,6 +181,14 @@ export const useFarcasterEmbed = () => {
       console.log('📱 Is in MiniApp:', isInMiniApp);
       
       if (isInMiniApp) {
+        // Ensure SDK is ready before using actions
+        try {
+          await sdk.actions.ready();
+          console.log('✅ SDK ready() called before share');
+        } catch (readyError) {
+          console.log('⚠️ SDK ready() failed before share:', readyError);
+        }
+        
         // Check if composeCast is available and callable
         if (sdk?.actions?.composeCast && typeof sdk.actions.composeCast === 'function') {
           console.log('📝 Composing cast via SDK...');
