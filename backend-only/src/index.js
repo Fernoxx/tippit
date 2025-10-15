@@ -2352,6 +2352,13 @@ app.get('/api/homepage', async (req, res) => {
     
     for (const userAddress of activeUsers) {
       try {
+        // Check if user is in blocklist first (instant check, zero API calls)
+        const { batchTransferManager } = require('./batchTransferManager');
+        if (batchTransferManager && batchTransferManager.isUserBlocked && batchTransferManager.isUserBlocked(userAddress)) {
+          console.log(`⏭️ Skipping ${userAddress} - user is in blocklist (insufficient allowance)`);
+          continue;
+        }
+        
         // Get user's configured token address
         const userConfig = await database.getUserConfig(userAddress);
         const tokenAddress = userConfig?.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // Default to USDC
