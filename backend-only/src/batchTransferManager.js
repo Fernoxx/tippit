@@ -452,7 +452,12 @@ class BatchTransferManager {
               const minTipAmount = tipAmounts.length > 0 ? Math.min(...tipAmounts) : 0;
               
               if (currentBlockchainAllowance < minTipAmount) {
-                console.log(`🚫 User ${tip.interaction.authorAddress} allowance ${currentBlockchainAllowance} < min tip ${minTipAmount} - removing from webhook`);
+                console.log(`🚫 User ${tip.interaction.authorAddress} allowance ${currentBlockchainAllowance} < min tip ${minTipAmount} - adding to blocklist`);
+                
+                // Add to blocklist to prevent future tip processing
+                this.blockedUsers.add(tip.interaction.authorAddress.toLowerCase());
+                console.log(`🚫 Added ${tip.interaction.authorAddress} to blocklist - insufficient allowance after tip`);
+                
                 const { updateUserWebhookStatus } = require('./index');
                 if (updateUserWebhookStatus) {
                   await updateUserWebhookStatus(tip.interaction.authorAddress);

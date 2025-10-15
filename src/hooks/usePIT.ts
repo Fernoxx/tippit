@@ -259,6 +259,9 @@ export const useEcion = () => {
       console.log('Revoke transaction submitted');
       toast.success('Token allowance revoked successfully!', { duration: 2000 });
       
+      // Update allowance and webhooks after successful revocation
+      await updateAllowanceAndWebhooks(tokenAddress);
+      
     } catch (error: any) {
       console.error('Revocation failed:', error);
       if (error.message?.includes('User rejected')) {
