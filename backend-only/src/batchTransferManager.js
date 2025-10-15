@@ -136,19 +136,26 @@ class BatchTransferManager {
     }
   }
 
-  // NEW: Clean up inactive user (remove from webhook and homepage)
+  // NEW: Clean up inactive user (update database, remove from webhook and homepage)
   async cleanupInactiveUser(userAddress) {
     try {
       console.log(`🧹 Cleaning up inactive user: ${userAddress}`);
       
-      // Remove FID from webhook
+      // 1. Update database allowance to 0 (user is inactive)
+      const { updateDatabaseAllowance } = require('./index');
+      if (updateDatabaseAllowance) {
+        await updateDatabaseAllowance(userAddress, 0);
+        console.log(`💾 Updated database allowance to 0 for ${userAddress}`);
+      }
+      
+      // 2. Remove FID from webhook
       const { updateUserWebhookStatus, removeUserFromHomepageCache } = require('./index');
       if (updateUserWebhookStatus) {
         await updateUserWebhookStatus(userAddress);
         console.log(`🔗 Updated webhook status for ${userAddress}`);
       }
       
-      // Remove from homepage cache
+      // 3. Remove from homepage cache
       if (removeUserFromHomepageCache) {
         await removeUserFromHomepageCache(userAddress);
         console.log(`🏠 Removed ${userAddress} from homepage cache`);

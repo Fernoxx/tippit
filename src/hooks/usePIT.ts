@@ -315,11 +315,7 @@ export const useEcion = () => {
         console.log('✅ Allowance and webhooks updated:', data);
         setTokenAllowance(data.allowance);
         
-        if (data.isActive) {
-          toast.success('Allowance approved! You can now receive tips.', { duration: 3000 });
-        } else {
-          toast.success('Allowance updated!', { duration: 2000 });
-        }
+        toast.success('Allowance approved!', { duration: 2000 });
       } else {
         console.error('❌ Failed to update allowance:', response.status);
         // Fallback to regular allowance fetch
