@@ -2222,6 +2222,7 @@ app.post('/api/update-allowance', async (req, res) => {
   try {
     const { userAddress, tokenAddress, transactionType } = req.body;
     console.log(`🔄 Updating allowance for ${userAddress} (${transactionType})`);
+    console.log(`📊 Request body:`, req.body);
     
     // Get current allowance from blockchain
     const { ethers } = require('ethers');
@@ -2240,6 +2241,7 @@ app.post('/api/update-allowance', async (req, res) => {
     
     // Update database with current blockchain allowance
     await updateDatabaseAllowance(userAddress, allowanceAmount);
+    console.log(`💾 Database updated with allowance: ${allowanceAmount}`);
     
     // Get user config to check min tip amount
     const userConfig = await database.getUserConfig(userAddress);
