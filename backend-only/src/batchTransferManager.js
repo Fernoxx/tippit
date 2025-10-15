@@ -55,10 +55,10 @@ class BatchTransferManager {
   async addTipToBatch(interaction, authorConfig) {
     const userKey = interaction.authorAddress.toLowerCase();
     
-    // Check allowance from database first - skip if user can't afford any tip (NO API CALLS)
-    const databaseAllowanceCheck = await this.checkDatabaseAllowance(interaction.authorAddress, authorConfig);
-    if (!databaseAllowanceCheck.canAfford) {
-      console.log(`⏭️ Skipping tip - user ${interaction.authorAddress} has insufficient database allowance: ${databaseAllowanceCheck.allowanceAmount} < ${databaseAllowanceCheck.minTipAmount}`);
+    // Check allowance directly from blockchain - most accurate and up-to-date
+    const blockchainAllowanceCheck = await this.checkBlockchainAllowance(interaction.authorAddress, authorConfig);
+    if (!blockchainAllowanceCheck.canAfford) {
+      console.log(`⏭️ Skipping tip - user ${interaction.authorAddress} has insufficient blockchain allowance: ${blockchainAllowanceCheck.allowanceAmount} < ${blockchainAllowanceCheck.minTipAmount}`);
       
       // Clean up webhook and homepage immediately when allowance < min tip
       await this.cleanupInactiveUser(interaction.authorAddress);
@@ -132,6 +132,48 @@ class BatchTransferManager {
       };
     } catch (error) {
       console.error('❌ Error checking database allowance:', error);
+      return { canAfford: false, allowanceAmount: 0, minTipAmount: 0 };
+    }
+  }
+
+  // NEW: Check allowance directly from blockchain (most accurate)
+  async checkBlockchainAllowance(userAddress, authorConfig) {
+    try {
+      const userConfig = await database.getUserConfig(userAddress);
+      if (!userConfig) {
+        return { canAfford: false, allowanceAmount: 0, minTipAmount: 0 };
+      }
+      
+      // Get allowance directly from blockchain
+      const { ethers } = require('ethers');
+      const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+      const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+      
+      const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+      const tokenContract = new ethers.Contract(tokenAddress, [
+        "function allowance(address owner, address spender) view returns (uint256)"
+      ], provider);
+      
+      const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
+      const tokenDecimals = await getTokenDecimals(tokenAddress);
+      const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
+      
+      // Calculate minimum tip amount
+      const likeAmount = parseFloat(authorConfig.likeAmount || '0');
+      const recastAmount = parseFloat(authorConfig.recastAmount || '0');
+      const replyAmount = parseFloat(authorConfig.replyAmount || '0');
+      const tipAmounts = [likeAmount, recastAmount, replyAmount].filter(amount => amount > 0);
+      const minTipAmount = tipAmounts.length > 0 ? Math.min(...tipAmounts) : 0;
+      
+      console.log(`💰 Blockchain allowance check: ${userAddress} - allowance: ${allowanceAmount}, min tip: ${minTipAmount}`);
+      
+      return {
+        canAfford: allowanceAmount >= minTipAmount,
+        allowanceAmount: allowanceAmount,
+        minTipAmount: minTipAmount
+      };
+    } catch (error) {
+      console.error(`❌ Error checking blockchain allowance for ${userAddress}:`, error);
       return { canAfford: false, allowanceAmount: 0, minTipAmount: 0 };
     }
   }
@@ -705,8 +747,8 @@ class BatchTransferManager {
             continue;
           }
           
-          // Check if user still has sufficient allowance using database (NO API CALLS)
-          const allowanceCheck = await this.checkDatabaseAllowance(userAddress, tips.find(t => t.interaction.authorAddress === userAddress).authorConfig);
+          // Check if user still has sufficient allowance using blockchain (most accurate)
+          const allowanceCheck = await this.checkBlockchainAllowance(userAddress, tips.find(t => t.interaction.authorAddress === userAddress).authorConfig);
           
           if (!allowanceCheck.canAfford) {
             console.log(`🔄 User ${userAddress} has insufficient database allowance after tip - cleaning up`);
