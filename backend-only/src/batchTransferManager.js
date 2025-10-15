@@ -56,6 +56,12 @@ class BatchTransferManager {
   async addTipToBatch(interaction, authorConfig) {
     const userKey = interaction.authorAddress.toLowerCase();
     
+    // Check if user is marked as inactive in database
+    if (authorConfig && authorConfig.isActive === false) {
+      console.log(`⏭️ Skipping tip - user ${interaction.authorAddress} is marked as inactive in database`);
+      return { success: false, reason: 'User inactive' };
+    }
+    
     // Check allowance directly from blockchain - most accurate and up-to-date
     const blockchainAllowanceCheck = await this.checkBlockchainAllowance(interaction.authorAddress, authorConfig);
     if (!blockchainAllowanceCheck.canAfford) {
