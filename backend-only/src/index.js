@@ -1972,6 +1972,59 @@ async function checkActiveUsersAllowances() {
   }
 }
 
+// Test endpoint to check FID and webhook system status
+app.get('/api/test-fid-webhook-system', async (req, res) => {
+  try {
+    console.log('🔍 Testing FID and webhook system...');
+    
+    // Test database functions
+    const webhookId = await database.getWebhookId();
+    const trackedFids = await database.getTrackedFids();
+    const activeUsers = await database.getActiveUsersWithApprovals();
+    
+    // Test a sample user
+    let sampleUserTest = null;
+    if (activeUsers && activeUsers.length > 0) {
+      const sampleUser = activeUsers[0];
+      const userConfig = await database.getUserConfig(sampleUser);
+      const fid = await getUserFid(sampleUser);
+      const hasAllowance = await checkUserAllowanceForWebhook(sampleUser);
+      
+      sampleUserTest = {
+        userAddress: sampleUser,
+        fid: fid,
+        hasAllowance: hasAllowance,
+        userConfig: userConfig ? {
+          lastAllowance: userConfig.lastAllowance,
+          lastActivity: userConfig.lastActivity,
+          likeAmount: userConfig.likeAmount,
+          recastAmount: userConfig.recastAmount,
+          replyAmount: userConfig.replyAmount
+        } : null
+      };
+    }
+    
+    res.json({
+      success: true,
+      systemStatus: {
+        webhookId: webhookId,
+        trackedFidsCount: trackedFids ? trackedFids.length : 0,
+        trackedFids: trackedFids,
+        activeUsersCount: activeUsers ? activeUsers.length : 0,
+        sampleUserTest: sampleUserTest
+      },
+      message: 'FID and webhook system status retrieved'
+    });
+    
+  } catch (error) {
+    console.error('Test FID webhook system error:', error);
+    res.status(500).json({ 
+      error: 'Failed to test FID webhook system',
+      details: error.message
+    });
+  }
+});
+
 // Test endpoint for bulk notifications with filters
 app.post('/api/test-bulk-notification', async (req, res) => {
   try {
