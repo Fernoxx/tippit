@@ -30,6 +30,9 @@ class BatchTransferManager {
     
     // Pending tips queue
     this.pendingTips = [];
+    
+    // Blocked users (insufficient allowance)
+    this.blockedUsers = new Set();
     this.isProcessing = false;
     
     // Batch processing is handled by EcionBatch contract
@@ -56,10 +59,10 @@ class BatchTransferManager {
   async addTipToBatch(interaction, authorConfig) {
     const userKey = interaction.authorAddress.toLowerCase();
     
-    // Check if user is marked as inactive in database
-    if (authorConfig && authorConfig.isActive === false) {
-      console.log(`⏭️ Skipping tip - user ${interaction.authorAddress} is marked as inactive in database`);
-      return { success: false, reason: 'User inactive' };
+    // Check if user is in blocklist (insufficient allowance)
+    if (this.blockedUsers.has(userKey)) {
+      console.log(`⏭️ Skipping tip - user ${interaction.authorAddress} is in blocklist (insufficient allowance)`);
+      return { success: false, reason: 'User blocked - insufficient allowance' };
     }
     
     // Check allowance directly from blockchain - most accurate and up-to-date
@@ -185,25 +188,21 @@ class BatchTransferManager {
     }
   }
 
-  // NEW: Clean up inactive user (update database, remove from webhook and homepage)
+  // NEW: Clean up inactive user (add to blocklist, update database, remove from webhook and homepage)
   async cleanupInactiveUser(userAddress) {
     try {
       console.log(`🧹 Cleaning up inactive user: ${userAddress}`);
+      const userKey = userAddress.toLowerCase();
       
-      // 1. Update database allowance to 0 (user is inactive)
+      // 1. Add user to blocklist (prevents all future tip processing)
+      this.blockedUsers.add(userKey);
+      console.log(`🚫 Added ${userAddress} to blocklist - insufficient allowance`);
+      
+      // 2. Update database allowance to 0 (user is inactive)
       const { updateDatabaseAllowance } = require('./index');
       if (updateDatabaseAllowance) {
         await updateDatabaseAllowance(userAddress, 0);
         console.log(`💾 Updated database allowance to 0 for ${userAddress}`);
-      }
-      
-      // 2. Mark user as inactive in database (this will prevent tip processing)
-      const userConfig = await database.getUserConfig(userAddress);
-      if (userConfig) {
-        userConfig.isActive = false;
-        userConfig.lastAllowance = 0;
-        await database.setUserConfig(userAddress, userConfig);
-        console.log(`🚫 Marked user ${userAddress} as inactive in database`);
       }
       
       // 3. Try to remove FID from webhook (if FID exists)
@@ -214,7 +213,7 @@ class BatchTransferManager {
           console.log(`🔗 Updated webhook status for ${userAddress}`);
         } catch (webhookError) {
           console.log(`⚠️ Webhook update failed for ${userAddress}: ${webhookError.message}`);
-          console.log(`📝 User ${userAddress} marked as inactive in database (webhook removal skipped)`);
+          console.log(`📝 User ${userAddress} added to blocklist (webhook removal skipped)`);
         }
       }
       
@@ -787,6 +786,22 @@ class BatchTransferManager {
     } catch (error) {
       console.log(`⚠️ Error in webhook status update: ${error.message} - continuing`);
     }
+  }
+
+  // NEW: Remove user from blocklist when allowance increases
+  removeFromBlocklist(userAddress) {
+    const userKey = userAddress.toLowerCase();
+    if (this.blockedUsers.has(userKey)) {
+      this.blockedUsers.delete(userKey);
+      console.log(`✅ Removed ${userAddress} from blocklist - allowance sufficient`);
+      return true;
+    }
+    return false;
+  }
+
+  // NEW: Check if user is blocked
+  isUserBlocked(userAddress) {
+    return this.blockedUsers.has(userAddress.toLowerCase());
   }
 }
 

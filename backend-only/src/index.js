@@ -2264,6 +2264,13 @@ app.post('/api/update-allowance', async (req, res) => {
     // Update webhook and homepage based on allowance
     if (allowanceAmount >= minTipAmount) {
       console.log(`✅ User ${userAddress} has sufficient allowance - keeping active`);
+      
+      // Remove from blocklist if user was blocked
+      const { batchTransferManager } = require('./batchTransferManager');
+      if (batchTransferManager && batchTransferManager.removeFromBlocklist) {
+        batchTransferManager.removeFromBlocklist(userAddress);
+      }
+      
       const fid = await getUserFid(userAddress);
       if (fid) {
         await addFidToWebhook(fid);
@@ -2272,6 +2279,14 @@ app.post('/api/update-allowance', async (req, res) => {
       console.log(`🏠 User remains in homepage cache`);
     } else {
       console.log(`❌ User ${userAddress} has insufficient allowance - removing from active`);
+      
+      // Add to blocklist to prevent future tip processing
+      const { batchTransferManager } = require('./batchTransferManager');
+      if (batchTransferManager && batchTransferManager.blockedUsers) {
+        batchTransferManager.blockedUsers.add(userAddress.toLowerCase());
+        console.log(`🚫 Added ${userAddress} to blocklist - insufficient allowance`);
+      }
+      
       const fid = await getUserFid(userAddress);
       if (fid) {
         await removeFidFromWebhook(fid);

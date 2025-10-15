@@ -255,6 +255,18 @@ async function webhookHandler(req, res) {
       });
     }
 
+    // Check if user is blocked (insufficient allowance) - skip processing entirely
+    if (batchTransferManager.isUserBlocked && batchTransferManager.isUserBlocked(interaction.authorAddress)) {
+      console.log(`⏭️ Skipping webhook event - user ${interaction.authorAddress} is in blocklist (insufficient allowance)`);
+      return res.status(200).json({
+        success: true,
+        processed: false,
+        instant: true,
+        interactionType: interaction.interactionType,
+        reason: 'User blocked - insufficient allowance'
+      });
+    }
+
     // Process tip through batch system (like Noice - 1 minute batches for gas efficiency)
     const result = await batchTransferManager.addTipToBatch(interaction, authorConfig);
     
