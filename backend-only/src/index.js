@@ -915,32 +915,46 @@ async function getTokenDecimals(tokenAddress) {
   }
 }
 
-// Token allowance endpoint
+// Token allowance endpoint - Returns database allowance (remaining after tips) or blockchain allowance (if no database record)
 app.get('/api/allowance/:userAddress/:tokenAddress', async (req, res) => {
   try {
     const { userAddress, tokenAddress } = req.params;
-    const { ethers } = require('ethers');
     
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    // Check if user has database allowance (remaining after tips)
+    const userConfig = await database.getUserConfig(userAddress);
     
-    // Check allowance for ECION BATCH CONTRACT, not backend wallet!
-    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
-    
-    const tokenContract = new ethers.Contract(tokenAddress, [
-      "function allowance(address owner, address spender) view returns (uint256)"
-    ], provider);
-    
-    const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
-    const tokenDecimals = await getTokenDecimals(tokenAddress);
-    const formattedAllowance = ethers.formatUnits(allowance, tokenDecimals);
-    
-    console.log(`📊 Allowance check: User ${userAddress} approved ${formattedAllowance} tokens (${tokenAddress}) to EcionBatch contract ${ecionBatchAddress}`);
-    
-    res.json({ 
-      allowance: formattedAllowance,
-      tokenAddress: tokenAddress,
-      decimals: tokenDecimals
-    });
+    if (userConfig && userConfig.lastAllowance) {
+      // Return database allowance (remaining after tips)
+      console.log(`📊 Database allowance: User ${userAddress} has ${userConfig.lastAllowance} remaining (${tokenAddress})`);
+      res.json({ 
+        allowance: userConfig.lastAllowance,
+        tokenAddress: tokenAddress,
+        source: 'database'
+      });
+    } else {
+      // Fallback to blockchain if no database record (first time approval)
+      const { ethers } = require('ethers');
+      const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+      
+      // Check allowance for ECION BATCH CONTRACT, not backend wallet!
+      const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+      
+      const tokenContract = new ethers.Contract(tokenAddress, [
+        "function allowance(address owner, address spender) view returns (uint256)"
+      ], provider);
+      
+      const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
+      const tokenDecimals = await getTokenDecimals(tokenAddress);
+      const formattedAllowance = ethers.formatUnits(allowance, tokenDecimals);
+      
+      console.log(`📊 Blockchain allowance: User ${userAddress} approved ${formattedAllowance} tokens (${tokenAddress}) to EcionBatch contract ${ecionBatchAddress}`);
+      
+      res.json({ 
+        allowance: formattedAllowance,
+        tokenAddress: tokenAddress,
+        source: 'blockchain'
+      });
+    }
   } catch (error) {
     console.error('Allowance fetch error:', error);
     res.status(500).json({ error: 'Failed to fetch allowance' });
