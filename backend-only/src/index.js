@@ -915,46 +915,32 @@ async function getTokenDecimals(tokenAddress) {
   }
 }
 
-// Token allowance endpoint - Returns database allowance (remaining after tips) or blockchain allowance (if no database record)
+// Token allowance endpoint - Always returns blockchain allowance (what user approved)
 app.get('/api/allowance/:userAddress/:tokenAddress', async (req, res) => {
   try {
     const { userAddress, tokenAddress } = req.params;
+    const { ethers } = require('ethers');
     
-    // Check if user has database allowance (remaining after tips)
-    const userConfig = await database.getUserConfig(userAddress);
+    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
     
-    if (userConfig && userConfig.lastAllowance) {
-      // Return database allowance (remaining after tips)
-      console.log(`📊 Database allowance: User ${userAddress} has ${userConfig.lastAllowance} remaining (${tokenAddress})`);
-      res.json({ 
-        allowance: userConfig.lastAllowance,
-        tokenAddress: tokenAddress,
-        source: 'database'
-      });
-    } else {
-      // Fallback to blockchain if no database record (first time approval)
-      const { ethers } = require('ethers');
-      const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-      
-      // Check allowance for ECION BATCH CONTRACT, not backend wallet!
-      const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
-      
-      const tokenContract = new ethers.Contract(tokenAddress, [
-        "function allowance(address owner, address spender) view returns (uint256)"
-      ], provider);
-      
-      const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
-      const tokenDecimals = await getTokenDecimals(tokenAddress);
-      const formattedAllowance = ethers.formatUnits(allowance, tokenDecimals);
-      
-      console.log(`📊 Blockchain allowance: User ${userAddress} approved ${formattedAllowance} tokens (${tokenAddress}) to EcionBatch contract ${ecionBatchAddress}`);
-      
-      res.json({ 
-        allowance: formattedAllowance,
-        tokenAddress: tokenAddress,
-        source: 'blockchain'
-      });
-    }
+    // Check allowance for ECION BATCH CONTRACT, not backend wallet!
+    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    
+    const tokenContract = new ethers.Contract(tokenAddress, [
+      "function allowance(address owner, address spender) view returns (uint256)"
+    ], provider);
+    
+    const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
+    const tokenDecimals = await getTokenDecimals(tokenAddress);
+    const formattedAllowance = ethers.formatUnits(allowance, tokenDecimals);
+    
+    console.log(`📊 Blockchain allowance: User ${userAddress} approved ${formattedAllowance} tokens (${tokenAddress}) to EcionBatch contract ${ecionBatchAddress}`);
+    
+    res.json({ 
+      allowance: formattedAllowance,
+      tokenAddress: tokenAddress,
+      decimals: tokenDecimals
+    });
   } catch (error) {
     console.error('Allowance fetch error:', error);
     res.status(500).json({ error: 'Failed to fetch allowance' });
@@ -2086,6 +2072,82 @@ async function removeUserFromHomepageCache(userAddress) {
     return false;
   }
 }
+
+// NEW: Update allowance endpoint for instant database/webhook updates after user approves/revokes
+app.post('/api/update-allowance', async (req, res) => {
+  try {
+    const { userAddress, tokenAddress, transactionType } = req.body;
+    console.log(`🔄 Updating allowance for ${userAddress} (${transactionType})`);
+    
+    // Get current allowance from blockchain
+    const { ethers } = require('ethers');
+    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    
+    const tokenContract = new ethers.Contract(tokenAddress, [
+      "function allowance(address owner, address spender) view returns (uint256)"
+    ], provider);
+    
+    const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
+    const tokenDecimals = await getTokenDecimals(tokenAddress);
+    const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
+    
+    console.log(`📊 Blockchain allowance: ${allowanceAmount}`);
+    
+    // Update database with current blockchain allowance
+    await updateDatabaseAllowance(userAddress, allowanceAmount);
+    
+    // Get user config to check min tip amount
+    const userConfig = await database.getUserConfig(userAddress);
+    if (!userConfig) {
+      return res.json({ success: false, error: 'User config not found' });
+    }
+    
+    // Calculate minimum tip amount
+    const likeAmount = parseFloat(userConfig.likeAmount || '0');
+    const recastAmount = parseFloat(userConfig.recastAmount || '0');
+    const replyAmount = parseFloat(userConfig.replyAmount || '0');
+    const tipAmounts = [likeAmount, recastAmount, replyAmount].filter(amount => amount > 0);
+    const minTipAmount = tipAmounts.length > 0 ? Math.min(...tipAmounts) : 0;
+    
+    console.log(`💰 Min tip amount: ${minTipAmount}, Current allowance: ${allowanceAmount}`);
+    
+    // Update webhook and homepage based on allowance
+    if (allowanceAmount >= minTipAmount) {
+      console.log(`✅ User ${userAddress} has sufficient allowance - keeping active`);
+      const fid = await getUserFid(userAddress);
+      if (fid) {
+        await addFidToWebhook(fid);
+        console.log(`🔗 Added FID ${fid} to webhook`);
+      }
+      console.log(`🏠 User remains in homepage cache`);
+    } else {
+      console.log(`❌ User ${userAddress} has insufficient allowance - removing from active`);
+      const fid = await getUserFid(userAddress);
+      if (fid) {
+        await removeFidFromWebhook(fid);
+        console.log(`🔗 Removed FID ${fid} from webhook`);
+      }
+      await removeUserFromHomepageCache(userAddress);
+      console.log(`🏠 Removed user from homepage cache`);
+    }
+    
+    res.json({
+      success: true,
+      allowance: allowanceAmount,
+      minTipAmount: minTipAmount,
+      isActive: allowanceAmount >= minTipAmount,
+      webhookUpdated: true,
+      homepageUpdated: true
+    });
+  } catch (error) {
+    console.error('❌ Error updating allowance:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update allowance'
+    });
+  }
+});
 
 // Export functions for use in other modules
 module.exports = {

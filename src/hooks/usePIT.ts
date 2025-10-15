@@ -71,9 +71,10 @@ export const useEcion = () => {
   // Handle transaction success/failure with useEffect
   useEffect(() => {
     if (isTxSuccess && pendingTxHash) {
-      console.log('✅ Transaction confirmed, refreshing allowance...');
+      console.log('✅ Transaction confirmed, updating allowance and webhooks...');
       if (userConfig?.tokenAddress) {
-        fetchTokenAllowance(userConfig.tokenAddress);
+        // Call new endpoint to update database and webhooks instantly
+        updateAllowanceAndWebhooks(userConfig.tokenAddress);
       }
       setPendingTxHash(null);
     }
@@ -291,6 +292,46 @@ export const useEcion = () => {
     }
   };
 
+  // NEW: Update allowance and webhooks after transaction
+  const updateAllowanceAndWebhooks = async (tokenAddress: string) => {
+    if (!address) return;
+    
+    try {
+      console.log('🔄 Updating allowance and webhooks for token:', tokenAddress);
+      const response = await fetch(`${BACKEND_URL}/api/update-allowance`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userAddress: address,
+          tokenAddress: tokenAddress,
+          transactionType: 'approval'
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Allowance and webhooks updated:', data);
+        setTokenAllowance(data.allowance);
+        
+        if (data.isActive) {
+          toast.success('Allowance approved! You can now receive tips.', { duration: 3000 });
+        } else {
+          toast.success('Allowance updated!', { duration: 2000 });
+        }
+      } else {
+        console.error('❌ Failed to update allowance:', response.status);
+        // Fallback to regular allowance fetch
+        fetchTokenAllowance(tokenAddress);
+      }
+    } catch (error) {
+      console.error('Error updating allowance and webhooks:', error);
+      // Fallback to regular allowance fetch
+      fetchTokenAllowance(tokenAddress);
+    }
+  };
+
   const revokeConfig = async () => {
     // This deactivates the user's tipping configuration
     if (!address) return;
@@ -319,6 +360,7 @@ export const useEcion = () => {
     revokeConfig,
     fetchUserConfig,
     fetchTokenAllowance,
+    updateAllowanceAndWebhooks,
     isSettingConfig: isLoading,
     isApproving: isApproving || isTxPending || isTxConfirming,
     isRevokingAllowance: isRevokingAllowance || isTxPending || isTxConfirming,
