@@ -337,7 +337,10 @@ class BatchTransferManager {
       const tipData = this.ecionBatchManager.prepareTokenTips(transfers);
       const results = await this.ecionBatchManager.executeBatchTips(tipData);
       
-      console.log(`✅ EcionBatch successful: ${results.results.length} tips processed`);
+      console.log(`✅ EcionBatch successful: ${results.successfulCount || results.results.length} tips processed`);
+      if (results.failedCount > 0) {
+        console.log(`❌ EcionBatch had ${results.failedCount} failed tips`);
+      }
       
       // Update database for all successful tips
       for (const result of results.results) {

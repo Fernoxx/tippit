@@ -475,26 +475,67 @@ class EcionBatchManager {
       if (receipt.status === 1) {
         console.log(`✅ Batch tip confirmed: ${tx.hash} (Gas: ${receipt.gasUsed.toString()})`);
         
-        // The contract returns a bool[] array, but we can't easily access it from the receipt
-        // So we'll assume all tips succeeded if the transaction succeeded
-        // (The contract handles failures internally with try-catch)
-        const successResults = tips.map((tip, index) => ({
-          success: true,
-          from: tip.from,
-          to: tip.to,
-          amount: tip.amount,
-          index
-        }));
-        
-        console.log(`✅ Parsed ${successResults.length} successful tips from batch`);
-        
-        return {
-          success: true,
-          hash: tx.hash,
-          gasUsed: receipt.gasUsed.toString(),
-          type: 'ecion_batch',
-          results: successResults
-        };
+        // Get the actual return value from the contract to see which tips succeeded
+        try {
+          console.log('🔍 Checking individual tip results from contract...');
+          const successArray = await contract.batchTip.staticCall(froms, tos, tokens, amounts);
+          console.log(`📊 Contract returned success array:`, successArray);
+          
+          // Map the success array to our tips
+          const successResults = tips.map((tip, index) => ({
+            success: successArray[index] || false,
+            from: tip.from,
+            to: tip.to,
+            amount: tip.amount,
+            index
+          }));
+          
+          const successfulTips = successResults.filter(result => result.success);
+          const failedTips = successResults.filter(result => !result.success);
+          
+          console.log(`✅ Parsed ${successfulTips.length} successful tips from batch`);
+          if (failedTips.length > 0) {
+            console.log(`❌ ${failedTips.length} tips failed in batch`);
+            failedTips.forEach((tip, index) => {
+              console.log(`  ❌ Failed tip ${index + 1}: ${tip.from} → ${tip.to} (${tip.amount})`);
+            });
+          }
+          
+          return {
+            success: true,
+            hash: tx.hash,
+            gasUsed: receipt.gasUsed.toString(),
+            type: 'ecion_batch',
+            results: successResults,
+            successfulCount: successfulTips.length,
+            failedCount: failedTips.length
+          };
+          
+        } catch (staticCallError) {
+          console.log(`⚠️ Could not get individual tip results: ${staticCallError.message}`);
+          console.log(`📊 Falling back to assuming all tips succeeded`);
+          
+          // Fallback: assume all tips succeeded if we can't get the return value
+          const successResults = tips.map((tip, index) => ({
+            success: true,
+            from: tip.from,
+            to: tip.to,
+            amount: tip.amount,
+            index
+          }));
+          
+          console.log(`✅ Parsed ${successResults.length} successful tips from batch (fallback)`);
+          
+          return {
+            success: true,
+            hash: tx.hash,
+            gasUsed: receipt.gasUsed.toString(),
+            type: 'ecion_batch',
+            results: successResults,
+            successfulCount: successResults.length,
+            failedCount: 0
+          };
+        }
       } else {
         console.log(`❌ EcionBatch transaction reverted: ${tx.hash} (Status: ${receipt.status})`);
         console.log(`❌ REVERT ANALYSIS:`);
