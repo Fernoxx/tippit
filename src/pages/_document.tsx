@@ -36,13 +36,12 @@ export default function Document() {
         <meta name="farcaster:miniapp:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
         <meta name="farcaster:miniapp:manifest" content="https://ecion.vercel.app/.well-known/farcaster.json" />
         
-        {/* Essential embed recognition */}
-        <meta name="farcaster:embed" content="true" />
-        <meta name="farcaster:embed:type" content="miniapp" />
-        <meta name="farcaster:embed:url" content="https://ecion.vercel.app" />
-        <meta name="farcaster:embed:title" content="Ecion – Tip Your Audience" />
-        <meta name="farcaster:embed:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
-        <meta name="farcaster:embed:image" content="https://ecion.vercel.app/og-image.png" />
+        {/* Farcaster Mini App Embed */}
+        <meta name="fc:miniapp" content="true" />
+        <meta name="fc:miniapp:version" content="1" />
+        <meta name="fc:miniapp:image" content="https://ecion.vercel.app/og-image.png" />
+        <meta name="fc:miniapp:button" content="Start Tipping" />
+        <meta name="fc:miniapp:action" content="https://ecion.vercel.app" />
         
         {/* Basic Meta Tags */}
         <meta name="description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
