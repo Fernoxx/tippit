@@ -1875,6 +1875,103 @@ setInterval(async () => {
   await syncAllUsersAllowancesFromBlockchain();
 }, 12 * 60 * 60 * 1000); // Every 12 hours
 
+// Real-time allowance monitoring for active users (every 30 seconds)
+setInterval(async () => {
+  try {
+    console.log('🔍 Running real-time allowance check...');
+    await checkActiveUsersAllowances();
+  } catch (error) {
+    console.log('⚠️ Error in real-time allowance check:', error.message);
+  }
+}, 30 * 1000); // Every 30 seconds
+
+// Check allowances for recently active users in real-time
+async function checkActiveUsersAllowances() {
+  try {
+    // Get users who have been active in the last hour
+    const oneHourAgo = Date.now() - (60 * 60 * 1000);
+    const activeUsers = await database.getActiveUsersWithApprovals();
+    
+    if (!activeUsers || activeUsers.length === 0) {
+      return;
+    }
+    
+    const { ethers } = require('ethers');
+    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    
+    let checkedCount = 0;
+    let updatedCount = 0;
+    
+    for (const userAddress of activeUsers) {
+      try {
+        // Get user config to check if they were recently active
+        const userConfig = await database.getUserConfig(userAddress);
+        if (!userConfig) continue;
+        
+        // Only check users who have been active in the last hour
+        const lastActivity = userConfig.lastActivity || 0;
+        if (lastActivity < oneHourAgo) {
+          continue; // Skip inactive users
+        }
+        
+        const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+        const currentDatabaseAllowance = userConfig.lastAllowance || 0;
+        
+        // Get current allowance from blockchain
+        const tokenContract = new ethers.Contract(tokenAddress, [
+          "function decimals() view returns (uint8)"
+        ], provider);
+        
+        const decimals = await tokenContract.decimals();
+        
+        const allowanceContract = new ethers.Contract(tokenAddress, [
+          "function allowance(address owner, address spender) view returns (uint256)"
+        ], provider);
+        
+        const allowance = await allowanceContract.allowance(userAddress, ecionBatchAddress);
+        const currentBlockchainAllowance = parseFloat(ethers.formatUnits(allowance, decimals));
+        
+        // Check if allowance has changed significantly (more than 1% difference)
+        const allowanceDifference = Math.abs(currentBlockchainAllowance - currentDatabaseAllowance);
+        const significantChange = allowanceDifference > Math.max(currentDatabaseAllowance * 0.01, 0.001); // 1% or 0.001 minimum
+        
+        if (significantChange) {
+          console.log(`🔄 Allowance changed for ${userAddress}: ${currentDatabaseAllowance} → ${currentBlockchainAllowance}`);
+          
+          // Update database with new allowance
+          await updateDatabaseAllowance(userAddress, currentBlockchainAllowance);
+          
+          // Update webhook status immediately
+          try {
+            await updateUserWebhookStatus(userAddress);
+            console.log(`🔗 Updated webhook status for ${userAddress} after real-time allowance change`);
+          } catch (webhookError) {
+            console.log(`⚠️ Webhook update failed for ${userAddress}: ${webhookError.message}`);
+          }
+          
+          updatedCount++;
+        }
+        
+        checkedCount++;
+        
+        // Small delay to avoid rate limits
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+      } catch (error) {
+        console.log(`⚠️ Error checking allowance for ${userAddress}: ${error.message}`);
+      }
+    }
+    
+    if (checkedCount > 0) {
+      console.log(`🔍 Real-time allowance check completed: ${checkedCount} checked, ${updatedCount} updated`);
+    }
+    
+  } catch (error) {
+    console.log(`⚠️ Error in real-time allowance check: ${error.message}`);
+  }
+}
+
 // Test endpoint for bulk notifications with filters
 app.post('/api/test-bulk-notification', async (req, res) => {
   try {
