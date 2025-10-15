@@ -2040,7 +2040,7 @@ app.get('/api/homepage', async (req, res) => {
                 usersWithAllowance.push({
                   cast: {
                     ...cast,
-                    farcasterUrl: `https://warpcast.com/${farcasterUser.username}/${cast.hash}`,
+                    farcasterUrl: `https://farcaster.xyz/${farcasterUser.username}/${cast.hash}`,
                     tipper: {
                       userAddress,
                       username: farcasterUser.username,
