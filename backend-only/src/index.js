@@ -1881,6 +1881,150 @@ setInterval(async () => {
 // 2. Bulk sync every 12 hours (handled in syncAllUsersAllowancesFromBlockchain)
 // 3. Homepage filtering already removes users with insufficient allowance
 
+// COMPREHENSIVE USER ALLOWANCE SYNC - Updates all users' database allowance from blockchain
+app.post('/api/sync-all-users-allowance', async (req, res) => {
+  try {
+    console.log('🔄 Starting comprehensive user allowance sync...');
+    
+    const { ethers } = require('ethers');
+    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    
+    // Get all users with active configurations
+    const activeUsers = await database.getActiveUsersWithApprovals();
+    console.log(`📊 Found ${activeUsers.length} active users to sync`);
+    
+    const results = [];
+    let syncedCount = 0;
+    let errorCount = 0;
+    let removedFromWebhookCount = 0;
+    let removedFromHomepageCount = 0;
+    
+    for (const userAddress of activeUsers) {
+      try {
+        console.log(`\n🔍 Syncing user: ${userAddress}`);
+        
+        // Get user config to determine token address
+        const userConfig = await database.getUserConfig(userAddress);
+        if (!userConfig || !userConfig.tokenAddress) {
+          console.log(`⚠️ No config or token address for ${userAddress} - skipping`);
+          continue;
+        }
+        
+        const tokenAddress = userConfig.tokenAddress;
+        console.log(`💰 Token: ${tokenAddress}`);
+        
+        // Get current blockchain allowance
+        const tokenContract = new ethers.Contract(tokenAddress, [
+          "function allowance(address owner, address spender) view returns (uint256)"
+        ], provider);
+        
+        const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
+        const tokenDecimals = await getTokenDecimals(tokenAddress);
+        const currentBlockchainAllowance = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
+        
+        console.log(`📊 Blockchain allowance: ${currentBlockchainAllowance}`);
+        
+        // Update database with current blockchain allowance
+        const previousAllowance = userConfig.lastAllowance || 0;
+        userConfig.lastAllowance = currentBlockchainAllowance;
+        userConfig.lastAllowanceCheck = Date.now();
+        userConfig.lastActivity = Date.now();
+        
+        await database.setUserConfig(userAddress, userConfig);
+        console.log(`💾 Database updated: ${previousAllowance} → ${currentBlockchainAllowance}`);
+        
+        // Calculate minimum tip amount
+        const likeAmount = parseFloat(userConfig.likeAmount || '0');
+        const recastAmount = parseFloat(userConfig.recastAmount || '0');
+        const replyAmount = parseFloat(userConfig.replyAmount || '0');
+        const tipAmounts = [likeAmount, recastAmount, replyAmount].filter(amount => amount > 0);
+        const minTipAmount = tipAmounts.length > 0 ? Math.min(...tipAmounts) : 0;
+        
+        console.log(`💰 Min tip amount: ${minTipAmount}`);
+        
+        // Check if user should be removed from webhook and homepage
+        if (currentBlockchainAllowance < minTipAmount) {
+          console.log(`❌ User has insufficient allowance - removing from webhook and homepage`);
+          
+          // Remove from webhook
+          const fid = await getUserFid(userAddress);
+          if (fid) {
+            await removeFidFromWebhook(fid);
+            removedFromWebhookCount++;
+            console.log(`🔗 Removed FID ${fid} from webhook`);
+          }
+          
+          // Remove from homepage
+          await removeUserFromHomepageCache(userAddress);
+          removedFromHomepageCount++;
+          console.log(`🏠 Removed from homepage cache`);
+        } else {
+          console.log(`✅ User has sufficient allowance - keeping active`);
+          
+          // Ensure user is in webhook
+          const fid = await getUserFid(userAddress);
+          if (fid) {
+            await addFidToWebhook(fid);
+            console.log(`🔗 Ensured FID ${fid} is in webhook`);
+          }
+        }
+        
+        results.push({
+          userAddress,
+          tokenAddress,
+          previousAllowance,
+          currentAllowance: currentBlockchainAllowance,
+          minTipAmount,
+          isActive: currentBlockchainAllowance >= minTipAmount,
+          webhookUpdated: true,
+          homepageUpdated: currentBlockchainAllowance < minTipAmount
+        });
+        
+        syncedCount++;
+        console.log(`✅ Synced ${userAddress} successfully`);
+        
+        // Small delay to avoid rate limits
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+      } catch (error) {
+        console.error(`❌ Error syncing ${userAddress}:`, error.message);
+        errorCount++;
+        
+        results.push({
+          userAddress,
+          error: error.message,
+          synced: false
+        });
+      }
+    }
+    
+    console.log(`\n🎉 Comprehensive sync completed!`);
+    console.log(`📊 Results: ${syncedCount} synced, ${errorCount} errors`);
+    console.log(`🔗 Removed from webhook: ${removedFromWebhookCount}`);
+    console.log(`🏠 Removed from homepage: ${removedFromHomepageCount}`);
+    
+    res.json({
+      success: true,
+      message: 'Comprehensive user allowance sync completed',
+      totalUsers: activeUsers.length,
+      syncedCount,
+      errorCount,
+      removedFromWebhookCount,
+      removedFromHomepageCount,
+      results
+    });
+    
+  } catch (error) {
+    console.error('❌ Error in comprehensive sync:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to sync user allowances',
+      details: error.message
+    });
+  }
+});
+
 // Manual endpoint to update webhook FIDs for all users (when needed)
 app.post('/api/update-webhook-fids', async (req, res) => {
   try {
