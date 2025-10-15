@@ -1346,6 +1346,13 @@ async function updateUserWebhookStatus(userAddress) {
       return false;
     }
     
+    // Check if user is in blocklist first (instant check, zero API calls)
+    const { batchTransferManager } = require('./batchTransferManager');
+    if (batchTransferManager && batchTransferManager.isUserBlocked && batchTransferManager.isUserBlocked(userAddress)) {
+      console.log(`⏭️ Skipping webhook update for ${userAddress} - user is in blocklist (no Neynar calls needed)`);
+      return true; // Return true because blocklist handles this efficiently
+    }
+    
     const fid = await getUserFid(userAddress);
     if (!fid) {
       console.log(`⚠️ No FID found for address: ${userAddress} - skipping webhook update`);

@@ -217,23 +217,18 @@ class BatchTransferManager {
         console.log(`💾 Updated database allowance to 0 for ${userAddress}`);
       }
       
-      // 3. Try to remove FID from webhook (if FID exists)
-      const { updateUserWebhookStatus, removeUserFromHomepageCache } = require('./index');
-      if (updateUserWebhookStatus) {
+      // 3. Remove from homepage cache (no Neynar call needed - blocklist handles webhook filtering)
+      const { removeUserFromHomepageCache } = require('./index');
+      if (removeUserFromHomepageCache) {
         try {
-          await updateUserWebhookStatus(userAddress);
-          console.log(`🔗 Updated webhook status for ${userAddress}`);
-        } catch (webhookError) {
-          console.log(`⚠️ Webhook update failed for ${userAddress}: ${webhookError.message}`);
-          console.log(`📝 User ${userAddress} added to blocklist (webhook removal skipped)`);
+          await removeUserFromHomepageCache(userAddress);
+          console.log(`🏠 Removed ${userAddress} from homepage cache - insufficient allowance`);
+        } catch (error) {
+          console.log(`⚠️ Error removing ${userAddress} from homepage cache: ${error.message} - continuing`);
         }
       }
       
-      // 4. Remove from homepage cache
-      if (removeUserFromHomepageCache) {
-        await removeUserFromHomepageCache(userAddress);
-        console.log(`🏠 Removed ${userAddress} from homepage cache`);
-      }
+      console.log(`✅ User ${userAddress} cleanup complete - blocklist prevents future webhook processing`);
       
       return true;
     } catch (error) {
@@ -469,11 +464,7 @@ class BatchTransferManager {
                 // Add to blocklist to prevent future tip processing
                 this.blockedUsers.add(tip.interaction.authorAddress.toLowerCase());
                 console.log(`🚫 Added ${tip.interaction.authorAddress} to blocklist - insufficient allowance after tip`);
-                
-                const { updateUserWebhookStatus } = require('./index');
-                if (updateUserWebhookStatus) {
-                  await updateUserWebhookStatus(tip.interaction.authorAddress);
-                }
+                console.log(`✅ Blocklist prevents future webhook processing - no Neynar call needed`);
               }
               
               // Send earned tip notification to recipient
