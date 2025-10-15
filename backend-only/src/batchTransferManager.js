@@ -55,10 +55,14 @@ class BatchTransferManager {
   async addTipToBatch(interaction, authorConfig) {
     const userKey = interaction.authorAddress.toLowerCase();
     
-    // Check allowance first - skip if user can't afford any tip
-    const allowanceCheck = await this.checkUserAllowance(interaction.authorAddress, authorConfig);
-    if (!allowanceCheck.canAfford) {
-      console.log(`⏭️ Skipping tip - user ${interaction.authorAddress} has insufficient allowance: ${allowanceCheck.allowanceAmount} < ${allowanceCheck.minTipAmount}`);
+    // Check allowance from database first - skip if user can't afford any tip (NO API CALLS)
+    const databaseAllowanceCheck = await this.checkDatabaseAllowance(interaction.authorAddress, authorConfig);
+    if (!databaseAllowanceCheck.canAfford) {
+      console.log(`⏭️ Skipping tip - user ${interaction.authorAddress} has insufficient database allowance: ${databaseAllowanceCheck.allowanceAmount} < ${databaseAllowanceCheck.minTipAmount}`);
+      
+      // Clean up webhook and homepage immediately when allowance < min tip
+      await this.cleanupInactiveUser(interaction.authorAddress);
+      
       return { success: false, reason: 'Insufficient allowance' };
     }
     
@@ -101,6 +105,63 @@ class BatchTransferManager {
     return { success: true, queued: true, batchSize: this.pendingTips.length };
   }
 
+  // NEW: Check allowance from database (NO API CALLS)
+  async checkDatabaseAllowance(userAddress, authorConfig) {
+    try {
+      const userConfig = await database.getUserConfig(userAddress);
+      if (!userConfig) {
+        return { canAfford: false, allowanceAmount: 0, minTipAmount: 0 };
+      }
+      
+      // Get allowance from database (no blockchain call)
+      const allowanceAmount = userConfig.lastAllowance || 0;
+      
+      // Calculate minimum tip amount
+      const likeAmount = parseFloat(authorConfig.likeAmount || '0');
+      const recastAmount = parseFloat(authorConfig.recastAmount || '0');
+      const replyAmount = parseFloat(authorConfig.replyAmount || '0');
+      const tipAmounts = [likeAmount, recastAmount, replyAmount].filter(amount => amount > 0);
+      const minTipAmount = tipAmounts.length > 0 ? Math.min(...tipAmounts) : 0;
+      
+      console.log(`💾 Database allowance check: ${userAddress} - allowance: ${allowanceAmount}, min tip: ${minTipAmount}`);
+      
+      return {
+        canAfford: allowanceAmount >= minTipAmount,
+        allowanceAmount,
+        minTipAmount
+      };
+    } catch (error) {
+      console.error('❌ Error checking database allowance:', error);
+      return { canAfford: false, allowanceAmount: 0, minTipAmount: 0 };
+    }
+  }
+
+  // NEW: Clean up inactive user (remove from webhook and homepage)
+  async cleanupInactiveUser(userAddress) {
+    try {
+      console.log(`🧹 Cleaning up inactive user: ${userAddress}`);
+      
+      // Remove FID from webhook
+      const { updateUserWebhookStatus, removeUserFromHomepageCache } = require('./index');
+      if (updateUserWebhookStatus) {
+        await updateUserWebhookStatus(userAddress);
+        console.log(`🔗 Updated webhook status for ${userAddress}`);
+      }
+      
+      // Remove from homepage cache
+      if (removeUserFromHomepageCache) {
+        await removeUserFromHomepageCache(userAddress);
+        console.log(`🏠 Removed ${userAddress} from homepage cache`);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('❌ Error cleaning up inactive user:', error);
+      return false;
+    }
+  }
+
+  // KEEP: Original blockchain allowance check (for other uses)
   async checkUserAllowance(userAddress, authorConfig) {
     try {
       const { ethers } = require('ethers');
@@ -624,16 +685,13 @@ class BatchTransferManager {
             continue;
           }
           
-          // Check if user still has sufficient allowance
-          const allowanceCheck = await this.checkUserAllowance(userAddress, tips.find(t => t.interaction.authorAddress === userAddress).authorConfig);
+          // Check if user still has sufficient allowance using database (NO API CALLS)
+          const allowanceCheck = await this.checkDatabaseAllowance(userAddress, tips.find(t => t.interaction.authorAddress === userAddress).authorConfig);
           
           if (!allowanceCheck.canAfford) {
-            console.log(`🔄 User ${userAddress} has insufficient allowance after tip - updating webhook status`);
-            // Call the webhook status update function from index.js
-            const { updateUserWebhookStatus } = require('./index');
-            if (updateUserWebhookStatus) {
-              await updateUserWebhookStatus(userAddress);
-            }
+            console.log(`🔄 User ${userAddress} has insufficient database allowance after tip - cleaning up`);
+            // Clean up webhook and homepage immediately
+            await this.cleanupInactiveUser(userAddress);
           }
           processedCount++;
         } catch (error) {

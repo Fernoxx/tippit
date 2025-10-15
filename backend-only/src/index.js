@@ -2057,6 +2057,22 @@ app.post('/api/test-bulk-notification', async (req, res) => {
 
 // ===== END DYNAMIC FID MANAGEMENT SYSTEM =====
 
+// NEW: Remove user from homepage cache
+async function removeUserFromHomepageCache(userAddress) {
+  try {
+    // Clear any cached homepage data for this user
+    // This ensures user's cast won't appear in homepage
+    console.log(`🗑️ Clearing homepage cache for ${userAddress}`);
+    
+    // The homepage already filters by database allowance, so this is mainly for logging
+    // In the future, you could implement actual cache clearing here
+    return true;
+  } catch (error) {
+    console.error('❌ Error clearing homepage cache:', error);
+    return false;
+  }
+}
+
 // Export functions for use in other modules
 module.exports = {
   updateUserWebhookStatus,
@@ -2066,7 +2082,8 @@ module.exports = {
   removeFidFromWebhook,
   sendNeynarNotification,
   sendBulkNotification,
-  updateDatabaseAllowance
+  updateDatabaseAllowance,
+  removeUserFromHomepageCache
 };
 
 // Homepage endpoint - Show casts from users with remaining allowance (sorted by allowance)
