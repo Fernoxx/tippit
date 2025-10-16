@@ -141,13 +141,13 @@ class BatchTransferManager {
       const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
       
       // Force USDC token address for now to fix decimal issue
-      const tokenAddress = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC on Base
+      const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
       const tokenContract = new ethers.Contract(tokenAddress, [
         "function allowance(address owner, address spender) view returns (uint256)"
       ], provider);
       
       const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
-      const tokenDecimals = 6; // USDC has 6 decimals
+      const tokenDecimals = getTokenDecimals(tokenAddress);
       const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
       
       // Calculate total tip amount (like + recast + reply)
@@ -183,13 +183,13 @@ class BatchTransferManager {
       const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
       
       // Force USDC token address for now to fix decimal issue
-      const tokenAddress = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC on Base
+      const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
       const tokenContract = new ethers.Contract(tokenAddress, [
         "function allowance(address owner, address spender) view returns (uint256)"
       ], provider);
       
       const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
-      const tokenDecimals = 6; // USDC has 6 decimals
+      const tokenDecimals = getTokenDecimals(tokenAddress);
       
       console.log(`🔍 DEBUG checkBlockchainAllowance for ${userAddress}:`);
       console.log(`  - Token address: ${tokenAddress}`);
@@ -206,8 +206,8 @@ class BatchTransferManager {
       
       console.log(`  - Manual calculation: ${rawAllowance} / ${divisor} = ${manualCalculation}`);
       
-      // Use manual calculation instead of ethers.formatUnits to ensure correct conversion
-      const allowanceAmount = manualCalculation;
+      // Use ethers.formatUnits like the working frontend code
+      const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
       console.log(`  - ethers.formatUnits result: ${ethers.formatUnits(allowance, tokenDecimals)}`);
       console.log(`  - Final parsed allowance (manual): ${allowanceAmount}`);
       
