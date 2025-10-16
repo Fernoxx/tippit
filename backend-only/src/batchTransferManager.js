@@ -2,12 +2,12 @@ const { ethers } = require('ethers');
 const BatchTipManager = require('./batchTipManager');
 const EcionBatchManager = require('./ecionBatchManager');
 
-// Token decimals mapping (to avoid circular dependency)
+// Token decimals mapping (to avoid circular dependency) - all lowercase keys
 const TOKEN_DECIMALS = {
-  '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913': 6, // USDC
+  '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913': 6, // USDC
   '0x4200000000000000000000000000000000000006': 18, // WETH
-  '0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb': 18, // DAI
-  '0x940181a94A35A4569E4529A3CDfB74e38FD98631': 18, // AERO
+  '0x50c5725949a6f0c72e6c4a641f24049a917db0cb': 18, // DAI
+  '0x940181a94a35a4569e4529a3cdfb74e38fd98631': 18, // AERO
 };
 
 function getTokenDecimals(tokenAddress) {
