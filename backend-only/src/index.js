@@ -1984,7 +1984,7 @@ app.post('/api/sync-all-users-allowance', async (req, res) => {
         results.push({
           userAddress,
           tokenAddress,
-          previousAllowance,
+          previousAllowance: userConfig.lastAllowance || 0,
           currentAllowance: currentBlockchainAllowance,
           minTipAmount,
           isActive: currentBlockchainAllowance >= minTipAmount,
