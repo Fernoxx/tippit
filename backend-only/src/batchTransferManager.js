@@ -240,12 +240,7 @@ class BatchTransferManager {
       this.blockedUsers.add(userKey);
       console.log(`🚫 Added ${userAddress} to blocklist - insufficient allowance`);
       
-      // 2. Update database allowance to 0 (user is inactive)
-      const { updateDatabaseAllowance } = require('./index');
-      if (updateDatabaseAllowance) {
-        await updateDatabaseAllowance(userAddress, 0);
-        console.log(`💾 Updated database allowance to 0 for ${userAddress}`);
-      }
+      // 2. No database update needed - blocklist handles everything
       
       // 3. Remove from homepage cache (no Neynar call needed - blocklist handles webhook filtering)
       const { removeUserFromHomepageCache } = require('./index');

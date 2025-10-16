@@ -1366,10 +1366,7 @@ async function updateUserWebhookStatus(userAddress) {
         console.log(`✅ User ${userAddress} (FID: ${fid}) has sufficient allowance - added to webhook`);
       }
     } else {
-      const success = await removeFidFromWebhook(fid);
-      if (success) {
-        console.log(`✅ User ${userAddress} (FID: ${fid}) has insufficient allowance - removed from webhook`);
-      }
+      console.log(`✅ User ${userAddress} (FID: ${fid}) has insufficient allowance - blocklist will handle filtering`);
     }
     
     return true;
@@ -1472,10 +1469,7 @@ async function updateDatabaseAllowance(userAddress, allowanceAmount) {
       const minTipAmount = likeAmount + recastAmount + replyAmount;
       
       if (allowanceAmount < minTipAmount) {
-        console.log(`🚫 User ${userAddress} allowance ${allowanceAmount} < total tip ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount}) - removing from webhook`);
-        const fid = await getUserFid(userAddress);
-        if (fid) {
-          await removeFidFromWebhook(fid);
+        console.log(`🚫 User ${userAddress} allowance ${allowanceAmount} < total tip ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount}) - blocklist will handle filtering`);
           
           // Send allowance empty notification ONLY if:
           // 1. Previous allowance was > 0 (user had allowance before)
@@ -2289,11 +2283,7 @@ app.post('/api/update-allowance', async (req, res) => {
         console.log(`🚫 Added ${userAddress} to blocklist - insufficient allowance`);
       }
       
-      const fid = await getUserFid(userAddress);
-      if (fid) {
-        await removeFidFromWebhook(fid);
-        console.log(`🔗 Removed FID ${fid} from webhook`);
-      }
+      // No webhook removal needed - blocklist handles filtering
       await removeUserFromHomepageCache(userAddress);
       console.log(`🏠 Removed user from homepage cache`);
     }
