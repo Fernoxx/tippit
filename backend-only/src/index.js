@@ -1915,7 +1915,6 @@ app.post('/api/sync-all-users-allowance', async (req, res) => {
     const results = [];
     let syncedCount = 0;
     let errorCount = 0;
-    let removedFromWebhookCount = 0;
     let removedFromHomepageCount = 0;
     
     for (const userAddress of activeUsers) {
@@ -1965,12 +1964,11 @@ app.post('/api/sync-all-users-allowance', async (req, res) => {
         if (currentBlockchainAllowance < minTipAmount) {
           console.log(`❌ User has insufficient allowance - removing from webhook and homepage`);
           
-          // Remove from webhook
-          const fid = await getUserFid(userAddress);
-          if (fid) {
-            await removeFidFromWebhook(fid);
-            removedFromWebhookCount++;
-            console.log(`🔗 Removed FID ${fid} from webhook`);
+          // Add to blocklist (no webhook removal needed - blocklist handles filtering)
+          const { batchTransferManager } = require('./batchTransferManager');
+          if (batchTransferManager && batchTransferManager.blockedUsers) {
+            batchTransferManager.blockedUsers.add(userAddress.toLowerCase());
+            console.log(`🚫 Added ${userAddress} to blocklist - insufficient allowance`);
           }
           
           // Remove from homepage
@@ -2019,7 +2017,6 @@ app.post('/api/sync-all-users-allowance', async (req, res) => {
     
     console.log(`\n🎉 Comprehensive sync completed!`);
     console.log(`📊 Results: ${syncedCount} synced, ${errorCount} errors`);
-    console.log(`🔗 Removed from webhook: ${removedFromWebhookCount}`);
     console.log(`🏠 Removed from homepage: ${removedFromHomepageCount}`);
     
     res.json({
@@ -2028,7 +2025,6 @@ app.post('/api/sync-all-users-allowance', async (req, res) => {
       totalUsers: activeUsers.length,
       syncedCount,
       errorCount,
-      removedFromWebhookCount,
       removedFromHomepageCount,
       results
     });
