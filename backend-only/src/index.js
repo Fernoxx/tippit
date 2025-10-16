@@ -2937,6 +2937,39 @@ app.get('/api/debug/blocklist', async (req, res) => {
   }
 });
 
+// Debug endpoint to manually remove user from blocklist
+app.post('/api/debug/remove-from-blocklist', async (req, res) => {
+  try {
+    const { userAddress } = req.body;
+    
+    if (!userAddress) {
+      return res.status(400).json({ error: 'userAddress is required' });
+    }
+    
+    if (!batchTransferManager) {
+      return res.status(500).json({ error: 'BatchTransferManager not initialized' });
+    }
+    
+    console.log(`🔧 DEBUG: Manually removing ${userAddress} from blocklist`);
+    console.log(`🔧 DEBUG: Blocklist before:`, Array.from(batchTransferManager.blockedUsers));
+    
+    const wasRemoved = batchTransferManager.removeFromBlocklist(userAddress);
+    
+    console.log(`🔧 DEBUG: Removal result: ${wasRemoved}`);
+    console.log(`🔧 DEBUG: Blocklist after:`, Array.from(batchTransferManager.blockedUsers));
+    
+    res.json({ 
+      success: true, 
+      wasRemoved,
+      blocklist: Array.from(batchTransferManager.blockedUsers),
+      message: wasRemoved ? 'User removed from blocklist' : 'User not found in blocklist'
+    });
+  } catch (error) {
+    console.error('Debug remove from blocklist error:', error);
+    res.status(500).json({ error: 'Failed to remove from blocklist' });
+  }
+});
+
 // Clear blocklist endpoint
 app.post('/api/debug/clear-blocklist', (req, res) => {
   try {
