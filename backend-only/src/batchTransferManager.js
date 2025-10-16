@@ -192,10 +192,12 @@ class BatchTransferManager {
       
       console.log(`🔍 DEBUG checkBlockchainAllowance for ${userAddress}:`);
       console.log(`  - Token address: ${tokenAddress}`);
+      console.log(`  - Token address (lowercase): ${tokenAddress.toLowerCase()}`);
       console.log(`  - Raw allowance: ${allowance.toString()}`);
       console.log(`  - Token decimals: ${tokenDecimals}`);
       console.log(`  - Formatted allowance: ${ethers.formatUnits(allowance, tokenDecimals)}`);
       console.log(`  - Parsed allowance: ${allowanceAmount}`);
+      console.log(`  - TOKEN_DECIMALS map:`, TOKEN_DECIMALS);
       
       // Calculate total tip amount (like + recast + reply)
       const likeAmount = parseFloat(authorConfig.likeAmount || '0');
