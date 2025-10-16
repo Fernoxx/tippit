@@ -614,7 +614,7 @@ class PostgresDatabase {
   async getConfig(key) {
     try {
       const result = await this.pool.query(`
-        SELECT value FROM app_config WHERE key = $1
+        SELECT value FROM app_settings WHERE key = $1
       `, [key]);
       
       return result.rows.length > 0 ? result.rows[0].value : null;
@@ -628,7 +628,7 @@ class PostgresDatabase {
   async setConfig(key, value) {
     try {
       await this.pool.query(`
-        INSERT INTO app_config (key, value) 
+        INSERT INTO app_settings (key, value) 
         VALUES ($1, $2) 
         ON CONFLICT (key) 
         DO UPDATE SET value = $2, updated_at = NOW()
@@ -658,7 +658,7 @@ class PostgresDatabase {
   async setBlocklist(blockedUsers) {
     try {
       await this.pool.query(`
-        INSERT INTO app_config (key, value) 
+        INSERT INTO app_settings (key, value) 
         VALUES ('blocklist', $1) 
         ON CONFLICT (key) 
         DO UPDATE SET value = $1, updated_at = NOW()
@@ -674,7 +674,7 @@ class PostgresDatabase {
   async getBlocklist() {
     try {
       const result = await this.pool.query(`
-        SELECT value FROM app_config WHERE key = 'blocklist'
+        SELECT value FROM app_settings WHERE key = 'blocklist'
       `);
       
       if (result.rows.length > 0) {
