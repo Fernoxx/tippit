@@ -1965,16 +1965,12 @@ app.post('/api/sync-all-users-allowance', async (req, res) => {
           
           // Remove from blocklist if user was blocked
           if (batchTransferManager && batchTransferManager.removeFromBlocklist) {
-            const wasRemoved = batchTransferManager.removeFromBlocklist(userAddress);
+            const wasRemoved = await batchTransferManager.removeFromBlocklist(userAddress);
             console.log(`🔄 Blocklist removal result for ${userAddress}: ${wasRemoved ? 'removed' : 'not in blocklist'}`);
           }
           
-          // Ensure user is in webhook
-          const fid = await getUserFid(userAddress);
-          if (fid) {
-            await addFidToWebhook(fid);
-            console.log(`🔗 Ensured FID ${fid} is in webhook`);
-          }
+          // No need to check webhook - blocklist handles everything
+          console.log(`✅ User ${userAddress} is now active - blocklist will handle webhook filtering`);
         }
         
         results.push({
@@ -2266,7 +2262,7 @@ app.post('/api/update-allowance', async (req, res) => {
       
     // Remove from blocklist if user was blocked
     if (batchTransferManager && batchTransferManager.removeFromBlocklist) {
-      const wasRemoved = batchTransferManager.removeFromBlocklist(userAddress);
+      const wasRemoved = await batchTransferManager.removeFromBlocklist(userAddress);
       console.log(`🔄 Blocklist removal result for ${userAddress}: ${wasRemoved ? 'removed' : 'not in blocklist'}`);
     }
       

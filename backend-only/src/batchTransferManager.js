@@ -826,19 +826,28 @@ class BatchTransferManager {
   }
 
   // NEW: Remove user from blocklist when allowance increases
-  removeFromBlocklist(userAddress) {
+  async removeFromBlocklist(userAddress) {
     const userKey = userAddress.toLowerCase();
     console.log(`🔄 Attempting to remove ${userAddress} from blocklist`);
-    console.log(`🔍 Blocklist before removal:`, Array.from(this.blockedUsers));
-    console.log(`🔍 Looking for key: ${userKey}`);
     
-    if (this.blockedUsers.has(userKey)) {
-      this.blockedUsers.delete(userKey);
+    // Always check database first, then update memory
+    const currentBlocklist = await database.getBlocklist();
+    const blockedUsersSet = new Set(currentBlocklist || []);
+    
+    console.log(`🔍 Database blocklist before removal:`, Array.from(blockedUsersSet));
+    
+    if (blockedUsersSet.has(userKey)) {
+      blockedUsersSet.delete(userKey);
+      
+      // Update database first
+      await database.setBlocklist(Array.from(blockedUsersSet));
+      
+      // Then update memory
+      this.blockedUsers = blockedUsersSet;
+      
       console.log(`✅ Removed ${userAddress} from blocklist - allowance sufficient`);
       console.log(`🔍 Blocklist after removal:`, Array.from(this.blockedUsers));
       
-      // Save blocklist to database
-      this.saveBlocklistToDatabase();
       return true;
     } else {
       console.log(`⚠️ User ${userAddress} not found in blocklist`);
@@ -851,12 +860,12 @@ class BatchTransferManager {
     try {
       console.log(`🔄 Loading blocklist from database...`);
       
-      // ALWAYS check current blockchain allowance instead of loading saved blocklist
-      // This ensures the blocklist reflects real-time allowance status
+      // ALWAYS check current blockchain allowance and update database
       console.log(`ℹ️ Checking all users' current blockchain allowance...`);
       
       // Get all users and check their current blockchain allowance
       const allUsers = await database.getAllUsers();
+      const newBlocklist = [];
       let loadedCount = 0;
       
       for (const userAddress of allUsers) {
@@ -873,9 +882,9 @@ class BatchTransferManager {
           // Check current blockchain allowance
           const allowanceCheck = await this.checkBlockchainAllowance(userAddress, userConfig);
           if (!allowanceCheck.canAfford) {
-            this.blockedUsers.add(userAddress.toLowerCase());
+            newBlocklist.push(userAddress.toLowerCase());
             loadedCount++;
-            console.log(`🚫 Loaded ${userAddress} into blocklist - insufficient allowance: ${allowanceCheck.allowanceAmount} < ${allowanceCheck.minTipAmount}`);
+            console.log(`🚫 User ${userAddress} has insufficient allowance: ${allowanceCheck.allowanceAmount} < ${allowanceCheck.minTipAmount}`);
           } else {
             console.log(`✅ User ${userAddress} has sufficient allowance: ${allowanceCheck.allowanceAmount} >= ${allowanceCheck.minTipAmount}`);
           }
@@ -884,10 +893,13 @@ class BatchTransferManager {
         }
       }
       
-      console.log(`✅ Blocklist loaded: ${loadedCount} users with insufficient allowance`);
+      // Update database with current blocklist
+      await database.setBlocklist(newBlocklist);
       
-      // Save the current blocklist to database
-      await this.saveBlocklistToDatabase();
+      // Update memory to match database
+      this.blockedUsers = new Set(newBlocklist);
+      
+      console.log(`✅ Blocklist updated in database and memory: ${loadedCount} users with insufficient allowance`);
     } catch (error) {
       console.error(`❌ Error loading blocklist from database:`, error);
     }
