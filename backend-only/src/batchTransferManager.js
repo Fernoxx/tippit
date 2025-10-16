@@ -176,10 +176,11 @@ class BatchTransferManager {
       ], provider);
       
       const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
-      const tokenDecimals = await getTokenDecimals(tokenAddress);
+      const tokenDecimals = getTokenDecimals(tokenAddress);
       const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
       
       console.log(`🔍 DEBUG checkBlockchainAllowance for ${userAddress}:`);
+      console.log(`  - Token address: ${tokenAddress}`);
       console.log(`  - Raw allowance: ${allowance.toString()}`);
       console.log(`  - Token decimals: ${tokenDecimals}`);
       console.log(`  - Formatted allowance: ${ethers.formatUnits(allowance, tokenDecimals)}`);
