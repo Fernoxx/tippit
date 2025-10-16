@@ -1940,14 +1940,7 @@ app.post('/api/sync-all-users-allowance', async (req, res) => {
         
         console.log(`📊 Blockchain allowance: ${currentBlockchainAllowance}`);
         
-        // Update database with current blockchain allowance
-        const previousAllowance = userConfig.lastAllowance || 0;
-        userConfig.lastAllowance = currentBlockchainAllowance;
-        userConfig.lastAllowanceCheck = Date.now();
-        userConfig.lastActivity = Date.now();
-        
-        await database.setUserConfig(userAddress, userConfig);
-        console.log(`💾 Database updated: ${previousAllowance} → ${currentBlockchainAllowance}`);
+        // No need to update database - we only use blockchain allowance for decisions
         
         // Calculate total tip amount (like + recast + reply)
         const likeAmount = parseFloat(userConfig.likeAmount || '0');
@@ -1957,11 +1950,11 @@ app.post('/api/sync-all-users-allowance', async (req, res) => {
         
         console.log(`💰 Total tip amount: ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount})`);
         
-        // Check if user should be removed from webhook and homepage
+        // Check if user should be added to blocklist
         if (currentBlockchainAllowance < minTipAmount) {
-          console.log(`❌ User has insufficient allowance - removing from webhook and homepage`);
+          console.log(`❌ User has insufficient allowance - adding to blocklist`);
           
-          // Add to blocklist (no webhook removal needed - blocklist handles filtering)
+          // Add to blocklist (blocklist handles all filtering - no webhook removal needed)
           const { batchTransferManager } = require('./batchTransferManager');
           if (batchTransferManager && batchTransferManager.blockedUsers) {
             batchTransferManager.blockedUsers.add(userAddress.toLowerCase());
@@ -1973,7 +1966,14 @@ app.post('/api/sync-all-users-allowance', async (req, res) => {
           removedFromHomepageCount++;
           console.log(`🏠 Removed from homepage cache`);
         } else {
-          console.log(`✅ User has sufficient allowance - keeping active`);
+          console.log(`✅ User has sufficient allowance - removing from blocklist if present`);
+          
+          // Remove from blocklist if user was blocked
+          const { batchTransferManager } = require('./batchTransferManager');
+          if (batchTransferManager && batchTransferManager.removeFromBlocklist) {
+            const wasRemoved = batchTransferManager.removeFromBlocklist(userAddress);
+            console.log(`🔄 Blocklist removal result for ${userAddress}: ${wasRemoved ? 'removed' : 'not in blocklist'}`);
+          }
           
           // Remove from blocklist if user was blocked
           const { batchTransferManager } = require('./batchTransferManager');
@@ -2259,9 +2259,7 @@ app.post('/api/update-allowance', async (req, res) => {
     
     console.log(`📊 Blockchain allowance: ${allowanceAmount}`);
     
-    // Update database with current blockchain allowance
-    await updateDatabaseAllowance(userAddress, allowanceAmount);
-    console.log(`💾 Database updated with allowance: ${allowanceAmount}`);
+    // No need to update database - we only use blockchain allowance for decisions
     
     // Get user config to check min tip amount
     const userConfig = await database.getUserConfig(userAddress);
