@@ -140,13 +140,14 @@ class BatchTransferManager {
       const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
       const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
       
-      const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+      // Force USDC token address for now to fix decimal issue
+      const tokenAddress = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC on Base
       const tokenContract = new ethers.Contract(tokenAddress, [
         "function allowance(address owner, address spender) view returns (uint256)"
       ], provider);
       
       const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
-      const tokenDecimals = getTokenDecimals(tokenAddress);
+      const tokenDecimals = 6; // USDC has 6 decimals
       const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
       
       // Calculate total tip amount (like + recast + reply)
@@ -181,13 +182,14 @@ class BatchTransferManager {
       const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
       const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
       
-      const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+      // Force USDC token address for now to fix decimal issue
+      const tokenAddress = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC on Base
       const tokenContract = new ethers.Contract(tokenAddress, [
         "function allowance(address owner, address spender) view returns (uint256)"
       ], provider);
       
       const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
-      const tokenDecimals = getTokenDecimals(tokenAddress);
+      const tokenDecimals = 6; // USDC has 6 decimals
       
       console.log(`🔍 DEBUG checkBlockchainAllowance for ${userAddress}:`);
       console.log(`  - Token address: ${tokenAddress}`);
