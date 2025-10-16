@@ -923,9 +923,31 @@ class BatchTransferManager {
     }
   }
 
-  // NEW: Check if user is blocked
-  isUserBlocked(userAddress) {
-    return this.blockedUsers.has(userAddress.toLowerCase());
+  // NEW: Check if user is blocked - Database-first approach
+  async isUserBlocked(userAddress) {
+    try {
+      // Always check database first for accuracy
+      const currentBlocklist = await database.getBlocklist();
+      const blockedUsersSet = new Set(currentBlocklist || []);
+      
+      // Update memory to match database
+      this.blockedUsers = blockedUsersSet;
+      
+      const userKey = userAddress.toLowerCase();
+      const isBlocked = blockedUsersSet.has(userKey);
+      
+      if (isBlocked) {
+        console.log(`⏭️ Skipping webhook event - user ${userAddress} is in blocklist (insufficient allowance)`);
+        console.log(`🔍 Blocklist contents:`, Array.from(blockedUsersSet));
+      }
+      
+      return isBlocked;
+    } catch (error) {
+      console.error(`❌ Error checking blocklist for ${userAddress}:`, error);
+      // Fallback to memory check
+      const userKey = userAddress.toLowerCase();
+      return this.blockedUsers.has(userKey);
+    }
   }
 }
 

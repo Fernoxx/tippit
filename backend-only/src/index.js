@@ -1347,7 +1347,7 @@ async function updateUserWebhookStatus(userAddress) {
     }
     
     // Check if user is in blocklist first (instant check, zero API calls)
-    if (batchTransferManager && batchTransferManager.isUserBlocked && batchTransferManager.isUserBlocked(userAddress)) {
+    if (batchTransferManager && batchTransferManager.isUserBlocked && await batchTransferManager.isUserBlocked(userAddress)) {
       console.log(`⏭️ Skipping webhook update for ${userAddress} - user is in blocklist (no Neynar calls needed)`);
       return true; // Return true because blocklist handles this efficiently
     }
@@ -1969,8 +1969,12 @@ app.post('/api/sync-all-users-allowance', async (req, res) => {
             console.log(`🔄 Blocklist removal result for ${userAddress}: ${wasRemoved ? 'removed' : 'not in blocklist'}`);
           }
           
-          // No need to check webhook - blocklist handles everything
-          console.log(`✅ User ${userAddress} is now active - blocklist will handle webhook filtering`);
+          // Ensure user is in webhook
+          const fid = await getUserFid(userAddress);
+          if (fid) {
+            await addFidToWebhook(fid);
+            console.log(`🔗 Ensured FID ${fid} is in webhook`);
+          }
         }
         
         results.push({
@@ -2339,7 +2343,7 @@ app.get('/api/homepage', async (req, res) => {
     for (const userAddress of activeUsers) {
       try {
         // Check if user is in blocklist first (instant check, zero API calls)
-        if (batchTransferManager && batchTransferManager.isUserBlocked && batchTransferManager.isUserBlocked(userAddress)) {
+        if (batchTransferManager && batchTransferManager.isUserBlocked && await batchTransferManager.isUserBlocked(userAddress)) {
           console.log(`⏭️ Skipping ${userAddress} - user is in blocklist (insufficient allowance)`);
           continue;
         }
