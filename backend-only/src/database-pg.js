@@ -639,6 +639,53 @@ class PostgresDatabase {
       console.error('Error setting config:', error);
     }
   }
+
+  // Get all user addresses
+  async getAllUsers() {
+    try {
+      const result = await this.pool.query(`
+        SELECT user_address FROM user_configs
+      `);
+      
+      return result.rows.map(row => row.user_address);
+    } catch (error) {
+      console.error('Error getting all users:', error);
+      return [];
+    }
+  }
+
+  // Save blocklist to database
+  async setBlocklist(blockedUsers) {
+    try {
+      await this.pool.query(`
+        INSERT INTO app_config (key, value) 
+        VALUES ('blocklist', $1) 
+        ON CONFLICT (key) 
+        DO UPDATE SET value = $1, updated_at = NOW()
+      `, [JSON.stringify(blockedUsers)]);
+      
+      console.log(`💾 Blocklist saved: ${blockedUsers.length} users`);
+    } catch (error) {
+      console.error('Error saving blocklist:', error);
+    }
+  }
+
+  // Get blocklist from database
+  async getBlocklist() {
+    try {
+      const result = await this.pool.query(`
+        SELECT value FROM app_config WHERE key = 'blocklist'
+      `);
+      
+      if (result.rows.length > 0) {
+        return JSON.parse(result.rows[0].value);
+      }
+      return [];
+    } catch (error) {
+      console.error('Error getting blocklist:', error);
+      return [];
+    }
+  }
 }
 
 module.exports = new PostgresDatabase();

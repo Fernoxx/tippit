@@ -1476,12 +1476,15 @@ async function updateDatabaseAllowance(userAddress, allowanceAmount) {
           // 2. Current allowance is 0 (now empty)
           // 3. Haven't sent notification yet for this allowance drop
           if (previousAllowance > 0 && allowanceAmount === 0 && !userConfig.allowanceEmptyNotificationSent) {
-            await sendNeynarNotification(
-              fid,
-              "Allowance Empty",
-              "Approve more USDC to continue tip your audience!",
-              "https://ecion.vercel.app"
-            );
+            const fid = await getUserFid(userAddress);
+            if (fid) {
+              await sendNeynarNotification(
+                fid,
+                "Allowance Empty",
+                "Approve more USDC to continue tip your audience!",
+                "https://ecion.vercel.app"
+              );
+            }
             
             // Mark notification as sent
             userConfig.allowanceEmptyNotificationSent = true;
@@ -1505,7 +1508,6 @@ async function updateDatabaseAllowance(userAddress, allowanceAmount) {
           }
         }
       }
-    }
   } catch (error) {
     console.log(`⚠️ Error updating database allowance for ${userAddress}: ${error.message}`);
   }

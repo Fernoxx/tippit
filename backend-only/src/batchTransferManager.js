@@ -43,9 +43,12 @@ class BatchTransferManager {
     // Pending tips queue
     this.pendingTips = [];
     
-    // Blocked users (insufficient allowance)
+    // Blocked users (insufficient allowance) - load from database on startup
     this.blockedUsers = new Set();
     this.isProcessing = false;
+    
+    // Load blocklist from database on startup
+    this.loadBlocklistFromDatabase();
     
     // Batch processing is handled by EcionBatch contract
     
@@ -239,6 +242,9 @@ class BatchTransferManager {
       // 1. Add user to blocklist (prevents all future tip processing)
       this.blockedUsers.add(userKey);
       console.log(`🚫 Added ${userAddress} to blocklist - insufficient allowance`);
+      
+      // Save blocklist to database
+      this.saveBlocklistToDatabase();
       
       // 2. No database update needed - blocklist handles everything
       
@@ -830,10 +836,66 @@ class BatchTransferManager {
       this.blockedUsers.delete(userKey);
       console.log(`✅ Removed ${userAddress} from blocklist - allowance sufficient`);
       console.log(`🔍 Blocklist after removal:`, Array.from(this.blockedUsers));
+      
+      // Save blocklist to database
+      this.saveBlocklistToDatabase();
       return true;
     } else {
       console.log(`⚠️ User ${userAddress} not found in blocklist`);
       return false;
+    }
+  }
+
+  // NEW: Load blocklist from database on startup
+  async loadBlocklistFromDatabase() {
+    try {
+      console.log(`🔄 Loading blocklist from database...`);
+      
+      // First, try to load saved blocklist
+      const savedBlocklist = await database.getBlocklist();
+      if (savedBlocklist && savedBlocklist.length > 0) {
+        this.blockedUsers = new Set(savedBlocklist);
+        console.log(`✅ Loaded saved blocklist: ${savedBlocklist.length} users`);
+      } else {
+        console.log(`ℹ️ No saved blocklist found, checking all users...`);
+        
+        // Get all users and check their current blockchain allowance
+        const allUsers = await database.getAllUsers();
+        let loadedCount = 0;
+        
+        for (const userAddress of allUsers) {
+          try {
+            const userConfig = await database.getUserConfig(userAddress);
+            if (!userConfig) continue;
+            
+            // Check current blockchain allowance
+            const allowanceCheck = await this.checkBlockchainAllowance(userAddress, userConfig);
+            if (!allowanceCheck.canAfford) {
+              this.blockedUsers.add(userAddress.toLowerCase());
+              loadedCount++;
+              console.log(`🚫 Loaded ${userAddress} into blocklist - insufficient allowance: ${allowanceCheck.allowanceAmount} < ${allowanceCheck.minTipAmount}`);
+            }
+          } catch (error) {
+            console.log(`⚠️ Error checking allowance for ${userAddress}: ${error.message}`);
+          }
+        }
+        
+        console.log(`✅ Blocklist loaded: ${loadedCount} users with insufficient allowance`);
+      }
+    } catch (error) {
+      console.error(`❌ Error loading blocklist from database:`, error);
+    }
+  }
+
+  // NEW: Save blocklist to database (for persistence)
+  async saveBlocklistToDatabase() {
+    try {
+      // Convert Set to Array for storage
+      const blockedUsersArray = Array.from(this.blockedUsers);
+      await database.setBlocklist(blockedUsersArray);
+      console.log(`💾 Saved blocklist to database: ${blockedUsersArray.length} users`);
+    } catch (error) {
+      console.error(`❌ Error saving blocklist to database:`, error);
     }
   }
 
