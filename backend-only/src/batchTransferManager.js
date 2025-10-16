@@ -851,37 +851,37 @@ class BatchTransferManager {
     try {
       console.log(`🔄 Loading blocklist from database...`);
       
-      // First, try to load saved blocklist
-      const savedBlocklist = await database.getBlocklist();
-      if (savedBlocklist && savedBlocklist.length > 0) {
-        this.blockedUsers = new Set(savedBlocklist);
-        console.log(`✅ Loaded saved blocklist: ${savedBlocklist.length} users`);
-      } else {
-        console.log(`ℹ️ No saved blocklist found, checking all users...`);
-        
-        // Get all users and check their current blockchain allowance
-        const allUsers = await database.getAllUsers();
-        let loadedCount = 0;
-        
-        for (const userAddress of allUsers) {
-          try {
-            const userConfig = await database.getUserConfig(userAddress);
-            if (!userConfig) continue;
-            
-            // Check current blockchain allowance
-            const allowanceCheck = await this.checkBlockchainAllowance(userAddress, userConfig);
-            if (!allowanceCheck.canAfford) {
-              this.blockedUsers.add(userAddress.toLowerCase());
-              loadedCount++;
-              console.log(`🚫 Loaded ${userAddress} into blocklist - insufficient allowance: ${allowanceCheck.allowanceAmount} < ${allowanceCheck.minTipAmount}`);
-            }
-          } catch (error) {
-            console.log(`⚠️ Error checking allowance for ${userAddress}: ${error.message}`);
+      // ALWAYS check current blockchain allowance instead of loading saved blocklist
+      // This ensures the blocklist reflects real-time allowance status
+      console.log(`ℹ️ Checking all users' current blockchain allowance...`);
+      
+      // Get all users and check their current blockchain allowance
+      const allUsers = await database.getAllUsers();
+      let loadedCount = 0;
+      
+      for (const userAddress of allUsers) {
+        try {
+          const userConfig = await database.getUserConfig(userAddress);
+          if (!userConfig) continue;
+          
+          // Check current blockchain allowance
+          const allowanceCheck = await this.checkBlockchainAllowance(userAddress, userConfig);
+          if (!allowanceCheck.canAfford) {
+            this.blockedUsers.add(userAddress.toLowerCase());
+            loadedCount++;
+            console.log(`🚫 Loaded ${userAddress} into blocklist - insufficient allowance: ${allowanceCheck.allowanceAmount} < ${allowanceCheck.minTipAmount}`);
+          } else {
+            console.log(`✅ User ${userAddress} has sufficient allowance: ${allowanceCheck.allowanceAmount} >= ${allowanceCheck.minTipAmount}`);
           }
+        } catch (error) {
+          console.log(`⚠️ Error checking allowance for ${userAddress}: ${error.message}`);
         }
-        
-        console.log(`✅ Blocklist loaded: ${loadedCount} users with insufficient allowance`);
       }
+      
+      console.log(`✅ Blocklist loaded: ${loadedCount} users with insufficient allowance`);
+      
+      // Save the current blocklist to database
+      await this.saveBlocklistToDatabase();
     } catch (error) {
       console.error(`❌ Error loading blocklist from database:`, error);
     }
