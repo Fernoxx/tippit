@@ -3732,6 +3732,17 @@ app.listen(PORT, () => {
     console.log(`🌐 Frontend also served from this Railway service`);
   }
   
+  // Clear blocklist on startup
+  try {
+    if (batchTransferManager && batchTransferManager.blockedUsers) {
+      const previousCount = batchTransferManager.blockedUsers.size;
+      batchTransferManager.blockedUsers.clear();
+      console.log(`🧹 CLEARED BLOCKLIST ON STARTUP: ${previousCount} users removed`);
+    }
+  } catch (error) {
+    console.error('Error clearing blocklist on startup:', error);
+  }
+  
   // Run cleanup once on startup (non-blocking)
   setTimeout(() => {
     database.cleanupOldTips().catch(err => console.log('Cleanup failed:', err.message));
