@@ -180,6 +180,12 @@ class BatchTransferManager {
       const tokenDecimals = await getTokenDecimals(tokenAddress);
       const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
       
+      console.log(`🔍 DEBUG checkBlockchainAllowance for ${userAddress}:`);
+      console.log(`  - Raw allowance: ${allowance.toString()}`);
+      console.log(`  - Token decimals: ${tokenDecimals}`);
+      console.log(`  - Formatted allowance: ${ethers.formatUnits(allowance, tokenDecimals)}`);
+      console.log(`  - Parsed allowance: ${allowanceAmount}`);
+      
       // Calculate minimum tip amount
       const likeAmount = parseFloat(authorConfig.likeAmount || '0');
       const recastAmount = parseFloat(authorConfig.recastAmount || '0');
