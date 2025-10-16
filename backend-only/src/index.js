@@ -2939,6 +2939,24 @@ app.get('/api/debug/test-homepage', async (req, res) => {
   }
 });
 
+// Debug endpoint to check blocklist contents
+app.get('/api/debug/blocklist', async (req, res) => {
+  try {
+    const { batchTransferManager } = require('./batchTransferManager');
+    const blockedUsers = Array.from(batchTransferManager.blockedUsers || []);
+    
+    res.json({
+      success: true,
+      blockedUsers: blockedUsers,
+      count: blockedUsers.length,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error checking blocklist:', error);
+    res.status(500).json({ error: 'Failed to check blocklist' });
+  }
+});
+
 // Debug endpoint to check allowance-based filtering
 app.get('/api/debug/allowance-filtering', async (req, res) => {
   try {
