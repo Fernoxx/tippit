@@ -4,6 +4,7 @@ const path = require('path');
 require('dotenv').config();
 
 const webhookHandler = require('./webhook');
+const { batchTransferManager } = require('./batchTransferManager');
 // Use PostgreSQL database if available, fallback to file storage
 let database;
 try {
@@ -1346,7 +1347,6 @@ async function updateUserWebhookStatus(userAddress) {
     }
     
     // Check if user is in blocklist first (instant check, zero API calls)
-    const { batchTransferManager } = require('./batchTransferManager');
     if (batchTransferManager && batchTransferManager.isUserBlocked && batchTransferManager.isUserBlocked(userAddress)) {
       console.log(`⏭️ Skipping webhook update for ${userAddress} - user is in blocklist (no Neynar calls needed)`);
       return true; // Return true because blocklist handles this efficiently
@@ -1955,7 +1955,6 @@ app.post('/api/sync-all-users-allowance', async (req, res) => {
           console.log(`❌ User has insufficient allowance - adding to blocklist`);
           
           // Add to blocklist (blocklist handles all filtering - no webhook removal needed)
-          const { batchTransferManager } = require('./batchTransferManager');
           if (batchTransferManager && batchTransferManager.blockedUsers) {
             batchTransferManager.blockedUsers.add(userAddress.toLowerCase());
             console.log(`🚫 Added ${userAddress} to blocklist - insufficient allowance`);
@@ -1969,19 +1968,9 @@ app.post('/api/sync-all-users-allowance', async (req, res) => {
           console.log(`✅ User has sufficient allowance - removing from blocklist if present`);
           
           // Remove from blocklist if user was blocked
-          const { batchTransferManager } = require('./batchTransferManager');
           if (batchTransferManager && batchTransferManager.removeFromBlocklist) {
             const wasRemoved = batchTransferManager.removeFromBlocklist(userAddress);
             console.log(`🔄 Blocklist removal result for ${userAddress}: ${wasRemoved ? 'removed' : 'not in blocklist'}`);
-          }
-          
-          // Remove from blocklist if user was blocked
-          const { batchTransferManager } = require('./batchTransferManager');
-          if (batchTransferManager && batchTransferManager.removeFromBlocklist) {
-            const wasRemoved = batchTransferManager.removeFromBlocklist(userAddress);
-            if (wasRemoved) {
-              console.log(`✅ Removed ${userAddress} from blocklist - sufficient allowance`);
-            }
           }
           
           // Ensure user is in webhook
@@ -2280,7 +2269,6 @@ app.post('/api/update-allowance', async (req, res) => {
       console.log(`✅ User ${userAddress} has sufficient allowance - keeping active`);
       
     // Remove from blocklist if user was blocked
-    const { batchTransferManager } = require('./batchTransferManager');
     if (batchTransferManager && batchTransferManager.removeFromBlocklist) {
       const wasRemoved = batchTransferManager.removeFromBlocklist(userAddress);
       console.log(`🔄 Blocklist removal result for ${userAddress}: ${wasRemoved ? 'removed' : 'not in blocklist'}`);
@@ -2296,7 +2284,6 @@ app.post('/api/update-allowance', async (req, res) => {
       console.log(`❌ User ${userAddress} has insufficient allowance - removing from active`);
       
       // Add to blocklist to prevent future tip processing
-      const { batchTransferManager } = require('./batchTransferManager');
       if (batchTransferManager && batchTransferManager.blockedUsers) {
         batchTransferManager.blockedUsers.add(userAddress.toLowerCase());
         console.log(`🚫 Added ${userAddress} to blocklist - insufficient allowance`);
@@ -2360,7 +2347,6 @@ app.get('/api/homepage', async (req, res) => {
     for (const userAddress of activeUsers) {
       try {
         // Check if user is in blocklist first (instant check, zero API calls)
-        const { batchTransferManager } = require('./batchTransferManager');
         if (batchTransferManager && batchTransferManager.isUserBlocked && batchTransferManager.isUserBlocked(userAddress)) {
           console.log(`⏭️ Skipping ${userAddress} - user is in blocklist (insufficient allowance)`);
           continue;
@@ -2751,7 +2737,7 @@ app.get('/api/debug/tip-queue', async (req, res) => {
 // Debug endpoint to check batch transfer status
 app.get('/api/debug/batch-status', async (req, res) => {
   try {
-    const batchTransferManager = require('./src/batchTransferManager');
+    const batchTransferManager = require('./batchTransferManager');
     const batchStatus = batchTransferManager.getBatchStatus();
     
     res.json({
@@ -2768,7 +2754,7 @@ app.get('/api/debug/batch-status', async (req, res) => {
 // Force process current batch (for testing)
 app.post('/api/debug/force-batch', async (req, res) => {
   try {
-    const batchTransferManager = require('./src/batchTransferManager');
+    const batchTransferManager = require('./batchTransferManager');
     await batchTransferManager.forceProcessBatch();
     
     res.json({
