@@ -2266,8 +2266,13 @@ app.post('/api/update-allowance', async (req, res) => {
       
     // Remove from blocklist if user was blocked
     if (batchTransferManager && batchTransferManager.removeFromBlocklist) {
+      console.log(`🔧 DEBUG: Before removal - checking if ${userAddress} is in blocklist`);
       const wasRemoved = await batchTransferManager.removeFromBlocklist(userAddress);
       console.log(`🔄 Blocklist removal result for ${userAddress}: ${wasRemoved ? 'removed' : 'not in blocklist'}`);
+      
+      // Verify removal worked
+      const isStillBlocked = await batchTransferManager.isUserBlocked(userAddress);
+      console.log(`🔧 DEBUG: After removal - is ${userAddress} still blocked? ${isStillBlocked}`);
     }
       
       const fid = await getUserFid(userAddress);
@@ -2974,6 +2979,47 @@ app.post('/api/debug/remove-from-blocklist', async (req, res) => {
   } catch (error) {
     console.error('Debug remove from blocklist error:', error);
     res.status(500).json({ error: 'Failed to remove from blocklist' });
+  }
+});
+
+// Simple endpoint to remove specific user from blocklist
+app.post('/api/debug/remove-user', async (req, res) => {
+  try {
+    const { userAddress } = req.body;
+    
+    if (!userAddress) {
+      return res.status(400).json({ error: 'userAddress is required' });
+    }
+    
+    console.log(`🔧 MANUAL: Removing ${userAddress} from blocklist`);
+    
+    // Get current blocklist from database
+    const currentBlocklist = await database.getBlocklist();
+    console.log(`🔧 Current blocklist:`, currentBlocklist);
+    
+    // Remove user from blocklist
+    const updatedBlocklist = (currentBlocklist || []).filter(addr => 
+      addr.toLowerCase() !== userAddress.toLowerCase()
+    );
+    
+    console.log(`🔧 Updated blocklist:`, updatedBlocklist);
+    
+    // Save to database
+    await database.setBlocklist(updatedBlocklist);
+    
+    // Update memory
+    if (batchTransferManager) {
+      batchTransferManager.blockedUsers = new Set(updatedBlocklist);
+    }
+    
+    res.json({
+      success: true,
+      message: `Removed ${userAddress} from blocklist`,
+      blocklist: updatedBlocklist
+    });
+  } catch (error) {
+    console.error('Error removing user:', error);
+    res.status(500).json({ error: 'Failed to remove user' });
   }
 });
 
