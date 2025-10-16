@@ -206,9 +206,10 @@ class BatchTransferManager {
       
       console.log(`  - Manual calculation: ${rawAllowance} / ${divisor} = ${manualCalculation}`);
       
-      const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
+      // Use manual calculation instead of ethers.formatUnits to ensure correct conversion
+      const allowanceAmount = manualCalculation;
       console.log(`  - ethers.formatUnits result: ${ethers.formatUnits(allowance, tokenDecimals)}`);
-      console.log(`  - Final parsed allowance: ${allowanceAmount}`);
+      console.log(`  - Final parsed allowance (manual): ${allowanceAmount}`);
       
       // Calculate total tip amount (like + recast + reply)
       const likeAmount = parseFloat(authorConfig.likeAmount || '0');
