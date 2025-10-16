@@ -258,6 +258,7 @@ async function webhookHandler(req, res) {
     // Check if user is blocked (insufficient allowance) - skip processing entirely
     if (batchTransferManager.isUserBlocked && batchTransferManager.isUserBlocked(interaction.authorAddress)) {
       console.log(`⏭️ Skipping webhook event - user ${interaction.authorAddress} is in blocklist (insufficient allowance)`);
+      console.log(`🔍 Blocklist contents:`, Array.from(batchTransferManager.blockedUsers || []));
       return res.status(200).json({
         success: true,
         processed: false,

@@ -361,8 +361,8 @@ export const useEcion = () => {
     fetchTokenAllowance,
     updateAllowanceAndWebhooks,
     isSettingConfig: isLoading,
-    isApproving: isApproving,
-    isRevokingAllowance: isRevokingAllowance,
+    isApproving: isApproving || isTxPending || isTxConfirming,
+    isRevokingAllowance: isRevokingAllowance || isTxPending || isTxConfirming,
     isUpdatingLimit: false,
     isRevoking: false,
   };
