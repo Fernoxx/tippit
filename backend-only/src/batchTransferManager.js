@@ -138,14 +138,13 @@ class BatchTransferManager {
       // Get allowance from database (no blockchain call)
       const allowanceAmount = userConfig.lastAllowance || 0;
       
-      // Calculate minimum tip amount
+      // Calculate total tip amount (like + recast + reply)
       const likeAmount = parseFloat(authorConfig.likeAmount || '0');
       const recastAmount = parseFloat(authorConfig.recastAmount || '0');
       const replyAmount = parseFloat(authorConfig.replyAmount || '0');
-      const tipAmounts = [likeAmount, recastAmount, replyAmount].filter(amount => amount > 0);
-      const minTipAmount = tipAmounts.length > 0 ? Math.min(...tipAmounts) : 0;
+      const minTipAmount = likeAmount + recastAmount + replyAmount;
       
-      console.log(`💾 Database allowance check: ${userAddress} - allowance: ${allowanceAmount}, min tip: ${minTipAmount}`);
+      console.log(`💾 Database allowance check: ${userAddress} - allowance: ${allowanceAmount}, total tip: ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount})`);
       
       return {
         canAfford: allowanceAmount >= minTipAmount,
@@ -186,14 +185,13 @@ class BatchTransferManager {
       console.log(`  - Formatted allowance: ${ethers.formatUnits(allowance, tokenDecimals)}`);
       console.log(`  - Parsed allowance: ${allowanceAmount}`);
       
-      // Calculate minimum tip amount
+      // Calculate total tip amount (like + recast + reply)
       const likeAmount = parseFloat(authorConfig.likeAmount || '0');
       const recastAmount = parseFloat(authorConfig.recastAmount || '0');
       const replyAmount = parseFloat(authorConfig.replyAmount || '0');
-      const tipAmounts = [likeAmount, recastAmount, replyAmount].filter(amount => amount > 0);
-      const minTipAmount = tipAmounts.length > 0 ? Math.min(...tipAmounts) : 0;
+      const minTipAmount = likeAmount + recastAmount + replyAmount;
       
-      console.log(`💰 Blockchain allowance check: ${userAddress} - allowance: ${allowanceAmount}, min tip: ${minTipAmount}`);
+      console.log(`💰 Blockchain allowance check: ${userAddress} - allowance: ${allowanceAmount}, total tip: ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount})`);
       
       return {
         canAfford: allowanceAmount >= minTipAmount,
@@ -263,12 +261,11 @@ class BatchTransferManager {
       const allowance = await allowanceContract.allowance(userAddress, ecionBatchAddress);
       const allowanceAmount = parseFloat(ethers.formatUnits(allowance, decimals));
       
-      // Calculate minimum tip amount
+      // Calculate total tip amount (like + recast + reply)
       const likeAmount = parseFloat(authorConfig.likeAmount || '0');
       const recastAmount = parseFloat(authorConfig.recastAmount || '0');
       const replyAmount = parseFloat(authorConfig.replyAmount || '0');
-      const tipAmounts = [likeAmount, recastAmount, replyAmount].filter(amount => amount > 0);
-      const minTipAmount = tipAmounts.length > 0 ? Math.min(...tipAmounts) : 0;
+      const minTipAmount = likeAmount + recastAmount + replyAmount;
       
       return {
         canAfford: allowanceAmount >= minTipAmount,
@@ -461,8 +458,7 @@ class BatchTransferManager {
               const likeAmount = parseFloat(userConfig.likeAmount || '0');
               const recastAmount = parseFloat(userConfig.recastAmount || '0');
               const replyAmount = parseFloat(userConfig.replyAmount || '0');
-              const tipAmounts = [likeAmount, recastAmount, replyAmount].filter(amount => amount > 0);
-              const minTipAmount = tipAmounts.length > 0 ? Math.min(...tipAmounts) : 0;
+              const minTipAmount = likeAmount + recastAmount + replyAmount;
               
               if (currentBlockchainAllowance < minTipAmount) {
                 console.log(`🚫 User ${tip.interaction.authorAddress} allowance ${currentBlockchainAllowance} < min tip ${minTipAmount} - adding to blocklist`);
@@ -805,12 +801,19 @@ class BatchTransferManager {
   // NEW: Remove user from blocklist when allowance increases
   removeFromBlocklist(userAddress) {
     const userKey = userAddress.toLowerCase();
+    console.log(`🔄 Attempting to remove ${userAddress} from blocklist`);
+    console.log(`🔍 Blocklist before removal:`, Array.from(this.blockedUsers));
+    console.log(`🔍 Looking for key: ${userKey}`);
+    
     if (this.blockedUsers.has(userKey)) {
       this.blockedUsers.delete(userKey);
       console.log(`✅ Removed ${userAddress} from blocklist - allowance sufficient`);
+      console.log(`🔍 Blocklist after removal:`, Array.from(this.blockedUsers));
       return true;
+    } else {
+      console.log(`⚠️ User ${userAddress} not found in blocklist`);
+      return false;
     }
-    return false;
   }
 
   // NEW: Check if user is blocked

@@ -1210,15 +1210,14 @@ async function checkUserAllowanceForWebhook(userAddress) {
       allowanceAmount = 0;
     }
     
-    // Calculate minimum tip amount
+    // Calculate total tip amount (like + recast + reply)
     const likeAmount = parseFloat(userConfig.likeAmount || '0');
     const recastAmount = parseFloat(userConfig.recastAmount || '0');
     const replyAmount = parseFloat(userConfig.replyAmount || '0');
-    const tipAmounts = [likeAmount, recastAmount, replyAmount].filter(amount => amount > 0);
-    const minTipAmount = tipAmounts.length > 0 ? Math.min(...tipAmounts) : 0;
+    const minTipAmount = likeAmount + recastAmount + replyAmount;
     
     const hasAllowance = allowanceAmount >= minTipAmount;
-    console.log(`🔍 Allowance check: ${userAddress} - allowance: ${allowanceAmount}, min tip: ${minTipAmount}, has allowance: ${hasAllowance}`);
+    console.log(`🔍 Allowance check: ${userAddress} - allowance: ${allowanceAmount}, total tip: ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount}), has allowance: ${hasAllowance}`);
     
     return hasAllowance;
   } catch (error) {
@@ -1470,11 +1469,10 @@ async function updateDatabaseAllowance(userAddress, allowanceAmount) {
       const likeAmount = parseFloat(userConfig.likeAmount || '0');
       const recastAmount = parseFloat(userConfig.recastAmount || '0');
       const replyAmount = parseFloat(userConfig.replyAmount || '0');
-      const tipAmounts = [likeAmount, recastAmount, replyAmount].filter(amount => amount > 0);
-      const minTipAmount = tipAmounts.length > 0 ? Math.min(...tipAmounts) : 0;
+      const minTipAmount = likeAmount + recastAmount + replyAmount;
       
       if (allowanceAmount < minTipAmount) {
-        console.log(`🚫 User ${userAddress} allowance ${allowanceAmount} < min tip ${minTipAmount} - removing from webhook`);
+        console.log(`🚫 User ${userAddress} allowance ${allowanceAmount} < total tip ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount}) - removing from webhook`);
         const fid = await getUserFid(userAddress);
         if (fid) {
           await removeFidFromWebhook(fid);
@@ -1951,14 +1949,13 @@ app.post('/api/sync-all-users-allowance', async (req, res) => {
         await database.setUserConfig(userAddress, userConfig);
         console.log(`💾 Database updated: ${previousAllowance} → ${currentBlockchainAllowance}`);
         
-        // Calculate minimum tip amount
+        // Calculate total tip amount (like + recast + reply)
         const likeAmount = parseFloat(userConfig.likeAmount || '0');
         const recastAmount = parseFloat(userConfig.recastAmount || '0');
         const replyAmount = parseFloat(userConfig.replyAmount || '0');
-        const tipAmounts = [likeAmount, recastAmount, replyAmount].filter(amount => amount > 0);
-        const minTipAmount = tipAmounts.length > 0 ? Math.min(...tipAmounts) : 0;
+        const minTipAmount = likeAmount + recastAmount + replyAmount;
         
-        console.log(`💰 Min tip amount: ${minTipAmount}`);
+        console.log(`💰 Total tip amount: ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount})`);
         
         // Check if user should be removed from webhook and homepage
         if (currentBlockchainAllowance < minTipAmount) {
@@ -2272,14 +2269,13 @@ app.post('/api/update-allowance', async (req, res) => {
       return res.json({ success: false, error: 'User config not found' });
     }
     
-    // Calculate minimum tip amount
+    // Calculate total tip amount (like + recast + reply)
     const likeAmount = parseFloat(userConfig.likeAmount || '0');
     const recastAmount = parseFloat(userConfig.recastAmount || '0');
     const replyAmount = parseFloat(userConfig.replyAmount || '0');
-    const tipAmounts = [likeAmount, recastAmount, replyAmount].filter(amount => amount > 0);
-    const minTipAmount = tipAmounts.length > 0 ? Math.min(...tipAmounts) : 0;
+    const minTipAmount = likeAmount + recastAmount + replyAmount;
     
-    console.log(`💰 Min tip amount: ${minTipAmount}, Current allowance: ${allowanceAmount}`);
+    console.log(`💰 Total tip amount: ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount}), Current allowance: ${allowanceAmount}`);
     
     // Update webhook and homepage based on allowance
     if (allowanceAmount >= minTipAmount) {
@@ -2402,17 +2398,16 @@ app.get('/api/homepage', async (req, res) => {
         const recastAmount = parseFloat(userConfig.recastAmount || '0');
         const replyAmount = parseFloat(userConfig.replyAmount || '0');
         
-        // Find the minimum non-zero tip amount
-        const tipAmounts = [likeAmount, recastAmount, replyAmount].filter(amount => amount > 0);
-        const minTipAmount = tipAmounts.length > 0 ? Math.min(...tipAmounts) : 0;
+        // Calculate total tip amount (like + recast + reply)
+        const minTipAmount = likeAmount + recastAmount + replyAmount;
         
-        // Skip if allowance is less than minimum tip amount
+        // Skip if allowance is less than total tip amount
         if (allowanceAmount < minTipAmount) {
-          console.log(`⏭️ Skipping ${userAddress} - allowance ${allowanceAmount} < min tip ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount})`);
+          console.log(`⏭️ Skipping ${userAddress} - allowance ${allowanceAmount} < total tip ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount})`);
           continue;
         }
         
-        console.log(`✅ User ${userAddress} - allowance ${allowanceAmount} >= min tip ${minTipAmount} - keeping cast`);
+        console.log(`✅ User ${userAddress} - allowance ${allowanceAmount} >= total tip ${minTipAmount} - keeping cast`);
         
         // Get user's Farcaster profile
         const userResponse = await fetch(
@@ -3002,8 +2997,7 @@ app.get('/api/debug/allowance-filtering', async (req, res) => {
         const recastAmount = parseFloat(userConfig.recastAmount || '0');
         const replyAmount = parseFloat(userConfig.replyAmount || '0');
         
-        const tipAmounts = [likeAmount, recastAmount, replyAmount].filter(amount => amount > 0);
-        const minTipAmount = tipAmounts.length > 0 ? Math.min(...tipAmounts) : 0;
+        const minTipAmount = likeAmount + recastAmount + replyAmount;
         
         const willShow = allowanceAmount >= minTipAmount;
         
