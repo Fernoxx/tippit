@@ -188,16 +188,25 @@ class BatchTransferManager {
       
       const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
       const tokenDecimals = getTokenDecimals(tokenAddress);
-      const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
       
       console.log(`🔍 DEBUG checkBlockchainAllowance for ${userAddress}:`);
       console.log(`  - Token address: ${tokenAddress}`);
       console.log(`  - Token address (lowercase): ${tokenAddress.toLowerCase()}`);
       console.log(`  - Raw allowance: ${allowance.toString()}`);
       console.log(`  - Token decimals: ${tokenDecimals}`);
-      console.log(`  - Formatted allowance: ${ethers.formatUnits(allowance, tokenDecimals)}`);
-      console.log(`  - Parsed allowance: ${allowanceAmount}`);
       console.log(`  - TOKEN_DECIMALS map:`, TOKEN_DECIMALS);
+      console.log(`  - TOKEN_DECIMALS lookup result:`, TOKEN_DECIMALS[tokenAddress.toLowerCase()]);
+      
+      // Manual calculation to debug
+      const rawAllowance = allowance.toString();
+      const divisor = Math.pow(10, tokenDecimals);
+      const manualCalculation = parseFloat(rawAllowance) / divisor;
+      
+      console.log(`  - Manual calculation: ${rawAllowance} / ${divisor} = ${manualCalculation}`);
+      
+      const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
+      console.log(`  - ethers.formatUnits result: ${ethers.formatUnits(allowance, tokenDecimals)}`);
+      console.log(`  - Final parsed allowance: ${allowanceAmount}`);
       
       // Calculate total tip amount (like + recast + reply)
       const likeAmount = parseFloat(authorConfig.likeAmount || '0');
