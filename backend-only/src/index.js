@@ -3805,6 +3805,71 @@ app.get('/api/debug/ecionbatch-status', async (req, res) => {
   }
 });
 
+// Debug endpoint to check and clean blocklist
+app.post('/api/debug/clean-blocklist', async (req, res) => {
+  try {
+    console.log(`🔧 CLEANING: Checking all blocklisted users for sufficient allowance`);
+    
+    const currentBlocklist = await database.getBlocklist();
+    console.log(`🔧 Current blocklist:`, currentBlocklist);
+    
+    const cleanedBlocklist = [];
+    const removedUsers = [];
+    
+    for (const userAddress of currentBlocklist || []) {
+      try {
+        // Get user config
+        const userConfig = await database.getUserConfig(userAddress);
+        if (!userConfig) {
+          console.log(`🔧 User ${userAddress} not found in config, removing from blocklist`);
+          removedUsers.push(userAddress);
+          continue;
+        }
+        
+        const { tokenAddress, likeAmount, recastAmount, replyAmount } = userConfig;
+        const minTipAmount = likeAmount + recastAmount + replyAmount;
+        
+        // Check current blockchain allowance
+        const currentBlockchainAllowance = await batchTransferManager.getCurrentBlockchainAllowance(userAddress, tokenAddress);
+        
+        console.log(`🔧 Checking ${userAddress}: allowance=${currentBlockchainAllowance}, minTip=${minTipAmount}`);
+        
+        if (currentBlockchainAllowance >= minTipAmount) {
+          console.log(`✅ User ${userAddress} has sufficient allowance, removing from blocklist`);
+          removedUsers.push(userAddress);
+        } else {
+          console.log(`❌ User ${userAddress} still has insufficient allowance, keeping in blocklist`);
+          cleanedBlocklist.push(userAddress);
+        }
+      } catch (error) {
+        console.error(`❌ Error checking ${userAddress}:`, error);
+        // Keep in blocklist if we can't check
+        cleanedBlocklist.push(userAddress);
+      }
+    }
+    
+    // Update database with cleaned blocklist
+    await database.setBlocklist(cleanedBlocklist);
+    
+    // Update memory
+    if (batchTransferManager) {
+      batchTransferManager.blockedUsers = new Set(cleanedBlocklist);
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Blocklist cleaned`,
+      removedUsers,
+      cleanedBlocklist,
+      removedCount: removedUsers.length,
+      remainingCount: cleanedBlocklist.length
+    });
+  } catch (error) {
+    console.error('Error cleaning blocklist:', error);
+    res.status(500).json({ error: 'Failed to clean blocklist' });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Ecion Backend running on port ${PORT}`);
