@@ -2944,9 +2944,17 @@ app.get('/api/debug/blocklist', async (req, res) => {
 // Clear blocklist endpoint
 app.post('/api/debug/clear-blocklist', (req, res) => {
   try {
+    const previousCount = batchTransferManager.blockedUsers.size;
     batchTransferManager.blockedUsers.clear();
-    res.json({ success: true, message: 'Blocklist cleared' });
+    console.log(`🧹 CLEARED BLOCKLIST: ${previousCount} users removed`);
+    res.json({ 
+      success: true, 
+      message: 'Blocklist cleared successfully',
+      previousCount: previousCount,
+      currentCount: 0
+    });
   } catch (error) {
+    console.error('Error clearing blocklist:', error);
     res.status(500).json({ error: 'Failed to clear blocklist' });
   }
 });
