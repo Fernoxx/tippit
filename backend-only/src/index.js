@@ -2925,10 +2925,17 @@ app.get('/api/debug/blocklist', async (req, res) => {
   try {
     const blockedUsers = Array.from(batchTransferManager.blockedUsers || []);
     
+    // Check for invalid addresses
+    const invalidAddresses = blockedUsers.filter(addr => 
+      !addr || addr === '0x' || addr.startsWith('0x0x') || addr.length < 42
+    );
+    
     res.json({
       success: true,
       blockedUsers: blockedUsers,
       count: blockedUsers.length,
+      invalidAddresses: invalidAddresses,
+      invalidCount: invalidAddresses.length,
       timestamp: new Date().toISOString()
     });
   } catch (error) {

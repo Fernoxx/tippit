@@ -861,6 +861,12 @@ class BatchTransferManager {
       
       for (const userAddress of allUsers) {
         try {
+          // Skip invalid addresses (double 0x, empty, etc.)
+          if (!userAddress || userAddress === '0x' || userAddress.startsWith('0x0x') || userAddress.length < 42) {
+            console.log(`⚠️ Skipping invalid address: ${userAddress}`);
+            continue;
+          }
+          
           const userConfig = await database.getUserConfig(userAddress);
           if (!userConfig) continue;
           
@@ -890,10 +896,16 @@ class BatchTransferManager {
   // NEW: Save blocklist to database (for persistence)
   async saveBlocklistToDatabase() {
     try {
-      // Convert Set to Array for storage
-      const blockedUsersArray = Array.from(this.blockedUsers);
-      await database.setBlocklist(blockedUsersArray);
-      console.log(`💾 Saved blocklist to database: ${blockedUsersArray.length} users`);
+      // Clean up blocklist - remove invalid addresses
+      const validBlockedUsers = Array.from(this.blockedUsers).filter(address => {
+        return address && address !== '0x' && !address.startsWith('0x0x') && address.length >= 42;
+      });
+      
+      // Update the in-memory blocklist with cleaned addresses
+      this.blockedUsers = new Set(validBlockedUsers);
+      
+      await database.setBlocklist(validBlockedUsers);
+      console.log(`💾 Saved cleaned blocklist to database: ${validBlockedUsers.length} users`);
     } catch (error) {
       console.error(`❌ Error saving blocklist to database:`, error);
     }
