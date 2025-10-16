@@ -2285,6 +2285,10 @@ app.post('/api/update-allowance', async (req, res) => {
         console.log(`🚫 Added ${userAddress} to blocklist - insufficient allowance`);
       }
       
+      // Remove from homepage cache
+      await removeUserFromHomepageCache(userAddress);
+      console.log(`🏠 Removed ${userAddress} from homepage cache`);
+      
       // No webhook removal needed - blocklist handles filtering
       await removeUserFromHomepageCache(userAddress);
       console.log(`🏠 Removed user from homepage cache`);
