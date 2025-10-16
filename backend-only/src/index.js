@@ -2377,13 +2377,14 @@ app.get('/api/homepage', async (req, res) => {
           "function allowance(address owner, address spender) view returns (uint256)"
         ], provider);
         
-        // Use database allowance (no API calls needed)
-        const allowanceAmount = userConfig.lastAllowance || 0;
-        console.log(`💾 Using database allowance for ${userAddress}: ${allowanceAmount}`);
+        // Get REAL blockchain allowance (most accurate)
+        const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
+        const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
+        console.log(`🔗 Using REAL blockchain allowance for ${userAddress}: ${allowanceAmount}`);
         
         // Skip users with EXACTLY 0 allowance (not 0.1 or 0.2, must be 0.000000)
         if (allowanceAmount === 0) {
-          console.log(`⏭️ Skipping ${userAddress} - allowance is exactly 0`);
+          console.log(`⏭️ Skipping ${userAddress} - blockchain allowance is exactly 0`);
           continue;
         }
         
@@ -2401,13 +2402,13 @@ app.get('/api/homepage', async (req, res) => {
         // Calculate total tip amount (like + recast + reply)
         const minTipAmount = likeAmount + recastAmount + replyAmount;
         
-        // Skip if allowance is less than total tip amount
+        // Skip if REAL blockchain allowance is less than total tip amount
         if (allowanceAmount < minTipAmount) {
-          console.log(`⏭️ Skipping ${userAddress} - allowance ${allowanceAmount} < total tip ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount})`);
+          console.log(`⏭️ Skipping ${userAddress} - REAL blockchain allowance ${allowanceAmount} < total tip ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount})`);
           continue;
         }
         
-        console.log(`✅ User ${userAddress} - allowance ${allowanceAmount} >= total tip ${minTipAmount} - keeping cast`);
+        console.log(`✅ User ${userAddress} - REAL blockchain allowance ${allowanceAmount} >= total tip ${minTipAmount} - keeping cast`);
         
         // Get user's Farcaster profile
         const userResponse = await fetch(

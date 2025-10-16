@@ -135,8 +135,19 @@ class BatchTransferManager {
         return { canAfford: false, allowanceAmount: 0, minTipAmount: 0 };
       }
       
-      // Get allowance from database (no blockchain call)
-      const allowanceAmount = userConfig.lastAllowance || 0;
+      // Get REAL blockchain allowance (most accurate)
+      const { ethers } = require('ethers');
+      const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+      const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+      
+      const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+      const tokenContract = new ethers.Contract(tokenAddress, [
+        "function allowance(address owner, address spender) view returns (uint256)"
+      ], provider);
+      
+      const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
+      const tokenDecimals = getTokenDecimals(tokenAddress);
+      const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
       
       // Calculate total tip amount (like + recast + reply)
       const likeAmount = parseFloat(authorConfig.likeAmount || '0');
