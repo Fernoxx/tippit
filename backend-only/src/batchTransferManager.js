@@ -829,25 +829,16 @@ class BatchTransferManager {
   async removeFromBlocklist(userAddress) {
     const userKey = userAddress.toLowerCase();
     console.log(`🔄 Attempting to remove ${userAddress} from blocklist`);
+    console.log(`🔍 Blocklist before removal:`, Array.from(this.blockedUsers));
+    console.log(`🔍 Looking for key: ${userKey}`);
     
-    // Always check database first, then update memory
-    const currentBlocklist = await database.getBlocklist();
-    const blockedUsersSet = new Set(currentBlocklist || []);
-    
-    console.log(`🔍 Database blocklist before removal:`, Array.from(blockedUsersSet));
-    
-    if (blockedUsersSet.has(userKey)) {
-      blockedUsersSet.delete(userKey);
-      
-      // Update database first
-      await database.setBlocklist(Array.from(blockedUsersSet));
-      
-      // Then update memory
-      this.blockedUsers = blockedUsersSet;
-      
+    if (this.blockedUsers.has(userKey)) {
+      this.blockedUsers.delete(userKey);
       console.log(`✅ Removed ${userAddress} from blocklist - allowance sufficient`);
       console.log(`🔍 Blocklist after removal:`, Array.from(this.blockedUsers));
       
+      // Save to database
+      await this.saveBlocklistToDatabase();
       return true;
     } else {
       console.log(`⚠️ User ${userAddress} not found in blocklist`);
@@ -923,31 +914,17 @@ class BatchTransferManager {
     }
   }
 
-  // NEW: Check if user is blocked - Database-first approach
-  async isUserBlocked(userAddress) {
-    try {
-      // Always check database first for accuracy
-      const currentBlocklist = await database.getBlocklist();
-      const blockedUsersSet = new Set(currentBlocklist || []);
-      
-      // Update memory to match database
-      this.blockedUsers = blockedUsersSet;
-      
-      const userKey = userAddress.toLowerCase();
-      const isBlocked = blockedUsersSet.has(userKey);
-      
-      if (isBlocked) {
-        console.log(`⏭️ Skipping webhook event - user ${userAddress} is in blocklist (insufficient allowance)`);
-        console.log(`🔍 Blocklist contents:`, Array.from(blockedUsersSet));
-      }
-      
-      return isBlocked;
-    } catch (error) {
-      console.error(`❌ Error checking blocklist for ${userAddress}:`, error);
-      // Fallback to memory check
-      const userKey = userAddress.toLowerCase();
-      return this.blockedUsers.has(userKey);
+  // NEW: Check if user is blocked - Simple memory check
+  isUserBlocked(userAddress) {
+    const userKey = userAddress.toLowerCase();
+    const isBlocked = this.blockedUsers.has(userKey);
+    
+    if (isBlocked) {
+      console.log(`⏭️ Skipping webhook event - user ${userAddress} is in blocklist (insufficient allowance)`);
+      console.log(`🔍 Blocklist contents:`, Array.from(this.blockedUsers));
     }
+    
+    return isBlocked;
   }
 }
 
