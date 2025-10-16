@@ -1978,6 +1978,15 @@ app.post('/api/sync-all-users-allowance', async (req, res) => {
         } else {
           console.log(`✅ User has sufficient allowance - keeping active`);
           
+          // Remove from blocklist if user was blocked
+          const { batchTransferManager } = require('./batchTransferManager');
+          if (batchTransferManager && batchTransferManager.removeFromBlocklist) {
+            const wasRemoved = batchTransferManager.removeFromBlocklist(userAddress);
+            if (wasRemoved) {
+              console.log(`✅ Removed ${userAddress} from blocklist - sufficient allowance`);
+            }
+          }
+          
           // Ensure user is in webhook
           const fid = await getUserFid(userAddress);
           if (fid) {
