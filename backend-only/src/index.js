@@ -2260,20 +2260,32 @@ app.post('/api/update-allowance', async (req, res) => {
     
     console.log(`💰 Total tip amount: ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount}), Current allowance: ${allowanceAmount}`);
     
+    // ALWAYS check and update blocklist based on current allowance
+    if (batchTransferManager && batchTransferManager.removeFromBlocklist) {
+      console.log(`🔧 DEBUG: Checking blocklist status for ${userAddress}`);
+      const wasInBlocklist = batchTransferManager.isUserBlocked(userAddress);
+      console.log(`🔧 DEBUG: Was ${userAddress} in blocklist? ${wasInBlocklist}`);
+      
+      if (allowanceAmount >= minTipAmount) {
+        // User has sufficient allowance - remove from blocklist if they were blocked
+        const wasRemoved = await batchTransferManager.removeFromBlocklist(userAddress);
+        console.log(`🔄 Blocklist removal result for ${userAddress}: ${wasRemoved ? 'removed' : 'not in blocklist'}`);
+        
+        // Verify removal worked
+        const isStillBlocked = batchTransferManager.isUserBlocked(userAddress);
+        console.log(`🔧 DEBUG: After removal - is ${userAddress} still blocked? ${isStillBlocked}`);
+      } else {
+        // User has insufficient allowance - add to blocklist if not already there
+        if (!wasInBlocklist) {
+          batchTransferManager.blockedUsers.add(userAddress.toLowerCase());
+          console.log(`🚫 Added ${userAddress} to blocklist - insufficient allowance`);
+        }
+      }
+    }
+    
     // Update webhook and homepage based on allowance
     if (allowanceAmount >= minTipAmount) {
       console.log(`✅ User ${userAddress} has sufficient allowance - keeping active`);
-      
-    // Remove from blocklist if user was blocked
-    if (batchTransferManager && batchTransferManager.removeFromBlocklist) {
-      console.log(`🔧 DEBUG: Before removal - checking if ${userAddress} is in blocklist`);
-      const wasRemoved = await batchTransferManager.removeFromBlocklist(userAddress);
-      console.log(`🔄 Blocklist removal result for ${userAddress}: ${wasRemoved ? 'removed' : 'not in blocklist'}`);
-      
-      // Verify removal worked
-      const isStillBlocked = batchTransferManager.isUserBlocked(userAddress);
-      console.log(`🔧 DEBUG: After removal - is ${userAddress} still blocked? ${isStillBlocked}`);
-    }
       
       const fid = await getUserFid(userAddress);
       if (fid) {
@@ -2284,19 +2296,9 @@ app.post('/api/update-allowance', async (req, res) => {
     } else {
       console.log(`❌ User ${userAddress} has insufficient allowance - removing from active`);
       
-      // Add to blocklist to prevent future tip processing
-      if (batchTransferManager && batchTransferManager.blockedUsers) {
-        batchTransferManager.blockedUsers.add(userAddress.toLowerCase());
-        console.log(`🚫 Added ${userAddress} to blocklist - insufficient allowance`);
-      }
-      
       // Remove from homepage cache
       await removeUserFromHomepageCache(userAddress);
       console.log(`🏠 Removed ${userAddress} from homepage cache`);
-      
-      // No webhook removal needed - blocklist handles filtering
-      await removeUserFromHomepageCache(userAddress);
-      console.log(`🏠 Removed user from homepage cache`);
     }
     
     res.json({
