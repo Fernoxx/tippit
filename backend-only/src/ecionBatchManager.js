@@ -404,6 +404,20 @@ class EcionBatchManager {
       
       console.log(`🚀 Submitting batch tip transaction with gas options:`, gasOptions);
       
+      // Get fresh nonce to prevent conflicts
+      const currentNonce = await this.provider.getTransactionCount(this.wallet.address, 'pending');
+      const pendingNonce = await this.provider.getTransactionCount(this.wallet.address, 'pending');
+      console.log(`🔢 Nonce check - Current: ${currentNonce}, Pending: ${pendingNonce}`);
+      
+      if (currentNonce !== pendingNonce) {
+        console.log('🚨 NONCE GAP DETECTED - waiting for pending transactions...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+      
+      const finalNonce = await this.provider.getTransactionCount(this.wallet.address, 'pending');
+      gasOptions.nonce = finalNonce;
+      console.log(`🔢 Using nonce: ${finalNonce}`);
+      
       // Add transaction retry logic
       let tx = null;
       let txRetryCount = 0;
@@ -427,16 +441,19 @@ class EcionBatchManager {
           console.log(`⏳ Waiting ${txRetryCount * 2} seconds before retry...`);
           await new Promise(resolve => setTimeout(resolve, 2000 * txRetryCount));
           
-          // Refresh gas pricing for retry
+          // Refresh gas pricing and nonce for retry
           try {
             const feeData = await this.provider.getFeeData();
             const retryGasLimit = Math.floor(3500000 * Number(complexityMultiplier));
+            const retryNonce = await this.provider.getTransactionCount(this.wallet.address, 'pending');
             gasOptions = {
               gasLimit: retryGasLimit,
               maxFeePerGas: feeData.maxFeePerGas ? feeData.maxFeePerGas * 110n / 100n : undefined, // 10% higher for retry (reduced from 30%)
-              maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ? feeData.maxPriorityFeePerGas * 110n / 100n : undefined
+              maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ? feeData.maxPriorityFeePerGas * 110n / 100n : undefined,
+              nonce: retryNonce
             };
             console.log(`⛽ Retry gas limit: ${retryGasLimit} (${complexityMultiplier}x multiplier)`);
+            console.log(`🔢 Retry nonce: ${retryNonce}`);
             if (gasOptions.maxFeePerGas && gasOptions.maxPriorityFeePerGas) {
               delete gasOptions.gasPrice;
             }
