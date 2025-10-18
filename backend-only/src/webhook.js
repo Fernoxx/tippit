@@ -114,6 +114,7 @@ async function parseWebhookEvent(event) {
       interactionType = 'follow';
       authorFid = event.data.target_user?.fid; // Fixed: target_user, not targetUser
       interactorFid = event.data.user?.fid; // Fixed: user, not author
+      castHash = `follow_${authorFid}_${interactorFid}`; // Special cast hash for follows to prevent duplicates
       break;
   }
   
