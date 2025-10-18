@@ -256,9 +256,29 @@ async function webhookHandler(req, res) {
     }
 
     // Check if user is blocked (insufficient allowance) - skip processing entirely
-    if (batchTransferManager.isUserBlocked && batchTransferManager.isUserBlocked(interaction.authorAddress)) {
+    let isUserBlocked = false;
+    
+    // First try memory blocklist
+    if (batchTransferManager && batchTransferManager.isUserBlocked) {
+      isUserBlocked = batchTransferManager.isUserBlocked(interaction.authorAddress);
+      console.log(`🔍 Memory blocklist check: ${isUserBlocked ? 'BLOCKED' : 'ALLOWED'}`);
+    }
+    
+    // Fallback: Check database blocklist directly
+    if (!isUserBlocked) {
+      try {
+        const databaseBlocklist = await database.getBlocklist();
+        isUserBlocked = databaseBlocklist.includes(interaction.authorAddress.toLowerCase());
+        console.log(`🔍 Database blocklist check: ${isUserBlocked ? 'BLOCKED' : 'ALLOWED'}`);
+        console.log(`🔍 Database blocklist contents:`, databaseBlocklist);
+      } catch (error) {
+        console.error(`❌ Error checking database blocklist:`, error);
+      }
+    }
+    
+    if (isUserBlocked) {
       console.log(`⏭️ Skipping webhook event - user ${interaction.authorAddress} is in blocklist (insufficient allowance)`);
-      console.log(`🔍 Blocklist contents:`, Array.from(batchTransferManager.blockedUsers || []));
+      console.log(`🔍 Memory blocklist contents:`, Array.from(batchTransferManager?.blockedUsers || []));
       return res.status(200).json({
         success: true,
         processed: false,

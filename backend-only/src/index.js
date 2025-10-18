@@ -2334,10 +2334,13 @@ app.post('/api/update-allowance', async (req, res) => {
           console.log(`✅ CRITICAL FIX: Removed ${userAddress} from database blocklist`);
           console.log(`🔧 Updated database blocklist:`, updatedBlocklist);
           
-          // Also update memory if batchTransferManager is available
+          // CRITICAL: Always update memory blocklist
           if (batchTransferManager && batchTransferManager.blockedUsers) {
             batchTransferManager.blockedUsers = new Set(updatedBlocklist);
             console.log(`✅ CRITICAL FIX: Updated memory blocklist`);
+            console.log(`🔧 Memory blocklist after update:`, Array.from(batchTransferManager.blockedUsers));
+          } else {
+            console.log(`❌ CRITICAL: batchTransferManager not available for memory update!`);
           }
         } else {
           console.log(`ℹ️ User ${userAddress} was not in database blocklist`);
@@ -2349,10 +2352,13 @@ app.post('/api/update-allowance', async (req, res) => {
           await database.setBlocklist(updatedBlocklist);
           console.log(`✅ CRITICAL FIX: Added ${userAddress} to database blocklist`);
           
-          // Also update memory if batchTransferManager is available
+          // CRITICAL: Always update memory blocklist
           if (batchTransferManager && batchTransferManager.blockedUsers) {
             batchTransferManager.blockedUsers = new Set(updatedBlocklist);
             console.log(`✅ CRITICAL FIX: Updated memory blocklist`);
+            console.log(`🔧 Memory blocklist after update:`, Array.from(batchTransferManager.blockedUsers));
+          } else {
+            console.log(`❌ CRITICAL: batchTransferManager not available for memory update!`);
           }
         }
       }
