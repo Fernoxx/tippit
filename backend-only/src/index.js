@@ -2270,7 +2270,7 @@ const updateAllowanceSimple = require('./update-allowance-simple');
 // NEW: Update allowance endpoint for instant database/webhook updates after user approves/revokes
 // This endpoint should ONLY be called after actual approve/revoke transactions
 app.post('/api/update-allowance', async (req, res) => {
-  await updateAllowanceSimple(req, res, database, batchTransferManager);
+  await updateAllowanceSimple(req, res, database, batchTransferManager, blocklistService);
 });
     
     // Only update blocklist for real transactions, not page visits

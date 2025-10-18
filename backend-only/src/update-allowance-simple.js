@@ -2,7 +2,7 @@
 const express = require('express');
 const { ethers } = require('ethers');
 
-async function updateAllowanceSimple(req, res, database, batchTransferManager) {
+async function updateAllowanceSimple(req, res, database, batchTransferManager, blocklistService) {
   try {
     const { userAddress, tokenAddress, transactionType, isRealTransaction = false } = req.body;
     console.log(`🔄 Updating allowance for ${userAddress} (${transactionType}) - Real transaction: ${isRealTransaction}`);
@@ -67,42 +67,28 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
     
     console.log(`💰 Total tip amount: ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount}), Current allowance: ${allowanceAmount}`);
     
-    // Simple blocklist update based on allowance
-    const currentBlocklist = await database.getBlocklist();
-    const shouldBeBlocked = allowanceAmount < minTipAmount;
-    const isCurrentlyBlocked = currentBlocklist.includes(userAddress.toLowerCase());
+    // Use BlocklistService to update blocklist status - this ensures all blocklist instances are synchronized
+    console.log(`🔄 Using BlocklistService to update blocklist for ${userAddress}`);
+    const blocklistResult = await blocklistService.updateUserBlocklistStatus(userAddress);
     
-    if (shouldBeBlocked && !isCurrentlyBlocked) {
-      // Add to blocklist
-      const updatedBlocklist = [...currentBlocklist, userAddress.toLowerCase()];
-      await database.setBlocklist(updatedBlocklist);
-      console.log(`✅ Added ${userAddress} to blocklist - insufficient allowance (${allowanceAmount} < ${minTipAmount})`);
-      
-      // Update memory blocklist
-      if (batchTransferManager && batchTransferManager.blockedUsers) {
+    // Also update the batchTransferManager memory blocklist to keep it in sync
+    if (batchTransferManager && batchTransferManager.blockedUsers) {
+      if (blocklistResult.action === 'added') {
         batchTransferManager.blockedUsers.add(userAddress.toLowerCase());
-        console.log(`✅ Updated memory blocklist`);
-      }
-      
-    } else if (!shouldBeBlocked && isCurrentlyBlocked) {
-      // Remove from blocklist
-      const updatedBlocklist = currentBlocklist.filter(addr => addr !== userAddress.toLowerCase());
-      await database.setBlocklist(updatedBlocklist);
-      console.log(`✅ Removed ${userAddress} from blocklist - sufficient allowance (${allowanceAmount} >= ${minTipAmount})`);
-      
-      // Update memory blocklist
-      if (batchTransferManager && batchTransferManager.blockedUsers) {
+        console.log(`✅ Updated batchTransferManager memory blocklist - added ${userAddress}`);
+      } else if (blocklistResult.action === 'removed') {
         batchTransferManager.blockedUsers.delete(userAddress.toLowerCase());
-        console.log(`✅ Updated memory blocklist`);
+        console.log(`✅ Updated batchTransferManager memory blocklist - removed ${userAddress}`);
       }
-      
-    } else {
-      console.log(`ℹ️ No blocklist change needed - user ${userAddress} allowance: ${allowanceAmount}, min required: ${minTipAmount}`);
     }
     
-    // Update webhook and homepage based on allowance
-    if (allowanceAmount >= minTipAmount) {
-      console.log(`✅ User ${userAddress} has sufficient allowance - keeping active`);
+    console.log(`📊 Blocklist update result: ${blocklistResult.action} - ${blocklistResult.reason}`);
+    
+    // Update webhook and homepage based on blocklist status
+    const isCurrentlyBlocked = blocklistService.isBlocked(userAddress);
+    
+    if (!isCurrentlyBlocked) {
+      console.log(`✅ User ${userAddress} is not blocked - keeping active`);
       
       const fid = await getUserFid(userAddress);
       if (fid) {
@@ -112,7 +98,7 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
       
       console.log(`🏠 User remains in homepage cache`);
     } else {
-      console.log(`❌ User ${userAddress} has insufficient allowance - removing from active`);
+      console.log(`❌ User ${userAddress} is blocked - removing from active`);
       await clearHomepageCache(userAddress);
     }
     
@@ -120,8 +106,9 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
       success: true,
       allowance: allowanceAmount,
       minTipAmount: minTipAmount,
-      isBlocked: shouldBeBlocked,
-      message: `Blocklist updated - user ${shouldBeBlocked ? 'blocked' : 'unblocked'}`
+      isBlocked: isCurrentlyBlocked,
+      blocklistAction: blocklistResult.action,
+      message: `Blocklist updated - user ${isCurrentlyBlocked ? 'blocked' : 'unblocked'}`
     });
     
   } catch (error) {
