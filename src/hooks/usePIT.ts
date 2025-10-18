@@ -94,8 +94,13 @@ export const useEcion = () => {
     fetchBackendWalletAddress();
   }, [address]);
 
-  // Note: Removed automatic allowance fetching to prevent unwanted blocklist updates
-  // Allowance will only be fetched when user explicitly performs approve/revoke actions
+  // Fetch token allowance when user config loads or token changes
+  useEffect(() => {
+    if (address && userConfig?.tokenAddress) {
+      console.log('🔍 Fetching allowance for user token:', userConfig.tokenAddress);
+      fetchTokenAllowance(userConfig.tokenAddress);
+    }
+  }, [address, userConfig?.tokenAddress]);
 
   const fetchUserConfig = async () => {
     try {
@@ -255,7 +260,7 @@ export const useEcion = () => {
       toast.success('Token allowance revoked successfully!', { duration: 2000 });
       
       // Update allowance and webhooks after successful revocation
-      await updateAllowanceAndWebhooks(tokenAddress);
+      await updateAllowanceAndWebhooks(tokenAddress, 'revocation');
       
     } catch (error: any) {
       console.error('Revocation failed:', error);
@@ -291,7 +296,7 @@ export const useEcion = () => {
   };
 
   // NEW: Update allowance and webhooks after transaction
-  const updateAllowanceAndWebhooks = async (tokenAddress: string) => {
+  const updateAllowanceAndWebhooks = async (tokenAddress: string, transactionType: string = 'approval') => {
     if (!address) return;
     
     try {
@@ -304,7 +309,8 @@ export const useEcion = () => {
         body: JSON.stringify({
           userAddress: address,
           tokenAddress: tokenAddress,
-          transactionType: 'approval'
+          transactionType: transactionType,
+          isRealTransaction: true
         })
       });
       

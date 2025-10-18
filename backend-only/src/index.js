@@ -2252,11 +2252,22 @@ async function removeUserFromHomepageCache(userAddress) {
 }
 
 // NEW: Update allowance endpoint for instant database/webhook updates after user approves/revokes
+// This endpoint should ONLY be called after actual approve/revoke transactions
 app.post('/api/update-allowance', async (req, res) => {
   try {
-    const { userAddress, tokenAddress, transactionType } = req.body;
-    console.log(`🔄 Updating allowance for ${userAddress} (${transactionType})`);
+    const { userAddress, tokenAddress, transactionType, isRealTransaction = false } = req.body;
+    console.log(`🔄 Updating allowance for ${userAddress} (${transactionType}) - Real transaction: ${isRealTransaction}`);
     console.log(`📊 Request body:`, req.body);
+    
+    // Only update blocklist for real transactions, not page visits
+    if (!isRealTransaction) {
+      console.log(`⏭️ Skipping blocklist update - not a real transaction`);
+      return res.json({ 
+        success: true, 
+        message: 'Allowance fetched without blocklist update',
+        isRealTransaction: false
+      });
+    }
     
     // Get current allowance from blockchain
     const { ethers } = require('ethers');
