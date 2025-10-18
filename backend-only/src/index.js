@@ -2261,6 +2261,9 @@ app.post('/api/update-allowance', async (req, res) => {
     console.log(`💰 Total tip amount: ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount}), Current allowance: ${allowanceAmount}`);
     
     // ALWAYS check and update blocklist based on current allowance
+    console.log(`🔧 DEBUG: batchTransferManager exists? ${!!batchTransferManager}`);
+    console.log(`🔧 DEBUG: removeFromBlocklist exists? ${!!(batchTransferManager && batchTransferManager.removeFromBlocklist)}`);
+    
     if (batchTransferManager && batchTransferManager.removeFromBlocklist) {
       console.log(`🔧 DEBUG: Checking blocklist status for ${userAddress}`);
       const wasInBlocklist = batchTransferManager.isUserBlocked(userAddress);
@@ -2268,6 +2271,7 @@ app.post('/api/update-allowance', async (req, res) => {
       
       if (allowanceAmount >= minTipAmount) {
         // User has sufficient allowance - remove from blocklist if they were blocked
+        console.log(`🔧 DEBUG: User has sufficient allowance, attempting to remove from blocklist...`);
         const wasRemoved = await batchTransferManager.removeFromBlocklist(userAddress);
         console.log(`🔄 Blocklist removal result for ${userAddress}: ${wasRemoved ? 'removed' : 'not in blocklist'}`);
         
@@ -2281,6 +2285,8 @@ app.post('/api/update-allowance', async (req, res) => {
           console.log(`🚫 Added ${userAddress} to blocklist - insufficient allowance`);
         }
       }
+    } else {
+      console.log(`❌ ERROR: batchTransferManager or removeFromBlocklist not available!`);
     }
     
     // Update webhook and homepage based on allowance
