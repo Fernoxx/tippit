@@ -77,7 +77,7 @@ export const useEcion = () => {
       toast.success('Transaction confirmed successfully!', { duration: 2000 });
       
       if (userConfig?.tokenAddress) {
-        // Wait a bit for blockchain to update, then verify allowance before updating blocklist
+        // Wait longer for blockchain to update, then verify allowance before updating blocklist
         setTimeout(async () => {
           try {
             // First verify the allowance actually changed
@@ -97,7 +97,7 @@ export const useEcion = () => {
           } catch (error) {
             console.error('❌ Error verifying allowance:', error);
           }
-        }, 2000); // Wait 2 seconds for blockchain to update
+        }, 8000); // Wait 8 seconds for blockchain to update
       }
       setPendingTxHash(null);
     }

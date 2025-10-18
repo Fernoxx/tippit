@@ -2282,6 +2282,10 @@ app.post('/api/update-allowance', async (req, res) => {
       });
     }
     
+    // Wait for blockchain to update (transaction confirmation doesn't mean blockchain is updated)
+    console.log(`⏳ Waiting for blockchain to update...`);
+    await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+    
     // Get current allowance from blockchain
     const { ethers } = require('ethers');
     const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
@@ -2295,7 +2299,7 @@ app.post('/api/update-allowance', async (req, res) => {
     const tokenDecimals = await getTokenDecimals(tokenAddress);
     const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
     
-    console.log(`📊 Blockchain allowance: ${allowanceAmount}`);
+    console.log(`📊 Blockchain allowance after wait: ${allowanceAmount}`);
     
     // No need to update database - we only use blockchain allowance for decisions
     
