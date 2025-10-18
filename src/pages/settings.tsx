@@ -557,17 +557,6 @@ export default function Settings() {
                 </p>
               </div>
 
-              {/* Check Allowance Button */}
-              {selectedToken && (
-                <div>
-                  <button
-                    onClick={() => fetchTokenAllowance(selectedToken)}
-                    className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-                  >
-                    Check Current Allowance
-                  </button>
-                </div>
-              )}
 
               {/* Allowance Amount */}
               <div>
