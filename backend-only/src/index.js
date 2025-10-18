@@ -2262,6 +2262,8 @@ app.post('/api/update-allowance', async (req, res) => {
     
     // ALWAYS check and update blocklist based on current allowance
     console.log(`🔧 DEBUG: batchTransferManager exists? ${!!batchTransferManager}`);
+    console.log(`🔧 DEBUG: batchTransferManager type: ${typeof batchTransferManager}`);
+    console.log(`🔧 DEBUG: batchTransferManager keys: ${batchTransferManager ? Object.keys(batchTransferManager) : 'N/A'}`);
     console.log(`🔧 DEBUG: removeFromBlocklist exists? ${!!(batchTransferManager && batchTransferManager.removeFromBlocklist)}`);
     
     if (batchTransferManager && batchTransferManager.removeFromBlocklist) {
@@ -2287,6 +2289,32 @@ app.post('/api/update-allowance', async (req, res) => {
       }
     } else {
       console.log(`❌ ERROR: batchTransferManager or removeFromBlocklist not available!`);
+      
+      // FALLBACK: Direct database blocklist management
+      console.log(`🔧 FALLBACK: Using direct database blocklist management`);
+      try {
+        const currentBlocklist = await database.getBlocklist();
+        console.log(`🔧 FALLBACK: Current blocklist:`, currentBlocklist);
+        
+        if (allowanceAmount >= minTipAmount) {
+          // Remove user from blocklist
+          const updatedBlocklist = (currentBlocklist || []).filter(addr => 
+            addr.toLowerCase() !== userAddress.toLowerCase()
+          );
+          console.log(`🔧 FALLBACK: Updated blocklist:`, updatedBlocklist);
+          await database.setBlocklist(updatedBlocklist);
+          console.log(`✅ FALLBACK: Removed ${userAddress} from blocklist via database`);
+        } else {
+          // Add user to blocklist
+          if (!currentBlocklist.includes(userAddress.toLowerCase())) {
+            const updatedBlocklist = [...(currentBlocklist || []), userAddress.toLowerCase()];
+            await database.setBlocklist(updatedBlocklist);
+            console.log(`✅ FALLBACK: Added ${userAddress} to blocklist via database`);
+          }
+        }
+      } catch (error) {
+        console.error(`❌ FALLBACK ERROR:`, error);
+      }
     }
     
     // Update webhook and homepage based on allowance
