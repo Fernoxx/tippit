@@ -81,7 +81,7 @@ export const useEcion = () => {
         setTimeout(async () => {
           console.log('🔄 Updating blocklist after transaction confirmation...');
           updateAllowanceAndWebhooks(userConfig.tokenAddress);
-        }, 5000); // Wait 5 seconds for blockchain to update
+        }, 12000); // Wait 12 seconds for blockchain to update
       }
       setPendingTxHash(null);
     }

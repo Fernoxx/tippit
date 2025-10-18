@@ -17,11 +17,11 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
       });
     }
     
-    // Wait for blockchain to update
+    // Wait for blockchain to update with retry mechanism
     console.log(`⏳ Waiting for blockchain to update...`);
-    await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds
+    await new Promise(resolve => setTimeout(resolve, 10000)); // Wait 10 seconds
     
-    // Get current allowance from blockchain
+    // Get current allowance from blockchain with retry
     const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     
@@ -29,11 +29,29 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
       "function allowance(address owner, address spender) view returns (uint256)"
     ], provider);
     
-    const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
-    const tokenDecimals = await getTokenDecimals(tokenAddress);
-    const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
+    let allowanceAmount = 0;
+    let retryCount = 0;
+    const maxRetries = 3;
     
-    console.log(`📊 Blockchain allowance: ${allowanceAmount}`);
+    while (allowanceAmount === 0 && retryCount < maxRetries) {
+      const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
+      const tokenDecimals = await getTokenDecimals(tokenAddress);
+      allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
+      
+      console.log(`📊 Blockchain allowance (attempt ${retryCount + 1}): ${allowanceAmount}`);
+      
+      if (allowanceAmount === 0 && retryCount < maxRetries - 1) {
+        console.log(`⏳ Allowance still 0, waiting 5 more seconds...`);
+        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 more seconds
+        retryCount++;
+      } else {
+        break;
+      }
+    }
+    
+    if (allowanceAmount === 0) {
+      console.log(`⚠️ Allowance still 0 after ${maxRetries} attempts - transaction may have failed`);
+    }
     
     // Get user config to check min tip amount
     const userConfig = await database.getUserConfig(userAddress);
