@@ -4,7 +4,7 @@ const path = require('path');
 require('dotenv').config();
 
 const webhookHandler = require('./webhook');
-const { batchTransferManager } = require('./batchTransferManager');
+const batchTransferManager = require('./batchTransferManager');
 const BlocklistService = require('./blocklistService');
 // Use PostgreSQL database if available, fallback to file storage
 let database;
@@ -38,6 +38,15 @@ try {
   console.error('❌ Error details:', error.message);
   console.error('❌ Stack trace:', error.stack);
   global.blocklistService = null;
+}
+
+// Initialize batchTransferManager
+console.log('🔄 Initializing batchTransferManager...');
+console.log(`📊 batchTransferManager status: ${batchTransferManager ? 'ACTIVE' : 'INACTIVE'}`);
+if (batchTransferManager) {
+  console.log('✅ batchTransferManager initialized successfully');
+} else {
+  console.error('❌ batchTransferManager failed to initialize');
 }
 
 const app = express();

@@ -18,7 +18,8 @@
     "enabled": true,
     "paths": [
       "backend-only/node_modules",
-      "backend-only/package-lock.json"
+      "backend-only/package-lock.json",
+      "backend-only/package.json"
     ]
   }
 }
