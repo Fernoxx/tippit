@@ -178,16 +178,12 @@ export default function Settings() {
     if (newAddress && newAddress.length === 42 && newAddress.startsWith('0x')) {
       setSelectedToken(newAddress);
       await lookupTokenName(newAddress);
-      await fetchTokenAllowance(newAddress);
+      // Note: Not fetching allowance automatically to prevent blocklist updates
     }
   };
 
-  // Fetch allowance on component mount and token change
-  useEffect(() => {
-    if (address && selectedToken) {
-      fetchTokenAllowance(selectedToken);
-    }
-  }, [address, selectedToken]);
+  // Note: Removed automatic allowance fetching to prevent unwanted blocklist updates
+  // Allowance will only be fetched when user explicitly needs to see it
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -560,6 +556,18 @@ export default function Settings() {
                   {isValidToken ? `${tokenName} on Base` : 'Invalid token address'}
                 </p>
               </div>
+
+              {/* Check Allowance Button */}
+              {selectedToken && (
+                <div>
+                  <button
+                    onClick={() => fetchTokenAllowance(selectedToken)}
+                    className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                  >
+                    Check Current Allowance
+                  </button>
+                </div>
+              )}
 
               {/* Allowance Amount */}
               <div>

@@ -94,13 +94,8 @@ export const useEcion = () => {
     fetchBackendWalletAddress();
   }, [address]);
 
-  // Fetch token allowance when user config loads or token changes
-  useEffect(() => {
-    if (address && userConfig?.tokenAddress) {
-      console.log('🔍 Fetching allowance for user token:', userConfig.tokenAddress);
-      fetchTokenAllowance(userConfig.tokenAddress);
-    }
-  }, [address, userConfig?.tokenAddress]);
+  // Note: Removed automatic allowance fetching to prevent unwanted blocklist updates
+  // Allowance will only be fetched when user explicitly performs approve/revoke actions
 
   const fetchUserConfig = async () => {
     try {
