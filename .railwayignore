@@ -1,0 +1,22 @@
+# Frontend files (not needed for backend deployment)
+src/
+public/
+next.config.js
+tailwind.config.js
+postcss.config.js
+tsconfig.json
+vercel.json
+
+# Development files
+.github/
+*.md
+.env.example
+test-config.json
+clear-blocklist*.js
+
+# Git files
+.git/
+.gitignore
+
+# Node modules (will be installed during build)
+node_modules/

@@ -4,7 +4,7 @@
   "description": "Ecion Backend - Backend-only tipping system like Noice",
   "main": "src/index.js",
   "engines": {
-    "node": ">=18.0.0"
+    "node": "18.20.5"
   },
   "scripts": {
     "start": "node src/index.js",
