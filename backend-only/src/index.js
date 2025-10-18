@@ -2264,13 +2264,14 @@ async function removeUserFromHomepageCache(userAddress) {
   }
 }
 
+// Import simple update allowance function
+const updateAllowanceSimple = require('./update-allowance-simple');
+
 // NEW: Update allowance endpoint for instant database/webhook updates after user approves/revokes
 // This endpoint should ONLY be called after actual approve/revoke transactions
 app.post('/api/update-allowance', async (req, res) => {
-  try {
-    const { userAddress, tokenAddress, transactionType, isRealTransaction = false } = req.body;
-    console.log(`🔄 Updating allowance for ${userAddress} (${transactionType}) - Real transaction: ${isRealTransaction}`);
-    console.log(`📊 Request body:`, req.body);
+  await updateAllowanceSimple(req, res, database, batchTransferManager);
+});
     
     // Only update blocklist for real transactions, not page visits
     if (!isRealTransaction) {
@@ -2284,7 +2285,7 @@ app.post('/api/update-allowance', async (req, res) => {
     
     // Wait for blockchain to update (transaction confirmation doesn't mean blockchain is updated)
     console.log(`⏳ Waiting for blockchain to update...`);
-    await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+    await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds
     
     // Get current allowance from blockchain
     const { ethers } = require('ethers');
@@ -2299,7 +2300,7 @@ app.post('/api/update-allowance', async (req, res) => {
     const tokenDecimals = await getTokenDecimals(tokenAddress);
     const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
     
-    console.log(`📊 Blockchain allowance after wait: ${allowanceAmount}`);
+    console.log(`📊 Blockchain allowance: ${allowanceAmount}`);
     
     // No need to update database - we only use blockchain allowance for decisions
     
@@ -2317,11 +2318,8 @@ app.post('/api/update-allowance', async (req, res) => {
     
     console.log(`💰 Total tip amount: ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount}), Current allowance: ${allowanceAmount}`);
     
-    // ALWAYS check and update blocklist based on current allowance
-    console.log(`🔧 DEBUG: batchTransferManager exists? ${!!batchTransferManager}`);
-    console.log(`🔧 DEBUG: batchTransferManager type: ${typeof batchTransferManager}`);
-    console.log(`🔧 DEBUG: batchTransferManager keys: ${batchTransferManager ? Object.keys(batchTransferManager) : 'N/A'}`);
-    console.log(`🔧 DEBUG: removeFromBlocklist exists? ${!!(batchTransferManager && batchTransferManager.removeFromBlocklist)}`);
+    // Simple blocklist update based on allowance
+    console.log(`🔄 Updating blocklist based on allowance: ${allowanceAmount} vs min required: ${minTipAmount}`);
     
     if (batchTransferManager && batchTransferManager.removeFromBlocklist) {
       console.log(`🔧 DEBUG: Checking blocklist status for ${userAddress}`);

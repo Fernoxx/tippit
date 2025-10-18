@@ -77,27 +77,11 @@ export const useEcion = () => {
       toast.success('Transaction confirmed successfully!', { duration: 2000 });
       
       if (userConfig?.tokenAddress) {
-        // Wait longer for blockchain to update, then verify allowance before updating blocklist
+        // Wait for blockchain to update, then update blocklist
         setTimeout(async () => {
-          try {
-            // First verify the allowance actually changed
-            const response = await fetch(`${BACKEND_URL}/api/allowance/${address}/${userConfig.tokenAddress}`);
-            if (response.ok) {
-              const data = await response.json();
-              console.log('🔍 Verifying allowance after transaction:', data.allowance);
-              
-              // Only update blocklist if allowance is actually > 0
-              if (parseFloat(data.allowance) > 0) {
-                console.log('✅ Allowance verified, updating blocklist...');
-                updateAllowanceAndWebhooks(userConfig.tokenAddress);
-              } else {
-                console.log('⚠️ Transaction confirmed but allowance is still 0, skipping blocklist update');
-              }
-            }
-          } catch (error) {
-            console.error('❌ Error verifying allowance:', error);
-          }
-        }, 8000); // Wait 8 seconds for blockchain to update
+          console.log('🔄 Updating blocklist after transaction confirmation...');
+          updateAllowanceAndWebhooks(userConfig.tokenAddress);
+        }, 5000); // Wait 5 seconds for blockchain to update
       }
       setPendingTxHash(null);
     }
