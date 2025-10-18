@@ -72,6 +72,10 @@ export const useEcion = () => {
   useEffect(() => {
     if (isTxSuccess && pendingTxHash) {
       console.log('✅ Transaction confirmed, updating allowance and webhooks...');
+      
+      // Show success message
+      toast.success('Transaction confirmed successfully!', { duration: 2000 });
+      
       if (userConfig?.tokenAddress) {
         // Wait a bit for blockchain to update, then verify allowance before updating blocklist
         setTimeout(async () => {
@@ -113,13 +117,8 @@ export const useEcion = () => {
     fetchBackendWalletAddress();
   }, [address]);
 
-  // Fetch token allowance when user config loads or token changes
-  useEffect(() => {
-    if (address && userConfig?.tokenAddress) {
-      console.log('🔍 Fetching allowance for user token:', userConfig.tokenAddress);
-      fetchTokenAllowance(userConfig.tokenAddress);
-    }
-  }, [address, userConfig?.tokenAddress]);
+  // Note: Removed automatic allowance fetching to prevent unwanted blocklist updates
+  // Allowance will only be fetched when user explicitly performs approve/revoke actions
 
   const fetchUserConfig = async () => {
     try {
@@ -276,7 +275,6 @@ export const useEcion = () => {
       });
       
       console.log('Revoke transaction submitted');
-      toast.success('Token allowance revoked successfully!', { duration: 2000 });
       
       // Update allowance and webhooks after successful revocation
       await updateAllowanceAndWebhooks(tokenAddress, 'revocation');
@@ -338,7 +336,7 @@ export const useEcion = () => {
         console.log('✅ Allowance and webhooks updated:', data);
         setTokenAllowance(data.allowance);
         
-        toast.success('Allowance approved!', { duration: 2000 });
+        // Success message will be shown by transaction confirmation
       } else {
         console.error('❌ Failed to update allowance:', response.status);
         // Fallback to regular allowance fetch
