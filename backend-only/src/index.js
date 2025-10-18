@@ -2317,6 +2317,49 @@ app.post('/api/update-allowance', async (req, res) => {
       }
     }
     
+    // CRITICAL FIX: Always update blocklist in database directly
+    console.log(`🔧 CRITICAL FIX: Updating blocklist directly in database`);
+    try {
+      const currentBlocklist = await database.getBlocklist();
+      console.log(`🔧 Current database blocklist:`, currentBlocklist);
+      
+      if (allowanceAmount >= minTipAmount) {
+        // User has sufficient allowance - remove from blocklist
+        const updatedBlocklist = (currentBlocklist || []).filter(addr => 
+          addr.toLowerCase() !== userAddress.toLowerCase()
+        );
+        
+        if (updatedBlocklist.length !== (currentBlocklist || []).length) {
+          await database.setBlocklist(updatedBlocklist);
+          console.log(`✅ CRITICAL FIX: Removed ${userAddress} from database blocklist`);
+          console.log(`🔧 Updated database blocklist:`, updatedBlocklist);
+          
+          // Also update memory if batchTransferManager is available
+          if (batchTransferManager && batchTransferManager.blockedUsers) {
+            batchTransferManager.blockedUsers = new Set(updatedBlocklist);
+            console.log(`✅ CRITICAL FIX: Updated memory blocklist`);
+          }
+        } else {
+          console.log(`ℹ️ User ${userAddress} was not in database blocklist`);
+        }
+      } else {
+        // User has insufficient allowance - add to blocklist
+        if (!currentBlocklist.includes(userAddress.toLowerCase())) {
+          const updatedBlocklist = [...(currentBlocklist || []), userAddress.toLowerCase()];
+          await database.setBlocklist(updatedBlocklist);
+          console.log(`✅ CRITICAL FIX: Added ${userAddress} to database blocklist`);
+          
+          // Also update memory if batchTransferManager is available
+          if (batchTransferManager && batchTransferManager.blockedUsers) {
+            batchTransferManager.blockedUsers = new Set(updatedBlocklist);
+            console.log(`✅ CRITICAL FIX: Updated memory blocklist`);
+          }
+        }
+      }
+    } catch (error) {
+      console.error(`❌ CRITICAL FIX ERROR:`, error);
+    }
+    
     // Update webhook and homepage based on allowance
     if (allowanceAmount >= minTipAmount) {
       console.log(`✅ User ${userAddress} has sufficient allowance - keeping active`);
