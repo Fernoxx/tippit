@@ -49,6 +49,9 @@ if (batchTransferManager) {
   console.error('❌ batchTransferManager failed to initialize');
 }
 
+// Force deployment trigger
+console.log('🚀 Backend deployment triggered at:', new Date().toISOString());
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
