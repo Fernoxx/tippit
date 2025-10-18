@@ -257,10 +257,27 @@ async function webhookHandler(req, res) {
       });
     }
 
-    // Check if user is blocked using BlocklistService
-    if (global.blocklistService && global.blocklistService.isBlocked(interaction.authorAddress)) {
+    // Check if user is blocked using BlocklistService or database fallback
+    let isUserBlocked = false;
+    
+    if (global.blocklistService) {
+      isUserBlocked = global.blocklistService.isBlocked(interaction.authorAddress);
+      console.log(`🔍 BlocklistService check: ${isUserBlocked ? 'BLOCKED' : 'ALLOWED'}`);
+    } else {
+      // Fallback to database blocklist check
+      try {
+        const databaseBlocklist = await database.getBlocklist();
+        isUserBlocked = databaseBlocklist.includes(interaction.authorAddress.toLowerCase());
+        console.log(`🔍 Database blocklist check: ${isUserBlocked ? 'BLOCKED' : 'ALLOWED'}`);
+      } catch (error) {
+        console.error(`❌ Error checking database blocklist:`, error);
+      }
+    }
+    
+    if (isUserBlocked) {
       console.log(`⏭️ Skipping webhook event - user ${interaction.authorAddress} is in blocklist (insufficient allowance)`);
-      console.log(`🔍 Blocklist size: ${global.blocklistService.getBlocklistSize()}`);
+      const blocklistSize = global.blocklistService ? global.blocklistService.getBlocklistSize() : 'unknown';
+      console.log(`🔍 Blocklist size: ${blocklistSize}`);
       return res.status(200).json({
         success: true,
         processed: false,

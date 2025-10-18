@@ -25,12 +25,19 @@ try {
 let blocklistService;
 try {
   const { ethers } = require('ethers');
-  const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+  const rpcUrl = process.env.BASE_RPC_URL || process.env.RPC_URL || 'https://mainnet.base.org';
+  console.log(`🔗 Using RPC URL: ${rpcUrl}`);
+  
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
   blocklistService = new BlocklistService(provider, database);
   global.blocklistService = blocklistService; // Make globally available
-  console.log('🚫 BlocklistService initialized');
+  console.log('🚫 BlocklistService initialized successfully');
+  console.log(`📊 BlocklistService status: ${blocklistService ? 'ACTIVE' : 'INACTIVE'}`);
 } catch (error) {
   console.error('❌ Failed to initialize BlocklistService:', error);
+  console.error('❌ Error details:', error.message);
+  console.error('❌ Stack trace:', error.stack);
+  global.blocklistService = null;
 }
 
 const app = express();
@@ -3180,6 +3187,33 @@ app.post('/api/update-blocklist-status', async (req, res) => {
   } catch (error) {
     console.error('Error updating blocklist status:', error);
     res.status(500).json({ error: 'Failed to update blocklist status' });
+  }
+});
+
+// Debug endpoint to check BlocklistService status
+app.get('/api/debug/blocklist-service', (req, res) => {
+  try {
+    const isInitialized = !!global.blocklistService;
+    const blocklistSize = global.blocklistService ? global.blocklistService.getBlocklistSize() : 0;
+    const blockedUsers = global.blocklistService ? global.blocklistService.getBlockedUsers() : [];
+    
+    res.json({
+      success: true,
+      blocklistService: {
+        initialized: isInitialized,
+        size: blocklistSize,
+        blockedUsers: blockedUsers,
+        status: isInitialized ? 'ACTIVE' : 'INACTIVE'
+      },
+      environment: {
+        BASE_RPC_URL: process.env.BASE_RPC_URL ? 'SET' : 'NOT_SET',
+        RPC_URL: process.env.RPC_URL ? 'SET' : 'NOT_SET',
+        DATABASE_URL: process.env.DATABASE_URL ? 'SET' : 'NOT_SET'
+      }
+    });
+  } catch (error) {
+    console.error('Error checking BlocklistService status:', error);
+    res.status(500).json({ error: 'Failed to check BlocklistService status' });
   }
 });
 
