@@ -3841,6 +3841,47 @@ app.get('/api/debug/ecionbatch-status', async (req, res) => {
   }
 });
 
+// Debug endpoint to check blocklist status
+app.get('/api/debug/blocklist-status/:userAddress', async (req, res) => {
+  try {
+    const { userAddress } = req.params;
+    console.log(`🔧 DEBUG: Checking blocklist status for ${userAddress}`);
+    
+    // Check database blocklist
+    const databaseBlocklist = await database.getBlocklist();
+    const isInDatabaseBlocklist = databaseBlocklist.includes(userAddress.toLowerCase());
+    
+    // Check memory blocklist
+    const isInMemoryBlocklist = batchTransferManager ? batchTransferManager.isUserBlocked(userAddress) : 'N/A';
+    
+    // Check user config
+    const userConfig = await database.getUserConfig(userAddress);
+    const minTipAmount = userConfig ? 
+      parseFloat(userConfig.likeAmount || '0') + 
+      parseFloat(userConfig.recastAmount || '0') + 
+      parseFloat(userConfig.replyAmount || '0') : 'N/A';
+    
+    res.json({
+      success: true,
+      userAddress,
+      databaseBlocklist: databaseBlocklist,
+      isInDatabaseBlocklist,
+      isInMemoryBlocklist,
+      userConfig: userConfig ? {
+        likeAmount: userConfig.likeAmount,
+        recastAmount: userConfig.recastAmount,
+        replyAmount: userConfig.replyAmount,
+        minTipAmount
+      } : null,
+      batchTransferManagerAvailable: !!batchTransferManager,
+      removeFromBlocklistAvailable: !!(batchTransferManager && batchTransferManager.removeFromBlocklist)
+    });
+  } catch (error) {
+    console.error('Error checking blocklist status:', error);
+    res.status(500).json({ error: 'Failed to check blocklist status' });
+  }
+});
+
 // Debug endpoint to check and clean blocklist
 app.post('/api/debug/clean-blocklist', async (req, res) => {
   try {
