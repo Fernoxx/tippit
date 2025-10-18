@@ -686,6 +686,67 @@ class PostgresDatabase {
       return [];
     }
   }
+
+  // Add user to blocklist
+  async addToBlocklist(userAddress) {
+    try {
+      const normalizedAddress = userAddress.toLowerCase();
+      
+      // Get current blocklist
+      const currentBlocklist = await this.getBlocklist();
+      
+      // Add user if not already present
+      if (!currentBlocklist.includes(normalizedAddress)) {
+        currentBlocklist.push(normalizedAddress);
+        await this.setBlocklist(currentBlocklist);
+        console.log(`📝 Added ${normalizedAddress} to database blocklist`);
+        return true;
+      } else {
+        console.log(`ℹ️ User ${normalizedAddress} already in database blocklist`);
+        return false;
+      }
+    } catch (error) {
+      console.error(`❌ Error adding ${userAddress} to blocklist:`, error);
+      return false;
+    }
+  }
+
+  // Remove user from blocklist
+  async removeFromBlocklist(userAddress) {
+    try {
+      const normalizedAddress = userAddress.toLowerCase();
+      
+      // Get current blocklist
+      const currentBlocklist = await this.getBlocklist();
+      
+      // Remove user if present
+      const index = currentBlocklist.indexOf(normalizedAddress);
+      if (index > -1) {
+        currentBlocklist.splice(index, 1);
+        await this.setBlocklist(currentBlocklist);
+        console.log(`📝 Removed ${normalizedAddress} from database blocklist`);
+        return true;
+      } else {
+        console.log(`ℹ️ User ${normalizedAddress} not in database blocklist`);
+        return false;
+      }
+    } catch (error) {
+      console.error(`❌ Error removing ${userAddress} from blocklist:`, error);
+      return false;
+    }
+  }
+
+  // Check if user is in blocklist
+  async isUserBlocked(userAddress) {
+    try {
+      const normalizedAddress = userAddress.toLowerCase();
+      const blocklist = await this.getBlocklist();
+      return blocklist.includes(normalizedAddress);
+    } catch (error) {
+      console.error(`❌ Error checking if ${userAddress} is blocked:`, error);
+      return false;
+    }
+  }
 }
 
 module.exports = new PostgresDatabase();

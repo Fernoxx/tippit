@@ -14,6 +14,7 @@ const { getUserByFid, getCastByHash } = require('./neynar');
 const instantTipProcessor = require('./instantTipProcessor');
 const tipQueueManager = require('./tipQueueManager');
 const batchTransferManager = require('./batchTransferManager');
+const BlocklistService = require('./blocklistService');
 
 // Verify webhook signature from Neynar
 function verifyWebhookSignature(req) {
@@ -255,10 +256,10 @@ async function webhookHandler(req, res) {
       });
     }
 
-    // Check if user is blocked (insufficient allowance) - skip processing entirely
-    if (batchTransferManager.isUserBlocked && batchTransferManager.isUserBlocked(interaction.authorAddress)) {
+    // Check if user is blocked using BlocklistService
+    if (global.blocklistService && global.blocklistService.isBlocked(interaction.authorAddress)) {
       console.log(`⏭️ Skipping webhook event - user ${interaction.authorAddress} is in blocklist (insufficient allowance)`);
-      console.log(`🔍 Blocklist contents:`, Array.from(batchTransferManager.blockedUsers || []));
+      console.log(`🔍 Blocklist size: ${global.blocklistService.getBlocklistSize()}`);
       return res.status(200).json({
         success: true,
         processed: false,

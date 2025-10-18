@@ -5,6 +5,7 @@ require('dotenv').config();
 
 const webhookHandler = require('./webhook');
 const { batchTransferManager } = require('./batchTransferManager');
+const BlocklistService = require('./blocklistService');
 // Use PostgreSQL database if available, fallback to file storage
 let database;
 try {
@@ -18,6 +19,18 @@ try {
 } catch (error) {
   console.log('⚠️ PostgreSQL not available, using file storage:', error.message);
   database = require('./database');
+}
+
+// Initialize BlocklistService
+let blocklistService;
+try {
+  const { ethers } = require('ethers');
+  const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+  blocklistService = new BlocklistService(provider, database);
+  global.blocklistService = blocklistService; // Make globally available
+  console.log('🚫 BlocklistService initialized');
+} catch (error) {
+  console.error('❌ Failed to initialize BlocklistService:', error);
 }
 
 const app = express();
@@ -984,9 +997,13 @@ app.post('/api/approve', async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
     
-    // For now, just return success - the actual approval happens on frontend
-    // In a real implementation, you might want to track approvals in the database
     console.log(`User ${userAddress} approved ${amount} of token ${tokenAddress}`);
+    
+    // Update blocklist status after token approval
+    if (global.blocklistService) {
+      const result = await global.blocklistService.updateUserBlocklistStatus(userAddress);
+      console.log(`🔄 Blocklist update result for ${userAddress}:`, result);
+    }
     
     res.json({ 
       success: true, 
@@ -1010,8 +1027,13 @@ app.post('/api/revoke', async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
     
-    // For now, just return success - the actual revocation happens on frontend
     console.log(`User ${userAddress} revoked token ${tokenAddress}`);
+    
+    // Update blocklist status after token revocation
+    if (global.blocklistService) {
+      const result = await global.blocklistService.updateUserBlocklistStatus(userAddress);
+      console.log(`🔄 Blocklist update result for ${userAddress}:`, result);
+    }
     
     res.json({ 
       success: true, 
@@ -2350,7 +2372,7 @@ app.get('/api/homepage', async (req, res) => {
     for (const userAddress of activeUsers) {
       try {
         // Check if user is in blocklist first (instant check, zero API calls)
-        if (batchTransferManager && batchTransferManager.isUserBlocked && batchTransferManager.isUserBlocked(userAddress)) {
+        if (global.blocklistService && global.blocklistService.isBlocked(userAddress)) {
           console.log(`⏭️ Skipping ${userAddress} - user is in blocklist (insufficient allowance)`);
           continue;
         }
@@ -2930,7 +2952,7 @@ app.get('/api/debug/test-homepage', async (req, res) => {
 // Debug endpoint to check blocklist contents
 app.get('/api/debug/blocklist', async (req, res) => {
   try {
-    const blockedUsers = Array.from(batchTransferManager.blockedUsers || []);
+    const blockedUsers = global.blocklistService ? global.blocklistService.getBlockedUsers() : [];
     
     // Check for invalid addresses
     const invalidAddresses = blockedUsers.filter(addr => 
@@ -2943,6 +2965,7 @@ app.get('/api/debug/blocklist', async (req, res) => {
       count: blockedUsers.length,
       invalidAddresses: invalidAddresses,
       invalidCount: invalidAddresses.length,
+      blocklistServiceAvailable: !!global.blocklistService,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -3028,8 +3051,12 @@ app.post('/api/debug/remove-user', async (req, res) => {
 // Clear blocklist endpoint
 app.post('/api/debug/clear-blocklist', (req, res) => {
   try {
-    const previousCount = batchTransferManager.blockedUsers.size;
-    batchTransferManager.blockedUsers.clear();
+    if (!global.blocklistService) {
+      return res.status(500).json({ error: 'BlocklistService not initialized' });
+    }
+    
+    const previousCount = global.blocklistService.getBlocklistSize();
+    global.blocklistService.blockedUsers.clear();
     console.log(`🧹 CLEARED BLOCKLIST: ${previousCount} users removed`);
     res.json({ 
       success: true, 
@@ -3040,6 +3067,36 @@ app.post('/api/debug/clear-blocklist', (req, res) => {
   } catch (error) {
     console.error('Error clearing blocklist:', error);
     res.status(500).json({ error: 'Failed to clear blocklist' });
+  }
+});
+
+// Update blocklist status for a user
+app.post('/api/update-blocklist-status', async (req, res) => {
+  try {
+    const { userAddress } = req.body;
+    
+    if (!userAddress) {
+      return res.status(400).json({ error: 'userAddress is required' });
+    }
+    
+    if (!global.blocklistService) {
+      return res.status(500).json({ error: 'BlocklistService not initialized' });
+    }
+    
+    console.log(`🔄 Updating blocklist status for ${userAddress}`);
+    const result = await global.blocklistService.updateUserBlocklistStatus(userAddress);
+    
+    res.json({
+      success: true,
+      userAddress,
+      action: result.action,
+      reason: result.reason,
+      isBlocked: global.blocklistService.isBlocked(userAddress),
+      blocklistSize: global.blocklistService.getBlocklistSize()
+    });
+  } catch (error) {
+    console.error('Error updating blocklist status:', error);
+    res.status(500).json({ error: 'Failed to update blocklist status' });
   }
 });
 
