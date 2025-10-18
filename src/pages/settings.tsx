@@ -178,12 +178,21 @@ export default function Settings() {
     if (newAddress && newAddress.length === 42 && newAddress.startsWith('0x')) {
       setSelectedToken(newAddress);
       await lookupTokenName(newAddress);
-      // Note: Not fetching allowance automatically to prevent blocklist updates
+      // Fetch allowance for display (no blocklist updates)
+      if (address) {
+        console.log('🔍 Fetching allowance for new token selection');
+        fetchTokenAllowance(newAddress);
+      }
     }
   };
 
-  // Note: Removed automatic allowance fetching to prevent unwanted blocklist updates
-  // Allowance will only be fetched when user explicitly needs to see it
+  // Fetch allowance when user config loads (for display only - no blocklist updates)
+  useEffect(() => {
+    if (userConfig?.tokenAddress && address) {
+      console.log('🔍 Fetching allowance for display on settings page');
+      fetchTokenAllowance(userConfig.tokenAddress);
+    }
+  }, [userConfig?.tokenAddress, address, fetchTokenAllowance]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
