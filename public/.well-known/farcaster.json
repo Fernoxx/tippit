@@ -27,6 +27,7 @@
     "ogTitle": "Ecion – Tip Your Audience",
     "ogDescription": "With Ecion you can boost your casts by tipping engagers for their interactions easily.",
     "ogImageUrl": "https://ecion.vercel.app/og-image.png",
+    "castShareUrl": "https://ecion.vercel.app",
     "requiredChains": ["eip155:8453"],
     "requiredCapabilities": [
       "actions.signIn",
