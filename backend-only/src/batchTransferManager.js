@@ -239,80 +239,6 @@ class BatchTransferManager {
     }
   }
 
-  // NEW: Check user balance using Neynar API
-  async checkUserBalance(userAddress, tokenAddress, requiredAmount) {
-    try {
-      console.log(`🔍 Checking balance for ${userAddress} - token: ${tokenAddress}, required: ${requiredAmount}`);
-      
-      // First, get the FID from the wallet address using Neynar API
-      const fidResponse = await axios.get(`https://api.neynar.com/v2/farcaster/user/bulk-by-address`, {
-        params: {
-          addresses: userAddress
-        },
-        headers: {
-          'api_key': process.env.NEYNAR_API_KEY
-        }
-      });
-      
-      if (!fidResponse.data || !fidResponse.data.users || fidResponse.data.users.length === 0) {
-        console.log(`❌ No FID found for address ${userAddress}`);
-        return { hasBalance: false, balance: 0, requiredAmount };
-      }
-      
-      const fid = fidResponse.data.users[0].fid;
-      console.log(`🔍 Found FID ${fid} for address ${userAddress}`);
-      
-      // Now get the balance using FID
-      const balanceResponse = await axios.get(`https://api.neynar.com/v2/farcaster/user/balance`, {
-        params: {
-          fid: fid,
-          networks: 'base' // We're on Base network
-        },
-        headers: {
-          'api_key': process.env.NEYNAR_API_KEY
-        }
-      });
-      
-      if (!balanceResponse.data || !balanceResponse.data.user_balance || !balanceResponse.data.user_balance.address_balances) {
-        console.log(`❌ No balance data returned from Neynar for FID ${fid}`);
-        return { hasBalance: false, balance: 0, requiredAmount };
-      }
-      
-      // Find the token balance for the specific token address
-      let tokenBalance = null;
-      for (const addressBalance of balanceResponse.data.user_balance.address_balances) {
-        for (const tokenBalanceData of addressBalance.token_balances) {
-          if (tokenBalanceData.token.address && 
-              tokenBalanceData.token.address.toLowerCase() === tokenAddress.toLowerCase()) {
-            tokenBalance = tokenBalanceData;
-            break;
-          }
-        }
-        if (tokenBalance) break;
-      }
-      
-      if (!tokenBalance) {
-        console.log(`❌ Token ${tokenAddress} not found in user's balances`);
-        return { hasBalance: false, balance: 0, requiredAmount };
-      }
-      
-      // Parse the balance (it's returned as a string)
-      const balance = parseFloat(tokenBalance.balance.in_token);
-      const hasBalance = balance >= requiredAmount;
-      
-      console.log(`💰 Balance check result: ${userAddress} (FID: ${fid}) - ${tokenBalance.token.symbol} balance: ${balance}, required: ${requiredAmount}, hasBalance: ${hasBalance}`);
-      
-      return {
-        hasBalance,
-        balance,
-        requiredAmount,
-        tokenSymbol: tokenBalance.token.symbol
-      };
-    } catch (error) {
-      console.error(`❌ Error checking balance for ${userAddress}:`, error.message);
-      return { hasBalance: false, balance: 0, requiredAmount };
-    }
-  }
 
   // NEW: Clean up blocklist - remove users with sufficient allowance
   async cleanupBlocklist() {
@@ -689,21 +615,11 @@ class BatchTransferManager {
               const finalNonce = await this.provider.getTransactionCount(authorAddress, 'pending');
               console.log(`🔢 Using nonce ${finalNonce} for author ${authorAddress}`);
             
-            // Final balance check before transfer
-            const balanceCheck = await this.checkUserBalance(tip.interaction.authorAddress, tip.tokenAddress, tip.amount);
-            if (!balanceCheck.hasBalance) {
-              console.log(`❌ Transfer failed - user ${tip.interaction.authorAddress} has insufficient balance: ${balanceCheck.balance} < ${balanceCheck.requiredAmount}`);
-              failed++;
-              continue;
-            }
-            
             // Debug logging for amount calculation
             console.log(`📊 Amount breakdown for tip ${i + 1}:`);
             console.log(`  - Author: ${tip.interaction.authorAddress}`);
             console.log(`  - Raw amount: ${tip.amount}`);
             console.log(`  - After parseUnits(6): ${ethers.parseUnits(tip.amount.toString(), 6)}`);
-            console.log(`  - User balance: ${balanceCheck.balance}`);
-            console.log(`  - Required amount: ${balanceCheck.requiredAmount}`);
             
             // Get dynamic gas price for Base network
             const gasPrice = await this.provider.getGasPrice();
