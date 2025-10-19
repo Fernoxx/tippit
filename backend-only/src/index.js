@@ -2280,20 +2280,27 @@ app.get('/api/homepage', async (req, res) => {
     
     // Get users with active configurations and token approvals
     const activeUsers = await database.getActiveUsersWithApprovals();
+    
+    // Filter out blocklisted users FIRST (before any blockchain calls)
+    const nonBlockedUsers = activeUsers.filter(userAddress => {
+      if (global.blocklistService && global.blocklistService.isBlocked(userAddress)) {
+        console.log(`⏭️ Skipping ${userAddress} - user is in blocklist (insufficient allowance)`);
+        return false;
+      }
+      return true;
+    });
+    
+    console.log(`🏠 Homepage: ${activeUsers.length} total users, ${nonBlockedUsers.length} non-blocked users`);
+    
     const { ethers } = require('ethers');
     const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     
-    // Get allowance and cast for each user
+    // Get allowance and cast for each NON-BLOCKED user only
     const usersWithAllowance = [];
     
-    for (const userAddress of activeUsers) {
+    for (const userAddress of nonBlockedUsers) {
       try {
-        // Check if user is in blocklist first (instant check, zero API calls)
-        if (global.blocklistService && global.blocklistService.isBlocked(userAddress)) {
-          console.log(`⏭️ Skipping ${userAddress} - user is in blocklist (insufficient allowance)`);
-          continue;
-        }
         
         // Get user's configured token address
         const userConfig = await database.getUserConfig(userAddress);
@@ -2457,6 +2464,8 @@ app.get('/api/homepage', async (req, res) => {
         hasMore: pageNum * limitNum < usersWithAllowance.length
       }
     });
+    
+    console.log(`🏠 Homepage completed: ${usersWithAllowance.length} users with sufficient allowance (saved ${activeUsers.length - nonBlockedUsers.length} blockchain API calls)`);
   } catch (error) {
     console.error('Homepage fetch error:', error);
     res.status(500).json({ error: 'Failed to fetch homepage data' });
