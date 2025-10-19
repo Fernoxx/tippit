@@ -85,15 +85,28 @@ class BatchTransferManager {
       return { success: false, reason: 'User blocked - insufficient allowance' };
     }
     
-    // Check allowance directly from blockchain - most accurate and up-to-date
-    const blockchainAllowanceCheck = await this.checkBlockchainAllowance(interaction.authorAddress, authorConfig);
-    if (!blockchainAllowanceCheck.canAfford) {
-      console.log(`⏭️ Skipping tip - user ${interaction.authorAddress} has insufficient blockchain allowance: ${blockchainAllowanceCheck.allowanceAmount} < ${blockchainAllowanceCheck.minTipAmount}`);
+    // Check both allowance and balance in one blockchain call
+    const tokenAddress = authorConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+    const likeAmount = parseFloat(authorConfig.likeAmount || '0');
+    const recastAmount = parseFloat(authorConfig.recastAmount || '0');
+    const replyAmount = parseFloat(authorConfig.replyAmount || '0');
+    const requiredAmount = likeAmount + recastAmount + replyAmount;
+    
+    const allowanceBalanceCheck = await this.checkAllowanceAndBalance(interaction.authorAddress, tokenAddress, requiredAmount);
+    if (!allowanceBalanceCheck.canAfford) {
+      let reason = 'Insufficient funds';
+      if (!allowanceBalanceCheck.hasSufficientAllowance) {
+        reason = 'Insufficient allowance';
+      } else if (!allowanceBalanceCheck.hasSufficientBalance) {
+        reason = 'Insufficient balance';
+      }
       
-      // Clean up webhook and homepage immediately when allowance < min tip
+      console.log(`⏭️ Skipping tip - user ${interaction.authorAddress} - ${reason}`);
+      
+      // Clean up webhook and homepage immediately when insufficient funds
       await this.cleanupInactiveUser(interaction.authorAddress);
       
-      return { success: false, reason: 'Insufficient allowance' };
+      return { success: false, reason };
     }
     
     // Validate the tip first
@@ -238,6 +251,60 @@ class BatchTransferManager {
     }
   }
 
+
+  // NEW: Check both allowance and balance in one blockchain call
+  async checkAllowanceAndBalance(userAddress, tokenAddress, requiredAmount) {
+    try {
+      console.log(`🔍 Checking allowance and balance for ${userAddress} - token: ${tokenAddress}, required: ${requiredAmount}`);
+      
+      const { ethers } = require('ethers');
+      const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+      const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+      
+      const tokenContract = new ethers.Contract(tokenAddress, [
+        "function allowance(address owner, address spender) view returns (uint256)",
+        "function balanceOf(address owner) view returns (uint256)"
+      ], provider);
+      
+      // Get both allowance and balance in parallel
+      const [allowance, balance] = await Promise.all([
+        tokenContract.allowance(userAddress, ecionBatchAddress),
+        tokenContract.balanceOf(userAddress)
+      ]);
+      
+      const tokenDecimals = getTokenDecimals(tokenAddress);
+      const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
+      const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
+      
+      const hasSufficientAllowance = allowanceAmount >= requiredAmount;
+      const hasSufficientBalance = balanceAmount >= requiredAmount;
+      const canAfford = hasSufficientAllowance && hasSufficientBalance;
+      
+      console.log(`💰 Allowance & Balance check: ${userAddress}`);
+      console.log(`  - Allowance: ${allowanceAmount} (required: ${requiredAmount}) - ${hasSufficientAllowance ? '✅' : '❌'}`);
+      console.log(`  - Balance: ${balanceAmount} (required: ${requiredAmount}) - ${hasSufficientBalance ? '✅' : '❌'}`);
+      console.log(`  - Can afford: ${canAfford ? '✅' : '❌'}`);
+      
+      return {
+        canAfford,
+        allowanceAmount,
+        balanceAmount,
+        requiredAmount,
+        hasSufficientAllowance,
+        hasSufficientBalance
+      };
+    } catch (error) {
+      console.error(`❌ Error checking allowance and balance for ${userAddress}:`, error.message);
+      return { 
+        canAfford: false, 
+        allowanceAmount: 0, 
+        balanceAmount: 0, 
+        requiredAmount,
+        hasSufficientAllowance: false,
+        hasSufficientBalance: false
+      };
+    }
+  }
 
   // NEW: Clean up blocklist - remove users with sufficient allowance
   async cleanupBlocklist() {
@@ -614,11 +681,26 @@ class BatchTransferManager {
               const finalNonce = await this.provider.getTransactionCount(authorAddress, 'pending');
               console.log(`🔢 Using nonce ${finalNonce} for author ${authorAddress}`);
             
+            // Final check before transfer - both allowance and balance
+            const finalCheck = await this.checkAllowanceAndBalance(tip.interaction.authorAddress, tip.tokenAddress, tip.amount);
+            if (!finalCheck.canAfford) {
+              let reason = 'Insufficient funds';
+              if (!finalCheck.hasSufficientAllowance) {
+                reason = 'Insufficient allowance';
+              } else if (!finalCheck.hasSufficientBalance) {
+                reason = 'Insufficient balance';
+              }
+              console.log(`❌ Transfer failed - user ${tip.interaction.authorAddress} - ${reason}`);
+              failed++;
+              continue;
+            }
+            
             // Debug logging for amount calculation
             console.log(`📊 Amount breakdown for tip ${i + 1}:`);
             console.log(`  - Author: ${tip.interaction.authorAddress}`);
             console.log(`  - Raw amount: ${tip.amount}`);
             console.log(`  - After parseUnits(6): ${ethers.parseUnits(tip.amount.toString(), 6)}`);
+            console.log(`  - Final check: Allowance: ${finalCheck.allowanceAmount}, Balance: ${finalCheck.balanceAmount}`);
             
             // Get dynamic gas price for Base network
             const gasPrice = await this.provider.getGasPrice();
