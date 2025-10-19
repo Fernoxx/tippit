@@ -27,20 +27,21 @@ export default function Document() {
         <meta name="twitter:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
         <meta name="twitter:image" content="https://ecion.vercel.app/og-image.png" />
         
-        {/* ESSENTIAL Farcaster Frame Meta Tags */}
-        <meta name="farcaster:frame" content="vNext" />
-        <meta name="farcaster:frame:name" content="Ecion" />
-        <meta name="farcaster:frame:url" content="https://ecion.vercel.app" />
-        <meta name="farcaster:frame:image" content="https://ecion.vercel.app/image.png" />
-        <meta name="farcaster:frame:button" content="Start Tipping" />
-        <meta name="farcaster:frame:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
-        <meta name="farcaster:frame:manifest" content="https://ecion.vercel.app/.well-known/farcaster.json" />
+        {/* Farcaster Mini App Meta Tags */}
+        <meta name="farcaster:miniapp" content="true" />
+        <meta name="farcaster:miniapp:name" content="Ecion" />
+        <meta name="farcaster:miniapp:url" content="https://ecion.vercel.app" />
+        <meta name="farcaster:miniapp:image" content="https://ecion.vercel.app/og-image.png" />
+        <meta name="farcaster:miniapp:button" content="Start Tipping" />
+        <meta name="farcaster:miniapp:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
+        <meta name="farcaster:miniapp:manifest" content="https://ecion.vercel.app/.well-known/farcaster.json" />
         
-        {/* Farcaster Frame Embed */}
-        <meta name="fc:frame" content="vNext" />
-        <meta name="fc:frame:image" content="https://ecion.vercel.app/og-image.png" />
-        <meta name="fc:frame:button:1" content="Start Tipping" />
-        <meta name="fc:frame:post_url" content="https://ecion.vercel.app" />
+        {/* Farcaster Mini App Embed */}
+        <meta name="fc:miniapp" content="true" />
+        <meta name="fc:miniapp:version" content="1" />
+        <meta name="fc:miniapp:image" content="https://ecion.vercel.app/og-image.png" />
+        <meta name="fc:miniapp:button" content="Start Tipping" />
+        <meta name="fc:miniapp:action" content="https://ecion.vercel.app" />
         
         {/* Basic Meta Tags */}
         <meta name="description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
