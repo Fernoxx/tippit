@@ -51,6 +51,11 @@ class BatchTransferManager {
     // Load blocklist from database on startup
     this.loadBlocklistFromDatabase();
     
+    // Clean up blocklist - remove users with sufficient allowance
+    setTimeout(() => {
+      this.cleanupBlocklist();
+    }, 5000); // Wait 5 seconds for database to be ready
+    
     // Batch processing is handled by EcionBatch contract
     
     // Start batch processing timer
@@ -90,19 +95,6 @@ class BatchTransferManager {
       await this.cleanupInactiveUser(interaction.authorAddress);
       
       return { success: false, reason: 'Insufficient allowance' };
-    }
-    
-    // Check user balance before adding tip
-    const tokenAddress = authorConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
-    const balanceCheck = await this.checkUserBalance(interaction.authorAddress, tokenAddress, blockchainAllowanceCheck.minTipAmount);
-    if (!balanceCheck.hasBalance) {
-      console.log(`⏭️ Skipping tip - user ${interaction.authorAddress} has insufficient balance: ${balanceCheck.balance} < ${balanceCheck.requiredAmount}`);
-      
-      // Add user to blocklist for insufficient balance
-      this.blockedUsers.add(userKey);
-      await this.cleanupInactiveUser(interaction.authorAddress);
-      
-      return { success: false, reason: 'Insufficient balance' };
     }
     
     // Validate the tip first
@@ -319,6 +311,47 @@ class BatchTransferManager {
     } catch (error) {
       console.error(`❌ Error checking balance for ${userAddress}:`, error.message);
       return { hasBalance: false, balance: 0, requiredAmount };
+    }
+  }
+
+  // NEW: Clean up blocklist - remove users with sufficient allowance
+  async cleanupBlocklist() {
+    try {
+      console.log(`🧹 Cleaning up blocklist - checking users with sufficient allowance...`);
+      const usersToRemove = [];
+      
+      for (const userAddress of this.blockedUsers) {
+        try {
+          const userConfig = await database.getUserConfig(userAddress);
+          if (!userConfig) continue;
+          
+          const allowanceCheck = await this.checkBlockchainAllowance(userAddress, userConfig);
+          if (allowanceCheck.canAfford) {
+            usersToRemove.push(userAddress);
+            console.log(`✅ User ${userAddress} now has sufficient allowance: ${allowanceCheck.allowanceAmount} >= ${allowanceCheck.minTipAmount}`);
+          }
+        } catch (error) {
+          console.log(`⚠️ Error checking allowance for ${userAddress}: ${error.message}`);
+        }
+      }
+      
+      // Remove users with sufficient allowance from blocklist
+      for (const userAddress of usersToRemove) {
+        this.blockedUsers.delete(userAddress.toLowerCase());
+        console.log(`🗑️ Removed ${userAddress} from blocklist - sufficient allowance`);
+      }
+      
+      if (usersToRemove.length > 0) {
+        await this.saveBlocklistToDatabase();
+        console.log(`✅ Blocklist cleanup complete - removed ${usersToRemove.length} users with sufficient allowance`);
+      } else {
+        console.log(`✅ Blocklist cleanup complete - no users to remove`);
+      }
+      
+      return usersToRemove.length;
+    } catch (error) {
+      console.error(`❌ Error cleaning up blocklist:`, error);
+      return 0;
     }
   }
 
