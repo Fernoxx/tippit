@@ -1,17 +1,30 @@
 {
   "miniapp": {
-    "version": "1",
-    "name": "Ecion",
     "iconUrl": "https://ecion.vercel.app/icon.png",
     "homeUrl": "https://ecion.vercel.app",
-    "imageUrl": "https://ecion.vercel.app/og-image.png",
-    "buttonTitle": "Start Tipping",
+    "imageUrl": "https://ecion.vercel.app/image.png",
+    "buttonTitle": "start tipping",
     "splashImageUrl": "https://ecion.vercel.app/splash.png",
-    "splashBackgroundColor": "#fef3c7"
+    "splashBackgroundColor": "#fef3c7",
+    "webhookUrl": "https://ecion.vercel.app/api/webhook",
+    "subtitle": "Boost your casts with ecion",
+    "description": "With Ecion you can boost your casts by tipping engagers for their interactions easily.",
+    "primaryCategory": "utility",
+    "tags": [
+      "tip",
+      "tipping",
+      "noice",
+      "ecion",
+      "engage"
+    ],
+    "tagline": "Boost your casts with ecion",
+    "ogTitle": "Ecion – Tip Your Audience",
+    "ogDescription": "With Ecion you can boost your casts by tipping engagers for their interactions easily.",
+    "ogImageUrl": "https://ecion.vercel.app/og-image.png"
   },
   "accountAssociation": {
-    "header": "eyJmaWQiOjI0MjU5NywidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDc1OUUxOWQ3MDQzNTdmZkMwODAxNTg5RDc3OTg1M2JkZWVkODkwNTMifQ",
+    "header": "eyJmaWQiOjI0MjU5NywidHlwZSI6ImF1dGgiLCJrZXkiOiIweDNjRjg3Qjc2ZDJBMUQzNkY5NTQyQjREYTJhNkI0QjNEYzBmMEJiMmUifQ",
     "payload": "eyJkb21haW4iOiJlY2lvbi52ZXJjZWwuYXBwIn0",
-    "signature": "MHgzZDU0MjE1MDg1YWE1ZDBjYWUyOWM3YmY0YWIxNTE0NWEwMjMwYjZhODgwNGU3N2Q0YmE1NmM4M2YwOGE5MzhmNzg0YzA1NDI5OWViNGU5OTAwOWNjYTk0NmNiMDUxNjAxMWJiODA2ZDEwNTNiOTY2ODE3YmVmMzVkZjI1M2Q1NjFj"
+    "signature": "Q37Zxy8zYsD8y+ApNsKmrrCJjVXqM/et6Ih4ogKcZQJHa60bhOmgUDxrenhkJM9mKZvLfk2s3+6HJ+YEk/SzSRw="
   }
 }
