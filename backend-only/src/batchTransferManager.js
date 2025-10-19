@@ -309,34 +309,6 @@ class BatchTransferManager {
       const hasBalance = balance >= requiredAmount;
       
       console.log(`💰 Balance check result: ${userAddress} (FID: ${fid}) - ${tokenBalance.token.symbol} balance: ${balance}, required: ${requiredAmount}, hasBalance: ${hasBalance}`);
-      console.log(`🔍 DEBUG - Token details:`, {
-        tokenAddress: tokenBalance.token.address,
-        tokenSymbol: tokenBalance.token.symbol,
-        tokenDecimals: tokenBalance.token.decimals,
-        rawBalance: tokenBalance.balance.in_token,
-        parsedBalance: balance,
-        requiredAmount: requiredAmount
-      });
-      
-      // Also check balance directly from blockchain for comparison
-      try {
-        const { ethers } = require('ethers');
-        const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-        const tokenContract = new ethers.Contract(tokenAddress, [
-          "function balanceOf(address owner) view returns (uint256)"
-        ], provider);
-        
-        const blockchainBalance = await tokenContract.balanceOf(userAddress);
-        const tokenDecimals = tokenBalance.token.decimals || 6;
-        const blockchainBalanceFormatted = parseFloat(ethers.formatUnits(blockchainBalance, tokenDecimals));
-        
-        console.log(`🔍 BLOCKCHAIN vs NEYNAR comparison:`);
-        console.log(`  - Blockchain balance: ${blockchainBalanceFormatted}`);
-        console.log(`  - Neynar balance: ${balance}`);
-        console.log(`  - Difference: ${Math.abs(blockchainBalanceFormatted - balance)}`);
-      } catch (blockchainError) {
-        console.log(`⚠️ Could not check blockchain balance: ${blockchainError.message}`);
-      }
       
       return {
         hasBalance,
