@@ -92,6 +92,19 @@ class BatchTransferManager {
       return { success: false, reason: 'Insufficient allowance' };
     }
     
+    // Check user balance before adding tip
+    const tokenAddress = authorConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+    const balanceCheck = await this.checkUserBalance(interaction.authorAddress, tokenAddress, blockchainAllowanceCheck.minTipAmount);
+    if (!balanceCheck.hasBalance) {
+      console.log(`⏭️ Skipping tip - user ${interaction.authorAddress} has insufficient balance: ${balanceCheck.balance} < ${balanceCheck.requiredAmount}`);
+      
+      // Add user to blocklist for insufficient balance
+      this.blockedUsers.add(userKey);
+      await this.cleanupInactiveUser(interaction.authorAddress);
+      
+      return { success: false, reason: 'Insufficient balance' };
+    }
+    
     // Validate the tip first
     const validation = await this.validateTip(interaction, authorConfig);
     if (!validation.valid) {
@@ -231,6 +244,58 @@ class BatchTransferManager {
     } catch (error) {
       console.error(`❌ Error checking blockchain allowance for ${userAddress}:`, error);
       return { canAfford: false, allowanceAmount: 0, minTipAmount: 0 };
+    }
+  }
+
+  // NEW: Check user balance using Neynar API
+  async checkUserBalance(userAddress, tokenAddress, requiredAmount) {
+    try {
+      console.log(`🔍 Checking balance for ${userAddress} - token: ${tokenAddress}, required: ${requiredAmount}`);
+      
+      // Map token addresses to Neynar token symbols
+      const tokenSymbolMap = {
+        '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913': 'USDC', // USDC on Base
+        '0x4200000000000000000000000000000000000006': 'WETH', // WETH on Base
+        '0x50c5725949a6f0c72e6c4a641f24049a917db0cb': 'DAI',  // DAI on Base
+        '0x940181a94a35a4569e4529a3cdfb74e38fd98631': 'AERO' // AERO on Base
+      };
+      
+      const tokenSymbol = tokenSymbolMap[tokenAddress.toLowerCase()];
+      if (!tokenSymbol) {
+        console.log(`❌ Unknown token address: ${tokenAddress}`);
+        return { hasBalance: false, balance: 0, requiredAmount };
+      }
+      
+      // Call Neynar API to get user balance
+      const response = await axios.get(`https://api.neynar.com/v2/farcaster/user/balance`, {
+        params: {
+          address: userAddress,
+          token: tokenSymbol
+        },
+        headers: {
+          'api_key': process.env.NEYNAR_API_KEY
+        }
+      });
+      
+      if (response.data && response.data.balance) {
+        const balance = parseFloat(response.data.balance);
+        const hasBalance = balance >= requiredAmount;
+        
+        console.log(`💰 Balance check result: ${userAddress} - ${tokenSymbol} balance: ${balance}, required: ${requiredAmount}, hasBalance: ${hasBalance}`);
+        
+        return {
+          hasBalance,
+          balance,
+          requiredAmount,
+          tokenSymbol
+        };
+      } else {
+        console.log(`❌ No balance data returned from Neynar for ${userAddress}`);
+        return { hasBalance: false, balance: 0, requiredAmount };
+      }
+    } catch (error) {
+      console.error(`❌ Error checking balance for ${userAddress}:`, error.message);
+      return { hasBalance: false, balance: 0, requiredAmount };
     }
   }
 
@@ -567,6 +632,14 @@ class BatchTransferManager {
               // Get fresh nonce right before the transaction
               const finalNonce = await this.provider.getTransactionCount(authorAddress, 'pending');
               console.log(`🔢 Using nonce ${finalNonce} for author ${authorAddress}`);
+            
+            // Final balance check before transfer
+            const balanceCheck = await this.checkUserBalance(tip.interaction.authorAddress, tip.tokenAddress, tip.amount);
+            if (!balanceCheck.hasBalance) {
+              console.log(`❌ Transfer failed - user ${tip.interaction.authorAddress} has insufficient balance: ${balanceCheck.balance} < ${balanceCheck.requiredAmount}`);
+              failed++;
+              continue;
+            }
             
             // Get dynamic gas price for Base network
             const gasPrice = await this.provider.getGasPrice();
