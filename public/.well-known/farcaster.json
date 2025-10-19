@@ -4,9 +4,9 @@
     "name": "Ecion",
     "iconUrl": "https://ecion.vercel.app/icon.png",
     "homeUrl": "https://ecion.vercel.app",
-    "imageUrl": "https://ecion.vercel.app/image.png",
+    "imageUrl": "https://ecion.vercel.app/og-image.png",
     "buttonTitle": "Start Tipping",
-    "splashImageUrl": "https://ecion.vercel.app/ecion.png",
+    "splashImageUrl": "https://ecion.vercel.app/splash.png",
     "splashBackgroundColor": "#fef3c7"
   },
   "accountAssociation": {

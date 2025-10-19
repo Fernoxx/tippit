@@ -64,9 +64,9 @@ export default function Layout({ children }: LayoutProps) {
         <meta property="og:site_name" content="Ecion" />
         
         {/* Farcaster Mini App Embed - Proper JSON Format */}
-        <meta name="fc:miniapp" content='{"version":"1","imageUrl":"https://ecion.vercel.app/image.png","button":{"title":"Start Tipping","action":{"type":"launch_frame","name":"Ecion","url":"https://ecion.vercel.app","splashImageUrl":"https://ecion.vercel.app/ecion.png","splashBackgroundColor":"#fef3c7"}}}' />
+        <meta name="fc:miniapp" content='{"version":"1","imageUrl":"https://ecion.vercel.app/og-image.png","button":{"title":"Start Tipping","action":{"type":"launch_frame","name":"Ecion","url":"https://ecion.vercel.app","splashImageUrl":"https://ecion.vercel.app/splash.png","splashBackgroundColor":"#fef3c7"}}}' />
         {/* For backward compatibility */}
-        <meta name="fc:frame" content='{"version":"1","imageUrl":"https://ecion.vercel.app/image.png","button":{"title":"Start Tipping","action":{"type":"launch_frame","name":"Ecion","url":"https://ecion.vercel.app","splashImageUrl":"https://ecion.vercel.app/ecion.png","splashBackgroundColor":"#fef3c7"}}}' />
+        <meta name="fc:frame" content='{"version":"1","imageUrl":"https://ecion.vercel.app/og-image.png","button":{"title":"Start Tipping","action":{"type":"launch_frame","name":"Ecion","url":"https://ecion.vercel.app","splashImageUrl":"https://ecion.vercel.app/splash.png","splashBackgroundColor":"#fef3c7"}}}' />
       </Head>
       <div className="min-h-screen bg-yellow-50 flex flex-col">
       {/* Header with Logo and FID */}
