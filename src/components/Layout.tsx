@@ -59,7 +59,7 @@ export default function Layout({ children }: LayoutProps) {
         <meta property="og:type" content="website" />
         <meta property="og:title" content="Ecion – Tip Your Audience" />
         <meta property="og:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
-        <meta property="og:image" content="https://ecion.vercel.app/og-image-3-2.png" />
+        <meta property="og:image" content="https://ecion.vercel.app/og-image.png" />
         <meta property="og:url" content="https://ecion.vercel.app" />
         <meta property="og:site_name" content="Ecion" />
         
