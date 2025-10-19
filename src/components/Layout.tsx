@@ -59,25 +59,14 @@ export default function Layout({ children }: LayoutProps) {
         <meta property="og:type" content="website" />
         <meta property="og:title" content="Ecion – Tip Your Audience" />
         <meta property="og:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
-        <meta property="og:image" content="https://ecion.vercel.app/og-image.png" />
+        <meta property="og:image" content="https://ecion.vercel.app/og-image-3-2.png" />
         <meta property="og:url" content="https://ecion.vercel.app" />
         <meta property="og:site_name" content="Ecion" />
         
-        {/* Essential Farcaster Miniapp Meta Tags */}
-        <meta name="farcaster:miniapp" content="true" />
-        <meta name="farcaster:miniapp:name" content="Ecion" />
-        <meta name="farcaster:miniapp:url" content="https://ecion.vercel.app" />
-        <meta name="farcaster:miniapp:image" content="https://ecion.vercel.app/image.png" />
-        <meta name="farcaster:miniapp:button" content="Start Tipping" />
-        <meta name="farcaster:miniapp:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
-        <meta name="farcaster:miniapp:manifest" content="https://ecion.vercel.app/.well-known/farcaster.json" />
-        
-        {/* Farcaster Mini App Embed */}
-        <meta name="fc:miniapp" content="true" />
-        <meta name="fc:miniapp:version" content="1" />
-        <meta name="fc:miniapp:image" content="https://ecion.vercel.app/og-image.png" />
-        <meta name="fc:miniapp:button" content="Start Tipping" />
-        <meta name="fc:miniapp:action" content="https://ecion.vercel.app" />
+        {/* Farcaster Mini App Embed - Proper JSON Format */}
+        <meta name="fc:miniapp" content='{"version":"1","imageUrl":"https://ecion.vercel.app/og-image-3-2.png","button":{"title":"Start Tipping","action":{"type":"launch_frame","name":"Ecion","url":"https://ecion.vercel.app","splashImageUrl":"https://ecion.vercel.app/og-image.png","splashBackgroundColor":"#fef3c7"}}}' />
+        {/* For backward compatibility */}
+        <meta name="fc:frame" content='{"version":"1","imageUrl":"https://ecion.vercel.app/og-image-3-2.png","button":{"title":"Start Tipping","action":{"type":"launch_frame","name":"Ecion","url":"https://ecion.vercel.app","splashImageUrl":"https://ecion.vercel.app/og-image.png","splashBackgroundColor":"#fef3c7"}}}' />
       </Head>
       <div className="min-h-screen bg-yellow-50 flex flex-col">
       {/* Header with Logo and FID */}
