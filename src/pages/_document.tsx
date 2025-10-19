@@ -27,21 +27,8 @@ export default function Document() {
         <meta name="twitter:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
         <meta name="twitter:image" content="https://ecion.vercel.app/og-image.png" />
         
-        {/* Farcaster Mini App Meta Tags */}
-        <meta name="farcaster:miniapp" content="true" />
-        <meta name="farcaster:miniapp:name" content="Ecion" />
-        <meta name="farcaster:miniapp:url" content="https://ecion.vercel.app" />
-        <meta name="farcaster:miniapp:image" content="https://ecion.vercel.app/og-image.png" />
-        <meta name="farcaster:miniapp:button" content="Start Tipping" />
-        <meta name="farcaster:miniapp:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
-        <meta name="farcaster:miniapp:manifest" content="https://ecion.vercel.app/.well-known/farcaster.json" />
-        
-        {/* Farcaster Mini App Embed */}
-        <meta name="fc:miniapp" content="true" />
-        <meta name="fc:miniapp:version" content="1" />
-        <meta name="fc:miniapp:image" content="https://ecion.vercel.app/og-image.png" />
-        <meta name="fc:miniapp:button" content="Start Tipping" />
-        <meta name="fc:miniapp:action" content="https://ecion.vercel.app" />
+        {/* Farcaster Mini App Embed - Proper JSON Format */}
+        <meta name="fc:miniapp" content='{"version":"1","imageUrl":"https://ecion.vercel.app/og-image.png","button":{"title":"Start Tipping","action":{"type":"launch_frame","name":"Ecion","url":"https://ecion.vercel.app","splashImageUrl":"https://ecion.vercel.app/og-image.png","splashBackgroundColor":"#fef3c7"}}}' />
         
         {/* Basic Meta Tags */}
         <meta name="description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
