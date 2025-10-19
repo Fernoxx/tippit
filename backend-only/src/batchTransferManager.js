@@ -1,6 +1,7 @@
 const { ethers } = require('ethers');
 const BatchTipManager = require('./batchTipManager');
 const EcionBatchManager = require('./ecionBatchManager');
+const axios = require('axios');
 
 // Token decimals mapping (to avoid circular dependency) - all lowercase keys
 const TOKEN_DECIMALS = {
