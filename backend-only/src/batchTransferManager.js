@@ -397,6 +397,14 @@ class BatchTransferManager {
                 global.blocklistService.addToBlocklist(tip.interaction.authorAddress);
                 console.log(`🚫 Added ${tip.interaction.authorAddress} to blocklist - insufficient allowance after tip`);
                 console.log(`✅ Blocklist prevents future webhook processing - no Neynar call needed`);
+              } else {
+                // User has sufficient allowance - check if they should be removed from blocklist
+                if (global.blocklistService) {
+                  const blocklistResult = await global.blocklistService.updateUserBlocklistStatus(tip.interaction.authorAddress);
+                  if (blocklistResult.action === 'removed') {
+                    console.log(`✅ Removed ${tip.interaction.authorAddress} from blocklist - now has sufficient allowance`);
+                  }
+                }
               }
               
               // Send earned tip notification to recipient

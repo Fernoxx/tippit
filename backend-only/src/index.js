@@ -2006,8 +2006,8 @@ app.post('/api/sync-all-users-allowance', async (req, res) => {
           console.log(`✅ User has sufficient allowance - removing from blocklist if present`);
           
           // Remove from blocklist if user was blocked
-          if (batchTransferManager && batchTransferManager.removeFromBlocklist) {
-            const wasRemoved = await batchTransferManager.removeFromBlocklist(userAddress);
+          if (global.blocklistService) {
+            const wasRemoved = global.blocklistService.removeFromBlocklist(userAddress);
             console.log(`🔄 Blocklist removal result for ${userAddress}: ${wasRemoved ? 'removed' : 'not in blocklist'}`);
           }
           
