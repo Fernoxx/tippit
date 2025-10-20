@@ -260,6 +260,26 @@ async function webhookHandler(req, res) {
         instant: true,
         interactionType: interaction.interactionType,
         reason: 'Interactor has no verified address'
+    // Check if user has already been tipped for this cast and action type
+    if (interaction.castHash) {
+      const hasBeenTipped = await database.hasUserBeenTippedForCast(
+        interaction.authorAddress, 
+        interaction.interactorAddress, 
+        interaction.castHash, 
+        interaction.interactionType
+      );
+      
+      if (hasBeenTipped) {
+        console.log(`⏭️ Skipping tip - user ${interaction.interactorAddress} already tipped for ${interaction.interactionType} on cast ${interaction.castHash}`);
+        return res.status(200).json({
+          success: true,
+          processed: false,
+          instant: true,
+          interactionType: interaction.interactionType,
+          reason: `Already tipped for ${interaction.interactionType} on this cast`
+        });
+      }
+    }
       });
     }
 
