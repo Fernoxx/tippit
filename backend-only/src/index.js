@@ -2983,7 +2983,7 @@ app.post('/api/debug/clear-blocklist', (req, res) => {
     }
     
     const previousCount = global.blocklistService.getBlocklistSize();
-    global.blocklistService.blockedUsers.clear();
+    global.blocklistService.clearBlocklist();
     console.log(`🧹 CLEARED BLOCKLIST: ${previousCount} users removed`);
     res.json({ 
       success: true, 
@@ -3951,3 +3951,31 @@ app.listen(PORT, () => {
 });
 
 module.exports = app;
+// Clear all blocklist entries
+app.post('/api/clear-blocklist', async (req, res) => {
+  try {
+    console.log('🧹 Clearing all blocklist entries...');
+    
+    // Clear blocklist table
+    await database.pool.query('DELETE FROM blocklist');
+    console.log('✅ Cleared blocklist table');
+    
+    // Clear blocklistService cache
+    if (global.blocklistService) {
+      global.blocklistService.clearBlocklist();
+      console.log('✅ Cleared blocklistService cache');
+    }
+    
+    res.json({
+      success: true,
+      message: 'Blocklist cleared - system will rebuild based on current allowances',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Error clearing blocklist:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});

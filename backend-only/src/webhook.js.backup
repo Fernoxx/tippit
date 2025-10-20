@@ -233,22 +233,16 @@ async function webhookHandler(req, res) {
     }
     
     // Check if cast is eligible for tips (only latest main cast)
-    // Special handling for follow casts - they are always eligible (one-time events)
     if (interaction.castHash) {
-      if (interaction.castHash.startsWith("follow_")) {
-        console.log(`✅ Follow cast ${interaction.castHash} is always eligible for tips`);
-      } else {
-        const isCastEligible = await database.isCastEligibleForTips(interaction.authorFid, interaction.castHash);
-        if (!isCastEligible) {
-          console.log(`🚫 Cast ${interaction.castHash} not eligible for tips (not the latest main cast)`);
-          return res.status(200).json({
-            success: true,
-            processed: false,
-            reason: "Cast not eligible for tips (not the latest main cast)"
-          });
-        }
+      const isCastEligible = await database.isCastEligibleForTips(interaction.authorFid, interaction.castHash);
+      if (!isCastEligible) {
+        console.log(`🚫 Cast ${interaction.castHash} not eligible for tips (not the latest main cast)`);
+        return res.status(200).json({
+          success: true,
+          processed: false,
+          reason: 'Cast not eligible for tips (not the latest main cast)'
+        });
       }
-    }
     }
     
     // Check if interactor has verified address before processing

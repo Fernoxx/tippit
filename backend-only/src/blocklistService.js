@@ -222,3 +222,14 @@ class BlocklistService {
 }
 
 module.exports = BlocklistService;
+  // Clear all blocklist entries
+  clearBlocklist() {
+    this.blockedUsers.clear();
+    console.log('🧹 BlocklistService: Cleared all blocked users');
+  }
+
+  // Get blocklist size
+  getBlocklistSize() {
+    return this.blockedUsers.size;
+  }
+}
