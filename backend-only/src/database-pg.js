@@ -73,6 +73,20 @@ class PostgresDatabase {
       
       console.log('✅ Database tables initialized');
     } catch (error) {
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS follow_tips (
+          id SERIAL PRIMARY KEY,
+          author_fid INTEGER NOT NULL,
+          follower_fid INTEGER NOT NULL,
+          author_address TEXT NOT NULL,
+          follower_address TEXT NOT NULL,
+          tip_amount DECIMAL(18,6) NOT NULL,
+          token_symbol TEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW(),
+          UNIQUE(author_fid, follower_fid)
+        )
+      `);
+      
       console.error('❌ Database initialization error:', error);
     }
   }
