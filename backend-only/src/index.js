@@ -3127,10 +3127,22 @@ app.post('/api/update-blocklist-status', async (req, res) => {
   }
 });
 
+// Test endpoint to verify API routes are working
+app.get('/api/test', (req, res) => {
+  console.log('🔍 Test API route hit');
+  res.json({ 
+    success: true, 
+    message: 'API routes are working!',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Simple blocklist status endpoint
 app.get('/api/blocklist-status', async (req, res) => {
+  console.log('🔍 API Route Hit: /api/blocklist-status');
   try {
     if (!global.blocklistService) {
+      console.log('❌ BlocklistService not initialized');
       return res.json({
         success: false,
         error: 'BlocklistService not initialized',
@@ -3141,6 +3153,8 @@ app.get('/api/blocklist-status', async (req, res) => {
 
     const blocklistSize = global.blocklistService.getBlocklistSize();
     const blockedUsers = global.blocklistService.getBlockedUsers();
+    
+    console.log(`📊 Blocklist status: ${blocklistSize} users blocked`);
     
     res.json({
       success: true,
@@ -3500,8 +3514,17 @@ if (process.env.NODE_ENV === 'production') {
     app.use('/_next', express.static(path.join(frontendBuildPath)));
     app.use('/public', express.static(publicPath));
     
-    // Simple fallback for frontend routes (LAST ROUTE)
+    // Simple fallback for frontend routes (LAST ROUTE) - but NOT for API routes
     app.get('*', (req, res) => {
+      // Skip API routes - they should be handled by specific endpoints
+      if (req.path.startsWith('/api/')) {
+        return res.status(404).json({ error: 'API endpoint not found', path: req.path });
+      }
+      
+      // Skip webhook routes
+      if (req.path.startsWith('/webhook/')) {
+        return res.status(404).json({ error: 'Webhook endpoint not found', path: req.path });
+      }
       // For now, serve a simple HTML page until Next.js is properly configured
       res.send(`
         <!DOCTYPE html>
