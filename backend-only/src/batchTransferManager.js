@@ -735,9 +735,17 @@ class BatchTransferManager {
           const allowanceCheck = await this.checkBlockchainAllowance(userAddress, tips.find(t => t.interaction.authorAddress === userAddress).authorConfig);
           
           if (!allowanceCheck.canAfford) {
-  }
-
-  // NEW: Check if user is blocked - Simple memory check
+            console.log(`🔄 User ${userAddress} has insufficient allowance after tip - cleaning up`);
+            // Clean up webhook and homepage immediately
+          }
+        } catch (error) {
+          console.error(`❌ Error checking allowance for ${userAddress}:`, error);
+        }
+      }
+    } catch (error) {
+      console.error(`❌ Error updating webhook status:`, error);
+    }
 }
+  }
 
 module.exports = new BatchTransferManager();
