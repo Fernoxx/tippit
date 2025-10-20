@@ -3942,16 +3942,8 @@ app.listen(PORT, () => {
     console.log(`🌐 Frontend also served from this Railway service`);
   }
   
-  // Clear blocklist on startup
-  try {
-    if (global.blocklistService) {
-      const previousCount = global.blocklistService.getBlocklistSize();
-      global.blocklistService.clearBlocklist();
-      console.log(`🧹 CLEARED BLOCKLIST ON STARTUP: ${previousCount} users removed`);
-    }
-  } catch (error) {
-    console.error('Error clearing blocklist on startup:', error);
-  }
+  // Blocklist persists - only updates on approve/revoke transactions
+  console.log(`📋 BlocklistService initialized with ${global.blocklistService ? global.blocklistService.getBlocklistSize() : 0} blocked users`);
   
   // Run cleanup once on startup (non-blocking)
   setTimeout(() => {
