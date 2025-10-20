@@ -17,11 +17,11 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager, b
       });
     }
     
-    // Wait for blockchain to update with retry mechanism
-    console.log(`⏳ Waiting for blockchain to update...`);
-    await new Promise(resolve => setTimeout(resolve, 10000)); // Wait 10 seconds
+    // Wait for blockchain to update - only 1 attempt after 8-10 seconds
+    console.log(`⏳ Waiting 8 seconds for blockchain to update...`);
+    await new Promise(resolve => setTimeout(resolve, 8000)); // Wait 8 seconds
     
-    // Get current allowance from blockchain with retry
+    // Get current allowance from blockchain - single attempt only
     const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     
@@ -29,29 +29,11 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager, b
       "function allowance(address owner, address spender) view returns (uint256)"
     ], provider);
     
-    let allowanceAmount = 0;
-    let retryCount = 0;
-    const maxRetries = 3;
+    const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
+    const tokenDecimals = await getTokenDecimals(tokenAddress);
+    const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
     
-    while (allowanceAmount === 0 && retryCount < maxRetries) {
-      const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
-      const tokenDecimals = await getTokenDecimals(tokenAddress);
-      allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
-      
-      console.log(`📊 Blockchain allowance (attempt ${retryCount + 1}): ${allowanceAmount}`);
-      
-      if (allowanceAmount === 0 && retryCount < maxRetries - 1) {
-        console.log(`⏳ Allowance still 0, waiting 5 more seconds...`);
-        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 more seconds
-        retryCount++;
-      } else {
-        break;
-      }
-    }
-    
-    if (allowanceAmount === 0) {
-      console.log(`⚠️ Allowance still 0 after ${maxRetries} attempts - transaction may have failed`);
-    }
+    console.log(`📊 Blockchain allowance: ${allowanceAmount}`);
     
     // Get user config to check min tip amount
     const userConfig = await database.getUserConfig(userAddress);
@@ -67,20 +49,49 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager, b
     
     console.log(`💰 Total tip amount: ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount}), Current allowance: ${allowanceAmount}`);
     
-    // Use BlocklistService to update blocklist status - this ensures all blocklist instances are synchronized
-    console.log(`🔄 Using BlocklistService to update blocklist for ${userAddress}`);
-    const blocklistResult = await blocklistService.updateUserBlocklistStatus(userAddress);
+    // Determine blocklist action based on allowance vs min tip
+    let blocklistAction = 'no_change';
+    let blocklistReason = '';
     
-    // Also update the batchTransferManager memory blocklist to keep it in sync
-    if (batchTransferManager && batchTransferManager.blockedUsers) {
-      if (blocklistResult.action === 'added') {
-        batchTransferManager.blockedUsers.add(userAddress.toLowerCase());
-        console.log(`✅ Updated batchTransferManager memory blocklist - added ${userAddress}`);
-      } else if (blocklistResult.action === 'removed') {
-        batchTransferManager.blockedUsers.delete(userAddress.toLowerCase());
-        console.log(`✅ Updated batchTransferManager memory blocklist - removed ${userAddress}`);
+    if (allowanceAmount < minTipAmount) {
+      // User has insufficient allowance - should be blocked
+      if (!blocklistService.isBlocked(userAddress)) {
+        blocklistAction = 'add';
+        blocklistReason = 'insufficient_allowance';
+        console.log(`🚫 User ${userAddress} allowance ${allowanceAmount} < min tip ${minTipAmount} - adding to blocklist`);
+      } else {
+        blocklistAction = 'keep_blocked';
+        blocklistReason = 'already_blocked_insufficient_allowance';
+        console.log(`🚫 User ${userAddress} already blocked - keeping blocked (insufficient allowance)`);
+      }
+    } else {
+      // User has sufficient allowance - should not be blocked
+      if (blocklistService.isBlocked(userAddress)) {
+        blocklistAction = 'remove';
+        blocklistReason = 'sufficient_allowance';
+        console.log(`✅ User ${userAddress} allowance ${allowanceAmount} >= min tip ${minTipAmount} - removing from blocklist`);
+      } else {
+        blocklistAction = 'keep_unblocked';
+        blocklistReason = 'already_unblocked_sufficient_allowance';
+        console.log(`✅ User ${userAddress} already unblocked - keeping unblocked (sufficient allowance)`);
       }
     }
+    
+    // Execute the blocklist action
+    let blocklistResult = { action: 'no_change', reason: 'no_change_needed' };
+    
+    if (blocklistAction === 'add') {
+      blocklistService.addToBlocklist(userAddress, blocklistReason);
+      blocklistResult = { action: 'added', reason: blocklistReason };
+    } else if (blocklistAction === 'remove') {
+      blocklistService.removeFromBlocklist(userAddress);
+      blocklistResult = { action: 'removed', reason: blocklistReason };
+    } else {
+      blocklistResult = { action: blocklistAction, reason: blocklistReason };
+    }
+    
+    // Note: batchTransferManager now uses global.blocklistService, so no manual sync needed
+    console.log(`📊 Blocklist action executed: ${blocklistResult.action} - ${blocklistResult.reason}`);
     
     console.log(`📊 Blocklist update result: ${blocklistResult.action} - ${blocklistResult.reason}`);
     
