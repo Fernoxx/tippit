@@ -71,8 +71,6 @@ class PostgresDatabase {
         )
       `);
       
-      console.log('✅ Database tables initialized');
-    } catch (error) {
       await this.pool.query(`
         CREATE TABLE IF NOT EXISTS follow_tips (
           id SERIAL PRIMARY KEY,
@@ -86,6 +84,18 @@ class PostgresDatabase {
           UNIQUE(author_fid, follower_fid)
         )
       `);
+      
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS blocklist (
+          id SERIAL PRIMARY KEY,
+          user_address TEXT NOT NULL UNIQUE,
+          reason TEXT,
+          added_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      
+      console.log('✅ Database tables initialized');
+    } catch (error) {
       
       console.error('❌ Database initialization error:', error);
     }

@@ -52,14 +52,17 @@ class BatchTransferManager {
 
   // Start the batch processing timer
   startBatchTimer() {
+    // Process batch every 60 seconds exactly
     setInterval(async () => {
       if (this.pendingTips.length > 0) {
         console.log(`⏰ Batch timer triggered - processing ${this.pendingTips.length} pending tips`);
         await this.processBatch();
+      } else {
+        console.log(`⏰ Batch timer triggered - no pending tips to process`);
       }
-    }, this.batchIntervalMs);
+    }, 60000); // Exactly 60 seconds = 60000ms
     
-    console.log(`⏰ Batch timer started - processing every ${this.batchIntervalMs / 1000} seconds`);
+    console.log(`⏰ Batch timer started - processing every 60 seconds exactly`);
   }
 
   // NEW: Check allowance from database (NO API CALLS)
