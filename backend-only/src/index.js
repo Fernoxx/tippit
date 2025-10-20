@@ -1992,9 +1992,9 @@ app.post('/api/sync-all-users-allowance', async (req, res) => {
         if (currentBlockchainAllowance < minTipAmount) {
           console.log(`❌ User has insufficient allowance - adding to blocklist`);
           
-          // Add to blocklist (blocklist handles all filtering - no webhook removal needed)
-          if (batchTransferManager && batchTransferManager.blockedUsers) {
-            batchTransferManager.blockedUsers.add(userAddress.toLowerCase());
+          // Add to blocklist using BlocklistService
+          if (global.blocklistService) {
+            global.blocklistService.addToBlocklist(userAddress, 'insufficient_allowance');
             console.log(`🚫 Added ${userAddress} to blocklist - insufficient allowance`);
           }
           
@@ -2915,17 +2915,22 @@ app.post('/api/debug/remove-from-blocklist', async (req, res) => {
     }
     
     console.log(`🔧 DEBUG: Manually removing ${userAddress} from blocklist`);
-    console.log(`🔧 DEBUG: Blocklist before:`, Array.from(batchTransferManager.blockedUsers));
+    const blocklistBefore = global.blocklistService ? global.blocklistService.getBlockedUsers() : [];
+    console.log(`🔧 DEBUG: Blocklist before:`, blocklistBefore);
     
-    const wasRemoved = batchTransferManager.removeFromBlocklist(userAddress);
+    let wasRemoved = false;
+    if (global.blocklistService) {
+      wasRemoved = global.blocklistService.removeFromBlocklist(userAddress);
+    }
     
     console.log(`🔧 DEBUG: Removal result: ${wasRemoved}`);
-    console.log(`🔧 DEBUG: Blocklist after:`, Array.from(batchTransferManager.blockedUsers));
+    const blocklistAfter = global.blocklistService ? global.blocklistService.getBlockedUsers() : [];
+    console.log(`🔧 DEBUG: Blocklist after:`, blocklistAfter);
     
     res.json({ 
       success: true, 
       wasRemoved,
-      blocklist: Array.from(batchTransferManager.blockedUsers),
+      blocklist: blocklistAfter,
       message: wasRemoved ? 'User removed from blocklist' : 'User not found in blocklist'
     });
   } catch (error) {
@@ -2959,9 +2964,11 @@ app.post('/api/debug/remove-user', async (req, res) => {
     // Save to database
     await database.setBlocklist(updatedBlocklist);
     
-    // Update memory
-    if (batchTransferManager) {
-      batchTransferManager.blockedUsers = new Set(updatedBlocklist);
+    // Update BlocklistService memory
+    if (global.blocklistService) {
+      global.blocklistService.clearBlocklist();
+      // Reload from database
+      await global.blocklistService.loadFromDatabase();
     }
     
     res.json({
@@ -3905,9 +3912,11 @@ app.post('/api/debug/clean-blocklist', async (req, res) => {
     // Update database with cleaned blocklist
     await database.setBlocklist(cleanedBlocklist);
     
-    // Update memory
-    if (batchTransferManager) {
-      batchTransferManager.blockedUsers = new Set(cleanedBlocklist);
+    // Update BlocklistService memory
+    if (global.blocklistService) {
+      global.blocklistService.clearBlocklist();
+      // Reload from database
+      await global.blocklistService.loadFromDatabase();
     }
     
     res.json({ 
@@ -3935,9 +3944,9 @@ app.listen(PORT, () => {
   
   // Clear blocklist on startup
   try {
-    if (batchTransferManager && batchTransferManager.blockedUsers) {
-      const previousCount = batchTransferManager.blockedUsers.size;
-      batchTransferManager.blockedUsers.clear();
+    if (global.blocklistService) {
+      const previousCount = global.blocklistService.getBlocklistSize();
+      global.blocklistService.clearBlocklist();
       console.log(`🧹 CLEARED BLOCKLIST ON STARTUP: ${previousCount} users removed`);
     }
   } catch (error) {
