@@ -3984,3 +3984,33 @@ app.post('/api/clear-blocklist', async (req, res) => {
     });
   }
 });
+
+// Force process current batch
+app.post('/api/force-process-batch', async (req, res) => {
+  try {
+    console.log('🚀 Force processing current batch...');
+    
+    if (batchTransferManager) {
+      const result = await batchTransferManager.forceProcessBatch();
+      const status = batchTransferManager.getBatchStatus();
+      
+      res.json({
+        success: result.success,
+        message: result.success ? 'Batch processed successfully' : result.reason,
+        batchStatus: status,
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'BatchTransferManager not available'
+      });
+    }
+  } catch (error) {
+    console.error('❌ Error force processing batch:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});

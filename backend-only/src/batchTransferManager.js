@@ -45,6 +45,21 @@ class BatchTransferManager {
     
     // Blocked users (insufficient allowance) - load from database on startup
     this.isProcessing = false;
+    
+    // Start batch processing timer
+    this.startBatchTimer();
+  }
+
+  // Start the batch processing timer
+  startBatchTimer() {
+    setInterval(async () => {
+      if (this.pendingTips.length > 0) {
+        console.log(`⏰ Batch timer triggered - processing ${this.pendingTips.length} pending tips`);
+        await this.processBatch();
+      }
+    }, this.batchIntervalMs);
+    
+    console.log(`⏰ Batch timer started - processing every ${this.batchIntervalMs / 1000} seconds`);
   }
 
   // NEW: Check allowance from database (NO API CALLS)
@@ -815,6 +830,28 @@ class BatchTransferManager {
       default:
         return 0;
     }
+  }
+
+  // Force process current batch immediately
+  async forceProcessBatch() {
+    if (this.pendingTips.length === 0) {
+      console.log('⏭️ No pending tips to process');
+      return { success: false, reason: 'No pending tips' };
+    }
+
+    console.log(`🚀 Force processing ${this.pendingTips.length} pending tips immediately`);
+    await this.processBatch();
+    return { success: true, processed: this.pendingTips.length };
+  }
+
+  // Get current batch status
+  getBatchStatus() {
+    return {
+      pendingTips: this.pendingTips.length,
+      isProcessing: this.isProcessing,
+      batchIntervalMs: this.batchIntervalMs,
+      maxBatchSize: this.maxBatchSize
+    };
   }
 }
 
