@@ -21,19 +21,26 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager, b
     console.log(`⏳ Waiting 8 seconds for blockchain to update...`);
     await new Promise(resolve => setTimeout(resolve, 8000)); // Wait 8 seconds
     
-    // Get current allowance from blockchain - single attempt only
+    // Get current allowance and balance from blockchain - single call for both
     const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     
     const tokenContract = new ethers.Contract(tokenAddress, [
-      "function allowance(address owner, address spender) view returns (uint256)"
+      "function allowance(address owner, address spender) view returns (uint256)",
+      "function balanceOf(address owner) view returns (uint256)"
     ], provider);
     
-    const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
+    // Get both allowance and balance in parallel - single blockchain call
+    const [allowance, balance] = await Promise.all([
+      tokenContract.allowance(userAddress, ecionBatchAddress),
+      tokenContract.balanceOf(userAddress)
+    ]);
+    
     const tokenDecimals = await getTokenDecimals(tokenAddress);
     const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
+    const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
     
-    console.log(`📊 Blockchain allowance: ${allowanceAmount}`);
+    console.log(`📊 Blockchain check: Allowance: ${allowanceAmount}, Balance: ${balanceAmount}`);
     
     // Get user config to check min tip amount
     const userConfig = await database.getUserConfig(userAddress);
@@ -116,6 +123,7 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager, b
     res.json({
       success: true,
       allowance: allowanceAmount,
+      balance: balanceAmount,
       minTipAmount: minTipAmount,
       isBlocked: isCurrentlyBlocked,
       blocklistAction: blocklistResult.action,

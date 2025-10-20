@@ -949,6 +949,44 @@ async function getTokenDecimals(tokenAddress) {
   }
 }
 
+// Combined allowance and balance endpoint - Single blockchain call for both
+app.get('/api/allowance-balance/:userAddress/:tokenAddress', async (req, res) => {
+  try {
+    const { userAddress, tokenAddress } = req.params;
+    const { ethers } = require('ethers');
+    
+    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    
+    const tokenContract = new ethers.Contract(tokenAddress, [
+      "function allowance(address owner, address spender) view returns (uint256)",
+      "function balanceOf(address owner) view returns (uint256)"
+    ], provider);
+    
+    // Get both allowance and balance in parallel - single blockchain call
+    const [allowance, balance] = await Promise.all([
+      tokenContract.allowance(userAddress, ecionBatchAddress),
+      tokenContract.balanceOf(userAddress)
+    ]);
+    
+    const tokenDecimals = await getTokenDecimals(tokenAddress);
+    const formattedAllowance = ethers.formatUnits(allowance, tokenDecimals);
+    const formattedBalance = ethers.formatUnits(balance, tokenDecimals);
+    
+    console.log(`📊 Combined check: User ${userAddress} - Allowance: ${formattedAllowance}, Balance: ${formattedBalance} (${tokenAddress})`);
+    
+    res.json({ 
+      allowance: formattedAllowance,
+      balance: formattedBalance,
+      tokenAddress: tokenAddress,
+      decimals: tokenDecimals
+    });
+  } catch (error) {
+    console.error('Allowance/Balance fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch allowance and balance' });
+  }
+});
+
 // Token allowance endpoint - Always returns blockchain allowance (what user approved)
 app.get('/api/allowance/:userAddress/:tokenAddress', async (req, res) => {
   try {
