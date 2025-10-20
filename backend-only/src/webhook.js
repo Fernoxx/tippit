@@ -249,7 +249,6 @@ async function webhookHandler(req, res) {
         }
       }
     }
-    }
     
     // Check if interactor has verified address before processing
     if (!interaction.interactorAddress) {
@@ -258,8 +257,11 @@ async function webhookHandler(req, res) {
         success: true,
         processed: false,
         instant: true,
-        interactionType: interaction.interactionType,
         reason: 'Interactor has no verified address'
+      });
+    }
+
+    // Check for duplicate tips based on interaction type
     // Check for duplicate tips based on interaction type
     if (interaction.interactionType === 'follow') {
       // For follows, check if we've already tipped this follower
@@ -297,9 +299,6 @@ async function webhookHandler(req, res) {
           reason: `Already tipped for ${interaction.interactionType} on this cast`
         });
       }
-    }
-    }
-      });
     }
 
     // Check if user is blocked using BlocklistService or database fallback
