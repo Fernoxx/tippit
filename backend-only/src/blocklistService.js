@@ -219,9 +219,7 @@ class BlocklistService {
     }
     return results;
   }
-}
 
-module.exports = BlocklistService;
   // Clear all blocklist entries
   clearBlocklist() {
     this.blockedUsers.clear();
@@ -233,3 +231,5 @@ module.exports = BlocklistService;
     return this.blockedUsers.size;
   }
 }
+
+module.exports = BlocklistService;
