@@ -949,6 +949,61 @@ async function getTokenDecimals(tokenAddress) {
   }
 }
 
+// Simple allowance check endpoint (for backward compatibility)
+app.get('/api/check-allowance', async (req, res) => {
+  try {
+    const { userAddress, tokenAddress } = req.query;
+    
+    if (!userAddress || !tokenAddress) {
+      return res.status(400).json({ error: 'userAddress and tokenAddress are required' });
+    }
+    
+    const { ethers } = require('ethers');
+    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    
+    const tokenContract = new ethers.Contract(tokenAddress, [
+      "function allowance(address owner, address spender) view returns (uint256)",
+      "function balanceOf(address owner) view returns (uint256)"
+    ], provider);
+    
+    // Get both allowance and balance in parallel
+    const [allowance, balance] = await Promise.all([
+      tokenContract.allowance(userAddress, ecionBatchAddress),
+      tokenContract.balanceOf(userAddress)
+    ]);
+    
+    const tokenDecimals = await getTokenDecimals(tokenAddress);
+    const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
+    const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
+    
+    // Get user config to calculate min tip
+    const userConfig = await database.getUserConfig(userAddress);
+    let minTipAmount = 0;
+    if (userConfig) {
+      const likeAmount = parseFloat(userConfig.likeAmount || '0');
+      const recastAmount = parseFloat(userConfig.recastAmount || '0');
+      const replyAmount = parseFloat(userConfig.replyAmount || '0');
+      minTipAmount = likeAmount + recastAmount + replyAmount;
+    }
+    
+    res.json({
+      success: true,
+      userAddress,
+      tokenAddress,
+      allowance: allowanceAmount,
+      balance: balanceAmount,
+      minTipAmount: minTipAmount,
+      hasSufficientAllowance: allowanceAmount >= minTipAmount,
+      hasSufficientBalance: balanceAmount >= minTipAmount,
+      canAfford: (allowanceAmount >= minTipAmount) && (balanceAmount >= minTipAmount)
+    });
+  } catch (error) {
+    console.error('Error checking allowance:', error);
+    res.status(500).json({ error: 'Failed to check allowance' });
+  }
+});
+
 // Combined allowance and balance endpoint - Single blockchain call for both
 app.get('/api/allowance-balance/:userAddress/:tokenAddress', async (req, res) => {
   try {
@@ -3069,6 +3124,33 @@ app.post('/api/update-blocklist-status', async (req, res) => {
   } catch (error) {
     console.error('Error updating blocklist status:', error);
     res.status(500).json({ error: 'Failed to update blocklist status' });
+  }
+});
+
+// Simple blocklist status endpoint
+app.get('/api/blocklist-status', async (req, res) => {
+  try {
+    if (!global.blocklistService) {
+      return res.json({
+        success: false,
+        error: 'BlocklistService not initialized',
+        blocklistSize: 0,
+        blockedUsers: []
+      });
+    }
+
+    const blocklistSize = global.blocklistService.getBlocklistSize();
+    const blockedUsers = global.blocklistService.getBlockedUsers();
+    
+    res.json({
+      success: true,
+      blocklistSize: blocklistSize,
+      blockedUsers: Array.from(blockedUsers),
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error checking blocklist status:', error);
+    res.status(500).json({ error: 'Failed to check blocklist status' });
   }
 });
 
