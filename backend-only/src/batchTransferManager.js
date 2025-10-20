@@ -47,7 +47,6 @@ class BatchTransferManager {
     this.isProcessing = false;
     
       // Clean up webhook and homepage immediately when insufficient funds
-    });
 
     // Process immediately if batch is full (but not for single tips)
     if (this.pendingTips.length >= this.maxBatchSize) {
