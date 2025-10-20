@@ -753,7 +753,69 @@ class BatchTransferManager {
     } catch (error) {
       console.error(`❌ Error updating webhook status:`, error);
     }
-}
   }
+
+  // Add tip to batch queue
+  async addTipToBatch(interaction, authorConfig) {
+    try {
+      // Validate tip
+      const validation = await this.validateTip(interaction, authorConfig);
+      if (!validation.valid) {
+        console.log(`❌ Tip validation failed: ${validation.reason}`);
+        return { success: false, reason: validation.reason };
+      }
+
+      // Create tip object
+      const tip = {
+        interaction,
+        authorConfig,
+        tokenAddress: authorConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bDA02913',
+        tokenSymbol: authorConfig.tokenSymbol || 'USDC',
+        amount: this.calculateTipAmount(interaction, authorConfig),
+        timestamp: Date.now()
+      };
+
+      // Add to pending tips
+      this.pendingTips.push(tip);
+      console.log(`📝 Tip added to batch queue. Queue size: ${this.pendingTips.length}`);
+
+      // Process immediately if batch is full
+      if (this.pendingTips.length >= this.maxBatchSize) {
+        console.log(`🚀 Batch size reached (${this.maxBatchSize}), processing immediately`);
+        await this.processBatch();
+      } else {
+        console.log(`⏳ Tip queued. Processing in ${this.batchIntervalMs / 1000} seconds or when batch is full`);
+      }
+
+      return { 
+        success: true, 
+        queued: true, 
+        batchSize: this.pendingTips.length 
+      };
+
+    } catch (error) {
+      console.error('❌ Error adding tip to batch:', error);
+      return { success: false, reason: error.message };
+    }
+  }
+
+  // Calculate tip amount based on interaction type
+  calculateTipAmount(interaction, authorConfig) {
+    const { interactionType } = interaction;
+    
+    switch (interactionType) {
+      case 'like':
+        return parseFloat(authorConfig.likeAmount || '0');
+      case 'recast':
+        return parseFloat(authorConfig.recastAmount || '0');
+      case 'reply':
+        return parseFloat(authorConfig.replyAmount || '0');
+      case 'follow':
+        return parseFloat(authorConfig.followAmount || '0');
+      default:
+        return 0;
+    }
+  }
+}
 
 module.exports = new BatchTransferManager();
