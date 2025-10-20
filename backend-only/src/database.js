@@ -350,6 +350,18 @@ class Database {
       console.error('Error setting config:', error);
     }
   }
+
+  // Cleanup old tips (placeholder for file-based database)
+  async cleanupOldTips() {
+    console.log('🧹 File-based database: cleanupOldTips called (no-op)');
+    return { cleaned: 0 };
+  }
+
+  // Get blocklist (placeholder for file-based database)
+  async getBlocklist() {
+    console.log('📋 File-based database: getBlocklist called (returning empty)');
+    return [];
+  }
 }
 
 module.exports = new Database();

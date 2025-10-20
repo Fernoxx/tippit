@@ -274,11 +274,6 @@ class PostgresDatabase {
       throw error;
     }
   }
-    } catch (error) {
-      console.error('Error adding tip history:', error);
-      throw error;
-    }
-  }
 
   async getTipHistory(userAddress, limit = 50) {
     try {
