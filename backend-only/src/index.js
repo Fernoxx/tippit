@@ -3956,9 +3956,13 @@ app.post('/api/clear-blocklist', async (req, res) => {
   try {
     console.log('🧹 Clearing all blocklist entries...');
     
-    // Clear blocklist table
-    await database.pool.query('DELETE FROM blocklist');
-    console.log('✅ Cleared blocklist table');
+    // Clear blocklist table (only if using PostgreSQL)
+    if (database.pool) {
+      await database.pool.query('DELETE FROM blocklist');
+      console.log('✅ Cleared blocklist table');
+    } else {
+      console.log('ℹ️ Using file-based storage - no database table to clear');
+    }
     
     // Clear blocklistService cache
     if (global.blocklistService) {
