@@ -237,7 +237,6 @@ class PostgresDatabase {
       console.error('Error clearing pending tips:', error);
     }
   }
-
   // Tip history
   async addTipHistory(tip) {
     try {
@@ -258,6 +257,23 @@ class PostgresDatabase {
       
       console.log(`💾 Tip recorded: ${tip.fromAddress} → ${tip.toAddress} (${tip.amount} ${tip.actionType})`);
       
+      // If this is a follow tip, also record it in follow_tips table
+      if (tip.actionType === 'follow' && tip.authorFid && tip.interactorFid) {
+        await this.recordFollowTip(
+          tip.authorFid,
+          tip.interactorFid,
+          tip.fromAddress,
+          tip.toAddress,
+          tip.amount,
+          tip.tokenSymbol || 'USDC'
+        );
+      }
+      
+    } catch (error) {
+      console.error('Error adding tip history:', error);
+      throw error;
+    }
+  }
     } catch (error) {
       console.error('Error adding tip history:', error);
       throw error;
@@ -596,6 +612,32 @@ class PostgresDatabase {
     } catch (error) {
       console.error('Error checking tip history:', error);
       return false;
+    }
+  }
+  // Check if user has already been tipped for following
+  async hasUserBeenTippedForFollow(authorFid, followerFid) {
+    try {
+      const result = await this.pool.query(
+        'SELECT id FROM follow_tips WHERE author_fid = $1 AND follower_fid = $2',
+        [authorFid, followerFid]
+      );
+      return result.rows.length > 0;
+    } catch (error) {
+      console.error('Error checking follow tip:', error);
+      return false;
+    }
+  }
+
+  // Record a follow tip
+  async recordFollowTip(authorFid, followerFid, authorAddress, followerAddress, tipAmount, tokenSymbol) {
+    try {
+      await this.pool.query(
+        'INSERT INTO follow_tips (author_fid, follower_fid, author_address, follower_address, tip_amount, token_symbol) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (author_fid, follower_fid) DO NOTHING',
+        [authorFid, followerFid, authorAddress, followerAddress, tipAmount, tokenSymbol]
+      );
+      console.log(`✅ Recorded follow tip: ${followerFid} -> ${authorFid} (${tipAmount} ${tokenSymbol})`);
+    } catch (error) {
+      console.error('Error recording follow tip:', error);
     }
   }
 

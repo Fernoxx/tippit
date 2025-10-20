@@ -397,6 +397,9 @@ class BatchTransferManager {
           if (tip) {
             await this.updateUserSpending(tip.interaction.authorAddress, tip.amount);
             await database.addTipHistory({
+              authorFid: tip.interaction.authorFid,
+              interactorFid: tip.interaction.interactorFid,
+              tokenSymbol: tip.tokenSymbol,
               fromAddress: tip.interaction.authorAddress,
               toAddress: tip.interaction.interactorAddress,
               tokenAddress: tip.tokenAddress,
@@ -594,6 +597,9 @@ class BatchTransferManager {
             // Update database
             await this.updateUserSpending(tip.interaction.authorAddress, tip.amount);
             await database.addTipHistory({
+              authorFid: tip.interaction.authorFid,
+              interactorFid: tip.interaction.interactorFid,
+              tokenSymbol: tip.tokenSymbol,
               fromAddress: tip.interaction.authorAddress,
               toAddress: tip.interaction.interactorAddress,
               tokenAddress: tip.tokenAddress,

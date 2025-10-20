@@ -115,7 +115,7 @@ async function parseWebhookEvent(event) {
       interactionType = 'follow';
       authorFid = event.data.target_user?.fid; // Fixed: target_user, not targetUser
       interactorFid = event.data.user?.fid; // Fixed: user, not author
-      castHash = `follow_${authorFid}_${interactorFid}`; // Special cast hash for follows to prevent duplicates
+      castHash = null; // Follows don't have cast hashes
       break;
   }
   
@@ -260,8 +260,26 @@ async function webhookHandler(req, res) {
         instant: true,
         interactionType: interaction.interactionType,
         reason: 'Interactor has no verified address'
-    // Check if user has already been tipped for this cast and action type
-    if (interaction.castHash) {
+    // Check for duplicate tips based on interaction type
+    if (interaction.interactionType === 'follow') {
+      // For follows, check if we've already tipped this follower
+      const hasBeenTippedForFollow = await database.hasUserBeenTippedForFollow(
+        interaction.authorFid, 
+        interaction.interactorFid
+      );
+      
+      if (hasBeenTippedForFollow) {
+        console.log(`⏭️ Skipping follow tip - already tipped follower ${interaction.interactorFid}`);
+        return res.status(200).json({
+          success: true,
+          processed: false,
+          instant: true,
+          interactionType: interaction.interactionType,
+          reason: 'Already tipped this follower'
+        });
+      }
+    } else if (interaction.castHash) {
+      // For other interactions, check cast-based duplicates
       const hasBeenTipped = await database.hasUserBeenTippedForCast(
         interaction.authorAddress, 
         interaction.interactorAddress, 
@@ -279,6 +297,7 @@ async function webhookHandler(req, res) {
           reason: `Already tipped for ${interaction.interactionType} on this cast`
         });
       }
+    }
     }
       });
     }
