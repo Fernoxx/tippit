@@ -45,18 +45,6 @@ class BatchTransferManager {
     
     // Blocked users (insufficient allowance) - load from database on startup
     this.isProcessing = false;
-    
-      // Clean up webhook and homepage immediately when insufficient funds
-
-    // Process immediately if batch is full (but not for single tips)
-    if (this.pendingTips.length >= this.maxBatchSize) {
-      console.log(`🚀 Batch size reached (${this.maxBatchSize}), processing immediately`);
-      await this.processBatch();
-    } else {
-      console.log(`⏳ Tip queued. Processing in ${this.batchIntervalMs / 1000} seconds or when batch is full`);
-    }
-
-    return { success: true, queued: true, batchSize: this.pendingTips.length };
   }
 
   // NEW: Check allowance from database (NO API CALLS)
@@ -214,42 +202,6 @@ class BatchTransferManager {
         hasSufficientAllowance: false,
         hasSufficientBalance: false
       };
-    }
-  }
-
-      const usersToRemove = [];
-      
-      if (usersToRemove.length > 0) {
-      const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
-      const tokenAddress = authorConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
-      
-      // Get token decimals
-      const tokenContract = new ethers.Contract(tokenAddress, [
-        "function decimals() view returns (uint8)"
-      ], this.provider);
-      const decimals = await tokenContract.decimals();
-      
-      // Get allowance
-      const allowanceContract = new ethers.Contract(tokenAddress, [
-        "function allowance(address owner, address spender) view returns (uint256)"
-      ], this.provider);
-      const allowance = await allowanceContract.allowance(userAddress, ecionBatchAddress);
-      const allowanceAmount = parseFloat(ethers.formatUnits(allowance, decimals));
-      
-      // Calculate total tip amount (like + recast + reply)
-      const likeAmount = parseFloat(authorConfig.likeAmount || '0');
-      const recastAmount = parseFloat(authorConfig.recastAmount || '0');
-      const replyAmount = parseFloat(authorConfig.replyAmount || '0');
-      const minTipAmount = likeAmount + recastAmount + replyAmount;
-      
-      return {
-        canAfford: allowanceAmount >= minTipAmount,
-        allowanceAmount,
-        minTipAmount
-      };
-    } catch (error) {
-      console.error('❌ Error checking allowance:', error);
-      return { canAfford: false, allowanceAmount: 0, minTipAmount: 0 };
     }
   }
 
@@ -783,16 +735,6 @@ class BatchTransferManager {
           const allowanceCheck = await this.checkBlockchainAllowance(userAddress, tips.find(t => t.interaction.authorAddress === userAddress).authorConfig);
           
           if (!allowanceCheck.canAfford) {
-            console.log(`🔄 User ${userAddress} has insufficient database allowance after tip - cleaning up`);
-            // Clean up webhook and homepage immediately
-      console.log(`⚠️ User ${userAddress} not found in blocklist`);
-      return false;
-    }
-  }
-
-    try {
-      // Clean up blocklist - remove invalid addresses
-    }
   }
 
   // NEW: Check if user is blocked - Simple memory check
