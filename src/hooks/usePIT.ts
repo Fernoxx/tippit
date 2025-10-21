@@ -352,7 +352,7 @@ export const useEcion = () => {
   };
 
   const addMiniApp = async () => {
-    if (!window.farcaster) {
+    if (typeof window === 'undefined' || !window.farcaster) {
       toast.error('Farcaster client not found. Please use Warpcast or another Farcaster client.');
       return;
     }
