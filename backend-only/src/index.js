@@ -4094,7 +4094,10 @@ app.listen(PORT, () => {
   }, 30000); // Wait 30 seconds after startup
 });
 
+// Export functions for other modules to use
 module.exports = app;
+module.exports.getUserFid = getUserFid;
+module.exports.sendNeynarNotification = sendNeynarNotification;
 // Clear all blocklist entries
 app.post('/api/clear-blocklist', async (req, res) => {
   try {
