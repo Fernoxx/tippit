@@ -1299,6 +1299,27 @@ async function getUserFid(userAddress) {
   return null;
 }
 
+// Helper function to get user address from FID
+async function getUserAddressFromFid(fid) {
+  try {
+    const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`, {
+      headers: {
+        'api_key': process.env.NEYNAR_API_KEY
+      }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      const user = data.users?.[0];
+      return user?.verified_addresses?.eth_addresses?.[0] || null;
+    }
+  } catch (error) {
+    console.error('Error fetching user address from FID:', error);
+  }
+  
+  return null;
+}
+
 // Check if user has sufficient allowance for at least one tip
 async function checkUserAllowanceForWebhook(userAddress) {
   try {
@@ -1513,111 +1534,146 @@ async function updateUserWebhookStatus(userAddress) {
 
 // OLD PERIODIC CLEANUP REMOVED - Now using allowance sync system that updates webhooks every 3 hours
 
-// Check if user has notifications enabled (placeholder - need proper API)
-async function shouldSendNotification(recipientFid) {
-  // TODO: Implement proper notification preference check
-  // For now, always return true - we'll add proper checking later
-  return true;
-}
-
-// Send Neynar Frame V2 notification using correct API
-async function sendNeynarNotification(recipientFid, title, message, targetUrl = "https://ecion.vercel.app") {
+// Send Farcaster notification using stored notification tokens
+async function sendFarcasterNotification(recipientAddress, title, message, targetUrl = "https://ecion.vercel.app") {
   try {
-    // Check if user has notifications enabled
-    const shouldSend = await shouldSendNotification(recipientFid);
-    if (!shouldSend) {
-      console.log(`⏭️ Skipping notification to FID ${recipientFid} - notifications disabled`);
+    // Get notification token for user
+    const tokenData = await database.getNotificationToken(recipientAddress);
+    if (!tokenData) {
+      console.log(`⏭️ No notification token found for user ${recipientAddress} - skipping notification`);
       return false;
     }
     
-    // Use the correct Neynar API format from docs
-    const response = await fetch('https://api.neynar.com/v2/farcaster/frame/notifications/', {
+    const { token, notification_url, fid } = tokenData;
+    
+    // Generate unique notification ID for deduplication
+    const notificationId = `ecion-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Send notification using Farcaster's direct API
+    const response = await fetch(notification_url, {
       method: 'POST',
       headers: {
-        'x-api-key': process.env.NEYNAR_API_KEY,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        target_fids: [recipientFid], // Target specific FID
-        filters: {}, // No additional filters
-        notification: {
-          title: title,
-          body: message,
-          target_url: targetUrl
-        }
+        notificationId: notificationId,
+        title: title,
+        body: message,
+        targetUrl: targetUrl,
+        tokens: [token]
       })
     });
     
     if (response.ok) {
       const result = await response.json();
-      console.log(`✅ Notification sent to FID ${recipientFid}: ${title}`, result);
+      console.log(`✅ Farcaster notification sent to ${recipientAddress} (FID: ${fid}): ${title}`, result);
       
-      // Debug notification delivery
-      if (result.notification_deliveries && result.notification_deliveries.length === 0) {
-        console.log(`⚠️ No deliveries made for FID ${recipientFid} - user may have notifications disabled`);
-      } else if (result.notification_deliveries) {
-        result.notification_deliveries.forEach(delivery => {
-          console.log(`📱 Delivery status for FID ${delivery.fid}: ${delivery.status}`);
-        });
+      // Check delivery status
+      if (result.successfulTokens && result.successfulTokens.length > 0) {
+        console.log(`📱 Notification delivered successfully to ${result.successfulTokens.length} token(s)`);
+      }
+      
+      if (result.invalidTokens && result.invalidTokens.length > 0) {
+        console.log(`🚫 ${result.invalidTokens.length} invalid token(s) - deactivating`);
+        await database.deactivateNotificationToken(recipientAddress, fid);
+      }
+      
+      if (result.rateLimitedTokens && result.rateLimitedTokens.length > 0) {
+        console.log(`⏳ ${result.rateLimitedTokens.length} token(s) rate limited - will retry later`);
       }
       
       return true;
     } else {
       const errorText = await response.text();
-      console.log(`❌ Failed to send notification to FID ${recipientFid}: ${errorText}`);
+      console.log(`❌ Failed to send Farcaster notification to ${recipientAddress}: ${errorText}`);
       return false;
     }
   } catch (error) {
-    console.log(`⚠️ Error sending notification to FID ${recipientFid}: ${error.message}`);
+    console.log(`⚠️ Error sending Farcaster notification to ${recipientAddress}: ${error.message}`);
     return false;
   }
 }
 
-// Send notification to multiple users with filters
-async function sendBulkNotification(targetFids, title, message, filters = {}, targetUrl = "https://ecion.vercel.app") {
+// Legacy function for backward compatibility (now uses Farcaster API)
+async function sendNeynarNotification(recipientFid, title, message, targetUrl = "https://ecion.vercel.app") {
+  // Get user address from FID
+  const userAddress = await getUserAddressFromFid(recipientFid);
+  if (!userAddress) {
+    console.log(`⚠️ Could not find user address for FID ${recipientFid}`);
+    return false;
+  }
+  
+  return await sendFarcasterNotification(userAddress, title, message, targetUrl);
+}
+
+// Send notification to multiple users using Farcaster API
+async function sendBulkNotification(targetAddresses, title, message, targetUrl = "https://ecion.vercel.app") {
   try {
-    // Filter out users who don't have notifications enabled
-    const usersWithNotifications = [];
-    for (const fid of targetFids) {
-      const shouldSend = await shouldSendNotification(fid);
-      if (shouldSend) {
-        usersWithNotifications.push(fid);
+    // Get all notification tokens
+    const allTokens = await database.getAllNotificationTokens();
+    
+    // Filter tokens for target addresses
+    const targetTokens = allTokens.filter(token => 
+      targetAddresses.includes(token.user_address)
+    );
+    
+    if (targetTokens.length === 0) {
+      console.log(`⏭️ No notification tokens found for target addresses - skipping bulk notification`);
+      return false;
+    }
+    
+    console.log(`📱 Sending bulk notification to ${targetTokens.length} users`);
+    
+    // Group tokens by notification URL (different clients might use different URLs)
+    const tokensByUrl = {};
+    targetTokens.forEach(token => {
+      if (!tokensByUrl[token.notification_url]) {
+        tokensByUrl[token.notification_url] = [];
+      }
+      tokensByUrl[token.notification_url].push(token.token);
+    });
+    
+    // Send notifications to each URL
+    const results = [];
+    for (const [url, tokens] of Object.entries(tokensByUrl)) {
+      // Generate unique notification ID for deduplication
+      const notificationId = `ecion-bulk-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          notificationId: notificationId,
+          title: title,
+          body: message,
+          targetUrl: targetUrl,
+          tokens: tokens
+        })
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log(`✅ Bulk notification sent to ${url}: ${tokens.length} tokens`, result);
+        results.push({ url, success: true, result });
+        
+        // Handle invalid tokens
+        if (result.invalidTokens && result.invalidTokens.length > 0) {
+          console.log(`🚫 ${result.invalidTokens.length} invalid tokens from ${url} - deactivating`);
+          // Note: We can't easily map invalid tokens back to users without more complex logic
+        }
+      } else {
+        const errorText = await response.text();
+        console.log(`❌ Failed to send bulk notification to ${url}: ${errorText}`);
+        results.push({ url, success: false, error: errorText });
       }
     }
     
-    if (usersWithNotifications.length === 0) {
-      console.log(`⏭️ No users with notifications enabled - skipping bulk notification`);
-      return false;
-    }
+    const successCount = results.filter(r => r.success).length;
+    console.log(`📊 Bulk notification results: ${successCount}/${Object.keys(tokensByUrl).length} URLs successful`);
     
-    console.log(`📱 Sending bulk notification to ${usersWithNotifications.length}/${targetFids.length} users`);
-    
-    const response = await fetch('https://api.neynar.com/v2/farcaster/frame/notifications/', {
-      method: 'POST',
-      headers: {
-        'x-api-key': process.env.NEYNAR_API_KEY,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        target_fids: usersWithNotifications, // Array of FIDs with notifications enabled
-        filters: filters, // Filtering criteria
-        notification: {
-          title: title,
-          body: message,
-          target_url: targetUrl
-        }
-      })
-    });
-    
-    if (response.ok) {
-      const result = await response.json();
-      console.log(`✅ Bulk notification sent to ${targetFids.length} users: ${title}`, result);
-      return true;
-    } else {
-      const errorText = await response.text();
-      console.log(`❌ Failed to send bulk notification: ${errorText}`);
-      return false;
-    }
+    return successCount > 0;
   } catch (error) {
     console.log(`⚠️ Error sending bulk notification: ${error.message}`);
     return false;
@@ -2377,20 +2433,32 @@ app.get('/api/test-fid-webhook-system', async (req, res) => {
   }
 });
 
-// Test endpoint for bulk notifications with filters
+// Test endpoint for bulk notifications
 app.post('/api/test-bulk-notification', async (req, res) => {
   try {
-    const { targetFids = [], filters = {}, title, message, targetUrl } = req.body;
+    const { targetFids = [], title, message, targetUrl } = req.body;
     
     if (!title || !message) {
       return res.status(400).json({ error: 'Title and message are required' });
     }
     
+    // Convert FIDs to addresses
+    const targetAddresses = [];
+    for (const fid of targetFids) {
+      const address = await getUserAddressFromFid(fid);
+      if (address) {
+        targetAddresses.push(address);
+      }
+    }
+    
+    if (targetAddresses.length === 0) {
+      return res.status(400).json({ error: 'No valid addresses found for provided FIDs' });
+    }
+    
     const result = await sendBulkNotification(
-      targetFids,
+      targetAddresses,
       title,
       message,
-      filters,
       targetUrl || 'https://ecion.vercel.app'
     );
     
@@ -2398,7 +2466,7 @@ app.post('/api/test-bulk-notification', async (req, res) => {
       success: result,
       message: 'Bulk notification sent',
       targetFids: targetFids.length,
-      filters: filters
+      targetAddresses: targetAddresses.length
     });
   } catch (error) {
     console.error('Test bulk notification error:', error);
@@ -2427,10 +2495,18 @@ async function removeUserFromHomepageCache(userAddress) {
 // Import simple update allowance function
 const updateAllowanceSimple = require('./update-allowance-simple');
 
+// Import Farcaster webhook handler
+const handleFarcasterWebhook = require('./farcaster-webhook');
+
 // NEW: Update allowance endpoint for instant database/webhook updates after user approves/revokes
 // This endpoint should ONLY be called after actual approve/revoke transactions
 app.post('/api/update-allowance', async (req, res) => {
   await updateAllowanceSimple(req, res, database, batchTransferManager, blocklistService);
+});
+
+// Farcaster notification webhook endpoint
+app.post('/webhook/farcaster', async (req, res) => {
+  await handleFarcasterWebhook(req, res, database);
 });
 app.get('/api/homepage', async (req, res) => {
   try {
@@ -4166,6 +4242,7 @@ module.exports = {
   app,
   getUserFid,
   sendNeynarNotification,
+  sendFarcasterNotification,
   sendBulkNotification
 };
 // Clear all blocklist entries

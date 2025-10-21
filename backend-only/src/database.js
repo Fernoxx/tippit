@@ -362,6 +362,108 @@ class Database {
     console.log('📋 File-based database: getBlocklist called (returning empty)');
     return [];
   }
+
+  // Notification token methods (file-based fallback)
+  async saveNotificationToken(userAddress, fid, token, notificationUrl) {
+    try {
+      const tokensFile = path.join(this.dataDir, 'notification_tokens.json');
+      let tokens = {};
+      
+      try {
+        const data = await fs.readFile(tokensFile, 'utf8');
+        tokens = JSON.parse(data);
+      } catch (error) {
+        // File doesn't exist, start with empty object
+      }
+      
+      const key = `${userAddress.toLowerCase()}_${fid}`;
+      tokens[key] = {
+        userAddress: userAddress.toLowerCase(),
+        fid,
+        token,
+        notificationUrl,
+        isActive: true,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      
+      await fs.writeFile(tokensFile, JSON.stringify(tokens, null, 2));
+      console.log(`💾 Saved notification token for user ${userAddress} (FID: ${fid})`);
+      return true;
+    } catch (error) {
+      console.error('Error saving notification token:', error.message);
+      return false;
+    }
+  }
+
+  async getNotificationToken(userAddress) {
+    try {
+      const tokensFile = path.join(this.dataDir, 'notification_tokens.json');
+      const data = await fs.readFile(tokensFile, 'utf8');
+      const tokens = JSON.parse(data);
+      
+      // Find the most recent active token for this user
+      const userTokens = Object.values(tokens).filter(t => 
+        t.userAddress === userAddress.toLowerCase() && t.isActive
+      );
+      
+      if (userTokens.length === 0) return null;
+      
+      // Return the most recently updated token
+      return userTokens.sort((a, b) => b.updatedAt - a.updatedAt)[0];
+    } catch (error) {
+      console.error('Error getting notification token:', error.message);
+      return null;
+    }
+  }
+
+  async getAllNotificationTokens() {
+    try {
+      const tokensFile = path.join(this.dataDir, 'notification_tokens.json');
+      const data = await fs.readFile(tokensFile, 'utf8');
+      const tokens = JSON.parse(data);
+      
+      return Object.values(tokens).filter(t => t.isActive);
+    } catch (error) {
+      console.error('Error getting all notification tokens:', error.message);
+      return [];
+    }
+  }
+
+  async deactivateNotificationToken(userAddress, fid = null) {
+    try {
+      const tokensFile = path.join(this.dataDir, 'notification_tokens.json');
+      let tokens = {};
+      
+      try {
+        const data = await fs.readFile(tokensFile, 'utf8');
+        tokens = JSON.parse(data);
+      } catch (error) {
+        return false;
+      }
+      
+      let updated = false;
+      Object.keys(tokens).forEach(key => {
+        const token = tokens[key];
+        if (token.userAddress === userAddress.toLowerCase() && 
+            (fid === null || token.fid === fid)) {
+          token.isActive = false;
+          token.updatedAt = Date.now();
+          updated = true;
+        }
+      });
+      
+      if (updated) {
+        await fs.writeFile(tokensFile, JSON.stringify(tokens, null, 2));
+        console.log(`🚫 Deactivated notification token for user ${userAddress} (FID: ${fid || 'all'})`);
+      }
+      
+      return updated;
+    } catch (error) {
+      console.error('Error deactivating notification token:', error.message);
+      return false;
+    }
+  }
 }
 
 module.exports = new Database();

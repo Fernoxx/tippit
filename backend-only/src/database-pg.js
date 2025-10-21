@@ -93,6 +93,21 @@ class PostgresDatabase {
           added_at TIMESTAMP DEFAULT NOW()
         )
       `);
+
+      // Create notification tokens table
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS notification_tokens (
+          id SERIAL PRIMARY KEY,
+          user_address TEXT NOT NULL,
+          fid INTEGER NOT NULL,
+          token TEXT NOT NULL,
+          notification_url TEXT NOT NULL,
+          is_active BOOLEAN DEFAULT true,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW(),
+          UNIQUE(user_address, fid)
+        )
+      `);
       
       console.log('✅ Database tables initialized');
     } catch (error) {
@@ -805,6 +820,90 @@ class PostgresDatabase {
       return blocklist.includes(normalizedAddress);
     } catch (error) {
       console.error(`❌ Error checking if ${userAddress} is blocked:`, error);
+      return false;
+    }
+  }
+
+  // Notification token methods
+  async saveNotificationToken(userAddress, fid, token, notificationUrl) {
+    try {
+      await this.pool.query(`
+        INSERT INTO notification_tokens (user_address, fid, token, notification_url, is_active, updated_at)
+        VALUES ($1, $2, $3, $4, true, NOW())
+        ON CONFLICT (user_address, fid)
+        DO UPDATE SET 
+          token = $3,
+          notification_url = $4,
+          is_active = true,
+          updated_at = NOW()
+      `, [userAddress.toLowerCase(), fid, token, notificationUrl]);
+      
+      console.log(`💾 Saved notification token for user ${userAddress} (FID: ${fid})`);
+      return true;
+    } catch (error) {
+      console.error('Error saving notification token:', error.message);
+      return false;
+    }
+  }
+
+  async getNotificationToken(userAddress) {
+    try {
+      const result = await this.pool.query(`
+        SELECT token, notification_url, fid
+        FROM notification_tokens 
+        WHERE user_address = $1 AND is_active = true
+        ORDER BY updated_at DESC
+        LIMIT 1
+      `, [userAddress.toLowerCase()]);
+      
+      return result.rows[0] || null;
+    } catch (error) {
+      console.error('Error getting notification token:', error.message);
+      return null;
+    }
+  }
+
+  async getAllNotificationTokens() {
+    try {
+      const result = await this.pool.query(`
+        SELECT user_address, fid, token, notification_url
+        FROM notification_tokens 
+        WHERE is_active = true
+        ORDER BY updated_at DESC
+      `);
+      
+      return result.rows;
+    } catch (error) {
+      console.error('Error getting all notification tokens:', error.message);
+      return [];
+    }
+  }
+
+  async deactivateNotificationToken(userAddress, fid = null) {
+    try {
+      let query, params;
+      
+      if (fid) {
+        query = `
+          UPDATE notification_tokens 
+          SET is_active = false, updated_at = NOW()
+          WHERE user_address = $1 AND fid = $2
+        `;
+        params = [userAddress.toLowerCase(), fid];
+      } else {
+        query = `
+          UPDATE notification_tokens 
+          SET is_active = false, updated_at = NOW()
+          WHERE user_address = $1
+        `;
+        params = [userAddress.toLowerCase()];
+      }
+      
+      const result = await this.pool.query(query, params);
+      console.log(`🚫 Deactivated notification token for user ${userAddress} (FID: ${fid || 'all'})`);
+      return result.rowCount > 0;
+    } catch (error) {
+      console.error('Error deactivating notification token:', error.message);
       return false;
     }
   }
