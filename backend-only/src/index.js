@@ -3727,6 +3727,27 @@ app.get('/api/debug/user-status/:address', async (req, res) => {
   }
 });
 
+// Get all users with notification tokens
+app.get('/api/notification-users', async (req, res) => {
+  try {
+    const allTokens = await database.getAllNotificationTokens();
+    
+    res.json({
+      success: true,
+      totalUsers: allTokens.length,
+      users: allTokens.map(token => ({
+        userAddress: token.user_address,
+        fid: token.fid,
+        isActive: token.isActive,
+        createdAt: token.createdAt || 'unknown'
+      }))
+    });
+  } catch (error) {
+    console.error('Error getting notification users:', error);
+    res.status(500).json({ error: 'Failed to get notification users' });
+  }
+});
+
 // Serve frontend static files if in production (AFTER all API routes)
 if (process.env.NODE_ENV === 'production') {
   try {
@@ -3741,27 +3762,6 @@ if (process.env.NODE_ENV === 'production') {
     // Serve Next.js static files
     app.use('/_next', express.static(path.join(frontendBuildPath)));
     app.use('/public', express.static(publicPath));
-    
-    // Get all users with notification tokens
-    app.get('/api/notification-users', async (req, res) => {
-      try {
-        const allTokens = await database.getAllNotificationTokens();
-        
-        res.json({
-          success: true,
-          totalUsers: allTokens.length,
-          users: allTokens.map(token => ({
-            userAddress: token.user_address,
-            fid: token.fid,
-            isActive: token.isActive,
-            createdAt: token.createdAt || 'unknown'
-          }))
-        });
-      } catch (error) {
-        console.error('Error getting notification users:', error);
-        res.status(500).json({ error: 'Failed to get notification users' });
-      }
-    });
     
     // Simple fallback for frontend routes (LAST ROUTE) - but NOT for API routes
     app.get('*', (req, res) => {
