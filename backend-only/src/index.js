@@ -2570,6 +2570,69 @@ app.post('/webhook/farcaster', async (req, res) => {
   await handleFarcasterWebhook(req, res, database);
 });
 
+// Test webhook endpoint (for testing without signature verification)
+app.post('/webhook/farcaster-test', async (req, res) => {
+  try {
+    console.log('🧪 Test webhook received:', req.body);
+    
+    const { event, notificationDetails, fid } = req.body;
+    
+    if (!fid) {
+      return res.status(400).json({ error: 'FID is required' });
+    }
+    
+    // Get user address from FID
+    const userAddress = await getUserAddressFromFid(fid);
+    if (!userAddress) {
+      console.log(`⚠️ Could not find user address for FID ${fid}`);
+      return res.status(200).json({ success: true, message: 'FID not found' });
+    }
+    
+    switch (event) {
+      case 'miniapp_added':
+        console.log(`✅ Mini app added by user ${userAddress} (FID: ${fid})`);
+        
+        // If notification details are provided, save the token
+        if (notificationDetails) {
+          const { token, url } = notificationDetails;
+          await database.saveNotificationToken(userAddress, fid, token, url);
+          console.log(`💾 Saved notification token for ${userAddress}`);
+        }
+        break;
+        
+      case 'miniapp_removed':
+        console.log(`❌ Mini app removed by user ${userAddress} (FID: ${fid})`);
+        await database.deactivateNotificationToken(userAddress, fid);
+        console.log(`🗑️ Deactivated notification token for ${userAddress}`);
+        break;
+        
+      case 'notifications_enabled':
+        console.log(`🔔 Notifications enabled by user ${userAddress} (FID: ${fid})`);
+        
+        if (notificationDetails) {
+          const { token, url } = notificationDetails;
+          await database.saveNotificationToken(userAddress, fid, token, url);
+          console.log(`💾 Saved notification token for ${userAddress}`);
+        }
+        break;
+        
+      case 'notifications_disabled':
+        console.log(`🔕 Notifications disabled by user ${userAddress} (FID: ${fid})`);
+        await database.deactivateNotificationToken(userAddress, fid);
+        console.log(`🗑️ Deactivated notification token for ${userAddress}`);
+        break;
+        
+      default:
+        console.log(`❓ Unknown event: ${event}`);
+    }
+    
+    res.status(200).json({ success: true, message: 'Webhook processed successfully' });
+  } catch (error) {
+    console.error('❌ Test webhook error:', error);
+    res.status(500).json({ error: 'Webhook processing failed' });
+  }
+});
+
 // Check notification status for a user
 app.get('/api/notification-status/:userAddress', async (req, res) => {
   try {
