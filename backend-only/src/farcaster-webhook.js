@@ -82,19 +82,34 @@ async function handleFarcasterWebhook(req, res, database) {
 // Helper function to get user address from FID
 async function getUserAddressFromFid(fid) {
   try {
+    console.log(`🔍 Looking up address for FID: ${fid}`);
+    
     const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`, {
       headers: {
-        'api_key': process.env.NEYNAR_API_KEY
+        'x-api-key': process.env.NEYNAR_API_KEY
       }
     });
     
+    console.log(`📡 Neynar API response status: ${response.status}`);
+    
     if (response.ok) {
       const data = await response.json();
+      console.log(`📋 Neynar API response:`, JSON.stringify(data, null, 2));
+      
       const user = data.users?.[0];
-      return user?.verified_addresses?.eth_addresses?.[0] || null;
+      if (user) {
+        const address = user.verified_addresses?.eth_addresses?.[0] || null;
+        console.log(`✅ Found address for FID ${fid}: ${address}`);
+        return address;
+      } else {
+        console.log(`❌ No user found for FID ${fid}`);
+      }
+    } else {
+      const errorText = await response.text();
+      console.error(`❌ Neynar API error: ${response.status} - ${errorText}`);
     }
   } catch (error) {
-    console.error('Error fetching user address from FID:', error);
+    console.error('❌ Error fetching user address from FID:', error);
   }
   
   return null;
