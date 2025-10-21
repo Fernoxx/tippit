@@ -2572,7 +2572,7 @@ async function removeUserFromHomepageCache(userAddress) {
 const updateAllowanceSimple = require('./update-allowance-simple');
 
 // Import Farcaster webhook handler
-// const handleFarcasterWebhook = require('./farcaster-webhook');
+// Farcaster webhook temporarily disabled
 
 // NEW: Update allowance endpoint for instant database/webhook updates after user approves/revokes
 // This endpoint should ONLY be called after actual approve/revoke transactions
@@ -3450,28 +3450,7 @@ app.get('/api/test', (req, res) => {
   });
 });
 
-// Test FID lookup endpoint
-app.get('/api/test-fid/:fid', async (req, res) => {
-  try {
-    const fid = req.params.fid;
-    console.log(`🧪 Testing FID lookup for: ${fid}`);
-    
-    const address = await getUserAddressFromFid(fid);
-    
-    res.json({
-      success: true,
-      fid: fid,
-      address: address,
-      message: address ? 'Address found' : 'Address not found'
-    });
-  } catch (error) {
-    console.error('Error testing FID lookup:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
+// Test FID lookup endpoint - removed for debugging
 
 // Simple blocklist status endpoint
 app.get('/api/blocklist-status', async (req, res) => {
