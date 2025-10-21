@@ -3443,6 +3443,29 @@ app.get('/api/test', (req, res) => {
   });
 });
 
+// Test FID lookup endpoint
+app.get('/api/test-fid/:fid', async (req, res) => {
+  try {
+    const fid = req.params.fid;
+    console.log(`🧪 Testing FID lookup for: ${fid}`);
+    
+    const address = await getUserAddressFromFid(fid);
+    
+    res.json({
+      success: true,
+      fid: fid,
+      address: address,
+      message: address ? 'Address found' : 'Address not found'
+    });
+  } catch (error) {
+    console.error('Error testing FID lookup:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Simple blocklist status endpoint
 app.get('/api/blocklist-status', async (req, res) => {
   console.log('🔍 API Route Hit: /api/blocklist-status');
