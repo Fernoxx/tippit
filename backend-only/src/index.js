@@ -1540,7 +1540,7 @@ async function sendFarcasterNotification(recipientAddress, title, message, targe
     // Get notification token for user
     const tokenData = await database.getNotificationToken(recipientAddress);
     if (!tokenData) {
-      console.log(`⏭️ No notification token found for user ${recipientAddress} - skipping notification`);
+      console.log(`⏭️ No notification token found for user ${recipientAddress} - user needs to add mini app first`);
       return false;
     }
     
@@ -1548,6 +1548,8 @@ async function sendFarcasterNotification(recipientAddress, title, message, targe
     
     // Generate unique notification ID for deduplication
     const notificationId = `ecion-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    console.log(`📱 Sending Farcaster notification to ${recipientAddress} (FID: ${fid}) via ${notification_url}`);
     
     // Send notification using Farcaster's direct API
     const response = await fetch(notification_url, {
@@ -1571,25 +1573,41 @@ async function sendFarcasterNotification(recipientAddress, title, message, targe
       // Check delivery status
       if (result.successfulTokens && result.successfulTokens.length > 0) {
         console.log(`📱 Notification delivered successfully to ${result.successfulTokens.length} token(s)`);
+        return true;
       }
       
       if (result.invalidTokens && result.invalidTokens.length > 0) {
         console.log(`🚫 ${result.invalidTokens.length} invalid token(s) - deactivating`);
         await database.deactivateNotificationToken(recipientAddress, fid);
+        return false;
       }
       
       if (result.rateLimitedTokens && result.rateLimitedTokens.length > 0) {
         console.log(`⏳ ${result.rateLimitedTokens.length} token(s) rate limited - will retry later`);
+        return false;
       }
       
-      return true;
+      // If no successful deliveries and no errors, something went wrong
+      console.log(`⚠️ No successful deliveries for ${recipientAddress} - user may have notifications disabled`);
+      return false;
     } else {
       const errorText = await response.text();
-      console.log(`❌ Failed to send Farcaster notification to ${recipientAddress}: ${errorText}`);
+      console.log(`❌ Failed to send Farcaster notification to ${recipientAddress}: ${response.status} - ${errorText}`);
       return false;
     }
   } catch (error) {
     console.log(`⚠️ Error sending Farcaster notification to ${recipientAddress}: ${error.message}`);
+    return false;
+  }
+}
+
+// Check if user has notification tokens (has added mini app)
+async function hasNotificationTokens(userAddress) {
+  try {
+    const tokenData = await database.getNotificationToken(userAddress);
+    return tokenData !== null;
+  } catch (error) {
+    console.error('Error checking notification tokens:', error);
     return false;
   }
 }
@@ -1600,6 +1618,13 @@ async function sendNeynarNotification(recipientFid, title, message, targetUrl = 
   const userAddress = await getUserAddressFromFid(recipientFid);
   if (!userAddress) {
     console.log(`⚠️ Could not find user address for FID ${recipientFid}`);
+    return false;
+  }
+  
+  // Check if user has notification tokens first
+  const hasTokens = await hasNotificationTokens(userAddress);
+  if (!hasTokens) {
+    console.log(`⏭️ User ${userAddress} (FID: ${recipientFid}) hasn't added mini app - skipping notification`);
     return false;
   }
   
@@ -2474,6 +2499,42 @@ app.post('/api/test-bulk-notification', async (req, res) => {
   }
 });
 
+// Test endpoint for single notification
+app.post('/api/test-notification', async (req, res) => {
+  try {
+    const { userAddress, title, message, targetUrl } = req.body;
+    
+    if (!userAddress || !title || !message) {
+      return res.status(400).json({ error: 'userAddress, title, and message are required' });
+    }
+    
+    // Check if user has notification tokens
+    const hasTokens = await hasNotificationTokens(userAddress);
+    if (!hasTokens) {
+      return res.status(400).json({ 
+        error: 'User has not added mini app - no notification tokens found',
+        hasNotificationTokens: false
+      });
+    }
+    
+    const result = await sendFarcasterNotification(
+      userAddress,
+      title,
+      message,
+      targetUrl || 'https://ecion.vercel.app'
+    );
+    
+    res.json({ 
+      success: result,
+      message: result ? 'Notification sent successfully' : 'Failed to send notification',
+      hasNotificationTokens: true
+    });
+  } catch (error) {
+    console.error('Test notification error:', error);
+    res.status(500).json({ error: 'Failed to send notification' });
+  }
+});
+
 // ===== END DYNAMIC FID MANAGEMENT SYSTEM =====
 
 // NEW: Remove user from homepage cache
@@ -2507,6 +2568,30 @@ app.post('/api/update-allowance', async (req, res) => {
 // Farcaster notification webhook endpoint
 app.post('/webhook/farcaster', async (req, res) => {
   await handleFarcasterWebhook(req, res, database);
+});
+
+// Check notification status for a user
+app.get('/api/notification-status/:userAddress', async (req, res) => {
+  try {
+    const { userAddress } = req.params;
+    
+    const hasTokens = await hasNotificationTokens(userAddress);
+    const tokenData = await database.getNotificationToken(userAddress);
+    
+    res.json({
+      success: true,
+      hasNotificationTokens: hasTokens,
+      tokenData: tokenData ? {
+        fid: tokenData.fid,
+        isActive: true,
+        createdAt: tokenData.createdAt || 'unknown'
+      } : null,
+      message: hasTokens ? 'User has enabled notifications' : 'User needs to add mini app to enable notifications'
+    });
+  } catch (error) {
+    console.error('Error checking notification status:', error);
+    res.status(500).json({ error: 'Failed to check notification status' });
+  }
 });
 app.get('/api/homepage', async (req, res) => {
   try {
@@ -4237,13 +4322,35 @@ app.listen(PORT, () => {
   }, 30000); // Wait 30 seconds after startup
 });
 
+// Get all users with notification tokens
+app.get('/api/notification-users', async (req, res) => {
+  try {
+    const allTokens = await database.getAllNotificationTokens();
+    
+    res.json({
+      success: true,
+      totalUsers: allTokens.length,
+      users: allTokens.map(token => ({
+        userAddress: token.user_address,
+        fid: token.fid,
+        isActive: token.isActive,
+        createdAt: token.createdAt || 'unknown'
+      }))
+    });
+  } catch (error) {
+    console.error('Error getting notification users:', error);
+    res.status(500).json({ error: 'Failed to get notification users' });
+  }
+});
+
 // Export functions for use in other modules
 module.exports = {
   app,
   getUserFid,
   sendNeynarNotification,
   sendFarcasterNotification,
-  sendBulkNotification
+  sendBulkNotification,
+  hasNotificationTokens
 };
 // Clear all blocklist entries
 app.post('/api/clear-blocklist', async (req, res) => {
