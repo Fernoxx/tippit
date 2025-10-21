@@ -2572,7 +2572,7 @@ async function removeUserFromHomepageCache(userAddress) {
 const updateAllowanceSimple = require('./update-allowance-simple');
 
 // Import Farcaster webhook handler
-const handleFarcasterWebhook = require('./farcaster-webhook');
+// const handleFarcasterWebhook = require('./farcaster-webhook');
 
 // NEW: Update allowance endpoint for instant database/webhook updates after user approves/revokes
 // This endpoint should ONLY be called after actual approve/revoke transactions
@@ -2580,9 +2580,16 @@ app.post('/api/update-allowance', async (req, res) => {
   await updateAllowanceSimple(req, res, database, batchTransferManager, blocklistService);
 });
 
-// Farcaster notification webhook endpoint
+// Farcaster notification webhook endpoint - temporarily disabled
 app.post('/webhook/farcaster', async (req, res) => {
-  await handleFarcasterWebhook(req, res, database);
+  try {
+    console.log('🔔 Farcaster webhook received (disabled)');
+    res.json({ success: true, message: 'Webhook disabled for debugging' });
+    // await handleFarcasterWebhook(req, res, database);
+  } catch (error) {
+    console.error('❌ Webhook handler error:', error);
+    res.status(500).json({ error: 'Webhook processing failed' });
+  }
 });
 
 // Test webhook endpoint (for testing without signature verification)
