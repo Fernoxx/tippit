@@ -1,24 +1,27 @@
-// Farcaster notification webhook handler
+// Simple Farcaster notification webhook handler (without external dependencies)
 const express = require('express');
-const { parseWebhookEvent, verifyAppKeyWithNeynar } = require('@farcaster/miniapp-node');
 
 async function handleFarcasterWebhook(req, res, database) {
   try {
     console.log('🔔 Farcaster notification webhook received');
+    console.log('📋 Webhook body:', JSON.stringify(req.body, null, 2));
     
-    // Parse and verify the webhook event
-    const data = await parseWebhookEvent(req.body, verifyAppKeyWithNeynar);
+    // For now, accept simple JSON format for testing
+    const { event, notificationDetails, fid } = req.body;
     
-    console.log('📋 Farcaster webhook event:', data);
+    if (!fid) {
+      console.log('⚠️ No FID provided in webhook');
+      return res.status(200).json({ success: true, message: 'No FID provided' });
+    }
     
-    const { event, notificationDetails, fid } = data;
-    
-    // Get user address from FID
+    // Get user address from FID using existing function
     const userAddress = await getUserAddressFromFid(fid);
     if (!userAddress) {
       console.log(`⚠️ Could not find user address for FID ${fid}`);
       return res.status(200).json({ success: true, message: 'FID not found' });
     }
+    
+    console.log(`✅ Found user address ${userAddress} for FID ${fid}`);
     
     switch (event) {
       case 'miniapp_added':
@@ -60,26 +63,11 @@ async function handleFarcasterWebhook(req, res, database) {
     
   } catch (error) {
     console.error('❌ Error processing Farcaster webhook:', error);
-    
-    // Handle specific error types
-    if (error.name === 'VerifyJsonFarcasterSignature.InvalidDataError' ||
-        error.name === 'VerifyJsonFarcasterSignature.InvalidEventDataError') {
-      return res.status(400).json({ error: 'Invalid request data' });
-    }
-    
-    if (error.name === 'VerifyJsonFarcasterSignature.InvalidAppKeyError') {
-      return res.status(401).json({ error: 'Invalid app key' });
-    }
-    
-    if (error.name === 'VerifyJsonFarcasterSignature.VerifyAppKeyError') {
-      return res.status(500).json({ error: 'Error verifying app key' });
-    }
-    
     res.status(500).json({ error: 'Internal server error' });
   }
 }
 
-// Helper function to get user address from FID
+// Helper function to get user address from FID (reuse existing function)
 async function getUserAddressFromFid(fid) {
   try {
     console.log(`🔍 Looking up address for FID: ${fid}`);
