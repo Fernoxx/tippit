@@ -1513,9 +1513,23 @@ async function updateUserWebhookStatus(userAddress) {
 
 // OLD PERIODIC CLEANUP REMOVED - Now using allowance sync system that updates webhooks every 3 hours
 
+// Check if user has notifications enabled (placeholder - need proper API)
+async function shouldSendNotification(recipientFid) {
+  // TODO: Implement proper notification preference check
+  // For now, always return true - we'll add proper checking later
+  return true;
+}
+
 // Send Neynar Frame V2 notification using correct API
 async function sendNeynarNotification(recipientFid, title, message, targetUrl = "https://ecion.vercel.app") {
   try {
+    // Check if user has notifications enabled
+    const shouldSend = await shouldSendNotification(recipientFid);
+    if (!shouldSend) {
+      console.log(`⏭️ Skipping notification to FID ${recipientFid} - notifications disabled`);
+      return false;
+    }
+    
     // Use the correct Neynar API format from docs
     const response = await fetch('https://api.neynar.com/v2/farcaster/frame/notifications/', {
       method: 'POST',
@@ -1537,6 +1551,16 @@ async function sendNeynarNotification(recipientFid, title, message, targetUrl = 
     if (response.ok) {
       const result = await response.json();
       console.log(`✅ Notification sent to FID ${recipientFid}: ${title}`, result);
+      
+      // Debug notification delivery
+      if (result.notification_deliveries && result.notification_deliveries.length === 0) {
+        console.log(`⚠️ No deliveries made for FID ${recipientFid} - user may have notifications disabled`);
+      } else if (result.notification_deliveries) {
+        result.notification_deliveries.forEach(delivery => {
+          console.log(`📱 Delivery status for FID ${delivery.fid}: ${delivery.status}`);
+        });
+      }
+      
       return true;
     } else {
       const errorText = await response.text();
@@ -1552,6 +1576,22 @@ async function sendNeynarNotification(recipientFid, title, message, targetUrl = 
 // Send notification to multiple users with filters
 async function sendBulkNotification(targetFids, title, message, filters = {}, targetUrl = "https://ecion.vercel.app") {
   try {
+    // Filter out users who don't have notifications enabled
+    const usersWithNotifications = [];
+    for (const fid of targetFids) {
+      const shouldSend = await shouldSendNotification(fid);
+      if (shouldSend) {
+        usersWithNotifications.push(fid);
+      }
+    }
+    
+    if (usersWithNotifications.length === 0) {
+      console.log(`⏭️ No users with notifications enabled - skipping bulk notification`);
+      return false;
+    }
+    
+    console.log(`📱 Sending bulk notification to ${usersWithNotifications.length}/${targetFids.length} users`);
+    
     const response = await fetch('https://api.neynar.com/v2/farcaster/frame/notifications/', {
       method: 'POST',
       headers: {
@@ -1559,7 +1599,7 @@ async function sendBulkNotification(targetFids, title, message, filters = {}, ta
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        target_fids: targetFids, // Array of FIDs or empty for all users
+        target_fids: usersWithNotifications, // Array of FIDs with notifications enabled
         filters: filters, // Filtering criteria
         notification: {
           title: title,

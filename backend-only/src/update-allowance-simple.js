@@ -43,9 +43,31 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager, b
     console.log(`📊 Blockchain check: Allowance: ${allowanceAmount}, Balance: ${balanceAmount}`);
     
     // Get user config to check min tip amount
-    const userConfig = await database.getUserConfig(userAddress);
+    let userConfig = await database.getUserConfig(userAddress);
     if (!userConfig) {
-      return res.json({ success: false, error: 'User config not found' });
+      // Create default config for new user (first time approving USDC)
+      console.log(`🆕 Creating default config for new user ${userAddress}`);
+      userConfig = {
+        tokenAddress: tokenAddress,
+        likeAmount: '0.005',
+        recastAmount: '0.025', 
+        replyAmount: '0.025',
+        followAmount: '0',
+        likeEnabled: true,
+        recastEnabled: true,
+        replyEnabled: true,
+        followEnabled: false,
+        isActive: true,
+        totalSpent: '0',
+        lastActivity: Date.now(),
+        lastAllowance: 0,
+        lastAllowanceCheck: 0
+      };
+      await database.setUserConfig(userAddress, userConfig);
+      console.log(`✅ Default config created for ${userAddress}`);
+    } else {
+      // User has existing config - keep their settings
+      console.log(`📖 Using existing config for ${userAddress}`);
     }
     
     // Calculate total tip amount (like + recast + reply)
