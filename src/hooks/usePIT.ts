@@ -352,18 +352,21 @@ export const useEcion = () => {
   };
 
   const addMiniApp = async () => {
-    if (typeof window === 'undefined' || !window.farcaster) {
-      toast.error('Farcaster client not found. Please use Warpcast or another Farcaster client.');
+    if (typeof window === 'undefined') {
+      toast.error('Mini app client not found. Please use Base App or Farcaster.');
       return;
     }
 
     try {
       setIsAddingMiniApp(true);
       
-      // Call the addMiniApp action
-      await window.farcaster.addMiniApp();
-      
-      toast.success('Mini app added successfully! You can now receive notifications.');
+      // Check for Base App (Coinbase) first
+      if ((window as any).farcaster) {
+        await (window as any).farcaster.addMiniApp();
+        toast.success('Mini app added successfully! You can now receive notifications.');
+      } else {
+        toast.error('Mini app client not found. Please use Base App or Farcaster.');
+      }
     } catch (error) {
       console.error('Error adding mini app:', error);
       toast.error('Failed to add mini app. Please try again.');
