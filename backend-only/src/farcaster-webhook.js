@@ -5,18 +5,9 @@ const { parseWebhookEvent, verifyAppKeyWithNeynar } = require('@farcaster/miniap
 async function handleFarcasterWebhook(req, res, database) {
   try {
     console.log('🔔 Farcaster notification webhook received');
-    console.log('📋 Raw webhook body:', JSON.stringify(req.body, null, 2));
     
-    let data;
-    
-    // Check if this is a test request (raw JSON)
-    if (req.body && typeof req.body === 'object' && req.body.event) {
-      console.log('🧪 Test webhook detected, using raw data');
-      data = req.body;
-    } else {
-      // Parse and verify the webhook event
-      data = await parseWebhookEvent(req.body, verifyAppKeyWithNeynar);
-    }
+    // Parse and verify the webhook event
+    const data = await parseWebhookEvent(req.body, verifyAppKeyWithNeynar);
     
     console.log('📋 Farcaster webhook event:', data);
     
