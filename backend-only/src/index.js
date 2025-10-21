@@ -1517,7 +1517,7 @@ async function updateUserWebhookStatus(userAddress) {
 async function sendNeynarNotification(recipientFid, title, message, targetUrl = "https://ecion.vercel.app") {
   try {
     // Use the correct Neynar API format from docs
-    const response = await fetch('https://api.neynar.com/v2/farcaster/notifications', {
+    const response = await fetch('https://api.neynar.com/v2/farcaster/frame/notifications/', {
       method: 'POST',
       headers: {
         'x-api-key': process.env.NEYNAR_API_KEY,
@@ -1552,7 +1552,7 @@ async function sendNeynarNotification(recipientFid, title, message, targetUrl = 
 // Send notification to multiple users with filters
 async function sendBulkNotification(targetFids, title, message, filters = {}, targetUrl = "https://ecion.vercel.app") {
   try {
-    const response = await fetch('https://api.neynar.com/v2/farcaster/notifications', {
+    const response = await fetch('https://api.neynar.com/v2/farcaster/frame/notifications/', {
       method: 'POST',
       headers: {
         'x-api-key': process.env.NEYNAR_API_KEY,
@@ -1699,12 +1699,15 @@ async function sendDailyEarningsNotifications() {
     
     // Group tips by recipient and token for exact daily calculation
     const dailyEarningsByUser = {};
+    const dailyTippedByUser = {};
     
     for (const tip of tips) {
       const recipientAddress = tip.toAddress;
+      const senderAddress = tip.fromAddress;
       const tokenAddress = tip.tokenAddress;
       const amount = parseFloat(tip.amount);
       
+      // Track earnings (received tips)
       if (!dailyEarningsByUser[recipientAddress]) {
         dailyEarningsByUser[recipientAddress] = {};
       }
@@ -1713,8 +1716,18 @@ async function sendDailyEarningsNotifications() {
         dailyEarningsByUser[recipientAddress][tokenAddress] = 0;
       }
       
-      // Add to daily earnings for this specific token
       dailyEarningsByUser[recipientAddress][tokenAddress] += amount;
+      
+      // Track tipped amounts (sent tips)
+      if (!dailyTippedByUser[senderAddress]) {
+        dailyTippedByUser[senderAddress] = {};
+      }
+      
+      if (!dailyTippedByUser[senderAddress][tokenAddress]) {
+        dailyTippedByUser[senderAddress][tokenAddress] = 0;
+      }
+      
+      dailyTippedByUser[senderAddress][tokenAddress] += amount;
     }
     
     console.log(`📊 Found daily earnings for ${Object.keys(dailyEarningsByUser).length} users`);
@@ -1753,11 +1766,25 @@ async function sendDailyEarningsNotifications() {
         for (const [tokenAddress, amount] of Object.entries(tokenEarnings)) {
           const symbol = await getTokenSymbol(tokenAddress);
           const formattedAmount = amount.toFixed(6).replace(/\.?0+$/, ''); // Remove trailing zeros
-          tokenEarningsList.push(`Earned ${formattedAmount} $${symbol}`);
+          tokenEarningsList.push(`${formattedAmount} ${symbol}`);
         }
         
-        // Join all earnings with " and " separator
-        dailyEarningsMessage = tokenEarningsList.join(" and ");
+        // Add tipped amounts if user also sent tips
+        const userTippedAmounts = dailyTippedByUser[userAddress] || {};
+        const tokenTippedList = [];
+        
+        for (const [tokenAddress, amount] of Object.entries(userTippedAmounts)) {
+          const symbol = await getTokenSymbol(tokenAddress);
+          const formattedAmount = amount.toFixed(6).replace(/\.?0+$/, ''); // Remove trailing zeros
+          tokenTippedList.push(`${formattedAmount} ${symbol}`);
+        }
+        
+        // Create the message
+        if (tokenTippedList.length > 0) {
+          dailyEarningsMessage = `you earned ${tokenEarningsList.join(" and ")} and tipped ${tokenTippedList.join(" and ")}`;
+        } else {
+          dailyEarningsMessage = `you earned ${tokenEarningsList.join(" and ")}`;
+        }
         
         // Send notification
         const success = await sendNeynarNotification(
@@ -4094,7 +4121,13 @@ app.listen(PORT, () => {
   }, 30000); // Wait 30 seconds after startup
 });
 
-module.exports = app;
+// Export functions for use in other modules
+module.exports = {
+  app,
+  getUserFid,
+  sendNeynarNotification,
+  sendBulkNotification
+};
 // Clear all blocklist entries
 app.post('/api/clear-blocklist', async (req, res) => {
   try {
