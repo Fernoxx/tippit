@@ -434,7 +434,6 @@ class BatchTransferManager {
                   `You earned ${tip.amount} USDC from a ${tip.interaction.interactionType}!`,
                   "https://ecion.vercel.app"
                 );
-                }
               } catch (notificationError) {
                 console.log(`⚠️ Error sending earned notification: ${notificationError.message}`);
               }
