@@ -3440,10 +3440,10 @@ app.post('/api/update-blocklist-status', async (req, res) => {
 
 // Test endpoint to verify API routes are working
 app.get('/api/test', (req, res) => {
-  console.log('🔍 Test API route hit');
+  console.log('🔍 Test API route hit - updated version');
   res.json({ 
     success: true, 
-    message: 'API routes are working!',
+    message: 'API routes are working! (Updated)',
     timestamp: new Date().toISOString()
   });
 });
