@@ -3742,6 +3742,27 @@ if (process.env.NODE_ENV === 'production') {
     app.use('/_next', express.static(path.join(frontendBuildPath)));
     app.use('/public', express.static(publicPath));
     
+    // Get all users with notification tokens
+    app.get('/api/notification-users', async (req, res) => {
+      try {
+        const allTokens = await database.getAllNotificationTokens();
+        
+        res.json({
+          success: true,
+          totalUsers: allTokens.length,
+          users: allTokens.map(token => ({
+            userAddress: token.user_address,
+            fid: token.fid,
+            isActive: token.isActive,
+            createdAt: token.createdAt || 'unknown'
+          }))
+        });
+      } catch (error) {
+        console.error('Error getting notification users:', error);
+        res.status(500).json({ error: 'Failed to get notification users' });
+      }
+    });
+    
     // Simple fallback for frontend routes (LAST ROUTE) - but NOT for API routes
     app.get('*', (req, res) => {
       // Skip API routes - they should be handled by specific endpoints
@@ -4320,27 +4341,6 @@ app.listen(PORT, () => {
   setTimeout(() => {
     database.cleanupOldTips().catch(err => console.log('Cleanup failed:', err.message));
   }, 30000); // Wait 30 seconds after startup
-});
-
-// Get all users with notification tokens
-app.get('/api/notification-users', async (req, res) => {
-  try {
-    const allTokens = await database.getAllNotificationTokens();
-    
-    res.json({
-      success: true,
-      totalUsers: allTokens.length,
-      users: allTokens.map(token => ({
-        userAddress: token.user_address,
-        fid: token.fid,
-        isActive: token.isActive,
-        createdAt: token.createdAt || 'unknown'
-      }))
-    });
-  } catch (error) {
-    console.error('Error getting notification users:', error);
-    res.status(500).json({ error: 'Failed to get notification users' });
-  }
 });
 
 // Export functions for use in other modules
