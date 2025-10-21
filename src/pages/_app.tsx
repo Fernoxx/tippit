@@ -6,7 +6,7 @@ import { WagmiProvider, useConnect } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { wagmiConfig } from '@/lib/wagmi';
 import { useState, useEffect } from 'react';
-import { BaseProvider } from '@/lib/baseProvider';
+// Base App support will be added later
 
 // Initialize Reown AppKit
 import '@/lib/reownConfig';
@@ -49,27 +49,25 @@ function AutoConnect({ children }: { children: React.ReactNode }) {
 
 export default function App({ Component, pageProps }: AppProps) {
   return (
-    <BaseProvider>
-      <WagmiProvider config={wagmiConfig}>
-        <QueryClientProvider client={queryClient}>
-          <AutoConnect>
-            <Layout>
-              <Component {...pageProps} />
-              <Toaster
-                position="bottom-right"
-                toastOptions={{
-                  style: {
-                    background: '#4169E1',
-                    color: '#fff',
-                    borderRadius: '12px',
-                    padding: '16px',
-                  },
-                }}
-              />
-            </Layout>
-          </AutoConnect>
-        </QueryClientProvider>
-      </WagmiProvider>
-    </BaseProvider>
+    <WagmiProvider config={wagmiConfig}>
+      <QueryClientProvider client={queryClient}>
+        <AutoConnect>
+          <Layout>
+            <Component {...pageProps} />
+            <Toaster
+              position="bottom-right"
+              toastOptions={{
+                style: {
+                  background: '#4169E1',
+                  color: '#fff',
+                  borderRadius: '12px',
+                  padding: '16px',
+                },
+              }}
+            />
+          </Layout>
+        </AutoConnect>
+      </QueryClientProvider>
+    </WagmiProvider>
   );
 }// Force rebuild
