@@ -1385,7 +1385,7 @@ async function updateUserWebhookStatus(userAddress) {
 async function sendNeynarNotification(recipientFid, title, message, targetUrl = "https://ecion.vercel.app") {
   try {
     // Use the correct Neynar API format from docs
-    const response = await fetch('https://api.neynar.com/v2/farcaster/notifications', {
+    const response = await fetch('https://api.neynar.com/v2/farcaster/frame/notifications/', {
       method: 'POST',
       headers: {
         'x-api-key': process.env.NEYNAR_API_KEY,
@@ -1420,7 +1420,7 @@ async function sendNeynarNotification(recipientFid, title, message, targetUrl = 
 // Send notification to multiple users with filters
 async function sendBulkNotification(targetFids, title, message, filters = {}, targetUrl = "https://ecion.vercel.app") {
   try {
-    const response = await fetch('https://api.neynar.com/v2/farcaster/notifications', {
+    const response = await fetch('https://api.neynar.com/v2/farcaster/frame/notifications/', {
       method: 'POST',
       headers: {
         'x-api-key': process.env.NEYNAR_API_KEY,
@@ -2315,18 +2315,7 @@ app.post('/api/update-allowance', async (req, res) => {
   }
 });
 
-// Export functions for use in other modules
-module.exports = {
-  updateUserWebhookStatus,
-  getUserFid,
-  checkUserAllowanceForWebhook,
-  addFidToWebhook,
-  removeFidFromWebhook,
-  sendNeynarNotification,
-  sendBulkNotification,
-  updateDatabaseAllowance,
-  removeUserFromHomepageCache
-};
+// Export functions for use in other modules (will be combined with app export at end of file)
 
 // Homepage endpoint - Show casts from users with remaining allowance (sorted by allowance)
 app.get('/api/homepage', async (req, res) => {
@@ -3730,4 +3719,16 @@ app.listen(PORT, () => {
   }, 30000); // Wait 30 seconds after startup
 });
 
-module.exports = app;
+// Export both the app and utility functions
+module.exports = {
+  app,
+  updateUserWebhookStatus,
+  getUserFid,
+  checkUserAllowanceForWebhook,
+  addFidToWebhook,
+  removeFidFromWebhook,
+  sendNeynarNotification,
+  sendBulkNotification,
+  updateDatabaseAllowance,
+  removeUserFromHomepageCache
+};
