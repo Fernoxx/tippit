@@ -6,7 +6,7 @@
     "buttonTitle": "start tipping",
     "splashImageUrl": "https://ecion.vercel.app/splash.png",
     "splashBackgroundColor": "#fef3c7",
-    "webhookUrl": "https://ecion.vercel.app/api/webhook",
+    "webhookUrl": "https://tippit-production.up.railway.app/webhook/neynar",
     "subtitle": "Boost your casts with ecion",
     "description": "With Ecion you can boost your casts by tipping engagers for their interactions easily.",
     "primaryCategory": "utility",
