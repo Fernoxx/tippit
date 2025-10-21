@@ -3730,7 +3730,16 @@ app.get('/api/debug/user-status/:address', async (req, res) => {
 // Get all users with notification tokens
 app.get('/api/notification-users', async (req, res) => {
   try {
+    console.log('🔍 Getting notification users...');
+    
+    // Check if database is available
+    if (!database) {
+      console.error('❌ Database not initialized');
+      return res.status(500).json({ error: 'Database not initialized' });
+    }
+    
     const allTokens = await database.getAllNotificationTokens();
+    console.log(`📊 Found ${allTokens.length} notification tokens`);
     
     res.json({
       success: true,
@@ -3743,8 +3752,8 @@ app.get('/api/notification-users', async (req, res) => {
       }))
     });
   } catch (error) {
-    console.error('Error getting notification users:', error);
-    res.status(500).json({ error: 'Failed to get notification users' });
+    console.error('❌ Error getting notification users:', error);
+    res.status(500).json({ error: 'Failed to get notification users', details: error.message });
   }
 });
 
