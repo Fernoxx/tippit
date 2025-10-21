@@ -52,6 +52,7 @@ export const useEcion = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
   const [isRevokingAllowance, setIsRevokingAllowance] = useState(false);
+  const [isAddingMiniApp, setIsAddingMiniApp] = useState(false);
   const [pendingTxHash, setPendingTxHash] = useState<string | null>(null);
   
   const { writeContract, data: txHash, isPending: isTxPending, error: txError } = useWriteContract();
@@ -350,6 +351,27 @@ export const useEcion = () => {
     }
   };
 
+  const addMiniApp = async () => {
+    if (!window.farcaster) {
+      toast.error('Farcaster client not found. Please use Warpcast or another Farcaster client.');
+      return;
+    }
+
+    try {
+      setIsAddingMiniApp(true);
+      
+      // Call the addMiniApp action
+      await window.farcaster.addMiniApp();
+      
+      toast.success('Mini app added successfully! You can now receive notifications.');
+    } catch (error) {
+      console.error('Error adding mini app:', error);
+      toast.error('Failed to add mini app. Please try again.');
+    } finally {
+      setIsAddingMiniApp(false);
+    }
+  };
+
   return {
     address,
     userConfig,
@@ -362,9 +384,11 @@ export const useEcion = () => {
     fetchUserConfig,
     fetchTokenAllowance,
     updateAllowanceAndWebhooks,
+    addMiniApp,
     isSettingConfig: isLoading,
     isApproving: isApproving || isTxPending || isTxConfirming,
     isRevokingAllowance: isRevokingAllowance || isTxPending || isTxConfirming,
+    isAddingMiniApp: isAddingMiniApp,
     isUpdatingLimit: false,
     isRevoking: false,
   };
