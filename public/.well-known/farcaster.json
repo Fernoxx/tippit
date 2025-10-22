@@ -1,5 +1,5 @@
 {
-  "miniapp": {
+  "frame": {
     "name": "Ecion",
     "iconUrl": "https://ecion.vercel.app/icon.png",
     "homeUrl": "https://ecion.vercel.app",
