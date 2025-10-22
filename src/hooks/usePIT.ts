@@ -160,8 +160,31 @@ export const useEcion = () => {
       return;
     }
 
+    // Validate minimum approval amount (1 USDC minimum)
+    const amountNum = parseFloat(amount);
+    if (tokenAddress.toLowerCase() === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913' && amountNum < 1) {
+      toast.error('Minimum approval amount for USDC is 1 USDC', { duration: 2000 });
+      return;
+    }
+
     setIsApproving(true);
     try {
+      // Check user balance before allowing approval
+      const balanceResponse = await fetch(`${BACKEND_URL}/api/allowance-balance/${address}/${tokenAddress}`);
+      if (balanceResponse.ok) {
+        const balanceData = await balanceResponse.json();
+        const userBalance = parseFloat(balanceData.balance);
+        const approvalAmount = parseFloat(amount);
+        
+        if (userBalance < approvalAmount) {
+          toast.error(`Insufficient balance. You have ${userBalance.toFixed(6)} tokens but trying to approve ${approvalAmount}`, { duration: 3000 });
+          setIsApproving(false);
+          return;
+        }
+        
+        console.log(`✅ Balance check passed: ${userBalance} >= ${approvalAmount}`);
+      }
+
       // Fetch the latest EcionBatch contract address
       const contractAddress = await fetchBackendWalletAddress();
       

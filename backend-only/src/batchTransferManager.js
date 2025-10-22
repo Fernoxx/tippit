@@ -283,10 +283,16 @@ class BatchTransferManager {
         return { valid: false, reason: 'Spending limit reached' };
       }
 
-      // Check user allowance
-      const userAllowance = await this.getUserTokenAllowance(interaction.authorAddress, authorConfig.tokenAddress);
-      if (userAllowance < amount) {
-        return { valid: false, reason: 'Insufficient allowance' };
+      // Check user allowance AND balance in one blockchain call
+      const allowanceBalanceCheck = await this.checkAllowanceAndBalance(interaction.authorAddress, authorConfig.tokenAddress, amount);
+      if (!allowanceBalanceCheck.canAfford) {
+        let reason = 'Insufficient funds';
+        if (!allowanceBalanceCheck.hasSufficientAllowance) {
+          reason = 'Insufficient allowance';
+        } else if (!allowanceBalanceCheck.hasSufficientBalance) {
+          reason = 'Insufficient balance';
+        }
+        return { valid: false, reason: reason };
       }
 
       return { valid: true, amount: amount };
@@ -408,19 +414,39 @@ class BatchTransferManager {
               const replyAmount = parseFloat(userConfig.replyAmount || '0');
               const minTipAmount = likeAmount + recastAmount + replyAmount;
               
-              if (currentBlockchainAllowance < minTipAmount) {
-                console.log(`🚫 User ${tip.interaction.authorAddress} allowance ${currentBlockchainAllowance} < min tip ${minTipAmount} - adding to blocklist`);
+              // Check both allowance AND balance after tip processing
+              const finalCheck = await this.checkAllowanceAndBalance(tip.interaction.authorAddress, tip.tokenAddress, minTipAmount);
+              if (!finalCheck.canAfford) {
+                let reason = 'Insufficient funds';
+                if (!finalCheck.hasSufficientAllowance) {
+                  reason = 'Insufficient allowance';
+                } else if (!finalCheck.hasSufficientBalance) {
+                  reason = 'Insufficient balance';
+                }
+                
+                console.log(`🚫 User ${tip.interaction.authorAddress} ${reason} after tip - adding to blocklist`);
                 
                 // Add to blocklist to prevent future tip processing
                 global.blocklistService.addToBlocklist(tip.interaction.authorAddress);
-                console.log(`🚫 Added ${tip.interaction.authorAddress} to blocklist - insufficient allowance after tip`);
+                console.log(`🚫 Added ${tip.interaction.authorAddress} to blocklist - ${reason} after tip`);
                 console.log(`✅ Blocklist prevents future webhook processing - no Neynar call needed`);
+                
+                // If balance is insufficient, auto-revoke allowance to 0
+                if (!finalCheck.hasSufficientBalance) {
+                  console.log(`🔄 Auto-revoking allowance for ${tip.interaction.authorAddress} due to insufficient balance`);
+                  try {
+                    await this.autoRevokeAllowance(tip.interaction.authorAddress, tip.tokenAddress);
+                    console.log(`✅ Auto-revoked allowance for ${tip.interaction.authorAddress}`);
+                  } catch (revokeError) {
+                    console.error(`❌ Failed to auto-revoke allowance for ${tip.interaction.authorAddress}:`, revokeError);
+                  }
+                }
               } else {
-                // User has sufficient allowance - check if they should be removed from blocklist
+                // User has sufficient allowance AND balance - check if they should be removed from blocklist
                 if (global.blocklistService) {
                   const blocklistResult = await global.blocklistService.updateUserBlocklistStatus(tip.interaction.authorAddress);
                   if (blocklistResult.action === 'removed') {
-                    console.log(`✅ Removed ${tip.interaction.authorAddress} from blocklist - now has sufficient allowance`);
+                    console.log(`✅ Removed ${tip.interaction.authorAddress} from blocklist - now has sufficient funds`);
                   }
                 }
               }
@@ -693,7 +719,11 @@ class BatchTransferManager {
       const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
       const formattedAllowance = parseFloat(ethers.formatUnits(allowance, 6)); // USDC has 6 decimals
       
-      console.log(`💰 Allowance check: User ${userAddress} has ${formattedAllowance} approved to contract ${ecionBatchAddress}`);
+      // Also get balance for logging
+      const balance = await tokenContract.balanceOf(userAddress);
+      const formattedBalance = parseFloat(ethers.formatUnits(balance, 6));
+      
+      console.log(`💰 Allowance check: User ${userAddress} has ${formattedAllowance} approved and ${formattedBalance} balance for contract ${ecionBatchAddress}`);
       
       return formattedAllowance;
     } catch (error) {
@@ -707,6 +737,30 @@ class BatchTransferManager {
     if (config) {
       config.totalSpent = (parseFloat(config.totalSpent) + parseFloat(amount)).toString();
       await database.setUserConfig(userAddress, config);
+    }
+  }
+
+  // Auto-revoke allowance to 0 when user has insufficient balance
+  async autoRevokeAllowance(userAddress, tokenAddress) {
+    try {
+      console.log(`🔄 Auto-revoking allowance for ${userAddress} - token: ${tokenAddress}`);
+      
+      const tokenContract = new ethers.Contract(tokenAddress, [
+        "function approve(address spender, uint256 amount) returns (bool)"
+      ], this.provider);
+      
+      // Revoke allowance by setting it to 0
+      const tx = await tokenContract.approve(this.ecionBatchContractAddress, 0);
+      console.log(`📝 Revoke transaction sent: ${tx.hash}`);
+      
+      // Wait for confirmation
+      await tx.wait();
+      console.log(`✅ Allowance revoked for ${userAddress}`);
+      
+      return true;
+    } catch (error) {
+      console.error(`❌ Error auto-revoking allowance for ${userAddress}:`, error);
+      return false;
     }
   }
 

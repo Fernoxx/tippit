@@ -28,7 +28,7 @@ class BlocklistService {
     }
   }
 
-  // Check if user should be blocked based on current allowance
+  // Check if user should be blocked based on current allowance AND balance
   async shouldBeBlocked(userAddress) {
     try {
       const userConfig = await this.database.getUserConfig(userAddress);
@@ -43,14 +43,61 @@ class BlocklistService {
         return true;
       }
 
-      const currentAllowance = await this.getCurrentAllowance(userAddress, userConfig.tokenAddress);
-      const shouldBlock = parseFloat(currentAllowance) < minTipAmount;
+      // Check both allowance AND balance in one blockchain call
+      const allowanceBalanceCheck = await this.checkAllowanceAndBalance(userAddress, userConfig.tokenAddress, minTipAmount);
+      const shouldBlock = !allowanceBalanceCheck.canAfford;
       
-      console.log(`🔍 Allowance check for ${userAddress}: ${currentAllowance} < ${minTipAmount} = ${shouldBlock}`);
+      console.log(`🔍 Allowance/Balance check for ${userAddress}: Allowance=${allowanceBalanceCheck.allowanceAmount}, Balance=${allowanceBalanceCheck.balanceAmount}, MinTip=${minTipAmount}, ShouldBlock=${shouldBlock}`);
       return shouldBlock;
     } catch (error) {
       console.error(`❌ Error checking if user ${userAddress} should be blocked:`, error);
       return true; // Block on error for safety
+    }
+  }
+
+  // Check both allowance and balance in one blockchain call
+  async checkAllowanceAndBalance(userAddress, tokenAddress, requiredAmount) {
+    try {
+      console.log(`🔍 Checking allowance and balance for ${userAddress} - token: ${tokenAddress}, required: ${requiredAmount}`);
+      
+      const tokenContract = new ethers.Contract(tokenAddress, [
+        "function allowance(address owner, address spender) view returns (uint256)",
+        "function balanceOf(address owner) view returns (uint256)",
+        "function decimals() view returns (uint8)"
+      ], this.provider);
+      
+      // Get both allowance and balance in parallel
+      const [allowance, balance, decimals] = await Promise.all([
+        tokenContract.allowance(userAddress, this.ecionBatchContractAddress),
+        tokenContract.balanceOf(userAddress),
+        tokenContract.decimals()
+      ]);
+      
+      const allowanceAmount = parseFloat(ethers.formatUnits(allowance, decimals));
+      const balanceAmount = parseFloat(ethers.formatUnits(balance, decimals));
+      
+      const hasSufficientAllowance = allowanceAmount >= requiredAmount;
+      const hasSufficientBalance = balanceAmount >= requiredAmount;
+      const canAfford = hasSufficientAllowance && hasSufficientBalance;
+      
+      console.log(`💰 Allowance: ${allowanceAmount}, Balance: ${balanceAmount}, Required: ${requiredAmount}, CanAfford: ${canAfford}`);
+      
+      return {
+        canAfford,
+        allowanceAmount,
+        balanceAmount,
+        hasSufficientAllowance,
+        hasSufficientBalance
+      };
+    } catch (error) {
+      console.error(`❌ Error checking allowance and balance for ${userAddress}:`, error.message);
+      return { 
+        canAfford: false, 
+        allowanceAmount: 0, 
+        balanceAmount: 0,
+        hasSufficientAllowance: false,
+        hasSufficientBalance: false
+      };
     }
   }
 
@@ -124,13 +171,13 @@ class BlocklistService {
       if (shouldBeBlocked && !isCurrentlyBlocked) {
         // Add to blocklist
         await this.addToBlocklist(userAddress);
-        console.log(`🚫 Added ${userAddress} to blocklist - insufficient allowance`);
-        return { action: 'added', reason: 'insufficient allowance' };
+        console.log(`🚫 Added ${userAddress} to blocklist - insufficient funds`);
+        return { action: 'added', reason: 'insufficient funds' };
       } else if (!shouldBeBlocked && isCurrentlyBlocked) {
         // Remove from blocklist
         await this.removeFromBlocklist(userAddress);
-        console.log(`✅ Removed ${userAddress} from blocklist - sufficient allowance`);
-        return { action: 'removed', reason: 'sufficient allowance' };
+        console.log(`✅ Removed ${userAddress} from blocklist - sufficient funds`);
+        return { action: 'removed', reason: 'sufficient funds' };
       } else {
         console.log(`ℹ️ No change needed for ${userAddress}`);
         return { action: 'no_change', reason: 'status unchanged' };
