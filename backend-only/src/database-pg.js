@@ -379,15 +379,16 @@ class PostgresDatabase {
         
         const result = await this.pool.query(`
           SELECT 
-            uc.fid,
+            (uc.config->>'fid')::bigint as fid,
             uc.user_address,
             SUM(CAST(th.amount AS DECIMAL)) as total_amount,
             MAX(th.created_at) as last_updated
           FROM tip_history th
           JOIN user_configs uc ON LOWER(uc.user_address) = LOWER(th.from_address)
           WHERE LOWER(th.token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+          AND uc.config->>'fid' IS NOT NULL
           ${timeCondition}
-          GROUP BY uc.fid, uc.user_address
+          GROUP BY (uc.config->>'fid')::bigint, uc.user_address
           HAVING SUM(CAST(th.amount AS DECIMAL)) > 0
           ORDER BY total_amount DESC
           LIMIT 50
@@ -453,15 +454,16 @@ class PostgresDatabase {
         
         const result = await this.pool.query(`
           SELECT 
-            uc.fid,
+            (uc.config->>'fid')::bigint as fid,
             uc.user_address,
             SUM(CAST(th.amount AS DECIMAL)) as total_amount,
             MAX(th.created_at) as last_updated
           FROM tip_history th
           JOIN user_configs uc ON LOWER(uc.user_address) = LOWER(th.to_address)
           WHERE LOWER(th.token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+          AND uc.config->>'fid' IS NOT NULL
           ${timeCondition}
-          GROUP BY uc.fid, uc.user_address
+          GROUP BY (uc.config->>'fid')::bigint, uc.user_address
           HAVING SUM(CAST(th.amount AS DECIMAL)) > 0
           ORDER BY total_amount DESC
           LIMIT 50
@@ -665,8 +667,8 @@ class PostgresDatabase {
         
         // First check if user has a wallet address linked to their FID
         const userAddressResult = await this.pool.query(`
-          SELECT user_address FROM user_configs WHERE fid = $1 LIMIT 1
-        `, [fid]);
+          SELECT user_address FROM user_configs WHERE config->>'fid' = $1 LIMIT 1
+        `, [fid.toString()]);
         
         console.log(`🔍 User address for FID ${fid}:`, userAddressResult.rows);
         
