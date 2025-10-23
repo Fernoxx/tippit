@@ -4658,6 +4658,98 @@ app.get('/api/debug/table-structure', async (req, res) => {
   }
 });
 
+// Recalculate earnings for all users in user_profiles (USDC only)
+app.post('/api/recalculate-earnings', async (req, res) => {
+  try {
+    console.log('🔄 Recalculating earnings for all users in user_profiles...');
+    
+    // Get all users from user_profiles
+    const usersResult = await database.pool.query(`
+      SELECT user_address FROM user_profiles WHERE user_address IS NOT NULL
+    `);
+    
+    const users = usersResult.rows;
+    console.log(`📊 Found ${users.length} users in user_profiles`);
+    
+    if (users.length === 0) {
+      return res.json({ success: true, message: 'No users found in user_profiles' });
+    }
+    
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const user of users) {
+      const address = user.user_address;
+      
+      try {
+        // Calculate USDC earnings/tippings for this address
+        const earningsResult = await database.pool.query(`
+          SELECT 
+            SUM(CASE WHEN to_address = $1 THEN amount ELSE 0 END) as total_earnings,
+            SUM(CASE WHEN from_address = $1 THEN amount ELSE 0 END) as total_tippings,
+            SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '24 hours' THEN amount ELSE 0 END) as earnings_24h,
+            SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '24 hours' THEN amount ELSE 0 END) as tippings_24h,
+            SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '7 days' THEN amount ELSE 0 END) as earnings_7d,
+            SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '7 days' THEN amount ELSE 0 END) as tippings_7d,
+            SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '30 days' THEN amount ELSE 0 END) as earnings_30d,
+            SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '30 days' THEN amount ELSE 0 END) as tippings_30d
+          FROM tip_history 
+          WHERE (to_address = $1 OR from_address = $1)
+            AND token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+        `, [address]);
+        
+        const stats = earningsResult.rows[0];
+        const totalEarnings = parseFloat(stats.total_earnings) || 0;
+        const totalTippings = parseFloat(stats.total_tippings) || 0;
+        
+        // Update earnings data
+        await database.pool.query(`
+          UPDATE user_profiles SET 
+            total_earnings = $1,
+            total_tippings = $2,
+            earnings_24h = $3,
+            tippings_24h = $4,
+            earnings_7d = $5,
+            tippings_7d = $6,
+            earnings_30d = $7,
+            tippings_30d = $8,
+            updated_at = NOW()
+          WHERE user_address = $9
+        `, [
+          totalEarnings,
+          totalTippings,
+          parseFloat(stats.earnings_24h) || 0,
+          parseFloat(stats.tippings_24h) || 0,
+          parseFloat(stats.earnings_7d) || 0,
+          parseFloat(stats.tippings_7d) || 0,
+          parseFloat(stats.earnings_30d) || 0,
+          parseFloat(stats.tippings_30d) || 0,
+          address
+        ]);
+        
+        successCount++;
+        console.log(`✅ Updated earnings for ${address}: ${totalEarnings} earned, ${totalTippings} tipped`);
+      } catch (error) {
+        console.error(`❌ Error updating earnings for ${address}:`, error);
+        errorCount++;
+      }
+    }
+    
+    console.log(`🎉 Earnings recalculation finished! Success: ${successCount}, Errors: ${errorCount}`);
+    res.json({ 
+      success: true, 
+      message: `Earnings recalculation finished! Success: ${successCount}, Errors: ${errorCount}`,
+      successCount,
+      errorCount,
+      totalUsers: users.length
+    });
+    
+  } catch (error) {
+    console.error('Earnings recalculation error:', error);
+    res.status(500).json({ error: 'Earnings recalculation failed', details: error.message });
+  }
+});
+
 // Find and migrate missing addresses
 app.post('/api/migrate-missing', async (req, res) => {
   try {

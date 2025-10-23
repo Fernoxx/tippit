@@ -176,6 +176,34 @@ export default function Admin() {
     }
   };
 
+  const runRecalculateEarnings = async () => {
+    try {
+      setIsMigrating(true);
+      setMigrationResult(null);
+      
+      const response = await fetch(`${BACKEND_URL}/api/recalculate-earnings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        setMigrationResult(`Earnings recalculation finished! Success: ${result.successCount}, Errors: ${result.errorCount}, Total Users: ${result.totalUsers}`);
+        // Refresh admin data after migration
+        fetchAdminData();
+      } else {
+        const error = await response.json();
+        setMigrationResult(`Earnings recalculation failed: ${error.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      setMigrationResult(`Earnings recalculation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsMigrating(false);
+    }
+  };
+
   const fetchAdminData = async () => {
     try {
       setIsLoading(true);
@@ -346,6 +374,25 @@ export default function Admin() {
             }`}
           >
             {isMigrating ? 'Finding Missing Addresses...' : 'Migrate Missing Addresses'}
+          </button>
+        </div>
+
+        {/* Recalculate Earnings Section */}
+        <div className="bg-white p-6 rounded-lg shadow border-2 border-green-200">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">🔄 Recalculate Earnings (USDC Only)</h2>
+          <p className="text-gray-600 mb-4">
+            Recalculate USDC earnings and tippings for all users in user_profiles from tip_history data.
+          </p>
+          <button
+            onClick={runRecalculateEarnings}
+            disabled={isMigrating}
+            className={`px-6 py-3 rounded-lg font-medium ${
+              isMigrating
+                ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                : 'bg-green-600 text-white hover:bg-green-700'
+            }`}
+          >
+            {isMigrating ? 'Recalculating...' : 'Recalculate Earnings'}
           </button>
         </div>
 
