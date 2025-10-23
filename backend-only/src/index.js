@@ -4747,16 +4747,28 @@ app.post('/api/migrate-user-earnings', async (req, res) => {
   try {
     console.log('🚀 Starting user earnings migration...');
     
-    // Get all users from user_profiles
-    const usersResult = await database.pool.query('SELECT fid, user_address FROM user_profiles');
-    console.log(`📊 Found ${usersResult.rows.length} users in user_profiles`);
+    // Get all unique addresses from tip_history (both from and to)
+    const addressesResult = await database.pool.query(`
+      SELECT DISTINCT from_address, to_address 
+      FROM tip_history 
+      WHERE from_address IS NOT NULL OR to_address IS NOT NULL
+    `);
+    
+    const allAddresses = new Set();
+    addressesResult.rows.forEach(row => {
+      if (row.from_address) allAddresses.add(row.from_address);
+      if (row.to_address) allAddresses.add(row.to_address);
+    });
+    
+    const addresses = Array.from(allAddresses);
+    console.log(`📊 Found ${addresses.length} unique addresses from tip_history`);
     
     let successCount = 0;
     let errorCount = 0;
     
-    for (const user of usersResult.rows) {
+    for (const address of addresses) {
       try {
-        // Calculate earnings and tippings for this user
+        // Calculate earnings and tippings for this address
         const earningsResult = await database.pool.query(`
           SELECT 
             SUM(CASE WHEN to_address = $1 THEN amount ELSE 0 END) as total_earnings,
@@ -4770,38 +4782,54 @@ app.post('/api/migrate-user-earnings', async (req, res) => {
           FROM tip_history 
           WHERE (to_address = $1 OR from_address = $1)
             AND token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
-        `, [user.user_address]);
+        `, [address]);
         
         const stats = earningsResult.rows[0];
+        const totalEarnings = parseFloat(stats.total_earnings) || 0;
+        const totalTippings = parseFloat(stats.total_tippings) || 0;
         
-        // Update user_profiles with earnings/tippings data
-        await database.pool.query(`
-          UPDATE user_profiles SET 
-            total_earnings = $1,
-            total_tippings = $2,
-            earnings_24h = $3,
-            tippings_24h = $4,
-            earnings_7d = $5,
-            tippings_7d = $6,
-            earnings_30d = $7,
-            tippings_30d = $8,
-            updated_at = NOW()
-          WHERE fid = $9
-        `, [
-          parseFloat(stats.total_earnings) || 0,
-          parseFloat(stats.total_tippings) || 0,
-          parseFloat(stats.earnings_24h) || 0,
-          parseFloat(stats.tippings_24h) || 0,
-          parseFloat(stats.earnings_7d) || 0,
-          parseFloat(stats.tippings_7d) || 0,
-          parseFloat(stats.earnings_30d) || 0,
-          parseFloat(stats.tippings_30d) || 0,
-          user.fid
-        ]);
-        
-        successCount++;
+        // Only update if there's actual activity
+        if (totalEarnings > 0 || totalTippings > 0) {
+          // Check if user exists in user_profiles
+          const userResult = await database.pool.query(
+            'SELECT fid FROM user_profiles WHERE user_address = $1',
+            [address]
+          );
+          
+          if (userResult.rows.length > 0) {
+            // Update existing user
+            await database.pool.query(`
+              UPDATE user_profiles SET 
+                total_earnings = $1,
+                total_tippings = $2,
+                earnings_24h = $3,
+                tippings_24h = $4,
+                earnings_7d = $5,
+                tippings_7d = $6,
+                earnings_30d = $7,
+                tippings_30d = $8,
+                updated_at = NOW()
+              WHERE user_address = $9
+            `, [
+              totalEarnings,
+              totalTippings,
+              parseFloat(stats.earnings_24h) || 0,
+              parseFloat(stats.tippings_24h) || 0,
+              parseFloat(stats.earnings_7d) || 0,
+              parseFloat(stats.tippings_7d) || 0,
+              parseFloat(stats.earnings_30d) || 0,
+              parseFloat(stats.tippings_30d) || 0,
+              address
+            ]);
+            
+            console.log(`✅ Updated earnings for address ${address}: ${totalEarnings} earned, ${totalTippings} tipped`);
+            successCount++;
+          } else {
+            console.log(`⚠️ No user profile found for address ${address}, skipping earnings update`);
+          }
+        }
       } catch (error) {
-        console.error(`❌ Error updating earnings for FID ${user.fid}:`, error);
+        console.error(`❌ Error updating earnings for address ${address}:`, error);
         errorCount++;
       }
     }
