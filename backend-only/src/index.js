@@ -4297,37 +4297,57 @@ app.post('/api/migrate-user-profiles', async (req, res) => {
   try {
     console.log('🚀 Starting user profiles migration...');
     
-    // First, let's check what data we have
-    const tipHistoryCount = await database.pool.query('SELECT COUNT(*) FROM tip_history');
-    const userConfigsCount = await database.pool.query('SELECT COUNT(*) FROM user_configs');
-    console.log(`📊 tip_history records: ${tipHistoryCount.rows[0].count}`);
-    console.log(`📊 user_configs records: ${userConfigsCount.rows[0].count}`);
-    
-    // Check sample data from user_configs
-    const sampleConfigs = await database.pool.query('SELECT user_address, config FROM user_configs LIMIT 5');
-    console.log('📊 Sample user_configs:', sampleConfigs.rows);
-    
-    // Check sample data from tip_history
-    const sampleTips = await database.pool.query('SELECT from_address, to_address, token_address FROM tip_history LIMIT 5');
-    console.log('📊 Sample tip_history:', sampleTips.rows);
-    
-    // Get all unique FIDs from tip_history using a simpler approach
-    const fidsResult = await database.pool.query(`
-      SELECT DISTINCT 
-        COALESCE(
-          (SELECT (config->>'fid')::bigint FROM user_configs WHERE LOWER(user_address) = LOWER(th.from_address) LIMIT 1),
-          (SELECT (config->>'fid')::bigint FROM user_configs WHERE LOWER(user_address) = LOWER(th.to_address) LIMIT 1)
-        ) as fid
-      FROM tip_history th
-      WHERE LOWER(th.token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
-      AND COALESCE(
-        (SELECT (config->>'fid')::bigint FROM user_configs WHERE LOWER(user_address) = LOWER(th.from_address) LIMIT 1),
-        (SELECT (config->>'fid')::bigint FROM user_configs WHERE LOWER(user_address) = LOWER(th.to_address) LIMIT 1)
-      ) IS NOT NULL
+    // Get all unique user addresses from tip_history
+    const addressesResult = await database.pool.query(`
+      SELECT DISTINCT from_address as user_address
+      FROM tip_history 
+      WHERE LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+      UNION
+      SELECT DISTINCT to_address as user_address
+      FROM tip_history 
+      WHERE LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
     `);
     
-    const fids = fidsResult.rows.map(row => row.fid).filter(fid => fid);
-    console.log(`📊 Found ${fids.length} unique FIDs to migrate`);
+    const addresses = addressesResult.rows.map(row => row.user_address);
+    console.log(`📊 Found ${addresses.length} unique addresses from tip_history`);
+    
+    // Try to get user data from Neynar API for each address
+    const { getUserDataByAddress } = require('./neynar');
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const address of addresses) {
+      try {
+        console.log(`🔍 Fetching profile for address: ${address}`);
+        const userData = await getUserDataByAddress(address);
+        
+        if (userData && userData.fid) {
+          await database.saveUserProfile({
+            fid: userData.fid,
+            username: userData.username || `user_${address.slice(0, 8)}`,
+            displayName: userData.displayName || `User ${address.slice(0, 8)}`,
+            pfpUrl: userData.pfpUrl || '',
+            followerCount: userData.followerCount || 0
+          });
+          console.log(`✅ Saved profile for ${userData.username || address}`);
+          successCount++;
+        } else {
+          console.log(`⚠️ No user data found for address: ${address}`);
+          errorCount++;
+        }
+      } catch (error) {
+        console.error(`❌ Failed to fetch profile for ${address}:`, error.message);
+        errorCount++;
+      }
+    }
+    
+    console.log(`🎉 Migration completed! Migrated ${successCount} users, ${errorCount} errors`);
+    res.json({ 
+      success: true, 
+      migrated: successCount, 
+      errors: errorCount,
+      message: `Successfully migrated ${successCount} user profiles from tip_history addresses`
+    });
     
     const { getUserDataByFid } = require('./neynar');
     let successCount = 0;

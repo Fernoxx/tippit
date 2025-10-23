@@ -195,6 +195,44 @@ async function getUserDataByFid(fid) {
   return await getUserData(fid);
 }
 
+// Get user data by wallet address using Neynar API
+async function getUserDataByAddress(address) {
+  try {
+    console.log(`🔍 Fetching user data for address: ${address}`);
+    
+    const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk-by-address?addresses=${address}`, {
+      headers: {
+        'api_key': process.env.NEYNAR_API_KEY,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      console.error(`❌ Neynar API error for address ${address}:`, response.status, response.statusText);
+      return null;
+    }
+
+    const data = await response.json();
+    console.log(`📊 Neynar response for ${address}:`, data);
+
+    if (data.users && data.users.length > 0) {
+      const user = data.users[0];
+      return {
+        fid: user.fid,
+        username: user.username,
+        displayName: user.display_name,
+        pfpUrl: user.pfp_url,
+        followerCount: user.follower_count || 0
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.error(`❌ Error fetching user data for address ${address}:`, error);
+    return null;
+  }
+}
+
 module.exports = {
   getFollowerCount,
   checkAudienceCriteria,
@@ -202,5 +240,6 @@ module.exports = {
   getCastByHash,
   getNeynarScore,
   getUserData,
-  getUserDataByFid
+  getUserDataByFid,
+  getUserDataByAddress
 };
