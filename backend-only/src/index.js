@@ -4663,6 +4663,9 @@ app.post('/api/migrate-complete', async (req, res) => {
   try {
     console.log('🚀 Starting complete migration (profiles + earnings)...');
     
+    // Import neynar function
+    const { fetchBulkUsersByEthOrSolAddress } = require('./neynar');
+    
     // Get all unique addresses from tip_history
     const addressesResult = await database.pool.query(`
       SELECT DISTINCT from_address, to_address 
@@ -4695,7 +4698,7 @@ app.post('/api/migrate-complete', async (req, res) => {
       
       try {
         // Get user profiles from Neynar
-        const neynarResponse = await neynar.fetchBulkUsersByEthOrSolAddress(batch);
+        const neynarResponse = await fetchBulkUsersByEthOrSolAddress(batch);
         console.log(`📊 Neynar response for batch:`, Object.keys(neynarResponse).length, 'users found');
         
         // Process each user from the response
