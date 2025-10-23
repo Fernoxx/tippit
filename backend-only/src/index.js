@@ -4432,82 +4432,65 @@ app.post('/api/migrate-all-user-earnings', async (req, res) => {
         const tippings30d = parseFloat(earningsResult.rows[0]?.tippings_30d || 0);
         
         console.log(`📈 Total earnings: ${totalEarnings}, Total tippings: ${totalTippings}`);
+        console.log(`📈 24h: earnings=${earnings24h}, tippings=${tippings24h}`);
+        console.log(`📈 7d: earnings=${earnings7d}, tippings=${tippings7d}`);
+        console.log(`📈 30d: earnings=${earnings30d}, tippings=${tippings30d}`);
         
-        // Calculate time-based earnings (24h, 7d, 30d)
-        const timeBasedResult = await database.pool.query(`
-          SELECT 
-            SUM(CASE WHEN LOWER(to_address) = LOWER($2) AND created_at >= NOW() - INTERVAL '24 hours' THEN CAST(amount AS DECIMAL) ELSE 0 END) as earnings_24h,
-            SUM(CASE WHEN LOWER(to_address) = LOWER($2) AND created_at >= NOW() - INTERVAL '7 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as earnings_7d,
-            SUM(CASE WHEN LOWER(to_address) = LOWER($2) AND created_at >= NOW() - INTERVAL '30 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as earnings_30d,
-            SUM(CASE WHEN LOWER(from_address) = LOWER($2) AND created_at >= NOW() - INTERVAL '24 hours' THEN CAST(amount AS DECIMAL) ELSE 0 END) as tippings_24h,
-            SUM(CASE WHEN LOWER(from_address) = LOWER($2) AND created_at >= NOW() - INTERVAL '7 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as tippings_7d,
-            SUM(CASE WHEN LOWER(from_address) = LOWER($2) AND created_at >= NOW() - INTERVAL '30 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as tippings_30d
-          FROM tip_history 
-          WHERE LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
-        `, [fid, userAddress]);
+        // Get FID for this address (if exists in user_profiles)
+        const fidResult = await database.pool.query(`
+          SELECT fid FROM user_profiles 
+          WHERE LOWER(custody_address) = LOWER($1) OR LOWER(verification_address) = LOWER($1)
+          LIMIT 1
+        `, [address]);
         
-        const timeData = timeBasedResult.rows[0];
-        const earnings24h = parseFloat(timeData?.earnings_24h || 0);
-        const earnings7d = parseFloat(timeData?.earnings_7d || 0);
-        const earnings30d = parseFloat(timeData?.earnings_30d || 0);
-        const tippings24h = parseFloat(timeData?.tippings_24h || 0);
-        const tippings7d = parseFloat(timeData?.tippings_7d || 0);
-        const tippings30d = parseFloat(timeData?.tippings_30d || 0);
+        const fid = fidResult.rows.length > 0 ? fidResult.rows[0].fid : null;
         
-        // Insert or update user earnings
-        await database.pool.query(`
-          INSERT INTO user_earnings (
+        if (fid) {
+          // Insert or update user earnings
+          await database.pool.query(`
+            INSERT INTO user_earnings (
+              fid, 
+              total_earnings, 
+              earnings_24h, 
+              earnings_7d, 
+              earnings_30d,
+              total_tippings, 
+              tippings_24h, 
+              tippings_7d, 
+              tippings_30d,
+              last_updated
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+            ON CONFLICT (fid) DO UPDATE SET
+              total_earnings = EXCLUDED.total_earnings,
+              earnings_24h = EXCLUDED.earnings_24h,
+              earnings_7d = EXCLUDED.earnings_7d,
+              earnings_30d = EXCLUDED.earnings_30d,
+              total_tippings = EXCLUDED.total_tippings,
+              tippings_24h = EXCLUDED.tippings_24h,
+              tippings_7d = EXCLUDED.tippings_7d,
+              tippings_30d = EXCLUDED.tippings_30d,
+              last_updated = NOW()
+          `, [
             fid, 
-            total_earnings, 
-            earnings_24h, 
-            earnings_7d, 
-            earnings_30d,
-            total_tippings, 
-            tippings_24h, 
-            tippings_7d, 
-            tippings_30d,
-            last_updated
-          )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
-          ON CONFLICT (fid) DO UPDATE SET
-            total_earnings = EXCLUDED.total_earnings,
-            earnings_24h = EXCLUDED.earnings_24h,
-            earnings_7d = EXCLUDED.earnings_7d,
-            earnings_30d = EXCLUDED.earnings_30d,
-            total_tippings = EXCLUDED.total_tippings,
-            tippings_24h = EXCLUDED.tippings_24h,
-            tippings_7d = EXCLUDED.tippings_7d,
-            tippings_30d = EXCLUDED.tippings_30d,
-            last_updated = NOW()
-        `, [
-          fid, 
-          totalEarnings, 
-          earnings24h, 
-          earnings7d, 
-          earnings30d,
-          totalTippings, 
-          tippings24h, 
-          tippings7d, 
-          tippings30d
-        ]);
-        
-        migratedCount++;
-        results.push({
-          fid: parseInt(fid),
-          totalEarnings,
-          totalTippings,
-          status: 'success'
-        });
-        
-        console.log(`✅ Successfully migrated data for FID: ${fid}`);
+            totalEarnings, 
+            earnings24h, 
+            earnings7d, 
+            earnings30d,
+            totalTippings, 
+            tippings24h, 
+            tippings7d, 
+            tippings30d
+          ]);
+          
+          console.log(`✅ Migrated earnings for FID ${fid}: ${totalEarnings} earned, ${totalTippings} tipped`);
+          migratedCount++;
+        } else {
+          console.log(`⚠️ No FID found for address ${address}, skipping earnings migration`);
+        }
         
       } catch (error) {
-        console.error(`❌ Error migrating FID ${fid}:`, error);
-        results.push({
-          fid: parseInt(fid),
-          error: error.message,
-          status: 'failed'
-        });
+        console.error(`❌ Error migrating address ${address}:`, error);
       }
     }
     
@@ -4516,8 +4499,7 @@ app.post('/api/migrate-all-user-earnings', async (req, res) => {
     res.json({ 
       success: true, 
       message: `Migration completed successfully. Migrated ${migratedCount} users.`,
-      migratedCount,
-      results
+      migratedCount
     });
     
   } catch (error) {
