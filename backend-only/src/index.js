@@ -4570,6 +4570,9 @@ app.post('/api/test-migration', async (req, res) => {
   try {
     console.log('🧪 Testing migration with 1 address...');
     
+    // Import neynar module
+    const neynar = require('./neynar');
+    
     // First check table structure
     const tableInfo = await database.pool.query(`
       SELECT column_name, data_type 
