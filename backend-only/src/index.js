@@ -4726,6 +4726,27 @@ app.get('/api/test-data-types', async (req, res) => {
   }
 });
 
+// Test simple sum query
+app.get('/api/test-sum', async (req, res) => {
+  try {
+    const result = await database.pool.query(`
+      SELECT 
+        SUM(amount) as total_sum,
+        COUNT(*) as count
+      FROM tip_history 
+      WHERE token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+      LIMIT 1
+    `);
+    
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to test sum', details: error.message });
+  }
+});
+
 // Recalculate earnings for all users in user_profiles (USDC only)
 app.post('/api/recalculate-earnings', async (req, res) => {
   try {
