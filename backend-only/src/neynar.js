@@ -213,19 +213,21 @@ async function getUserDataByAddress(address) {
     }
 
     const data = await response.json();
-    console.log(`📊 Neynar response for ${address}:`, data);
+    console.log(`📊 Neynar response for ${address}:`, JSON.stringify(data, null, 2));
 
-    if (data.users && data.users.length > 0) {
-      const user = data.users[0];
+    // Check the correct response structure based on the docs
+    if (data.result && data.result.user) {
+      const user = data.result.user;
       return {
         fid: user.fid,
         username: user.username,
-        displayName: user.display_name,
-        pfpUrl: user.pfp_url,
-        followerCount: user.follower_count || 0
+        displayName: user.displayName,
+        pfpUrl: user.pfp?.url || '',
+        followerCount: user.followerCount || 0
       };
     }
 
+    console.log(`⚠️ No user found for address: ${address}`);
     return null;
   } catch (error) {
     console.error(`❌ Error fetching user data for address ${address}:`, error);

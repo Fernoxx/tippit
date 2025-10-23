@@ -4311,33 +4311,59 @@ app.post('/api/migrate-user-profiles', async (req, res) => {
     const addresses = addressesResult.rows.map(row => row.user_address);
     console.log(`📊 Found ${addresses.length} unique addresses from tip_history`);
     
-    // Try to get user data from Neynar API for each address
+    // Process addresses in batches of 350 (Neynar API limit)
     const { getUserDataByAddress } = require('./neynar');
     let successCount = 0;
     let errorCount = 0;
+    const batchSize = 350;
     
-    for (const address of addresses) {
+    for (let i = 0; i < addresses.length; i += batchSize) {
+      const batch = addresses.slice(i, i + batchSize);
+      console.log(`🔍 Processing batch ${Math.floor(i/batchSize) + 1}: ${batch.length} addresses`);
+      
       try {
-        console.log(`🔍 Fetching profile for address: ${address}`);
-        const userData = await getUserDataByAddress(address);
-        
-        if (userData && userData.fid) {
-          await database.saveUserProfile({
-            fid: userData.fid,
-            username: userData.username || `user_${address.slice(0, 8)}`,
-            displayName: userData.displayName || `User ${address.slice(0, 8)}`,
-            pfpUrl: userData.pfpUrl || '',
-            followerCount: userData.followerCount || 0
-          });
-          console.log(`✅ Saved profile for ${userData.username || address}`);
-          successCount++;
+        // Fetch all addresses in this batch at once
+        const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk-by-address?addresses=${batch.join(',')}`, {
+          headers: {
+            'api_key': process.env.NEYNAR_API_KEY,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          console.error(`❌ Neynar API error for batch:`, response.status, response.statusText);
+          errorCount += batch.length;
+          continue;
+        }
+
+        const data = await response.json();
+        console.log(`📊 Neynar response for batch:`, JSON.stringify(data, null, 2));
+
+        // Process each user in the response
+        if (data.result && data.result.users) {
+          for (const user of data.result.users) {
+            try {
+              await database.saveUserProfile({
+                fid: user.fid,
+                username: user.username || `user_${user.custodyAddress?.slice(0, 8) || 'unknown'}`,
+                displayName: user.displayName || `User ${user.custodyAddress?.slice(0, 8) || 'unknown'}`,
+                pfpUrl: user.pfp?.url || '',
+                followerCount: user.followerCount || 0
+              });
+              console.log(`✅ Saved profile for ${user.username || user.custodyAddress}`);
+              successCount++;
+            } catch (error) {
+              console.error(`❌ Failed to save profile for ${user.username}:`, error.message);
+              errorCount++;
+            }
+          }
         } else {
-          console.log(`⚠️ No user data found for address: ${address}`);
-          errorCount++;
+          console.log(`⚠️ No users found in batch`);
+          errorCount += batch.length;
         }
       } catch (error) {
-        console.error(`❌ Failed to fetch profile for ${address}:`, error.message);
-        errorCount++;
+        console.error(`❌ Failed to fetch batch:`, error.message);
+        errorCount += batch.length;
       }
     }
     
