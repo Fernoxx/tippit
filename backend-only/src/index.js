@@ -2884,143 +2884,118 @@ app.get('/api/leaderboard', async (req, res) => {
     const limitNum = parseInt(limit);
     const offset = (pageNum - 1) * limitNum;
     
-    // Get top tippers and earners with amounts
-    const topTippers = await database.getTopTippers(timeFilter);
-    const topEarners = await database.getTopEarners(timeFilter);
+    // Get top tippers and earners directly from user_profiles
+    let columnName;
+    switch (timeFilter) {
+      case '24h': columnName = 'tippings_24h'; break;
+      case '7d': columnName = 'tippings_7d'; break;
+      case '30d': columnName = 'tippings_30d'; break;
+      case 'total': 
+      default: columnName = 'total_tippings'; break;
+    }
+    
+    const topTippersResult = await database.pool.query(`
+      SELECT fid, username, display_name, pfp_url, user_address, ${columnName} as total_amount, updated_at
+      FROM user_profiles 
+      WHERE ${columnName} > 0
+      ORDER BY ${columnName} DESC 
+      LIMIT 50
+    `);
+    
+    const topTippers = topTippersResult.rows.map(row => ({
+      fid: row.fid,
+      userAddress: row.user_address,
+      totalAmount: parseFloat(row.total_amount),
+      lastUpdated: row.updated_at,
+      username: row.username,
+      displayName: row.display_name,
+      pfpUrl: row.pfp_url
+    }));
+    
+    // Get top earners
+    let earningsColumnName;
+    switch (timeFilter) {
+      case '24h': earningsColumnName = 'earnings_24h'; break;
+      case '7d': earningsColumnName = 'earnings_7d'; break;
+      case '30d': earningsColumnName = 'earnings_30d'; break;
+      case 'total': 
+      default: earningsColumnName = 'total_earnings'; break;
+    }
+    
+    const topEarnersResult = await database.pool.query(`
+      SELECT fid, username, display_name, pfp_url, user_address, ${earningsColumnName} as total_amount, updated_at
+      FROM user_profiles 
+      WHERE ${earningsColumnName} > 0
+      ORDER BY ${earningsColumnName} DESC 
+      LIMIT 50
+    `);
+    
+    const topEarners = topEarnersResult.rows.map(row => ({
+      fid: row.fid,
+      userAddress: row.user_address,
+      totalAmount: parseFloat(row.total_amount),
+      lastUpdated: row.updated_at,
+      username: row.username,
+      displayName: row.display_name,
+      pfpUrl: row.pfp_url
+    }));
+    
     console.log(`📊 Top tippers count: ${topTippers.length}, Top earners count: ${topEarners.length}`);
     console.log(`📊 First tipper:`, topTippers[0]);
     console.log(`📊 First earner:`, topEarners[0]);
     
-    // Get user's own stats for "You" section
+    // Get user's own stats for "You" section from user_profiles
     let userStats = null;
     if (userFid) {
       console.log(`🔍 Fetching user stats for FID: ${userFid}`);
-      userStats = await database.getUserEarnings(parseInt(userFid));
+      const userStatsResult = await database.pool.query(`
+        SELECT 
+          fid,
+          total_earnings,
+          total_tippings,
+          earnings_24h,
+          tippings_24h,
+          earnings_7d,
+          tippings_7d,
+          earnings_30d,
+          tippings_30d
+        FROM user_profiles 
+        WHERE fid = $1
+      `, [parseInt(userFid)]);
+      
+      if (userStatsResult.rows.length > 0) {
+        const row = userStatsResult.rows[0];
+        userStats = {
+          fid: row.fid,
+          totalEarnings: parseFloat(row.total_earnings) || 0,
+          totalTippings: parseFloat(row.total_tippings) || 0,
+          earnings24h: parseFloat(row.earnings_24h) || 0,
+          tippings24h: parseFloat(row.tippings_24h) || 0,
+          earnings7d: parseFloat(row.earnings_7d) || 0,
+          tippings7d: parseFloat(row.tippings_7d) || 0,
+          earnings30d: parseFloat(row.earnings_30d) || 0,
+          tippings30d: parseFloat(row.tippings_30d) || 0
+        };
+      }
       console.log(`📊 User stats result:`, userStats);
     } else {
       console.log('❌ No userFid provided for user stats');
     }
     
-    // Get paginated slices
+    // Get paginated slices (data already enriched from user_profiles)
     const paginatedTippers = topTippers.slice(offset, offset + limitNum);
     const paginatedEarners = topEarners.slice(offset, offset + limitNum);
     
-    // Get user profiles from database
-    const tipperFids = paginatedTippers.map(t => t.fid);
-    console.log('🔍 Looking up profiles for FIDs:', tipperFids.slice(0, 5));
-    const storedProfiles = await database.getUserProfiles(tipperFids);
-    console.log('📊 Found stored profiles:', storedProfiles.length);
-    console.log('📊 Sample stored profile:', storedProfiles[0]);
-    const profileMap = new Map(storedProfiles.map(p => [p.fid, p]));
+    // Add followerCount to the data (default to 0 if not available)
+    const enrichedTippers = paginatedTippers.map(tipper => ({
+      ...tipper,
+      followerCount: 0 // We can add this later if needed
+    }));
     
-    // Enrich tippers with stored user profiles
-    const enrichedTippers = [];
-    for (const tipper of paginatedTippers) {
-      const profile = profileMap.get(tipper.fid);
-      
-      if (profile) {
-        // Use stored profile data
-        enrichedTippers.push({
-          ...tipper,
-          username: profile.username || 'Unknown',
-          displayName: profile.display_name || profile.username || 'Unknown User',
-          pfpUrl: profile.pfp_url || null,
-          followerCount: profile.follower_count || 0
-        });
-      } else {
-        // Try to get user data from Neynar API if we have userAddress
-        let userData = null;
-        if (tipper.userAddress) {
-          try {
-            console.log(`🔍 Fetching Neynar data for address: ${tipper.userAddress}`);
-            userData = await neynar.getUserDataByAddress(tipper.userAddress);
-            console.log(`📊 Neynar data for ${tipper.userAddress}:`, userData);
-          } catch (error) {
-            console.log(`❌ Failed to fetch Neynar data for ${tipper.userAddress}:`, error.message);
-          }
-        }
-        
-        if (userData) {
-          // Use Neynar data
-          enrichedTippers.push({
-            ...tipper,
-            username: userData.username || `fid_${tipper.fid}`,
-            displayName: userData.display_name || userData.username || `FID ${tipper.fid}`,
-            pfpUrl: userData.pfp_url || null,
-            followerCount: userData.follower_count || 0
-          });
-        } else {
-          // Fallback to showing truncated address or FID
-          const displayName = tipper.userAddress ? 
-            `${tipper.userAddress.slice(0, 6)}...${tipper.userAddress.slice(-4)}` : 
-            `FID ${tipper.fid}`;
-          enrichedTippers.push({
-            ...tipper,
-            username: `fid_${tipper.fid}`,
-            displayName: displayName,
-            pfpUrl: null,
-            followerCount: 0
-          });
-        }
-      }
-    }
-    
-    // Get user profiles from database
-    const earnerFids = paginatedEarners.map(e => e.fid);
-    const storedEarnerProfiles = await database.getUserProfiles(earnerFids);
-    const earnerProfileMap = new Map(storedEarnerProfiles.map(p => [p.fid, p]));
-    
-    // Enrich earners with stored user profiles
-    const enrichedEarners = [];
-    for (const earner of paginatedEarners) {
-      const profile = earnerProfileMap.get(earner.fid);
-      
-      if (profile) {
-        // Use stored profile data
-        enrichedEarners.push({
-          ...earner,
-          username: profile.username || 'Unknown',
-          displayName: profile.display_name || profile.username || 'Unknown User',
-          pfpUrl: profile.pfp_url || null,
-          followerCount: profile.follower_count || 0
-        });
-      } else {
-        // Try to get user data from Neynar API if we have userAddress
-        let userData = null;
-        if (earner.userAddress) {
-          try {
-            console.log(`🔍 Fetching Neynar data for address: ${earner.userAddress}`);
-            userData = await neynar.getUserDataByAddress(earner.userAddress);
-            console.log(`📊 Neynar data for ${earner.userAddress}:`, userData);
-          } catch (error) {
-            console.log(`❌ Failed to fetch Neynar data for ${earner.userAddress}:`, error.message);
-          }
-        }
-        
-        if (userData) {
-          // Use Neynar data
-          enrichedEarners.push({
-            ...earner,
-            username: userData.username || `fid_${earner.fid}`,
-            displayName: userData.display_name || userData.username || `FID ${earner.fid}`,
-            pfpUrl: userData.pfp_url || null,
-            followerCount: userData.follower_count || 0
-          });
-        } else {
-          // Fallback to showing truncated address or FID
-          const displayName = earner.userAddress ? 
-            `${earner.userAddress.slice(0, 6)}...${earner.userAddress.slice(-4)}` : 
-            `FID ${earner.fid}`;
-          enrichedEarners.push({
-            ...earner,
-            username: `fid_${earner.fid}`,
-            displayName: displayName,
-            pfpUrl: null,
-            followerCount: 0
-          });
-        }
-      }
-    }
+    const enrichedEarners = paginatedEarners.map(earner => ({
+      ...earner,
+      followerCount: 0 // We can add this later if needed
+    }));
     
     // Calculate pagination info
     const totalTippers = topTippers.length;
@@ -4588,6 +4563,162 @@ app.get('/api/debug/user-earnings', async (req, res) => {
 // Simple test endpoint
 app.get('/api/test', (req, res) => {
   res.json({ message: 'Backend is working!', timestamp: new Date().toISOString() });
+});
+
+// Migration endpoint to populate user_profiles from tip_history addresses
+app.post('/api/migrate-user-profiles', async (req, res) => {
+  try {
+    console.log('🚀 Starting user profiles migration...');
+    
+    // Get all unique addresses from tip_history
+    const addressesResult = await database.pool.query(`
+      SELECT DISTINCT from_address, to_address 
+      FROM tip_history 
+      WHERE from_address IS NOT NULL OR to_address IS NOT NULL
+    `);
+    
+    const allAddresses = new Set();
+    addressesResult.rows.forEach(row => {
+      if (row.from_address) allAddresses.add(row.from_address);
+      if (row.to_address) allAddresses.add(row.to_address);
+    });
+    
+    const addresses = Array.from(allAddresses);
+    console.log(`📊 Found ${addresses.length} unique addresses from tip_history`);
+    
+    if (addresses.length === 0) {
+      return res.json({ success: true, message: 'No addresses found in tip_history' });
+    }
+    
+    // Process addresses in batches of 350 (Neynar API limit)
+    const batchSize = 350;
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (let i = 0; i < addresses.length; i += batchSize) {
+      const batch = addresses.slice(i, i + batchSize);
+      console.log(`🔍 Processing batch ${Math.floor(i/batchSize) + 1}: ${batch.length} addresses`);
+      
+      try {
+        const neynarResponse = await neynar.fetchBulkUsersByEthOrSolAddress(batch);
+        console.log(`📊 Neynar response for batch:`, Object.keys(neynarResponse).length, 'users found');
+        
+        // Process each user from the response
+        for (const [address, users] of Object.entries(neynarResponse)) {
+          if (users && users.length > 0) {
+            const user = users[0]; // Take the first user if multiple
+            const success = await database.saveUserProfile(
+              user.fid,
+              user.username,
+              user.display_name,
+              user.pfp?.url || user.pfp_url,
+              user.follower_count || 0,
+              address // Save the address too
+            );
+            
+            if (success) {
+              successCount++;
+            } else {
+              errorCount++;
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`❌ Error processing batch ${Math.floor(i/batchSize) + 1}:`, error);
+        errorCount += batch.length;
+      }
+    }
+    
+    console.log(`🎉 Migration completed! Migrated ${successCount} users, ${errorCount} errors`);
+    res.json({ 
+      success: true, 
+      message: `Migration completed! Migrated ${successCount} users, ${errorCount} errors`,
+      migrated: successCount,
+      errors: errorCount
+    });
+    
+  } catch (error) {
+    console.error('Migration error:', error);
+    res.status(500).json({ error: 'Migration failed', details: error.message });
+  }
+});
+
+// Migration endpoint to populate earnings/tippings data in user_profiles
+app.post('/api/migrate-user-earnings', async (req, res) => {
+  try {
+    console.log('🚀 Starting user earnings migration...');
+    
+    // Get all users from user_profiles
+    const usersResult = await database.pool.query('SELECT fid, user_address FROM user_profiles');
+    console.log(`📊 Found ${usersResult.rows.length} users in user_profiles`);
+    
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const user of usersResult.rows) {
+      try {
+        // Calculate earnings and tippings for this user
+        const earningsResult = await database.pool.query(`
+          SELECT 
+            SUM(CASE WHEN to_address = $1 THEN amount ELSE 0 END) as total_earnings,
+            SUM(CASE WHEN from_address = $1 THEN amount ELSE 0 END) as total_tippings,
+            SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '24 hours' THEN amount ELSE 0 END) as earnings_24h,
+            SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '24 hours' THEN amount ELSE 0 END) as tippings_24h,
+            SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '7 days' THEN amount ELSE 0 END) as earnings_7d,
+            SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '7 days' THEN amount ELSE 0 END) as tippings_7d,
+            SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '30 days' THEN amount ELSE 0 END) as earnings_30d,
+            SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '30 days' THEN amount ELSE 0 END) as tippings_30d
+          FROM tip_history 
+          WHERE (to_address = $1 OR from_address = $1)
+            AND token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+        `, [user.user_address]);
+        
+        const stats = earningsResult.rows[0];
+        
+        // Update user_profiles with earnings/tippings data
+        await database.pool.query(`
+          UPDATE user_profiles SET 
+            total_earnings = $1,
+            total_tippings = $2,
+            earnings_24h = $3,
+            tippings_24h = $4,
+            earnings_7d = $5,
+            tippings_7d = $6,
+            earnings_30d = $7,
+            tippings_30d = $8,
+            updated_at = NOW()
+          WHERE fid = $9
+        `, [
+          parseFloat(stats.total_earnings) || 0,
+          parseFloat(stats.total_tippings) || 0,
+          parseFloat(stats.earnings_24h) || 0,
+          parseFloat(stats.tippings_24h) || 0,
+          parseFloat(stats.earnings_7d) || 0,
+          parseFloat(stats.tippings_7d) || 0,
+          parseFloat(stats.earnings_30d) || 0,
+          parseFloat(stats.tippings_30d) || 0,
+          user.fid
+        ]);
+        
+        successCount++;
+      } catch (error) {
+        console.error(`❌ Error updating earnings for FID ${user.fid}:`, error);
+        errorCount++;
+      }
+    }
+    
+    console.log(`🎉 Earnings migration completed! Updated ${successCount} users, ${errorCount} errors`);
+    res.json({ 
+      success: true, 
+      message: `Earnings migration completed! Updated ${successCount} users, ${errorCount} errors`,
+      updated: successCount,
+      errors: errorCount
+    });
+    
+  } catch (error) {
+    console.error('Earnings migration error:', error);
+    res.status(500).json({ error: 'Earnings migration failed', details: error.message });
+  }
 });
 app.get('/api/debug/user-profiles', async (req, res) => {
   try {

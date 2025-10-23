@@ -30,6 +30,15 @@ class PostgresDatabase {
           display_name TEXT,
           pfp_url TEXT,
           follower_count INTEGER DEFAULT 0,
+          user_address VARCHAR(255),
+          total_earnings DECIMAL(18,6) DEFAULT 0,
+          total_tippings DECIMAL(18,6) DEFAULT 0,
+          earnings_24h DECIMAL(18,6) DEFAULT 0,
+          tippings_24h DECIMAL(18,6) DEFAULT 0,
+          earnings_7d DECIMAL(18,6) DEFAULT 0,
+          tippings_7d DECIMAL(18,6) DEFAULT 0,
+          earnings_30d DECIMAL(18,6) DEFAULT 0,
+          tippings_30d DECIMAL(18,6) DEFAULT 0,
           created_at TIMESTAMP DEFAULT NOW(),
           updated_at TIMESTAMP DEFAULT NOW()
         )
@@ -146,19 +155,20 @@ class PostgresDatabase {
   }
 
   // User profiles management
-  async saveUserProfile(fid, username, displayName, pfpUrl, followerCount = 0) {
+  async saveUserProfile(fid, username, displayName, pfpUrl, followerCount = 0, userAddress = null) {
     try {
       await this.pool.query(`
-        INSERT INTO user_profiles (fid, username, display_name, pfp_url, follower_count, updated_at)
-        VALUES ($1, $2, $3, $4, $5, NOW())
+        INSERT INTO user_profiles (fid, username, display_name, pfp_url, follower_count, user_address, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, NOW())
         ON CONFLICT (fid) 
         DO UPDATE SET 
           username = EXCLUDED.username,
           display_name = EXCLUDED.display_name,
           pfp_url = EXCLUDED.pfp_url,
           follower_count = EXCLUDED.follower_count,
+          user_address = EXCLUDED.user_address,
           updated_at = NOW()
-      `, [fid, username, displayName, pfpUrl, followerCount]);
+      `, [fid, username, displayName, pfpUrl, followerCount, userAddress]);
       
       console.log(`✅ Saved user profile for FID ${fid}: ${username} (${displayName})`);
     } catch (error) {
