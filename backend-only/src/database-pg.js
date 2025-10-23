@@ -49,6 +49,17 @@ class PostgresDatabase {
         ADD COLUMN IF NOT EXISTS tippings_30d DECIMAL(18,6) DEFAULT 0
       `);
       
+      // Fix the created_at column issue - rename it to match what the code expects
+      try {
+        await this.pool.query(`
+          ALTER TABLE user_profiles 
+          RENAME COLUMN created_at TO created_at
+        `);
+      } catch (error) {
+        // Column might already exist with correct name, ignore error
+        console.log('created_at column already exists or renamed');
+      }
+      
       await this.pool.query(`
         CREATE TABLE IF NOT EXISTS pending_tips (
           id SERIAL PRIMARY KEY,
@@ -163,8 +174,8 @@ class PostgresDatabase {
   async saveUserProfile(fid, username, displayName, pfpUrl, followerCount = 0, userAddress = null) {
     try {
       await this.pool.query(`
-        INSERT INTO user_profiles (fid, username, display_name, pfp_url, follower_count, user_address, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        INSERT INTO user_profiles (fid, username, display_name, pfp_url, follower_count, user_address, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
         ON CONFLICT (fid) 
         DO UPDATE SET 
           username = EXCLUDED.username,
