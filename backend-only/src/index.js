@@ -4508,6 +4508,92 @@ app.post('/api/migrate-all-user-earnings', async (req, res) => {
   }
 });
 
+// Debug endpoint to check user_profiles table
+app.get('/api/debug/user-profiles', async (req, res) => {
+  try {
+    const result = await database.pool.query(`
+      SELECT fid, username, display_name, pfp_url, follower_count, updated_at 
+      FROM user_profiles 
+      ORDER BY updated_at DESC 
+      LIMIT 10
+    `);
+    
+    res.json({
+      count: result.rows.length,
+      profiles: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching user profiles:', error);
+    res.status(500).json({ error: 'Failed to fetch user profiles' });
+  }
+});
+
+// Test migration with just 1 address to verify the fix works
+app.post('/api/test-migration', async (req, res) => {
+  try {
+    console.log('🧪 Testing migration with 1 address...');
+    
+    // Get just 1 address from tip_history
+    const addressesResult = await database.pool.query(`
+      SELECT DISTINCT from_address as user_address
+      FROM tip_history 
+      WHERE LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+      LIMIT 1
+    `);
+    
+    if (addressesResult.rows.length === 0) {
+      return res.json({ error: 'No addresses found in tip_history' });
+    }
+    
+    const address = addressesResult.rows[0].user_address;
+    console.log(`🔍 Testing with address: ${address}`);
+    
+    // Fetch user data from Neynar API
+    const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk-by-address?addresses=${address}`, {
+      headers: {
+        'api_key': process.env.NEYNAR_API_KEY,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      return res.json({ error: `Neynar API error: ${response.status}` });
+    }
+
+    const data = await response.json();
+    console.log('📊 Neynar response:', JSON.stringify(data, null, 2));
+
+    if (data.result && data.result.users && data.result.users.length > 0) {
+      const user = data.result.users[0];
+      
+      // Test the fixed saveUserProfile call
+      await database.saveUserProfile(
+        user.fid,
+        user.username || `user_${user.custodyAddress?.slice(0, 8) || 'unknown'}`,
+        user.displayName || `User ${user.custodyAddress?.slice(0, 8) || 'unknown'}`,
+        user.pfp?.url || '',
+        user.followerCount || 0
+      );
+      
+      res.json({ 
+        success: true, 
+        message: 'Test migration successful!',
+        user: {
+          fid: user.fid,
+          username: user.username,
+          displayName: user.displayName
+        }
+      });
+    } else {
+      res.json({ error: 'No user found for this address' });
+    }
+    
+  } catch (error) {
+    console.error('Test migration error:', error);
+    res.status(500).json({ error: 'Test migration failed', details: error.message });
+  }
+});
+
 // Test endpoint to simulate a tip (for debugging leaderboard updates)
 app.post('/api/debug/simulate-tip', async (req, res) => {
   try {
