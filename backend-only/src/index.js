@@ -4602,16 +4602,15 @@ app.post('/api/test-migration', async (req, res) => {
     console.log(`🧪 Neynar response:`, JSON.stringify(neynarResponse, null, 2));
     
     // Test database save
-    if (neynarResponse[testAddress] && neynarResponse[testAddress].length > 0) {
-      const user = neynarResponse[testAddress][0];
-      console.log(`🧪 Trying to save user:`, user);
+    if (neynarResponse && neynarResponse.fid) {
+      console.log(`🧪 Trying to save user:`, neynarResponse);
       
       const success = await database.saveUserProfile(
-        user.fid,
-        user.username,
-        user.display_name,
-        user.pfp?.url || user.pfp_url,
-        user.follower_count || 0,
+        neynarResponse.fid,
+        neynarResponse.username,
+        neynarResponse.displayName,
+        neynarResponse.pfpUrl,
+        neynarResponse.followerCount,
         testAddress
       );
       
@@ -4621,7 +4620,7 @@ app.post('/api/test-migration', async (req, res) => {
         success: true, 
         message: 'Test completed',
         address: testAddress,
-        neynarResponse: neynarResponse[testAddress],
+        neynarResponse: neynarResponse,
         saveResult: success,
         tableStructure: tableInfo.rows
       });
