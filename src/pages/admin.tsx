@@ -64,6 +64,34 @@ export default function Admin() {
     }
   };
 
+  const runProfileMigration = async () => {
+    try {
+      setIsMigrating(true);
+      setMigrationResult(null);
+      
+      const response = await fetch(`${BACKEND_URL}/api/migrate-user-profiles`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        setMigrationResult(`Profile migration completed! Migrated ${result.successCount} profiles out of ${result.totalFids} FIDs.`);
+        // Refresh admin data after migration
+        fetchAdminData();
+      } else {
+        const error = await response.json();
+        setMigrationResult(`Profile migration failed: ${error.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      setMigrationResult(`Profile migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsMigrating(false);
+    }
+  };
+
   const fetchAdminData = async () => {
     try {
       setIsLoading(true);
@@ -159,6 +187,25 @@ export default function Admin() {
               {migrationResult}
             </div>
           )}
+        </div>
+
+        {/* Profile Migration Section */}
+        <div className="bg-white p-6 rounded-lg shadow">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">User Profiles Migration</h2>
+          <p className="text-gray-600 mb-4">
+            Fetch and save all user profiles from tip_history to user_profiles table.
+          </p>
+          <button
+            onClick={runProfileMigration}
+            disabled={isMigrating}
+            className={`px-6 py-3 rounded-lg font-medium ${
+              isMigrating
+                ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                : 'bg-green-600 text-white hover:bg-green-700'
+            }`}
+          >
+            {isMigrating ? 'Migrating Profiles...' : 'Run Profile Migration'}
+          </button>
         </div>
 
         {/* Stats Cards */}
