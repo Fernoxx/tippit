@@ -755,7 +755,17 @@ class PostgresDatabase {
       return userStats;
     } catch (error) {
       console.error('Error getting user earnings:', error);
-      return null;
+      return {
+        fid,
+        totalEarnings: 0,
+        earnings24h: 0,
+        earnings7d: 0,
+        earnings30d: 0,
+        totalTippings: 0,
+        tippings24h: 0,
+        tippings7d: 0,
+        tippings30d: 0
+      };
     }
   }
 

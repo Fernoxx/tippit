@@ -145,6 +145,7 @@ async function getUserData(fid) {
       console.error(`❌ Neynar API error: ${response.status} ${response.statusText}`);
       const errorText = await response.text();
       console.error(`❌ Error response body:`, errorText);
+      console.error(`❌ API Key length: ${process.env.NEYNAR_API_KEY?.length || 0}`);
       return { 
         username: null,
         display_name: null,
