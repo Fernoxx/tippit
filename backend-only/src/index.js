@@ -2914,7 +2914,7 @@ app.get('/api/leaderboard', async (req, res) => {
         enrichedTippers.push({
           ...tipper,
           username: farcasterUser?.username || 'Unknown',
-          displayName: farcasterUser?.display_name || farcasterUser?.username || 'Unknown',
+          displayName: farcasterUser?.display_name || farcasterUser?.username || 'Unknown User',
           pfpUrl: farcasterUser?.pfp_url || null,
           followerCount: farcasterUser?.follower_count || 0
         });
@@ -2924,7 +2924,7 @@ app.get('/api/leaderboard', async (req, res) => {
         enrichedTippers.push({
           ...tipper,
           username: 'Unknown',
-          displayName: 'Unknown',
+          displayName: 'Unknown User',
           pfpUrl: null,
           followerCount: 0
         });
@@ -2943,7 +2943,7 @@ app.get('/api/leaderboard', async (req, res) => {
         enrichedEarners.push({
           ...earner,
           username: farcasterUser?.username || 'Unknown',
-          displayName: farcasterUser?.display_name || farcasterUser?.username || 'Unknown',
+          displayName: farcasterUser?.display_name || farcasterUser?.username || 'Unknown User',
           pfpUrl: farcasterUser?.pfp_url || null,
           followerCount: farcasterUser?.follower_count || 0
         });
@@ -2953,7 +2953,7 @@ app.get('/api/leaderboard', async (req, res) => {
         enrichedEarners.push({
           ...earner,
           username: 'Unknown',
-          displayName: 'Unknown',
+          displayName: 'Unknown User',
           pfpUrl: null,
           followerCount: 0
         });
@@ -4259,6 +4259,156 @@ app.post('/api/initialize-user-earnings/:fid', async (req, res) => {
   } catch (error) {
     console.error('Error initializing user earnings:', error);
     res.status(500).json({ error: 'Failed to initialize user earnings' });
+  }
+});
+
+// Migrate ALL user earnings from tip_history to user_earnings table
+app.post('/api/migrate-all-user-earnings', async (req, res) => {
+  try {
+    console.log('🚀 Starting migration of ALL user earnings from tip_history...');
+    
+    // Get all unique FIDs from tip_history
+    const fidResult = await database.pool.query(`
+      SELECT DISTINCT 
+        COALESCE(
+          (SELECT fid FROM user_configs WHERE LOWER(user_address) = LOWER(tip_history.from_address) LIMIT 1),
+          (SELECT fid FROM user_configs WHERE LOWER(user_address) = LOWER(tip_history.to_address) LIMIT 1)
+        ) as fid
+      FROM tip_history 
+      WHERE LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+      AND COALESCE(
+        (SELECT fid FROM user_configs WHERE LOWER(user_address) = LOWER(tip_history.from_address) LIMIT 1),
+        (SELECT fid FROM user_configs WHERE LOWER(user_address) = LOWER(tip_history.to_address) LIMIT 1)
+      ) IS NOT NULL
+    `);
+    
+    console.log(`📊 Found ${fidResult.rows.length} unique FIDs with tip history`);
+    
+    let migratedCount = 0;
+    const results = [];
+    
+    for (const row of fidResult.rows) {
+      const fid = row.fid;
+      console.log(`\n🔄 Processing FID: ${fid}`);
+      
+      try {
+        // Get user's wallet address
+        const userAddressResult = await database.pool.query(`
+          SELECT user_address FROM user_configs WHERE fid = $1 LIMIT 1
+        `, [fid]);
+        
+        if (userAddressResult.rows.length === 0) {
+          console.log(`❌ No wallet address found for FID: ${fid}`);
+          continue;
+        }
+        
+        const userAddress = userAddressResult.rows[0].user_address;
+        console.log(`💰 User wallet address: ${userAddress}`);
+        
+        // Calculate total earnings and tippings
+        const earningsResult = await database.pool.query(`
+          SELECT 
+            SUM(CASE WHEN LOWER(to_address) = LOWER($2) THEN CAST(amount AS DECIMAL) ELSE 0 END) as total_earnings,
+            SUM(CASE WHEN LOWER(from_address) = LOWER($2) THEN CAST(amount AS DECIMAL) ELSE 0 END) as total_tippings
+          FROM tip_history 
+          WHERE LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+        `, [fid, userAddress]);
+        
+        const totalEarnings = parseFloat(earningsResult.rows[0]?.total_earnings || 0);
+        const totalTippings = parseFloat(earningsResult.rows[0]?.total_tippings || 0);
+        
+        console.log(`📈 Total earnings: ${totalEarnings}, Total tippings: ${totalTippings}`);
+        
+        // Calculate time-based earnings (24h, 7d, 30d)
+        const timeBasedResult = await database.pool.query(`
+          SELECT 
+            SUM(CASE WHEN LOWER(to_address) = LOWER($2) AND created_at >= NOW() - INTERVAL '24 hours' THEN CAST(amount AS DECIMAL) ELSE 0 END) as earnings_24h,
+            SUM(CASE WHEN LOWER(to_address) = LOWER($2) AND created_at >= NOW() - INTERVAL '7 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as earnings_7d,
+            SUM(CASE WHEN LOWER(to_address) = LOWER($2) AND created_at >= NOW() - INTERVAL '30 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as earnings_30d,
+            SUM(CASE WHEN LOWER(from_address) = LOWER($2) AND created_at >= NOW() - INTERVAL '24 hours' THEN CAST(amount AS DECIMAL) ELSE 0 END) as tippings_24h,
+            SUM(CASE WHEN LOWER(from_address) = LOWER($2) AND created_at >= NOW() - INTERVAL '7 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as tippings_7d,
+            SUM(CASE WHEN LOWER(from_address) = LOWER($2) AND created_at >= NOW() - INTERVAL '30 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as tippings_30d
+          FROM tip_history 
+          WHERE LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+        `, [fid, userAddress]);
+        
+        const timeData = timeBasedResult.rows[0];
+        const earnings24h = parseFloat(timeData?.earnings_24h || 0);
+        const earnings7d = parseFloat(timeData?.earnings_7d || 0);
+        const earnings30d = parseFloat(timeData?.earnings_30d || 0);
+        const tippings24h = parseFloat(timeData?.tippings_24h || 0);
+        const tippings7d = parseFloat(timeData?.tippings_7d || 0);
+        const tippings30d = parseFloat(timeData?.tippings_30d || 0);
+        
+        // Insert or update user earnings
+        await database.pool.query(`
+          INSERT INTO user_earnings (
+            fid, 
+            total_earnings, 
+            earnings_24h, 
+            earnings_7d, 
+            earnings_30d,
+            total_tippings, 
+            tippings_24h, 
+            tippings_7d, 
+            tippings_30d,
+            last_updated
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+          ON CONFLICT (fid) DO UPDATE SET
+            total_earnings = EXCLUDED.total_earnings,
+            earnings_24h = EXCLUDED.earnings_24h,
+            earnings_7d = EXCLUDED.earnings_7d,
+            earnings_30d = EXCLUDED.earnings_30d,
+            total_tippings = EXCLUDED.total_tippings,
+            tippings_24h = EXCLUDED.tippings_24h,
+            tippings_7d = EXCLUDED.tippings_7d,
+            tippings_30d = EXCLUDED.tippings_30d,
+            last_updated = NOW()
+        `, [
+          fid, 
+          totalEarnings, 
+          earnings24h, 
+          earnings7d, 
+          earnings30d,
+          totalTippings, 
+          tippings24h, 
+          tippings7d, 
+          tippings30d
+        ]);
+        
+        migratedCount++;
+        results.push({
+          fid: parseInt(fid),
+          totalEarnings,
+          totalTippings,
+          status: 'success'
+        });
+        
+        console.log(`✅ Successfully migrated data for FID: ${fid}`);
+        
+      } catch (error) {
+        console.error(`❌ Error migrating FID ${fid}:`, error);
+        results.push({
+          fid: parseInt(fid),
+          error: error.message,
+          status: 'failed'
+        });
+      }
+    }
+    
+    console.log(`\n🎉 Migration completed! Migrated ${migratedCount} users.`);
+    
+    res.json({ 
+      success: true, 
+      message: `Migration completed successfully. Migrated ${migratedCount} users.`,
+      migratedCount,
+      results
+    });
+    
+  } catch (error) {
+    console.error('❌ Migration failed:', error);
+    res.status(500).json({ error: 'Failed to migrate user earnings' });
   }
 });
 
