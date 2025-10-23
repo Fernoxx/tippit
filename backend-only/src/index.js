@@ -4691,6 +4691,7 @@ app.post('/api/migrate-complete', async (req, res) => {
     let profileCount = 0;
     let earningsCount = 0;
     let errorCount = 0;
+    const processedAddresses = new Set();
     
     for (let i = 0; i < addresses.length; i += batchSize) {
       const batch = addresses.slice(i, i + batchSize);
@@ -4719,59 +4720,8 @@ app.post('/api/migrate-complete', async (req, res) => {
             
             if (profileSuccess) {
               profileCount++;
+              processedAddresses.add(address);
               console.log(`✅ Successfully saved profile for FID ${user.fid}`);
-              
-              // Now calculate and save earnings for this address
-              try {
-                const earningsResult = await database.pool.query(`
-                  SELECT 
-                    SUM(CASE WHEN to_address = $1 THEN amount ELSE 0 END) as total_earnings,
-                    SUM(CASE WHEN from_address = $1 THEN amount ELSE 0 END) as total_tippings,
-                    SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '24 hours' THEN amount ELSE 0 END) as earnings_24h,
-                    SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '24 hours' THEN amount ELSE 0 END) as tippings_24h,
-                    SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '7 days' THEN amount ELSE 0 END) as earnings_7d,
-                    SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '7 days' THEN amount ELSE 0 END) as tippings_7d,
-                    SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '30 days' THEN amount ELSE 0 END) as earnings_30d,
-                    SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '30 days' THEN amount ELSE 0 END) as tippings_30d
-                  FROM tip_history 
-                  WHERE (to_address = $1 OR from_address = $1)
-                    AND token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
-                `, [address]);
-                
-                const stats = earningsResult.rows[0];
-                const totalEarnings = parseFloat(stats.total_earnings) || 0;
-                const totalTippings = parseFloat(stats.total_tippings) || 0;
-                
-                // Update earnings data
-                await database.pool.query(`
-                  UPDATE user_profiles SET 
-                    total_earnings = $1,
-                    total_tippings = $2,
-                    earnings_24h = $3,
-                    tippings_24h = $4,
-                    earnings_7d = $5,
-                    tippings_7d = $6,
-                    earnings_30d = $7,
-                    tippings_30d = $8,
-                    updated_at = NOW()
-                  WHERE user_address = $9
-                `, [
-                  totalEarnings,
-                  totalTippings,
-                  parseFloat(stats.earnings_24h) || 0,
-                  parseFloat(stats.tippings_24h) || 0,
-                  parseFloat(stats.earnings_7d) || 0,
-                  parseFloat(stats.tippings_7d) || 0,
-                  parseFloat(stats.earnings_30d) || 0,
-                  parseFloat(stats.tippings_30d) || 0,
-                  address
-                ]);
-                
-                earningsCount++;
-                console.log(`✅ Updated earnings for ${address}: ${totalEarnings} earned, ${totalTippings} tipped`);
-              } catch (earningsError) {
-                console.error(`❌ Error updating earnings for ${address}:`, earningsError);
-              }
             } else {
               errorCount++;
               console.log(`❌ Failed to save profile for FID ${user.fid}`);
@@ -4786,11 +4736,102 @@ app.post('/api/migrate-complete', async (req, res) => {
       }
     }
     
-    console.log(`🎉 Complete migration finished! Profiles: ${profileCount}, Earnings: ${earningsCount}, Errors: ${errorCount}`);
+    // Now add missing addresses that don't have Neynar data but exist in tip_history
+    console.log(`🔍 Adding missing addresses without Neynar data...`);
+    let missingCount = 0;
+    
+    for (const address of addresses) {
+      if (!processedAddresses.has(address)) {
+        try {
+          // Generate a fake FID for addresses without Neynar data
+          const fakeFid = Math.floor(Math.random() * 1000000000) + 1000000000; // Generate random FID
+          
+          // Save basic profile for missing address
+          const profileSuccess = await database.saveUserProfile(
+            fakeFid,
+            `user_${address.slice(0, 8)}`, // Generate username from address
+            `User ${address.slice(0, 6)}...${address.slice(-4)}`, // Generate display name
+            null, // No PFP
+            0, // No follower count
+            address
+          );
+          
+          if (profileSuccess) {
+            missingCount++;
+            processedAddresses.add(address);
+            console.log(`✅ Added missing address: ${address} with fake FID ${fakeFid}`);
+          }
+        } catch (error) {
+          console.error(`❌ Error adding missing address ${address}:`, error);
+          errorCount++;
+        }
+      }
+    }
+    
+    // Now calculate earnings for ALL addresses (both with and without Neynar data)
+    console.log(`🔍 Calculating earnings for all ${processedAddresses.size} addresses...`);
+    
+    for (const address of processedAddresses) {
+      try {
+        const earningsResult = await database.pool.query(`
+          SELECT 
+            SUM(CASE WHEN to_address = $1 THEN amount ELSE 0 END) as total_earnings,
+            SUM(CASE WHEN from_address = $1 THEN amount ELSE 0 END) as total_tippings,
+            SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '24 hours' THEN amount ELSE 0 END) as earnings_24h,
+            SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '24 hours' THEN amount ELSE 0 END) as tippings_24h,
+            SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '7 days' THEN amount ELSE 0 END) as earnings_7d,
+            SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '7 days' THEN amount ELSE 0 END) as tippings_7d,
+            SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '30 days' THEN amount ELSE 0 END) as earnings_30d,
+            SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '30 days' THEN amount ELSE 0 END) as tippings_30d
+          FROM tip_history 
+          WHERE (to_address = $1 OR from_address = $1)
+            AND token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+        `, [address]);
+        
+        const stats = earningsResult.rows[0];
+        const totalEarnings = parseFloat(stats.total_earnings) || 0;
+        const totalTippings = parseFloat(stats.total_tippings) || 0;
+        
+        // Update earnings data
+        await database.pool.query(`
+          UPDATE user_profiles SET 
+            total_earnings = $1,
+            total_tippings = $2,
+            earnings_24h = $3,
+            tippings_24h = $4,
+            earnings_7d = $5,
+            tippings_7d = $6,
+            earnings_30d = $7,
+            tippings_30d = $8,
+            updated_at = NOW()
+          WHERE user_address = $9
+        `, [
+          totalEarnings,
+          totalTippings,
+          parseFloat(stats.earnings_24h) || 0,
+          parseFloat(stats.tippings_24h) || 0,
+          parseFloat(stats.earnings_7d) || 0,
+          parseFloat(stats.tippings_7d) || 0,
+          parseFloat(stats.earnings_30d) || 0,
+          parseFloat(stats.tippings_30d) || 0,
+          address
+        ]);
+        
+        earningsCount++;
+        console.log(`✅ Updated earnings for ${address}: ${totalEarnings} earned, ${totalTippings} tipped`);
+      } catch (earningsError) {
+        console.error(`❌ Error updating earnings for ${address}:`, earningsError);
+        errorCount++;
+      }
+    }
+    
+    console.log(`🎉 Complete migration finished! Profiles: ${profileCount + missingCount}, Earnings: ${earningsCount}, Errors: ${errorCount}`);
     res.json({ 
       success: true, 
-      message: `Complete migration finished! Profiles: ${profileCount}, Earnings: ${earningsCount}, Errors: ${errorCount}`,
-      profiles: profileCount,
+      message: `Complete migration finished! Profiles: ${profileCount + missingCount} (${profileCount} from Neynar, ${missingCount} missing), Earnings: ${earningsCount}, Errors: ${errorCount}`,
+      profiles: profileCount + missingCount,
+      neynarProfiles: profileCount,
+      missingProfiles: missingCount,
       earnings: earningsCount,
       errors: errorCount,
       total: addresses.length
