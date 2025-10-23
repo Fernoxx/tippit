@@ -26,6 +26,8 @@ export default function Admin() {
   const [recentTips, setRecentTips] = useState<RecentTip[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [migrationResult, setMigrationResult] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAdminData();
@@ -33,6 +35,34 @@ export default function Admin() {
     const interval = setInterval(fetchAdminData, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  const runMigration = async () => {
+    try {
+      setIsMigrating(true);
+      setMigrationResult(null);
+      
+      const response = await fetch(`${BACKEND_URL}/api/migrate-all-user-earnings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        setMigrationResult(`Migration completed! Migrated ${result.migratedCount} users.`);
+        // Refresh admin data after migration
+        fetchAdminData();
+      } else {
+        const error = await response.json();
+        setMigrationResult(`Migration failed: ${error.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      setMigrationResult(`Migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsMigrating(false);
+    }
+  };
 
   const fetchAdminData = async () => {
     try {
@@ -102,6 +132,34 @@ export default function Admin() {
             {error}
           </div>
         )}
+
+        {/* Migration Section */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Data Migration</h2>
+          <p className="text-gray-600 mb-4">
+            Migrate all user earnings data from tip_history to user_earnings table.
+          </p>
+          <button
+            onClick={runMigration}
+            disabled={isMigrating}
+            className={`px-6 py-3 rounded-lg font-medium ${
+              isMigrating
+                ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}
+          >
+            {isMigrating ? 'Migrating...' : 'Run Migration'}
+          </button>
+          {migrationResult && (
+            <div className={`mt-4 p-4 rounded ${
+              migrationResult.includes('failed') 
+                ? 'bg-red-100 text-red-700' 
+                : 'bg-green-100 text-green-700'
+            }`}>
+              {migrationResult}
+            </div>
+          )}
+        </div>
 
         {/* Stats Cards */}
         {stats && (
