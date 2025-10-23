@@ -68,8 +68,7 @@ export function useFarcasterSDK() {
             console.error('❌ Failed to save user profile:', error);
           }
           
-          // Call ready() to hide loading screen
-          await sdk.ready();
+          // SDK initialization complete
         }
         
       } catch (error) {
