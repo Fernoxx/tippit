@@ -4375,47 +4375,6 @@ app.post('/api/migrate-user-profiles', async (req, res) => {
       message: `Successfully migrated ${successCount} user profiles from tip_history addresses`
     });
     
-    const { getUserDataByFid } = require('./neynar');
-    let successCount = 0;
-    let errorCount = 0;
-    
-    for (const fid of fids) {
-      try {
-        console.log(`🔍 Fetching profile for FID ${fid}...`);
-        const userData = await getUserDataByFid(fid);
-        
-        if (userData && userData.username) {
-          await database.saveUserProfile(
-            fid,
-            userData.username,
-            userData.display_name,
-            userData.pfp_url,
-            userData.followerCount || 0
-          );
-          successCount++;
-          console.log(`✅ Saved profile for FID ${fid}: ${userData.username}`);
-        } else {
-          console.log(`❌ No profile data for FID ${fid}`);
-          errorCount++;
-        }
-        
-        // Add delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-      } catch (error) {
-        console.error(`❌ Error fetching profile for FID ${fid}:`, error.message);
-        errorCount++;
-      }
-    }
-    
-    res.json({
-      success: true,
-      message: 'User profiles migration completed',
-      totalFids: fids.length,
-      successCount,
-      errorCount
-    });
-    
   } catch (error) {
     console.error('Migration error:', error);
     res.status(500).json({ error: 'Migration failed', details: error.message });
