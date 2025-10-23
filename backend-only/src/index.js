@@ -4565,6 +4565,24 @@ app.get('/api/test', (req, res) => {
   res.json({ message: 'Backend is working!', timestamp: new Date().toISOString() });
 });
 
+// Debug endpoint to check user_profiles table structure
+app.get('/api/debug/table-structure', async (req, res) => {
+  try {
+    const result = await database.pool.query(`
+      SELECT column_name, data_type, is_nullable, column_default
+      FROM information_schema.columns 
+      WHERE table_name = 'user_profiles'
+      ORDER BY ordinal_position
+    `);
+    res.json({
+      table: 'user_profiles',
+      columns: result.rows
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get table structure', details: error.message });
+  }
+});
+
 // Migration endpoint to populate user_profiles from tip_history addresses
 app.post('/api/migrate-user-profiles', async (req, res) => {
   try {
