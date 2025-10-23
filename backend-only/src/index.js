@@ -4403,35 +4403,33 @@ app.post('/api/migrate-all-user-earnings', async (req, res) => {
     let migratedCount = 0;
     const results = [];
     
-    for (const row of fidResult.rows) {
-      const fid = row.fid;
-      console.log(`\n🔄 Processing FID: ${fid}`);
+    for (const address of addresses) {
+      console.log(`\n🔄 Processing address: ${address}`);
       
       try {
-        // Get user's wallet address
-        const userAddressResult = await database.pool.query(`
-          SELECT user_address FROM user_configs WHERE fid = $1 LIMIT 1
-        `, [fid]);
-        
-        if (userAddressResult.rows.length === 0) {
-          console.log(`❌ No wallet address found for FID: ${fid}`);
-          continue;
-        }
-        
-        const userAddress = userAddressResult.rows[0].user_address;
-        console.log(`💰 User wallet address: ${userAddress}`);
-        
-        // Calculate total earnings and tippings
+        // Calculate total earnings and tippings for this address
         const earningsResult = await database.pool.query(`
           SELECT 
-            SUM(CASE WHEN LOWER(to_address) = LOWER($2) THEN CAST(amount AS DECIMAL) ELSE 0 END) as total_earnings,
-            SUM(CASE WHEN LOWER(from_address) = LOWER($2) THEN CAST(amount AS DECIMAL) ELSE 0 END) as total_tippings
+            SUM(CASE WHEN LOWER(to_address) = LOWER($1) THEN CAST(amount AS DECIMAL) ELSE 0 END) as total_earnings,
+            SUM(CASE WHEN LOWER(from_address) = LOWER($1) THEN CAST(amount AS DECIMAL) ELSE 0 END) as total_tippings,
+            SUM(CASE WHEN LOWER(to_address) = LOWER($1) AND created_at >= NOW() - INTERVAL '24 hours' THEN CAST(amount AS DECIMAL) ELSE 0 END) as earnings_24h,
+            SUM(CASE WHEN LOWER(from_address) = LOWER($1) AND created_at >= NOW() - INTERVAL '24 hours' THEN CAST(amount AS DECIMAL) ELSE 0 END) as tippings_24h,
+            SUM(CASE WHEN LOWER(to_address) = LOWER($1) AND created_at >= NOW() - INTERVAL '7 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as earnings_7d,
+            SUM(CASE WHEN LOWER(from_address) = LOWER($1) AND created_at >= NOW() - INTERVAL '7 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as tippings_7d,
+            SUM(CASE WHEN LOWER(to_address) = LOWER($1) AND created_at >= NOW() - INTERVAL '30 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as earnings_30d,
+            SUM(CASE WHEN LOWER(from_address) = LOWER($1) AND created_at >= NOW() - INTERVAL '30 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as tippings_30d
           FROM tip_history 
           WHERE LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
-        `, [fid, userAddress]);
+        `, [address]);
         
         const totalEarnings = parseFloat(earningsResult.rows[0]?.total_earnings || 0);
         const totalTippings = parseFloat(earningsResult.rows[0]?.total_tippings || 0);
+        const earnings24h = parseFloat(earningsResult.rows[0]?.earnings_24h || 0);
+        const tippings24h = parseFloat(earningsResult.rows[0]?.tippings_24h || 0);
+        const earnings7d = parseFloat(earningsResult.rows[0]?.earnings_7d || 0);
+        const tippings7d = parseFloat(earningsResult.rows[0]?.tippings_7d || 0);
+        const earnings30d = parseFloat(earningsResult.rows[0]?.earnings_30d || 0);
+        const tippings30d = parseFloat(earningsResult.rows[0]?.tippings_30d || 0);
         
         console.log(`📈 Total earnings: ${totalEarnings}, Total tippings: ${totalTippings}`);
         
