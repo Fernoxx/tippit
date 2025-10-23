@@ -30,18 +30,23 @@ class PostgresDatabase {
           display_name TEXT,
           pfp_url TEXT,
           follower_count INTEGER DEFAULT 0,
-          user_address VARCHAR(255),
-          total_earnings DECIMAL(18,6) DEFAULT 0,
-          total_tippings DECIMAL(18,6) DEFAULT 0,
-          earnings_24h DECIMAL(18,6) DEFAULT 0,
-          tippings_24h DECIMAL(18,6) DEFAULT 0,
-          earnings_7d DECIMAL(18,6) DEFAULT 0,
-          tippings_7d DECIMAL(18,6) DEFAULT 0,
-          earnings_30d DECIMAL(18,6) DEFAULT 0,
-          tippings_30d DECIMAL(18,6) DEFAULT 0,
           created_at TIMESTAMP DEFAULT NOW(),
           updated_at TIMESTAMP DEFAULT NOW()
         )
+      `);
+      
+      // Add new columns if they don't exist
+      await this.pool.query(`
+        ALTER TABLE user_profiles 
+        ADD COLUMN IF NOT EXISTS user_address VARCHAR(255),
+        ADD COLUMN IF NOT EXISTS total_earnings DECIMAL(18,6) DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS total_tippings DECIMAL(18,6) DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS earnings_24h DECIMAL(18,6) DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS tippings_24h DECIMAL(18,6) DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS earnings_7d DECIMAL(18,6) DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS tippings_7d DECIMAL(18,6) DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS earnings_30d DECIMAL(18,6) DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS tippings_30d DECIMAL(18,6) DEFAULT 0
       `);
       
       await this.pool.query(`

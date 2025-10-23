@@ -4607,6 +4607,7 @@ app.post('/api/migrate-user-profiles', async (req, res) => {
         for (const [address, users] of Object.entries(neynarResponse)) {
           if (users && users.length > 0) {
             const user = users[0]; // Take the first user if multiple
+            console.log(`💾 Saving user: FID ${user.fid}, username: ${user.username}, address: ${address}`);
             const success = await database.saveUserProfile(
               user.fid,
               user.username,
@@ -4618,9 +4619,13 @@ app.post('/api/migrate-user-profiles', async (req, res) => {
             
             if (success) {
               successCount++;
+              console.log(`✅ Successfully saved FID ${user.fid}`);
             } else {
               errorCount++;
+              console.log(`❌ Failed to save FID ${user.fid}`);
             }
+          } else {
+            console.log(`⚠️ No user data found for address: ${address}`);
           }
         }
       } catch (error) {
@@ -4634,7 +4639,8 @@ app.post('/api/migrate-user-profiles', async (req, res) => {
       success: true, 
       message: `Migration completed! Migrated ${successCount} users, ${errorCount} errors`,
       migrated: successCount,
-      errors: errorCount
+      errors: errorCount,
+      total: addresses.length
     });
     
   } catch (error) {
