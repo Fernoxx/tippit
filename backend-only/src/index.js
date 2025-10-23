@@ -4304,6 +4304,7 @@ app.post('/api/migrate-user-profiles', async (req, res) => {
       JOIN user_configs uc ON LOWER(uc.user_address) = LOWER(th.from_address) 
          OR LOWER(uc.user_address) = LOWER(th.to_address)
       WHERE uc.config->>'fid' IS NOT NULL
+      AND LOWER(th.token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
     `);
     
     const fids = fidsResult.rows.map(row => row.fid);
@@ -4365,14 +4366,14 @@ app.post('/api/migrate-all-user-earnings', async (req, res) => {
     const fidResult = await database.pool.query(`
       SELECT DISTINCT 
         COALESCE(
-          (SELECT fid FROM user_configs WHERE LOWER(user_address) = LOWER(tip_history.from_address) LIMIT 1),
-          (SELECT fid FROM user_configs WHERE LOWER(user_address) = LOWER(tip_history.to_address) LIMIT 1)
+          (SELECT (config->>'fid')::bigint FROM user_configs WHERE LOWER(user_address) = LOWER(tip_history.from_address) LIMIT 1),
+          (SELECT (config->>'fid')::bigint FROM user_configs WHERE LOWER(user_address) = LOWER(tip_history.to_address) LIMIT 1)
         ) as fid
       FROM tip_history 
       WHERE LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
       AND COALESCE(
-        (SELECT fid FROM user_configs WHERE LOWER(user_address) = LOWER(tip_history.from_address) LIMIT 1),
-        (SELECT fid FROM user_configs WHERE LOWER(user_address) = LOWER(tip_history.to_address) LIMIT 1)
+        (SELECT (config->>'fid')::bigint FROM user_configs WHERE LOWER(user_address) = LOWER(tip_history.from_address) LIMIT 1),
+        (SELECT (config->>'fid')::bigint FROM user_configs WHERE LOWER(user_address) = LOWER(tip_history.to_address) LIMIT 1)
       ) IS NOT NULL
     `);
     
