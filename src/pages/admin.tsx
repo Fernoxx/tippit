@@ -78,7 +78,7 @@ export default function Admin() {
       
       if (response.ok) {
         const result = await response.json();
-        setMigrationResult(`Profile migration completed! Migrated ${result.successCount} profiles out of ${result.totalFids} FIDs.`);
+        setMigrationResult(`Profile migration completed! Migrated ${result.migrated} profiles.`);
         // Refresh admin data after migration
         fetchAdminData();
       } else {
@@ -87,6 +87,34 @@ export default function Admin() {
       }
     } catch (error) {
       setMigrationResult(`Profile migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsMigrating(false);
+    }
+  };
+
+  const runEarningsMigration = async () => {
+    try {
+      setIsMigrating(true);
+      setMigrationResult(null);
+      
+      const response = await fetch(`${BACKEND_URL}/api/migrate-user-earnings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        setMigrationResult(`Earnings migration completed! Updated ${result.updated} users.`);
+        // Refresh admin data after migration
+        fetchAdminData();
+      } else {
+        const error = await response.json();
+        setMigrationResult(`Earnings migration failed: ${error.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      setMigrationResult(`Earnings migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsMigrating(false);
     }
@@ -205,6 +233,25 @@ export default function Admin() {
             }`}
           >
             {isMigrating ? 'Migrating Profiles...' : 'Run Profile Migration'}
+          </button>
+        </div>
+
+        {/* Earnings Migration Section */}
+        <div className="bg-white p-6 rounded-lg shadow">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">User Earnings Migration</h2>
+          <p className="text-gray-600 mb-4">
+            Calculate and save all earnings/tippings data from tip_history to user_profiles table.
+          </p>
+          <button
+            onClick={runEarningsMigration}
+            disabled={isMigrating}
+            className={`px-6 py-3 rounded-lg font-medium ${
+              isMigrating
+                ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}
+          >
+            {isMigrating ? 'Migrating Earnings...' : 'Run Earnings Migration'}
           </button>
         </div>
 
