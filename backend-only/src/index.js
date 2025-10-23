@@ -4774,14 +4774,14 @@ app.post('/api/recalculate-earnings', async (req, res) => {
         // Calculate USDC earnings/tippings for this address
         const earningsResult = await database.pool.query(`
           SELECT 
-            SUM(CASE WHEN to_address = $1 THEN amount ELSE 0 END) as total_earnings,
-            SUM(CASE WHEN from_address = $1 THEN amount ELSE 0 END) as total_tippings,
-            SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '24 hours' THEN amount ELSE 0 END) as earnings_24h,
-            SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '24 hours' THEN amount ELSE 0 END) as tippings_24h,
-            SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '7 days' THEN amount ELSE 0 END) as earnings_7d,
-            SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '7 days' THEN amount ELSE 0 END) as tippings_7d,
-            SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '30 days' THEN amount ELSE 0 END) as earnings_30d,
-            SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '30 days' THEN amount ELSE 0 END) as tippings_30d
+            SUM(CASE WHEN to_address = $1 THEN amount::NUMERIC ELSE 0 END) as total_earnings,
+            SUM(CASE WHEN from_address = $1 THEN amount::NUMERIC ELSE 0 END) as total_tippings,
+            SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '24 hours' THEN amount::NUMERIC ELSE 0 END) as earnings_24h,
+            SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '24 hours' THEN amount::NUMERIC ELSE 0 END) as tippings_24h,
+            SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '7 days' THEN amount::NUMERIC ELSE 0 END) as earnings_7d,
+            SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '7 days' THEN amount::NUMERIC ELSE 0 END) as tippings_7d,
+            SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '30 days' THEN amount::NUMERIC ELSE 0 END) as earnings_30d,
+            SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '30 days' THEN amount::NUMERIC ELSE 0 END) as tippings_30d
           FROM tip_history 
           WHERE (to_address = $1 OR from_address = $1)
             AND token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
@@ -5122,14 +5122,14 @@ app.post('/api/migrate-complete', async (req, res) => {
       try {
         const earningsResult = await database.pool.query(`
           SELECT 
-            SUM(CASE WHEN to_address = $1 THEN amount ELSE 0 END) as total_earnings,
-            SUM(CASE WHEN from_address = $1 THEN amount ELSE 0 END) as total_tippings,
-            SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '24 hours' THEN amount ELSE 0 END) as earnings_24h,
-            SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '24 hours' THEN amount ELSE 0 END) as tippings_24h,
-            SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '7 days' THEN amount ELSE 0 END) as earnings_7d,
-            SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '7 days' THEN amount ELSE 0 END) as tippings_7d,
-            SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '30 days' THEN amount ELSE 0 END) as earnings_30d,
-            SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '30 days' THEN amount ELSE 0 END) as tippings_30d
+            SUM(CASE WHEN to_address = $1 THEN amount::NUMERIC ELSE 0 END) as total_earnings,
+            SUM(CASE WHEN from_address = $1 THEN amount::NUMERIC ELSE 0 END) as total_tippings,
+            SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '24 hours' THEN amount::NUMERIC ELSE 0 END) as earnings_24h,
+            SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '24 hours' THEN amount::NUMERIC ELSE 0 END) as tippings_24h,
+            SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '7 days' THEN amount::NUMERIC ELSE 0 END) as earnings_7d,
+            SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '7 days' THEN amount::NUMERIC ELSE 0 END) as tippings_7d,
+            SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '30 days' THEN amount::NUMERIC ELSE 0 END) as earnings_30d,
+            SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '30 days' THEN amount::NUMERIC ELSE 0 END) as tippings_30d
           FROM tip_history 
           WHERE (to_address = $1 OR from_address = $1)
             AND token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
@@ -5220,14 +5220,14 @@ app.post('/api/migrate-user-earnings', async (req, res) => {
         // Calculate earnings and tippings for this address
         const earningsResult = await database.pool.query(`
           SELECT 
-            SUM(CASE WHEN to_address = $1 THEN amount ELSE 0 END) as total_earnings,
-            SUM(CASE WHEN from_address = $1 THEN amount ELSE 0 END) as total_tippings,
-            SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '24 hours' THEN amount ELSE 0 END) as earnings_24h,
-            SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '24 hours' THEN amount ELSE 0 END) as tippings_24h,
-            SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '7 days' THEN amount ELSE 0 END) as earnings_7d,
-            SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '7 days' THEN amount ELSE 0 END) as tippings_7d,
-            SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '30 days' THEN amount ELSE 0 END) as earnings_30d,
-            SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '30 days' THEN amount ELSE 0 END) as tippings_30d
+            SUM(CASE WHEN to_address = $1 THEN amount::NUMERIC ELSE 0 END) as total_earnings,
+            SUM(CASE WHEN from_address = $1 THEN amount::NUMERIC ELSE 0 END) as total_tippings,
+            SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '24 hours' THEN amount::NUMERIC ELSE 0 END) as earnings_24h,
+            SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '24 hours' THEN amount::NUMERIC ELSE 0 END) as tippings_24h,
+            SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '7 days' THEN amount::NUMERIC ELSE 0 END) as earnings_7d,
+            SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '7 days' THEN amount::NUMERIC ELSE 0 END) as tippings_7d,
+            SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '30 days' THEN amount::NUMERIC ELSE 0 END) as earnings_30d,
+            SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '30 days' THEN amount::NUMERIC ELSE 0 END) as tippings_30d
           FROM tip_history 
           WHERE (to_address = $1 OR from_address = $1)
             AND token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
