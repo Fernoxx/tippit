@@ -562,6 +562,10 @@ export const useLeaderboardData = (timeFilter: 'total' | '24h' | '7d' | '30d' = 
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
+  
+  // Get current user FID from the hook
+  const { currentUser } = useFarcasterWallet();
+  const userFid = currentUser?.fid;
 
   useEffect(() => {
     fetchLeaderboardData(1, true); // Reset to page 1 when timeFilter changes
@@ -577,10 +581,6 @@ export const useLeaderboardData = (timeFilter: 'total' | '24h' | '7d' | '30d' = 
     }
     
     try {
-      // Get current user FID for userStats
-      const { useFarcasterWallet } = await import('@/hooks/useFarcasterWallet');
-      const { currentUser } = useFarcasterWallet();
-      const userFid = currentUser?.fid;
       
       const url = userFid 
         ? `${BACKEND_URL}/api/leaderboard?timeFilter=${timeFilter}&page=${page}&limit=10&userFid=${userFid}`
