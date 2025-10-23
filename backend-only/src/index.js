@@ -4658,6 +4658,50 @@ app.get('/api/debug/table-structure', async (req, res) => {
   }
 });
 
+// Debug endpoint to check tip_history table structure and sample data
+app.get('/api/debug/tip-history', async (req, res) => {
+  try {
+    // Get table structure
+    const structureResult = await database.pool.query(`
+      SELECT column_name, data_type, is_nullable, column_default
+      FROM information_schema.columns 
+      WHERE table_name = 'tip_history'
+      ORDER BY ordinal_position
+    `);
+    
+    // Get sample data
+    const sampleResult = await database.pool.query(`
+      SELECT id, from_address, to_address, token_address, amount, action_type, created_at
+      FROM tip_history 
+      WHERE token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+      ORDER BY id DESC
+      LIMIT 10
+    `);
+    
+    // Check data types of amount column
+    const typeCheckResult = await database.pool.query(`
+      SELECT 
+        pg_typeof(amount) as amount_type,
+        COUNT(*) as total_rows,
+        COUNT(CASE WHEN amount IS NULL THEN 1 END) as null_count,
+        COUNT(CASE WHEN amount ~ '^[0-9]+\.?[0-9]*$' THEN 1 END) as numeric_like_count,
+        MIN(amount) as min_amount,
+        MAX(amount) as max_amount
+      FROM tip_history 
+      WHERE token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+    `);
+    
+    res.json({
+      table: 'tip_history',
+      structure: structureResult.rows,
+      sampleData: sampleResult.rows,
+      amountAnalysis: typeCheckResult.rows[0]
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get tip_history info', details: error.message });
+  }
+});
+
 // Recalculate earnings for all users in user_profiles (USDC only)
 app.post('/api/recalculate-earnings', async (req, res) => {
   try {
