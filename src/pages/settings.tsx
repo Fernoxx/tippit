@@ -4,7 +4,6 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import { useEcion } from '@/hooks/usePIT';
 import { formatAmount } from '@/utils/contracts';
 import toast from 'react-hot-toast';
-import ClientDetection from '@/components/ClientDetection';
 import {
   DollarSign,
   Shield,
@@ -317,7 +316,6 @@ export default function Settings() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 bg-yellow-50 min-h-full">
-      <ClientDetection />
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
