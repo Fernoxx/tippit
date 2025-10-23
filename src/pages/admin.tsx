@@ -120,6 +120,34 @@ export default function Admin() {
     }
   };
 
+  const runCompleteMigration = async () => {
+    try {
+      setIsMigrating(true);
+      setMigrationResult(null);
+      
+      const response = await fetch(`${BACKEND_URL}/api/migrate-complete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        setMigrationResult(`Complete migration finished! Profiles: ${result.profiles}, Earnings: ${result.earnings}, Errors: ${result.errors}`);
+        // Refresh admin data after migration
+        fetchAdminData();
+      } else {
+        const error = await response.json();
+        setMigrationResult(`Complete migration failed: ${error.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      setMigrationResult(`Complete migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsMigrating(false);
+    }
+  };
+
   const fetchAdminData = async () => {
     try {
       setIsLoading(true);
@@ -252,6 +280,25 @@ export default function Admin() {
             }`}
           >
             {isMigrating ? 'Migrating Earnings...' : 'Run Earnings Migration'}
+          </button>
+        </div>
+
+        {/* Complete Migration Section */}
+        <div className="bg-white p-6 rounded-lg shadow border-2 border-purple-200">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">🚀 Complete Migration (Recommended)</h2>
+          <p className="text-gray-600 mb-4">
+            Get all addresses from tip_history → Fetch user data from Neynar → Calculate earnings/tippings → Save everything to user_profiles in one go.
+          </p>
+          <button
+            onClick={runCompleteMigration}
+            disabled={isMigrating}
+            className={`px-6 py-3 rounded-lg font-medium ${
+              isMigrating
+                ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                : 'bg-purple-600 text-white hover:bg-purple-700'
+            }`}
+          >
+            {isMigrating ? 'Running Complete Migration...' : 'Run Complete Migration'}
           </button>
         </div>
 

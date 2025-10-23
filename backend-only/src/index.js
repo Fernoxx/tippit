@@ -4658,10 +4658,10 @@ app.get('/api/debug/table-structure', async (req, res) => {
   }
 });
 
-// Migration endpoint to populate user_profiles from tip_history addresses
-app.post('/api/migrate-user-profiles', async (req, res) => {
+// Complete migration endpoint - profiles + earnings in one go
+app.post('/api/migrate-complete', async (req, res) => {
   try {
-    console.log('🚀 Starting user profiles migration...');
+    console.log('🚀 Starting complete migration (profiles + earnings)...');
     
     // Get all unique addresses from tip_history
     const addressesResult = await database.pool.query(`
@@ -4685,7 +4685,8 @@ app.post('/api/migrate-user-profiles', async (req, res) => {
     
     // Process addresses in batches of 350 (Neynar API limit)
     const batchSize = 350;
-    let successCount = 0;
+    let profileCount = 0;
+    let earningsCount = 0;
     let errorCount = 0;
     
     for (let i = 0; i < addresses.length; i += batchSize) {
@@ -4693,6 +4694,7 @@ app.post('/api/migrate-user-profiles', async (req, res) => {
       console.log(`🔍 Processing batch ${Math.floor(i/batchSize) + 1}: ${batch.length} addresses`);
       
       try {
+        // Get user profiles from Neynar
         const neynarResponse = await neynar.fetchBulkUsersByEthOrSolAddress(batch);
         console.log(`📊 Neynar response for batch:`, Object.keys(neynarResponse).length, 'users found');
         
@@ -4701,21 +4703,75 @@ app.post('/api/migrate-user-profiles', async (req, res) => {
           if (users && users.length > 0) {
             const user = users[0]; // Take the first user if multiple
             console.log(`💾 Saving user: FID ${user.fid}, username: ${user.username}, address: ${address}`);
-            const success = await database.saveUserProfile(
+            
+            // Save user profile
+            const profileSuccess = await database.saveUserProfile(
               user.fid,
               user.username,
               user.display_name,
               user.pfp?.url || user.pfp_url,
               user.follower_count || 0,
-              address // Save the address too
+              address
             );
             
-            if (success) {
-              successCount++;
-              console.log(`✅ Successfully saved FID ${user.fid}`);
+            if (profileSuccess) {
+              profileCount++;
+              console.log(`✅ Successfully saved profile for FID ${user.fid}`);
+              
+              // Now calculate and save earnings for this address
+              try {
+                const earningsResult = await database.pool.query(`
+                  SELECT 
+                    SUM(CASE WHEN to_address = $1 THEN amount ELSE 0 END) as total_earnings,
+                    SUM(CASE WHEN from_address = $1 THEN amount ELSE 0 END) as total_tippings,
+                    SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '24 hours' THEN amount ELSE 0 END) as earnings_24h,
+                    SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '24 hours' THEN amount ELSE 0 END) as tippings_24h,
+                    SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '7 days' THEN amount ELSE 0 END) as earnings_7d,
+                    SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '7 days' THEN amount ELSE 0 END) as tippings_7d,
+                    SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '30 days' THEN amount ELSE 0 END) as earnings_30d,
+                    SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '30 days' THEN amount ELSE 0 END) as tippings_30d
+                  FROM tip_history 
+                  WHERE (to_address = $1 OR from_address = $1)
+                    AND token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+                `, [address]);
+                
+                const stats = earningsResult.rows[0];
+                const totalEarnings = parseFloat(stats.total_earnings) || 0;
+                const totalTippings = parseFloat(stats.total_tippings) || 0;
+                
+                // Update earnings data
+                await database.pool.query(`
+                  UPDATE user_profiles SET 
+                    total_earnings = $1,
+                    total_tippings = $2,
+                    earnings_24h = $3,
+                    tippings_24h = $4,
+                    earnings_7d = $5,
+                    tippings_7d = $6,
+                    earnings_30d = $7,
+                    tippings_30d = $8,
+                    updated_at = NOW()
+                  WHERE user_address = $9
+                `, [
+                  totalEarnings,
+                  totalTippings,
+                  parseFloat(stats.earnings_24h) || 0,
+                  parseFloat(stats.tippings_24h) || 0,
+                  parseFloat(stats.earnings_7d) || 0,
+                  parseFloat(stats.tippings_7d) || 0,
+                  parseFloat(stats.earnings_30d) || 0,
+                  parseFloat(stats.tippings_30d) || 0,
+                  address
+                ]);
+                
+                earningsCount++;
+                console.log(`✅ Updated earnings for ${address}: ${totalEarnings} earned, ${totalTippings} tipped`);
+              } catch (earningsError) {
+                console.error(`❌ Error updating earnings for ${address}:`, earningsError);
+              }
             } else {
               errorCount++;
-              console.log(`❌ Failed to save FID ${user.fid}`);
+              console.log(`❌ Failed to save profile for FID ${user.fid}`);
             }
           } else {
             console.log(`⚠️ No user data found for address: ${address}`);
@@ -4727,18 +4783,19 @@ app.post('/api/migrate-user-profiles', async (req, res) => {
       }
     }
     
-    console.log(`🎉 Migration completed! Migrated ${successCount} users, ${errorCount} errors`);
+    console.log(`🎉 Complete migration finished! Profiles: ${profileCount}, Earnings: ${earningsCount}, Errors: ${errorCount}`);
     res.json({ 
       success: true, 
-      message: `Migration completed! Migrated ${successCount} users, ${errorCount} errors`,
-      migrated: successCount,
+      message: `Complete migration finished! Profiles: ${profileCount}, Earnings: ${earningsCount}, Errors: ${errorCount}`,
+      profiles: profileCount,
+      earnings: earningsCount,
       errors: errorCount,
       total: addresses.length
     });
     
   } catch (error) {
-    console.error('Migration error:', error);
-    res.status(500).json({ error: 'Migration failed', details: error.message });
+    console.error('Complete migration error:', error);
+    res.status(500).json({ error: 'Complete migration failed', details: error.message });
   }
 });
 
