@@ -4205,6 +4205,63 @@ app.get('/api/user-profile/:fid', async (req, res) => {
   }
 });
 
+// Initialize user earnings endpoint
+app.post('/api/initialize-user-earnings/:fid', async (req, res) => {
+  try {
+    const { fid } = req.params;
+    console.log(`🔄 Initializing user earnings for FID: ${fid}`);
+    
+    // Get user's wallet address
+    const userAddressResult = await database.pool.query(`
+      SELECT user_address FROM user_configs WHERE fid = $1 LIMIT 1
+    `, [fid]);
+    
+    if (userAddressResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User wallet address not found' });
+    }
+    
+    const userAddress = userAddressResult.rows[0].user_address;
+    console.log(`💰 User wallet address: ${userAddress}`);
+    
+    // Calculate earnings and tippings from tip history
+    const tipHistoryResult = await database.pool.query(`
+      SELECT 
+        SUM(CASE WHEN LOWER(to_address) = LOWER($2) THEN CAST(amount AS DECIMAL) ELSE 0 END) as total_earnings,
+        SUM(CASE WHEN LOWER(from_address) = LOWER($2) THEN CAST(amount AS DECIMAL) ELSE 0 END) as total_tippings
+      FROM tip_history 
+      WHERE LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+    `, [fid, userAddress]);
+    
+    const totalEarnings = parseFloat(tipHistoryResult.rows[0]?.total_earnings || 0);
+    const totalTippings = parseFloat(tipHistoryResult.rows[0]?.total_tippings || 0);
+    
+    console.log(`📊 Calculated earnings: ${totalEarnings}, tippings: ${totalTippings}`);
+    
+    // Insert or update user earnings
+    await database.pool.query(`
+      INSERT INTO user_earnings (fid, total_earnings, total_tippings, last_updated)
+      VALUES ($1, $2, $3, NOW())
+      ON CONFLICT (fid) DO UPDATE SET
+        total_earnings = EXCLUDED.total_earnings,
+        total_tippings = EXCLUDED.total_tippings,
+        last_updated = NOW()
+    `, [fid, totalEarnings, totalTippings]);
+    
+    res.json({ 
+      success: true, 
+      message: 'User earnings initialized',
+      data: {
+        fid: parseInt(fid),
+        totalEarnings,
+        totalTippings
+      }
+    });
+  } catch (error) {
+    console.error('Error initializing user earnings:', error);
+    res.status(500).json({ error: 'Failed to initialize user earnings' });
+  }
+});
+
 // Test endpoint to simulate a tip (for debugging leaderboard updates)
 app.post('/api/debug/simulate-tip', async (req, res) => {
   try {

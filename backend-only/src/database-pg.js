@@ -579,7 +579,73 @@ class PostgresDatabase {
       console.log(`📊 User earnings query result:`, result.rows);
       
       if (result.rows.length === 0) {
-        console.log(`❌ No user earnings found for FID: ${fid}, returning zeros`);
+        console.log(`❌ No user earnings found for FID: ${fid}, checking if user has tip history...`);
+        
+        // First check if user has a wallet address linked to their FID
+        const userAddressResult = await this.pool.query(`
+          SELECT user_address FROM user_configs WHERE fid = $1 LIMIT 1
+        `, [fid]);
+        
+        console.log(`🔍 User address for FID ${fid}:`, userAddressResult.rows);
+        
+        if (userAddressResult.rows.length === 0) {
+          console.log(`❌ No wallet address found for FID: ${fid}`);
+          return {
+            fid,
+            totalEarnings: 0,
+            earnings24h: 0,
+            earnings7d: 0,
+            earnings30d: 0,
+            totalTippings: 0,
+            tippings24h: 0,
+            tippings7d: 0,
+            tippings30d: 0
+          };
+        }
+        
+        const userAddress = userAddressResult.rows[0].user_address;
+        console.log(`💰 User wallet address: ${userAddress}`);
+        
+        // Check if user has any tip history to initialize earnings
+        const tipHistoryResult = await this.pool.query(`
+          SELECT 
+            SUM(CASE WHEN LOWER(to_address) = LOWER($2) THEN CAST(amount AS DECIMAL) ELSE 0 END) as total_earnings,
+            SUM(CASE WHEN LOWER(from_address) = LOWER($2) THEN CAST(amount AS DECIMAL) ELSE 0 END) as total_tippings
+          FROM tip_history 
+          WHERE LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+        `, [fid, userAddress]);
+        
+        console.log(`📊 Tip history check result:`, tipHistoryResult.rows[0]);
+        
+        const totalEarnings = parseFloat(tipHistoryResult.rows[0]?.total_earnings || 0);
+        const totalTippings = parseFloat(tipHistoryResult.rows[0]?.total_tippings || 0);
+        
+        if (totalEarnings > 0 || totalTippings > 0) {
+          console.log(`🔄 Initializing user earnings for FID: ${fid} with data from tip history`);
+          // Initialize user earnings with data from tip history
+          await this.pool.query(`
+            INSERT INTO user_earnings (fid, total_earnings, total_tippings, last_updated)
+            VALUES ($1, $2, $3, NOW())
+            ON CONFLICT (fid) DO UPDATE SET
+              total_earnings = EXCLUDED.total_earnings,
+              total_tippings = EXCLUDED.total_tippings,
+              last_updated = NOW()
+          `, [fid, totalEarnings, totalTippings]);
+          
+          return {
+            fid,
+            totalEarnings,
+            earnings24h: 0,
+            earnings7d: 0,
+            earnings30d: 0,
+            totalTippings,
+            tippings24h: 0,
+            tippings7d: 0,
+            tippings30d: 0
+          };
+        }
+        
+        console.log(`❌ No tip history found for FID: ${fid}, returning zeros`);
         return {
           fid,
           totalEarnings: 0,
