@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useFarcasterWallet } from './useFarcasterWallet';
+import { useFarcasterSDK } from './useFarcasterSDK';
 import { toast } from 'react-hot-toast';
 import { useWriteContract, useReadContract, useWaitForTransactionReceipt } from 'wagmi';
 import { parseUnits, formatUnits } from 'viem';
@@ -564,7 +565,11 @@ export const useLeaderboardData = (timeFilter: 'total' | '24h' | '7d' | '30d' = 
   const [hasMore, setHasMore] = useState(false);
   
   // Get current user FID from the hook
-  const { currentUser } = useFarcasterWallet();
+  const { currentUser: walletUser } = useFarcasterWallet();
+  const { currentUser: sdkUser } = useFarcasterSDK();
+  
+  // Use SDK user if available, otherwise fall back to wallet user
+  const currentUser = sdkUser || walletUser;
   const userFid = currentUser?.fid;
 
   useEffect(() => {
