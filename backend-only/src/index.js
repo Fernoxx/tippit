@@ -4075,6 +4075,128 @@ app.get('/api/share/:fid', async (req, res) => {
   }
 });
 
+// Embed image generation endpoint (3:2 aspect ratio - 600x400px)
+app.get('/api/embed-image/:fid', async (req, res) => {
+  try {
+    const { fid } = req.params;
+    const { time = 'total', type = 'earnings' } = req.query;
+    
+    // Get user earnings data
+    const userStats = await database.getUserEarnings(parseInt(fid));
+    if (!userStats) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Get user profile data
+    const { getUserDataByFid } = require('./neynar');
+    const userProfile = await getUserDataByFid(parseInt(fid));
+    
+    // Get amount based on time and type
+    let amount = 0;
+    let timeLabel = '';
+    
+    switch (time) {
+      case '24h':
+        amount = type === 'earnings' ? userStats.earnings24h : userStats.tippings24h;
+        timeLabel = '24h';
+        break;
+      case '7d':
+        amount = type === 'earnings' ? userStats.earnings7d : userStats.tippings7d;
+        timeLabel = '7d';
+        break;
+      case '30d':
+        amount = type === 'earnings' ? userStats.earnings30d : userStats.tippings30d;
+        timeLabel = '30d';
+        break;
+      case 'total':
+      default:
+        amount = type === 'earnings' ? userStats.totalEarnings : userStats.totalTippings;
+        timeLabel = 'Total';
+        break;
+    }
+    
+    // Generate SVG image (3:2 aspect ratio - 600x400px)
+    const svg = `
+      <svg width="600" height="400" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#FFD700;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#FFA500;stop-opacity:1" />
+          </linearGradient>
+        </defs>
+        <rect width="600" height="400" fill="url(#bg)"/>
+        
+        <!-- User Avatar -->
+        <circle cx="100" cy="100" r="60" fill="#333" stroke="#fff" stroke-width="4"/>
+        <text x="100" y="110" font-family="Arial, sans-serif" font-size="24" fill="#fff" text-anchor="middle">👤</text>
+        
+        <!-- Username -->
+        <text x="200" y="80" font-family="Arial, sans-serif" font-size="32" font-weight="bold" fill="#000">
+          ${userProfile?.username || 'User'}
+        </text>
+        
+        <!-- Amount -->
+        <text x="200" y="130" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="#000">
+          ${amount.toFixed(2)} USDC
+        </text>
+        
+        <!-- Type and Time -->
+        <text x="200" y="170" font-family="Arial, sans-serif" font-size="24" fill="#000">
+          ${type === 'earnings' ? 'Earned' : 'Tipped'} in ${timeLabel}
+        </text>
+        
+        <!-- Ecion Logo -->
+        <text x="500" y="350" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#000">
+          Ecion
+        </text>
+      </svg>
+    `;
+    
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
+    res.send(svg);
+    
+  } catch (error) {
+    console.error('Error generating embed image:', error);
+    res.status(500).json({ error: 'Failed to generate embed image' });
+  }
+});
+
+// User earnings endpoint
+app.get('/api/user-earnings/:fid', async (req, res) => {
+  try {
+    const { fid } = req.params;
+    const userStats = await database.getUserEarnings(parseInt(fid));
+    
+    if (!userStats) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json(userStats);
+  } catch (error) {
+    console.error('Error fetching user earnings:', error);
+    res.status(500).json({ error: 'Failed to fetch user earnings' });
+  }
+});
+
+// User profile endpoint
+app.get('/api/user-profile/:fid', async (req, res) => {
+  try {
+    const { fid } = req.params;
+    const { getUserDataByFid } = require('./neynar');
+    const userProfile = await getUserDataByFid(parseInt(fid));
+    
+    if (!userProfile) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json(userProfile);
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    res.status(500).json({ error: 'Failed to fetch user profile' });
+  }
+});
+
 // Test endpoint to simulate a tip (for debugging leaderboard updates)
 app.post('/api/debug/simulate-tip', async (req, res) => {
   try {

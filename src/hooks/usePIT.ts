@@ -550,13 +550,14 @@ export const useHomepageData = (timeFilter: '24h' | '7d' | '30d' = '24h') => {
   };
 };
 
-export const useLeaderboardData = (timeFilter: '24h' | '7d' | '30d' = '24h') => {
+export const useLeaderboardData = (timeFilter: 'total' | '24h' | '7d' | '30d' = 'total') => {
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardData>({ 
     tippers: [], 
     earners: [], 
     users: [], 
     amounts: [] 
   });
+  const [userStats, setUserStats] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -576,7 +577,16 @@ export const useLeaderboardData = (timeFilter: '24h' | '7d' | '30d' = '24h') => 
     }
     
     try {
-      const response = await fetch(`${BACKEND_URL}/api/leaderboard?timeFilter=${timeFilter}&page=${page}&limit=10`);
+      // Get current user FID for userStats
+      const { useFarcasterWallet } = await import('@/hooks/useFarcasterWallet');
+      const { currentUser } = useFarcasterWallet();
+      const userFid = currentUser?.fid;
+      
+      const url = userFid 
+        ? `${BACKEND_URL}/api/leaderboard?timeFilter=${timeFilter}&page=${page}&limit=10&userFid=${userFid}`
+        : `${BACKEND_URL}/api/leaderboard?timeFilter=${timeFilter}&page=${page}&limit=10`;
+        
+      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
         
@@ -588,6 +598,7 @@ export const useLeaderboardData = (timeFilter: '24h' | '7d' | '30d' = '24h') => 
             users: data.users || [],
             amounts: data.amounts || []
           });
+          setUserStats(data.userStats || null);
         } else {
           // Append data for subsequent pages
           setLeaderboardData(prev => ({
@@ -610,6 +621,7 @@ export const useLeaderboardData = (timeFilter: '24h' | '7d' | '30d' = '24h') => 
           users: [],
           amounts: []
         });
+        setUserStats(null);
       }
     }
     
@@ -625,6 +637,7 @@ export const useLeaderboardData = (timeFilter: '24h' | '7d' | '30d' = '24h') => 
 
   return { 
     ...leaderboardData, 
+    userStats,
     isLoading, 
     isLoadingMore,
     hasMore,
