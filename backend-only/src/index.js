@@ -2928,17 +2928,40 @@ app.get('/api/leaderboard', async (req, res) => {
           followerCount: profile.follower_count || 0
         });
       } else {
-        // Fallback to showing truncated address or FID
-        const displayName = tipper.userAddress ? 
-          `${tipper.userAddress.slice(0, 6)}...${tipper.userAddress.slice(-4)}` : 
-          `FID ${tipper.fid}`;
-        enrichedTippers.push({
-          ...tipper,
-          username: `fid_${tipper.fid}`,
-          displayName: displayName,
-          pfpUrl: null,
-          followerCount: 0
-        });
+        // Try to get user data from Neynar API if we have userAddress
+        let userData = null;
+        if (tipper.userAddress) {
+          try {
+            console.log(`🔍 Fetching Neynar data for address: ${tipper.userAddress}`);
+            userData = await neynar.getUserDataByAddress(tipper.userAddress);
+            console.log(`📊 Neynar data for ${tipper.userAddress}:`, userData);
+          } catch (error) {
+            console.log(`❌ Failed to fetch Neynar data for ${tipper.userAddress}:`, error.message);
+          }
+        }
+        
+        if (userData) {
+          // Use Neynar data
+          enrichedTippers.push({
+            ...tipper,
+            username: userData.username || `fid_${tipper.fid}`,
+            displayName: userData.display_name || userData.username || `FID ${tipper.fid}`,
+            pfpUrl: userData.pfp_url || null,
+            followerCount: userData.follower_count || 0
+          });
+        } else {
+          // Fallback to showing truncated address or FID
+          const displayName = tipper.userAddress ? 
+            `${tipper.userAddress.slice(0, 6)}...${tipper.userAddress.slice(-4)}` : 
+            `FID ${tipper.fid}`;
+          enrichedTippers.push({
+            ...tipper,
+            username: `fid_${tipper.fid}`,
+            displayName: displayName,
+            pfpUrl: null,
+            followerCount: 0
+          });
+        }
       }
     }
     
@@ -2962,17 +2985,40 @@ app.get('/api/leaderboard', async (req, res) => {
           followerCount: profile.follower_count || 0
         });
       } else {
-        // Fallback to showing truncated address
-        const displayName = earner.userAddress ? 
-          `${earner.userAddress.slice(0, 6)}...${earner.userAddress.slice(-4)}` : 
-          `FID ${earner.fid}`;
-        enrichedEarners.push({
-          ...earner,
-          username: `fid_${earner.fid}`,
-          displayName: displayName,
-          pfpUrl: null,
-          followerCount: 0
-        });
+        // Try to get user data from Neynar API if we have userAddress
+        let userData = null;
+        if (earner.userAddress) {
+          try {
+            console.log(`🔍 Fetching Neynar data for address: ${earner.userAddress}`);
+            userData = await neynar.getUserDataByAddress(earner.userAddress);
+            console.log(`📊 Neynar data for ${earner.userAddress}:`, userData);
+          } catch (error) {
+            console.log(`❌ Failed to fetch Neynar data for ${earner.userAddress}:`, error.message);
+          }
+        }
+        
+        if (userData) {
+          // Use Neynar data
+          enrichedEarners.push({
+            ...earner,
+            username: userData.username || `fid_${earner.fid}`,
+            displayName: userData.display_name || userData.username || `FID ${earner.fid}`,
+            pfpUrl: userData.pfp_url || null,
+            followerCount: userData.follower_count || 0
+          });
+        } else {
+          // Fallback to showing truncated address or FID
+          const displayName = earner.userAddress ? 
+            `${earner.userAddress.slice(0, 6)}...${earner.userAddress.slice(-4)}` : 
+            `FID ${earner.fid}`;
+          enrichedEarners.push({
+            ...earner,
+            username: `fid_${earner.fid}`,
+            displayName: displayName,
+            pfpUrl: null,
+            followerCount: 0
+          });
+        }
       }
     }
     
