@@ -4702,6 +4702,30 @@ app.get('/api/debug/tip-history', async (req, res) => {
   }
 });
 
+// Simple test to check data types
+app.get('/api/test-data-types', async (req, res) => {
+  try {
+    const result = await database.pool.query(`
+      SELECT 
+        pg_typeof(amount) as amount_type,
+        amount,
+        id,
+        from_address,
+        to_address
+      FROM tip_history 
+      WHERE token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+      LIMIT 5
+    `);
+    
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to check data types', details: error.message });
+  }
+});
+
 // Recalculate earnings for all users in user_profiles (USDC only)
 app.post('/api/recalculate-earnings', async (req, res) => {
   try {
