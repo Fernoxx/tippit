@@ -516,8 +516,26 @@ class PostgresDatabase {
 
   async getFidFromAddress(userAddress) {
     try {
-      // This is a placeholder - you'll need to implement proper FID lookup
-      // For now, return a hash of the address as FID
+      // Look up FID from Neynar API
+      const response = await fetch(
+        `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${userAddress}`,
+        {
+          headers: { 
+            'x-api-key': process.env.NEYNAR_API_KEY,
+            'x-neynar-experimental': 'false'
+          }
+        }
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        const user = data[userAddress]?.[0];
+        if (user && user.fid) {
+          return user.fid;
+        }
+      }
+      
+      // Fallback to hash if Neynar lookup fails
       return Math.abs(userAddress.split('').reduce((a, b) => {
         a = ((a << 5) - a) + b.charCodeAt(0);
         return a & a;
