@@ -4571,7 +4571,7 @@ app.post('/api/test-migration', async (req, res) => {
     console.log('🧪 Testing migration with 1 address...');
     
     // Import neynar functions
-    const { fetchBulkUsersByEthOrSolAddress } = require('./neynar');
+    const { getUserDataByAddress } = require('./neynar');
     
     // First check table structure
     const tableInfo = await database.pool.query(`
@@ -4598,7 +4598,7 @@ app.post('/api/test-migration', async (req, res) => {
     console.log(`🧪 Testing with address: ${testAddress}`);
     
     // Test Neynar API call
-    const neynarResponse = await fetchBulkUsersByEthOrSolAddress([testAddress]);
+    const neynarResponse = await getUserDataByAddress(testAddress);
     console.log(`🧪 Neynar response:`, JSON.stringify(neynarResponse, null, 2));
     
     // Test database save
