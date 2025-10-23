@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 
 interface FarcasterUser {
   fid: number;
-  username: string;
-  displayName: string;
-  pfpUrl: string;
+  username?: string;
+  displayName?: string;
+  pfpUrl?: string;
 }
 
 interface FarcasterContext {
@@ -36,14 +36,14 @@ export function useFarcasterSDK() {
         const { sdk } = await import('@farcaster/miniapp-sdk');
         
         // Get user context
-        const context: FarcasterContext = await sdk.context;
+        const context = await sdk.context;
         
         if (context?.user) {
           const userData = {
             fid: context.user.fid,
-            username: context.user.username,
-            displayName: context.user.displayName,
-            pfpUrl: context.user.pfpUrl
+            username: context.user.username || '',
+            displayName: context.user.displayName || '',
+            pfpUrl: context.user.pfpUrl || ''
           };
           
           setCurrentUser(userData);
