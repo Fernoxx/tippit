@@ -334,31 +334,70 @@ class PostgresDatabase {
 
   async getTopTippers(timeFilter = 'total') {
     try {
-      let columnName;
-      switch (timeFilter) {
-        case '24h': columnName = 'tippings_24h'; break;
-        case '7d': columnName = 'tippings_7d'; break;
-        case '30d': columnName = 'tippings_30d'; break;
-        case 'total': 
-        default: columnName = 'total_tippings'; break;
+      // First check if user_earnings has data
+      const earningsCount = await this.pool.query('SELECT COUNT(*) FROM user_earnings');
+      const hasEarningsData = parseInt(earningsCount.rows[0].count) > 0;
+      
+      if (hasEarningsData) {
+        // Use user_earnings table
+        let columnName;
+        switch (timeFilter) {
+          case '24h': columnName = 'tippings_24h'; break;
+          case '7d': columnName = 'tippings_7d'; break;
+          case '30d': columnName = 'tippings_30d'; break;
+          case 'total': 
+          default: columnName = 'total_tippings'; break;
+        }
+        
+        const result = await this.pool.query(`
+          SELECT 
+            ue.fid,
+            ue.${columnName} as total_amount,
+            ue.last_updated
+          FROM user_earnings ue
+          WHERE ue.${columnName} > 0
+          ORDER BY ue.${columnName} DESC 
+          LIMIT 50
+        `);
+        
+        return result.rows.map(row => ({
+          fid: row.fid,
+          totalAmount: parseFloat(row.total_amount),
+          lastUpdated: row.last_updated
+        }));
+      } else {
+        // Fallback to tip_history calculation
+        console.log('📊 user_earnings empty, calculating from tip_history...');
+        let timeCondition = '';
+        switch (timeFilter) {
+          case '24h': timeCondition = "AND created_at >= NOW() - INTERVAL '24 hours'"; break;
+          case '7d': timeCondition = "AND created_at >= NOW() - INTERVAL '7 days'"; break;
+          case '30d': timeCondition = "AND created_at >= NOW() - INTERVAL '30 days'"; break;
+          case 'total': 
+          default: timeCondition = ''; break;
+        }
+        
+        const result = await this.pool.query(`
+          SELECT 
+            uc.fid,
+            SUM(CAST(th.amount AS DECIMAL)) as total_amount,
+            MAX(th.created_at) as last_updated
+          FROM tip_history th
+          JOIN user_configs uc ON LOWER(uc.user_address) = LOWER(th.from_address)
+          WHERE LOWER(th.token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+          ${timeCondition}
+          GROUP BY uc.fid
+          HAVING SUM(CAST(th.amount AS DECIMAL)) > 0
+          ORDER BY total_amount DESC
+          LIMIT 50
+        `);
+        
+        return result.rows.map(row => ({
+          fid: row.fid,
+          totalAmount: parseFloat(row.total_amount),
+          lastUpdated: row.last_updated
+        }));
       }
-      
-      const result = await this.pool.query(`
-        SELECT 
-          ue.fid,
-          ue.${columnName} as total_amount,
-          ue.last_updated
-        FROM user_earnings ue
-        WHERE ue.${columnName} > 0
-        ORDER BY ue.${columnName} DESC 
-        LIMIT 50
-      `);
-      
-      return result.rows.map(row => ({
-        fid: row.fid,
-        totalAmount: parseFloat(row.total_amount),
-        lastUpdated: row.last_updated
-      }));
     } catch (error) {
       console.error('Error getting top tippers:', error);
       return [];
@@ -367,31 +406,70 @@ class PostgresDatabase {
 
   async getTopEarners(timeFilter = 'total') {
     try {
-      let columnName;
-      switch (timeFilter) {
-        case '24h': columnName = 'earnings_24h'; break;
-        case '7d': columnName = 'earnings_7d'; break;
-        case '30d': columnName = 'earnings_30d'; break;
-        case 'total': 
-        default: columnName = 'total_earnings'; break;
+      // First check if user_earnings has data
+      const earningsCount = await this.pool.query('SELECT COUNT(*) FROM user_earnings');
+      const hasEarningsData = parseInt(earningsCount.rows[0].count) > 0;
+      
+      if (hasEarningsData) {
+        // Use user_earnings table
+        let columnName;
+        switch (timeFilter) {
+          case '24h': columnName = 'earnings_24h'; break;
+          case '7d': columnName = 'earnings_7d'; break;
+          case '30d': columnName = 'earnings_30d'; break;
+          case 'total': 
+          default: columnName = 'total_earnings'; break;
+        }
+        
+        const result = await this.pool.query(`
+          SELECT 
+            ue.fid,
+            ue.${columnName} as total_amount,
+            ue.last_updated
+          FROM user_earnings ue
+          WHERE ue.${columnName} > 0
+          ORDER BY ue.${columnName} DESC 
+          LIMIT 50
+        `);
+        
+        return result.rows.map(row => ({
+          fid: row.fid,
+          totalAmount: parseFloat(row.total_amount),
+          lastUpdated: row.last_updated
+        }));
+      } else {
+        // Fallback to tip_history calculation
+        console.log('📊 user_earnings empty, calculating from tip_history...');
+        let timeCondition = '';
+        switch (timeFilter) {
+          case '24h': timeCondition = "AND created_at >= NOW() - INTERVAL '24 hours'"; break;
+          case '7d': timeCondition = "AND created_at >= NOW() - INTERVAL '7 days'"; break;
+          case '30d': timeCondition = "AND created_at >= NOW() - INTERVAL '30 days'"; break;
+          case 'total': 
+          default: timeCondition = ''; break;
+        }
+        
+        const result = await this.pool.query(`
+          SELECT 
+            uc.fid,
+            SUM(CAST(th.amount AS DECIMAL)) as total_amount,
+            MAX(th.created_at) as last_updated
+          FROM tip_history th
+          JOIN user_configs uc ON LOWER(uc.user_address) = LOWER(th.to_address)
+          WHERE LOWER(th.token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+          ${timeCondition}
+          GROUP BY uc.fid
+          HAVING SUM(CAST(th.amount AS DECIMAL)) > 0
+          ORDER BY total_amount DESC
+          LIMIT 50
+        `);
+        
+        return result.rows.map(row => ({
+          fid: row.fid,
+          totalAmount: parseFloat(row.total_amount),
+          lastUpdated: row.last_updated
+        }));
       }
-      
-      const result = await this.pool.query(`
-        SELECT 
-          ue.fid,
-          ue.${columnName} as total_amount,
-          ue.last_updated
-        FROM user_earnings ue
-        WHERE ue.${columnName} > 0
-        ORDER BY ue.${columnName} DESC 
-        LIMIT 50
-      `);
-      
-      return result.rows.map(row => ({
-        fid: row.fid,
-        totalAmount: parseFloat(row.total_amount),
-        lastUpdated: row.last_updated
-      }));
     } catch (error) {
       console.error('Error getting top earners:', error);
       return [];
@@ -606,11 +684,17 @@ class PostgresDatabase {
         const userAddress = userAddressResult.rows[0].user_address;
         console.log(`💰 User wallet address: ${userAddress}`);
         
-        // Check if user has any tip history to initialize earnings
+        // Calculate all time periods from tip_history
         const tipHistoryResult = await this.pool.query(`
           SELECT 
             SUM(CASE WHEN LOWER(to_address) = LOWER($2) THEN CAST(amount AS DECIMAL) ELSE 0 END) as total_earnings,
-            SUM(CASE WHEN LOWER(from_address) = LOWER($2) THEN CAST(amount AS DECIMAL) ELSE 0 END) as total_tippings
+            SUM(CASE WHEN LOWER(to_address) = LOWER($2) AND created_at >= NOW() - INTERVAL '24 hours' THEN CAST(amount AS DECIMAL) ELSE 0 END) as earnings_24h,
+            SUM(CASE WHEN LOWER(to_address) = LOWER($2) AND created_at >= NOW() - INTERVAL '7 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as earnings_7d,
+            SUM(CASE WHEN LOWER(to_address) = LOWER($2) AND created_at >= NOW() - INTERVAL '30 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as earnings_30d,
+            SUM(CASE WHEN LOWER(from_address) = LOWER($2) THEN CAST(amount AS DECIMAL) ELSE 0 END) as total_tippings,
+            SUM(CASE WHEN LOWER(from_address) = LOWER($2) AND created_at >= NOW() - INTERVAL '24 hours' THEN CAST(amount AS DECIMAL) ELSE 0 END) as tippings_24h,
+            SUM(CASE WHEN LOWER(from_address) = LOWER($2) AND created_at >= NOW() - INTERVAL '7 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as tippings_7d,
+            SUM(CASE WHEN LOWER(from_address) = LOWER($2) AND created_at >= NOW() - INTERVAL '30 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as tippings_30d
           FROM tip_history 
           WHERE LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
         `, [fid, userAddress]);
@@ -618,32 +702,27 @@ class PostgresDatabase {
         console.log(`📊 Tip history check result:`, tipHistoryResult.rows[0]);
         
         const totalEarnings = parseFloat(tipHistoryResult.rows[0]?.total_earnings || 0);
+        const earnings24h = parseFloat(tipHistoryResult.rows[0]?.earnings_24h || 0);
+        const earnings7d = parseFloat(tipHistoryResult.rows[0]?.earnings_7d || 0);
+        const earnings30d = parseFloat(tipHistoryResult.rows[0]?.earnings_30d || 0);
         const totalTippings = parseFloat(tipHistoryResult.rows[0]?.total_tippings || 0);
+        const tippings24h = parseFloat(tipHistoryResult.rows[0]?.tippings_24h || 0);
+        const tippings7d = parseFloat(tipHistoryResult.rows[0]?.tippings_7d || 0);
+        const tippings30d = parseFloat(tipHistoryResult.rows[0]?.tippings_30d || 0);
         
-        if (totalEarnings > 0 || totalTippings > 0) {
-          console.log(`🔄 Initializing user earnings for FID: ${fid} with data from tip history`);
-          // Initialize user earnings with data from tip history
-          await this.pool.query(`
-            INSERT INTO user_earnings (fid, total_earnings, total_tippings, last_updated)
-            VALUES ($1, $2, $3, NOW())
-            ON CONFLICT (fid) DO UPDATE SET
-              total_earnings = EXCLUDED.total_earnings,
-              total_tippings = EXCLUDED.total_tippings,
-              last_updated = NOW()
-          `, [fid, totalEarnings, totalTippings]);
-          
-          return {
-            fid,
-            totalEarnings,
-            earnings24h: 0,
-            earnings7d: 0,
-            earnings30d: 0,
-            totalTippings,
-            tippings24h: 0,
-            tippings7d: 0,
-            tippings30d: 0
-          };
-        }
+        console.log(`📈 Calculated from tip_history - Earnings: ${totalEarnings}, Tippings: ${totalTippings}`);
+        
+        return {
+          fid,
+          totalEarnings,
+          earnings24h,
+          earnings7d,
+          earnings30d,
+          totalTippings,
+          tippings24h,
+          tippings7d,
+          tippings30d
+        };
         
         console.log(`❌ No tip history found for FID: ${fid}, returning zeros`);
         return {
