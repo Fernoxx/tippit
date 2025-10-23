@@ -148,6 +148,34 @@ export default function Admin() {
     }
   };
 
+  const runMissingMigration = async () => {
+    try {
+      setIsMigrating(true);
+      setMigrationResult(null);
+      
+      const response = await fetch(`${BACKEND_URL}/api/migrate-missing`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        setMigrationResult(`Missing migration finished! Total: ${result.total}, Existing: ${result.existing}, Missing: ${result.missing}, Profiles: ${result.profiles}, Earnings: ${result.earnings}, Errors: ${result.errors}`);
+        // Refresh admin data after migration
+        fetchAdminData();
+      } else {
+        const error = await response.json();
+        setMigrationResult(`Missing migration failed: ${error.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      setMigrationResult(`Missing migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsMigrating(false);
+    }
+  };
+
   const fetchAdminData = async () => {
     try {
       setIsLoading(true);
@@ -299,6 +327,25 @@ export default function Admin() {
             }`}
           >
             {isMigrating ? 'Running Complete Migration...' : 'Run Complete Migration'}
+          </button>
+        </div>
+
+        {/* Missing Addresses Migration Section */}
+        <div className="bg-white p-6 rounded-lg shadow border-2 border-orange-200">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">🔍 Migrate Missing Addresses</h2>
+          <p className="text-gray-600 mb-4">
+            Find addresses that are in tip_history but NOT in user_profiles and migrate only those missing ones.
+          </p>
+          <button
+            onClick={runMissingMigration}
+            disabled={isMigrating}
+            className={`px-6 py-3 rounded-lg font-medium ${
+              isMigrating
+                ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                : 'bg-orange-600 text-white hover:bg-orange-700'
+            }`}
+          >
+            {isMigrating ? 'Finding Missing Addresses...' : 'Migrate Missing Addresses'}
           </button>
         </div>
 

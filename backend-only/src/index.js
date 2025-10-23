@@ -4658,6 +4658,172 @@ app.get('/api/debug/table-structure', async (req, res) => {
   }
 });
 
+// Find and migrate missing addresses
+app.post('/api/migrate-missing', async (req, res) => {
+  try {
+    console.log('🔍 Finding missing addresses...');
+    
+    // Import neynar function
+    const { fetchBulkUsersByEthOrSolAddress } = require('./neynar');
+    
+    // Get all addresses from tip_history
+    const tipHistoryResult = await database.pool.query(`
+      SELECT DISTINCT from_address, to_address 
+      FROM tip_history 
+      WHERE from_address IS NOT NULL OR to_address IS NOT NULL
+    `);
+    
+    const allTipAddresses = new Set();
+    tipHistoryResult.rows.forEach(row => {
+      if (row.from_address) allTipAddresses.add(row.from_address);
+      if (row.to_address) allTipAddresses.add(row.to_address);
+    });
+    
+    // Get all addresses from user_profiles
+    const userProfilesResult = await database.pool.query(`
+      SELECT user_address FROM user_profiles WHERE user_address IS NOT NULL
+    `);
+    
+    const existingAddresses = new Set();
+    userProfilesResult.rows.forEach(row => {
+      if (row.user_address) existingAddresses.add(row.user_address);
+    });
+    
+    // Find missing addresses
+    const missingAddresses = Array.from(allTipAddresses).filter(addr => !existingAddresses.has(addr));
+    
+    console.log(`📊 Total addresses in tip_history: ${allTipAddresses.size}`);
+    console.log(`📊 Addresses in user_profiles: ${existingAddresses.size}`);
+    console.log(`📊 Missing addresses: ${missingAddresses.length}`);
+    
+    if (missingAddresses.length === 0) {
+      return res.json({ 
+        success: true, 
+        message: 'No missing addresses found!',
+        total: allTipAddresses.size,
+        existing: existingAddresses.size,
+        missing: 0
+      });
+    }
+    
+    // Process missing addresses in batches of 350
+    const batchSize = 350;
+    let profileCount = 0;
+    let earningsCount = 0;
+    let errorCount = 0;
+    
+    for (let i = 0; i < missingAddresses.length; i += batchSize) {
+      const batch = missingAddresses.slice(i, i + batchSize);
+      console.log(`🔍 Processing missing batch ${Math.floor(i/batchSize) + 1}: ${batch.length} addresses`);
+      
+      try {
+        // Get user profiles from Neynar
+        const neynarResponse = await fetchBulkUsersByEthOrSolAddress(batch);
+        console.log(`📊 Neynar response for missing batch:`, Object.keys(neynarResponse).length, 'users found');
+        
+        // Process each user from the response
+        for (const [address, users] of Object.entries(neynarResponse)) {
+          if (users && users.length > 0) {
+            const user = users[0]; // Take the first user if multiple
+            console.log(`💾 Saving missing user: FID ${user.fid}, username: ${user.username}, address: ${address}`);
+            
+            // Save user profile
+            const profileSuccess = await database.saveUserProfile(
+              user.fid,
+              user.username,
+              user.display_name,
+              user.pfp?.url || user.pfp_url,
+              user.follower_count || 0,
+              address
+            );
+            
+            if (profileSuccess) {
+              profileCount++;
+              console.log(`✅ Successfully saved missing profile for FID ${user.fid}`);
+              
+              // Now calculate and save earnings for this address
+              try {
+                const earningsResult = await database.pool.query(`
+                  SELECT 
+                    SUM(CASE WHEN to_address = $1 THEN amount ELSE 0 END) as total_earnings,
+                    SUM(CASE WHEN from_address = $1 THEN amount ELSE 0 END) as total_tippings,
+                    SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '24 hours' THEN amount ELSE 0 END) as earnings_24h,
+                    SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '24 hours' THEN amount ELSE 0 END) as tippings_24h,
+                    SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '7 days' THEN amount ELSE 0 END) as earnings_7d,
+                    SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '7 days' THEN amount ELSE 0 END) as tippings_7d,
+                    SUM(CASE WHEN to_address = $1 AND created_at >= NOW() - INTERVAL '30 days' THEN amount ELSE 0 END) as earnings_30d,
+                    SUM(CASE WHEN from_address = $1 AND created_at >= NOW() - INTERVAL '30 days' THEN amount ELSE 0 END) as tippings_30d
+                  FROM tip_history 
+                  WHERE (to_address = $1 OR from_address = $1)
+                    AND token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+                `, [address]);
+                
+                const stats = earningsResult.rows[0];
+                const totalEarnings = parseFloat(stats.total_earnings) || 0;
+                const totalTippings = parseFloat(stats.total_tippings) || 0;
+                
+                // Update earnings data
+                await database.pool.query(`
+                  UPDATE user_profiles SET 
+                    total_earnings = $1,
+                    total_tippings = $2,
+                    earnings_24h = $3,
+                    tippings_24h = $4,
+                    earnings_7d = $5,
+                    tippings_7d = $6,
+                    earnings_30d = $7,
+                    tippings_30d = $8,
+                    updated_at = NOW()
+                  WHERE user_address = $9
+                `, [
+                  totalEarnings,
+                  totalTippings,
+                  parseFloat(stats.earnings_24h) || 0,
+                  parseFloat(stats.tippings_24h) || 0,
+                  parseFloat(stats.earnings_7d) || 0,
+                  parseFloat(stats.tippings_7d) || 0,
+                  parseFloat(stats.earnings_30d) || 0,
+                  parseFloat(stats.tippings_30d) || 0,
+                  address
+                ]);
+                
+                earningsCount++;
+                console.log(`✅ Updated earnings for missing ${address}: ${totalEarnings} earned, ${totalTippings} tipped`);
+              } catch (earningsError) {
+                console.error(`❌ Error updating earnings for missing ${address}:`, earningsError);
+              }
+            } else {
+              errorCount++;
+              console.log(`❌ Failed to save missing profile for FID ${user.fid}`);
+            }
+          } else {
+            console.log(`⚠️ No user data found for missing address: ${address}`);
+          }
+        }
+      } catch (error) {
+        console.error(`❌ Error processing missing batch ${Math.floor(i/batchSize) + 1}:`, error);
+        errorCount += batch.length;
+      }
+    }
+    
+    console.log(`🎉 Missing addresses migration finished! Profiles: ${profileCount}, Earnings: ${earningsCount}, Errors: ${errorCount}`);
+    res.json({ 
+      success: true, 
+      message: `Missing addresses migration finished! Profiles: ${profileCount}, Earnings: ${earningsCount}, Errors: ${errorCount}`,
+      total: allTipAddresses.size,
+      existing: existingAddresses.size,
+      missing: missingAddresses.length,
+      profiles: profileCount,
+      earnings: earningsCount,
+      errors: errorCount
+    });
+    
+  } catch (error) {
+    console.error('Missing addresses migration error:', error);
+    res.status(500).json({ error: 'Missing addresses migration failed', details: error.message });
+  }
+});
+
 // Complete migration endpoint - profiles + earnings in one go
 app.post('/api/migrate-complete', async (req, res) => {
   try {
