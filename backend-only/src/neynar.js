@@ -215,15 +215,15 @@ async function getUserDataByAddress(address) {
     const data = await response.json();
     console.log(`📊 Neynar response for ${address}:`, JSON.stringify(data, null, 2));
 
-    // Check the correct response structure based on the docs
-    if (data.result && data.result.user) {
-      const user = data.result.user;
+    // Check the correct response structure - it's a bulk response format
+    if (data[address] && data[address].length > 0) {
+      const user = data[address][0];
       return {
         fid: user.fid,
         username: user.username,
-        displayName: user.displayName,
-        pfpUrl: user.pfp?.url || '',
-        followerCount: user.followerCount || 0
+        displayName: user.display_name,
+        pfpUrl: user.pfp_url || '',
+        followerCount: user.follower_count || 0
       };
     }
 
