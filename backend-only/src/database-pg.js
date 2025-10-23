@@ -380,13 +380,14 @@ class PostgresDatabase {
         const result = await this.pool.query(`
           SELECT 
             uc.fid,
+            uc.user_address,
             SUM(CAST(th.amount AS DECIMAL)) as total_amount,
             MAX(th.created_at) as last_updated
           FROM tip_history th
           JOIN user_configs uc ON LOWER(uc.user_address) = LOWER(th.from_address)
           WHERE LOWER(th.token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
           ${timeCondition}
-          GROUP BY uc.fid
+          GROUP BY uc.fid, uc.user_address
           HAVING SUM(CAST(th.amount AS DECIMAL)) > 0
           ORDER BY total_amount DESC
           LIMIT 50
@@ -394,6 +395,7 @@ class PostgresDatabase {
         
         return result.rows.map(row => ({
           fid: row.fid,
+          userAddress: row.user_address,
           totalAmount: parseFloat(row.total_amount),
           lastUpdated: row.last_updated
         }));
@@ -452,13 +454,14 @@ class PostgresDatabase {
         const result = await this.pool.query(`
           SELECT 
             uc.fid,
+            uc.user_address,
             SUM(CAST(th.amount AS DECIMAL)) as total_amount,
             MAX(th.created_at) as last_updated
           FROM tip_history th
           JOIN user_configs uc ON LOWER(uc.user_address) = LOWER(th.to_address)
           WHERE LOWER(th.token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
           ${timeCondition}
-          GROUP BY uc.fid
+          GROUP BY uc.fid, uc.user_address
           HAVING SUM(CAST(th.amount AS DECIMAL)) > 0
           ORDER BY total_amount DESC
           LIMIT 50
@@ -466,6 +469,7 @@ class PostgresDatabase {
         
         return result.rows.map(row => ({
           fid: row.fid,
+          userAddress: row.user_address,
           totalAmount: parseFloat(row.total_amount),
           lastUpdated: row.last_updated
         }));
@@ -722,19 +726,6 @@ class PostgresDatabase {
           tippings24h,
           tippings7d,
           tippings30d
-        };
-        
-        console.log(`❌ No tip history found for FID: ${fid}, returning zeros`);
-        return {
-          fid,
-          totalEarnings: 0,
-          earnings24h: 0,
-          earnings7d: 0,
-          earnings30d: 0,
-          totalTippings: 0,
-          tippings24h: 0,
-          tippings7d: 0,
-          tippings30d: 0
         };
       }
       

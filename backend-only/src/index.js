@@ -2925,10 +2925,14 @@ app.get('/api/leaderboard', async (req, res) => {
       } catch (error) {
         console.log(`Could not fetch profile for tipper FID ${tipper.fid}:`, error.message);
         console.log('Tipper data:', tipper);
+        // Fallback to showing truncated address like the original implementation
+        const displayName = tipper.userAddress ? 
+          `${tipper.userAddress.slice(0, 6)}...${tipper.userAddress.slice(-4)}` : 
+          'Unknown User';
         enrichedTippers.push({
           ...tipper,
           username: 'Unknown',
-          displayName: 'Unknown User',
+          displayName: displayName,
           pfpUrl: null,
           followerCount: 0
         });
@@ -2955,10 +2959,14 @@ app.get('/api/leaderboard', async (req, res) => {
       } catch (error) {
         console.log(`Could not fetch profile for earner FID ${earner.fid}:`, error.message);
         console.log('Earner data:', earner);
+        // Fallback to showing truncated address like the original implementation
+        const displayName = earner.userAddress ? 
+          `${earner.userAddress.slice(0, 6)}...${earner.userAddress.slice(-4)}` : 
+          'Unknown User';
         enrichedEarners.push({
           ...earner,
           username: 'Unknown',
-          displayName: 'Unknown User',
+          displayName: displayName,
           pfpUrl: null,
           followerCount: 0
         });
