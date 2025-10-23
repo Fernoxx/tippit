@@ -4726,6 +4726,19 @@ app.post('/api/recalculate-earnings', async (req, res) => {
       const address = user.user_address;
       
       try {
+        // First, let's check the data type of amount column
+        const typeCheckResult = await database.pool.query(`
+          SELECT 
+            pg_typeof(amount) as amount_type,
+            amount,
+            id
+          FROM tip_history 
+          WHERE token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+          LIMIT 1
+        `);
+        
+        console.log(`🔍 Amount column type check:`, typeCheckResult.rows[0]);
+        
         // Calculate USDC earnings/tippings for this address
         const earningsResult = await database.pool.query(`
           SELECT 
