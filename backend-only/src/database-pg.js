@@ -21,6 +21,19 @@ class PostgresDatabase {
           updated_at TIMESTAMP DEFAULT NOW()
         )
       `);
+
+      // Create user profiles table to store Farcaster user data
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS user_profiles (
+          fid BIGINT PRIMARY KEY,
+          username TEXT,
+          display_name TEXT,
+          pfp_url TEXT,
+          follower_count INTEGER DEFAULT 0,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
       
       await this.pool.query(`
         CREATE TABLE IF NOT EXISTS pending_tips (
@@ -129,6 +142,55 @@ class PostgresDatabase {
     } catch (error) {
       
       console.error('❌ Database initialization error:', error);
+    }
+  }
+
+  // User profiles management
+  async saveUserProfile(fid, username, displayName, pfpUrl, followerCount = 0) {
+    try {
+      await this.pool.query(`
+        INSERT INTO user_profiles (fid, username, display_name, pfp_url, follower_count, updated_at)
+        VALUES ($1, $2, $3, $4, $5, NOW())
+        ON CONFLICT (fid) 
+        DO UPDATE SET 
+          username = EXCLUDED.username,
+          display_name = EXCLUDED.display_name,
+          pfp_url = EXCLUDED.pfp_url,
+          follower_count = EXCLUDED.follower_count,
+          updated_at = NOW()
+      `, [fid, username, displayName, pfpUrl, followerCount]);
+      
+      console.log(`✅ Saved user profile for FID ${fid}: ${username} (${displayName})`);
+    } catch (error) {
+      console.error('Error saving user profile:', error);
+    }
+  }
+
+  async getUserProfile(fid) {
+    try {
+      const result = await this.pool.query(
+        'SELECT * FROM user_profiles WHERE fid = $1',
+        [fid]
+      );
+      return result.rows[0] || null;
+    } catch (error) {
+      console.error('Error getting user profile:', error);
+      return null;
+    }
+  }
+
+  async getUserProfiles(fids) {
+    try {
+      if (fids.length === 0) return [];
+      
+      const result = await this.pool.query(
+        'SELECT * FROM user_profiles WHERE fid = ANY($1)',
+        [fids]
+      );
+      return result.rows;
+    } catch (error) {
+      console.error('Error getting user profiles:', error);
+      return [];
     }
   }
 

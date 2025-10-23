@@ -2905,27 +2905,27 @@ app.get('/api/leaderboard', async (req, res) => {
     const paginatedTippers = topTippers.slice(offset, offset + limitNum);
     const paginatedEarners = topEarners.slice(offset, offset + limitNum);
     
-    // Enrich tippers with user profiles
+    // Get user profiles from database
+    const tipperFids = paginatedTippers.map(t => t.fid);
+    const storedProfiles = await database.getUserProfiles(tipperFids);
+    const profileMap = new Map(storedProfiles.map(p => [p.fid, p]));
+    
+    // Enrich tippers with stored user profiles
     const enrichedTippers = [];
     for (const tipper of paginatedTippers) {
-      try {
-        // Fetch user profile by FID
-        const { getUserDataByFid } = require('./neynar');
-        const farcasterUser = await getUserDataByFid(tipper.fid);
-        console.log(`👤 Fetched profile for FID ${tipper.fid}:`, farcasterUser);
-        console.log(`👤 Profile data - username: ${farcasterUser?.username}, display_name: ${farcasterUser?.display_name}, pfp_url: ${farcasterUser?.pfp_url}`);
-        
+      const profile = profileMap.get(tipper.fid);
+      
+      if (profile) {
+        // Use stored profile data
         enrichedTippers.push({
           ...tipper,
-          username: farcasterUser?.username || 'Unknown',
-          displayName: farcasterUser?.display_name || farcasterUser?.username || 'Unknown User',
-          pfpUrl: farcasterUser?.pfp_url || null,
-          followerCount: farcasterUser?.follower_count || 0
+          username: profile.username || 'Unknown',
+          displayName: profile.display_name || profile.username || 'Unknown User',
+          pfpUrl: profile.pfp_url || null,
+          followerCount: profile.follower_count || 0
         });
-      } catch (error) {
-        console.log(`Could not fetch profile for tipper FID ${tipper.fid}:`, error.message);
-        console.log('Tipper data:', tipper);
-        // Fallback to showing truncated address like the original implementation
+      } else {
+        // Fallback to showing truncated address
         const displayName = tipper.userAddress ? 
           `${tipper.userAddress.slice(0, 6)}...${tipper.userAddress.slice(-4)}` : 
           `FID ${tipper.fid}`;
@@ -2939,27 +2939,27 @@ app.get('/api/leaderboard', async (req, res) => {
       }
     }
     
-    // Enrich earners with user profiles
+    // Get user profiles from database
+    const earnerFids = paginatedEarners.map(e => e.fid);
+    const storedEarnerProfiles = await database.getUserProfiles(earnerFids);
+    const earnerProfileMap = new Map(storedEarnerProfiles.map(p => [p.fid, p]));
+    
+    // Enrich earners with stored user profiles
     const enrichedEarners = [];
     for (const earner of paginatedEarners) {
-      try {
-        // Fetch user profile by FID
-        const { getUserDataByFid } = require('./neynar');
-        const farcasterUser = await getUserDataByFid(earner.fid);
-        console.log(`👤 Fetched profile for earner FID ${earner.fid}:`, farcasterUser);
-        console.log(`👤 Profile data - username: ${farcasterUser?.username}, display_name: ${farcasterUser?.display_name}, pfp_url: ${farcasterUser?.pfp_url}`);
-        
+      const profile = earnerProfileMap.get(earner.fid);
+      
+      if (profile) {
+        // Use stored profile data
         enrichedEarners.push({
           ...earner,
-          username: farcasterUser?.username || 'Unknown',
-          displayName: farcasterUser?.display_name || farcasterUser?.username || 'Unknown User',
-          pfpUrl: farcasterUser?.pfp_url || null,
-          followerCount: farcasterUser?.follower_count || 0
+          username: profile.username || 'Unknown',
+          displayName: profile.display_name || profile.username || 'Unknown User',
+          pfpUrl: profile.pfp_url || null,
+          followerCount: profile.follower_count || 0
         });
-      } catch (error) {
-        console.log(`Could not fetch profile for earner FID ${earner.fid}:`, error.message);
-        console.log('Earner data:', earner);
-        // Fallback to showing truncated address like the original implementation
+      } else {
+        // Fallback to showing truncated address
         const displayName = earner.userAddress ? 
           `${earner.userAddress.slice(0, 6)}...${earner.userAddress.slice(-4)}` : 
           `FID ${earner.fid}`;
@@ -4200,7 +4200,24 @@ app.get('/api/user-earnings/:fid', async (req, res) => {
   }
 });
 
-// User profile endpoint
+// User profile endpoints
+app.post('/api/user-profile', async (req, res) => {
+  try {
+    const { fid, username, displayName, pfpUrl, followerCount } = req.body;
+    
+    if (!fid) {
+      return res.status(400).json({ error: 'FID is required' });
+    }
+    
+    await database.saveUserProfile(fid, username, displayName, pfpUrl, followerCount);
+    
+    res.json({ success: true, message: 'User profile saved successfully' });
+  } catch (error) {
+    console.error('Error saving user profile:', error);
+    res.status(500).json({ error: 'Failed to save user profile' });
+  }
+});
+
 app.get('/api/user-profile/:fid', async (req, res) => {
   try {
     const { fid } = req.params;

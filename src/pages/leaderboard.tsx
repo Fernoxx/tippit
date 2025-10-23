@@ -5,19 +5,24 @@ import { Trophy, Medal, Award, Crown, Star, Share2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { useFarcasterWallet } from '@/hooks/useFarcasterWallet';
+import { useFarcasterSDK } from '@/hooks/useFarcasterSDK';
 
 export default function Leaderboard() {
   const [timeFilter, setTimeFilter] = useState<'total' | '24h' | '7d' | '30d'>('total');
   const { tippers, earners, userStats, isLoading, isLoadingMore, hasMore, loadMore } = useLeaderboardData(timeFilter);
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<'tipped' | 'earned'>('tipped');
-  const { currentUser } = useFarcasterWallet();
+  const { currentUser: walletUser } = useFarcasterWallet();
+  const { currentUser: sdkUser, isLoading: sdkLoading } = useFarcasterSDK();
+  
+  // Use SDK user if available, otherwise fall back to wallet user
+  const currentUser = sdkUser || walletUser;
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  if (!mounted) {
+  if (!mounted || sdkLoading) {
     return (
       <div className="min-h-screen bg-yellow-50 flex items-center justify-center">
         <LoadingSpinner size="lg" />
