@@ -2887,6 +2887,9 @@ app.get('/api/leaderboard', async (req, res) => {
     // Get top tippers and earners with amounts
     const topTippers = await database.getTopTippers(timeFilter);
     const topEarners = await database.getTopEarners(timeFilter);
+    console.log(`📊 Top tippers count: ${topTippers.length}, Top earners count: ${topEarners.length}`);
+    console.log(`📊 First tipper:`, topTippers[0]);
+    console.log(`📊 First earner:`, topEarners[0]);
     
     // Get user's own stats for "You" section
     let userStats = null;
@@ -2910,6 +2913,7 @@ app.get('/api/leaderboard', async (req, res) => {
         const { getUserDataByFid } = require('./neynar');
         const farcasterUser = await getUserDataByFid(tipper.fid);
         console.log(`👤 Fetched profile for FID ${tipper.fid}:`, farcasterUser);
+        console.log(`👤 Profile data - username: ${farcasterUser?.username}, display_name: ${farcasterUser?.display_name}, pfp_url: ${farcasterUser?.pfp_url}`);
         
         enrichedTippers.push({
           ...tipper,
@@ -2939,6 +2943,7 @@ app.get('/api/leaderboard', async (req, res) => {
         const { getUserDataByFid } = require('./neynar');
         const farcasterUser = await getUserDataByFid(earner.fid);
         console.log(`👤 Fetched profile for earner FID ${earner.fid}:`, farcasterUser);
+        console.log(`👤 Profile data - username: ${farcasterUser?.username}, display_name: ${farcasterUser?.display_name}, pfp_url: ${farcasterUser?.pfp_url}`);
         
         enrichedEarners.push({
           ...earner,
