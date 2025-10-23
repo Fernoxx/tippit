@@ -15,7 +15,11 @@ const { getFollowerCount, checkAudienceCriteria, getUserData } = require('./neyn
 class BatchProcessor {
   constructor() {
     this.provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-    this.wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY, this.provider);
+    if (process.env.NODE_ENV === 'debug') {
+      this.wallet = null;
+    } else {
+      this.wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY, this.provider);
+    }
     this.batchIntervalMs = (process.env.BATCH_INTERVAL_MINUTES || 1) * 60 * 1000;
     this.lastBatchTime = 0;
     

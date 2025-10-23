@@ -14,10 +14,19 @@ try {
 class InstantTipProcessor {
   constructor() {
     this.provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-    this.wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY, this.provider);
+    // Skip wallet initialization for debug mode
+    if (process.env.NODE_ENV === 'debug') {
+      this.wallet = null;
+    } else {
+      this.wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY, this.provider);
+    }
     
     console.log(`⚡ Instant Tip Processor initialized`);
-    console.log(`💰 Backend wallet address: ${this.wallet.address}`);
+    if (this.wallet) {
+      console.log(`💰 Backend wallet address: ${this.wallet.address}`);
+    } else {
+      console.log(`🔧 Debug mode: No wallet initialized`);
+    }
   }
 
   async processTipInstantly(interaction, authorConfig) {

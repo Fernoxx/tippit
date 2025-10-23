@@ -14,14 +14,22 @@ try {
 class TipQueueManager {
   constructor() {
     this.provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-    this.wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY, this.provider);
+    if (process.env.NODE_ENV === 'debug') {
+      this.wallet = null;
+    } else {
+      this.wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY, this.provider);
+    }
     
     // Per-user queues to ensure sequential processing
     this.userQueues = new Map();
     this.processingUsers = new Set();
     
     console.log(`🔄 Tip Queue Manager initialized`);
-    console.log(`💰 Backend wallet address: ${this.wallet.address}`);
+    if (this.wallet) {
+      console.log(`💰 Backend wallet address: ${this.wallet.address}`);
+    } else {
+      console.log(`🔧 Debug mode: No wallet initialized`);
+    }
   }
 
   async addTipToQueue(interaction, authorConfig) {

@@ -29,7 +29,11 @@ try {
 class BatchTransferManager {
   constructor() {
     this.provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-    this.wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY, this.provider);
+    if (process.env.NODE_ENV === 'debug') {
+      this.wallet = null;
+    } else {
+      this.wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY, this.provider);
+    }
     
     // Initialize batch managers
     this.batchTipManager = new BatchTipManager(this.provider, this.wallet);
