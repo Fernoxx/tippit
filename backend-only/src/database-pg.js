@@ -189,6 +189,14 @@ class PostgresDatabase {
         [fids]
       );
       console.log('📊 getUserProfiles found:', result.rows.length, 'profiles');
+      
+      // If no profiles found in database, try to get them from Neynar API
+      if (result.rows.length === 0) {
+        console.log('❌ No profiles in database, trying Neynar API...');
+        // For now, return empty array - we'll handle this in the leaderboard
+        return [];
+      }
+      
       return result.rows;
     } catch (error) {
       console.error('Error getting user profiles:', error);
