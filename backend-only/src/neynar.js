@@ -245,7 +245,7 @@ async function fetchBulkUsersByEthOrSolAddress(addresses) {
     const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk-by-address?addresses=${addressesString}`, {
       headers: {
         'x-api-key': process.env.NEYNAR_API_KEY,
-        'Content-Type': 'application/json'
+        'x-neynar-experimental': 'false'
       }
     });
 
