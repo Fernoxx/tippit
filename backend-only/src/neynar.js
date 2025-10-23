@@ -140,14 +140,29 @@ async function getUserData(fid) {
     if (data.users && data.users[0]) {
       const user = data.users[0];
       return {
+        username: user.username || null,
+        display_name: user.display_name || null,
+        pfp_url: user.pfp_url || null,
         followerCount: user.follower_count || 0,
         neynarScore: user.score || 0
       };
     }
-    return { followerCount: 0, neynarScore: 0 };
+    return { 
+      username: null,
+      display_name: null,
+      pfp_url: null,
+      followerCount: 0, 
+      neynarScore: 0 
+    };
   } catch (error) {
     console.error('Error fetching user data:', error);
-    return { followerCount: 0, neynarScore: 0 };
+    return { 
+      username: null,
+      display_name: null,
+      pfp_url: null,
+      followerCount: 0, 
+      neynarScore: 0 
+    };
   }
 }
 

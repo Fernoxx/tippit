@@ -88,22 +88,22 @@ export default function SharePage({ fid, time, type, userStats, userProfile }: S
       <Head>
         <title>Ecion - {userProfile.username} {type === 'earnings' ? 'Earnings' : 'Tippings'} {timeLabel}</title>
         
-        {/* Farcaster Mini App Embed */}
-        <meta name="fc:miniapp" content={JSON.stringify(miniappEmbed)} />
-        <meta name="fc:frame" content={JSON.stringify(miniappEmbed)} />
-        
-        {/* Open Graph Tags */}
+        {/* Override default OG tags with dynamic content */}
         <meta property="og:title" content={`${userProfile.username} ${type === 'earnings' ? 'Earned' : 'Tipped'} ${amount.toFixed(2)} USDC in ${timeLabel}`} />
         <meta property="og:description" content={`Check out ${userProfile.username}'s ${type} on Ecion - the tipping platform for Farcaster`} />
         <meta property="og:image" content={embedImageUrl} />
         <meta property="og:url" content={`https://ecion.vercel.app/share/${fid}?time=${time}&type=${type}`} />
         <meta property="og:type" content="website" />
         
-        {/* Twitter Card Tags */}
+        {/* Override Twitter Card Tags */}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={`${userProfile.username} ${type === 'earnings' ? 'Earned' : 'Tipped'} ${amount.toFixed(2)} USDC`} />
         <meta name="twitter:description" content={`Check out ${userProfile.username}'s ${type} on Ecion`} />
         <meta name="twitter:image" content={embedImageUrl} />
+        
+        {/* Farcaster Mini App Embed */}
+        <meta name="fc:miniapp" content={JSON.stringify(miniappEmbed)} />
+        <meta name="fc:frame" content={JSON.stringify(miniappEmbed)} />
         
         {/* Additional Meta Tags */}
         <meta name="description" content={`${userProfile.username} ${type === 'earnings' ? 'earned' : 'tipped'} ${amount.toFixed(2)} USDC in ${timeLabel} on Ecion`} />

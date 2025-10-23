@@ -111,7 +111,7 @@ export default function Leaderboard() {
                       : 'text-gray-600 hover:text-gray-900'
                   }`}
                 >
-                  {period === 'total' ? 'Total' : period}
+                  {period === 'total' ? '∑' : period}
                 </button>
               ))}
             </div>
@@ -243,7 +243,7 @@ export default function Leaderboard() {
                     )}
                     <div>
                       <p className="font-medium text-sm text-gray-900">
-                        {user.displayName || user.username || `User ${user.fid}`}
+                        {user.displayName || user.username || 'Unknown User'}
                       </p>
                       <p className="text-xs text-gray-500">
                         {user.username ? `@${user.username}` : `FID ${user.fid}`}

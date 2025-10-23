@@ -2909,12 +2909,13 @@ app.get('/api/leaderboard', async (req, res) => {
         enrichedTippers.push({
           ...tipper,
           username: farcasterUser?.username || 'Unknown',
-          displayName: farcasterUser?.display_name || 'Unknown',
+          displayName: farcasterUser?.display_name || farcasterUser?.username || 'Unknown',
           pfpUrl: farcasterUser?.pfp_url || null,
           followerCount: farcasterUser?.follower_count || 0
         });
       } catch (error) {
         console.log(`Could not fetch profile for tipper FID ${tipper.fid}:`, error.message);
+        console.log('Tipper data:', tipper);
         enrichedTippers.push({
           ...tipper,
           username: 'Unknown',
@@ -2936,12 +2937,13 @@ app.get('/api/leaderboard', async (req, res) => {
         enrichedEarners.push({
           ...earner,
           username: farcasterUser?.username || 'Unknown',
-          displayName: farcasterUser?.display_name || 'Unknown',
+          displayName: farcasterUser?.display_name || farcasterUser?.username || 'Unknown',
           pfpUrl: farcasterUser?.pfp_url || null,
           followerCount: farcasterUser?.follower_count || 0
         });
       } catch (error) {
         console.log(`Could not fetch profile for earner FID ${earner.fid}:`, error.message);
+        console.log('Earner data:', earner);
         enrichedEarners.push({
           ...earner,
           username: 'Unknown',
