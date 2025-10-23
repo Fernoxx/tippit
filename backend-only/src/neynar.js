@@ -151,11 +151,17 @@ async function getUserData(fid) {
   }
 }
 
+// Helper function to get user data by FID (alias for getUserData)
+async function getUserDataByFid(fid) {
+  return await getUserData(fid);
+}
+
 module.exports = {
   getFollowerCount,
   checkAudienceCriteria,
   getUserByFid,
   getCastByHash,
   getNeynarScore,
-  getUserData
+  getUserData,
+  getUserDataByFid
 };

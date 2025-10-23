@@ -50,6 +50,22 @@ class PostgresDatabase {
           processed_at TIMESTAMP DEFAULT NOW()
         )
       `);
+
+      // Create user_earnings table for leaderboard optimization
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS user_earnings (
+          fid INTEGER PRIMARY KEY,
+          total_earnings DECIMAL(18,6) DEFAULT 0,
+          earnings_24h DECIMAL(18,6) DEFAULT 0,
+          earnings_7d DECIMAL(18,6) DEFAULT 0,
+          earnings_30d DECIMAL(18,6) DEFAULT 0,
+          total_tippings DECIMAL(18,6) DEFAULT 0,
+          tippings_24h DECIMAL(18,6) DEFAULT 0,
+          tippings_7d DECIMAL(18,6) DEFAULT 0,
+          tippings_30d DECIMAL(18,6) DEFAULT 0,
+          last_updated TIMESTAMP DEFAULT NOW()
+        )
+      `);
       
       await this.pool.query(`
         CREATE TABLE IF NOT EXISTS webhook_config (
@@ -316,33 +332,32 @@ class PostgresDatabase {
     }
   }
 
-  async getTopTippers(timeFilter = '30d') {
+  async getTopTippers(timeFilter = 'total') {
     try {
-      const timeMs = timeFilter === '24h' ? '24 hours' :
-                     timeFilter === '7d' ? '7 days' : '30 days';
-      
-      // Note: Cleanup moved to a separate scheduled task to avoid blocking batch processing
+      let columnName;
+      switch (timeFilter) {
+        case '24h': columnName = 'tippings_24h'; break;
+        case '7d': columnName = 'tippings_7d'; break;
+        case '30d': columnName = 'tippings_30d'; break;
+        case 'total': 
+        default: columnName = 'total_tippings'; break;
+      }
       
       const result = await this.pool.query(`
         SELECT 
-          from_address as user_address,
-          token_address,
-          SUM(CAST(amount AS DECIMAL)) as total_amount,
-          COUNT(*) as tip_count
-        FROM tip_history 
-        WHERE processed_at > NOW() - INTERVAL '${timeMs}'
-        AND LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
-        GROUP BY from_address, token_address 
-        ORDER BY total_amount DESC 
+          ue.fid,
+          ue.${columnName} as total_amount,
+          ue.last_updated
+        FROM user_earnings ue
+        WHERE ue.${columnName} > 0
+        ORDER BY ue.${columnName} DESC 
         LIMIT 50
       `);
       
-      
       return result.rows.map(row => ({
-        userAddress: row.user_address,
-        tokenAddress: row.token_address,
+        fid: row.fid,
         totalAmount: parseFloat(row.total_amount),
-        tipCount: parseInt(row.tip_count)
+        lastUpdated: row.last_updated
       }));
     } catch (error) {
       console.error('Error getting top tippers:', error);
@@ -350,30 +365,32 @@ class PostgresDatabase {
     }
   }
 
-  async getTopEarners(timeFilter = '30d') {
+  async getTopEarners(timeFilter = 'total') {
     try {
-      const timeMs = timeFilter === '24h' ? '24 hours' :
-                     timeFilter === '7d' ? '7 days' : '30 days';
+      let columnName;
+      switch (timeFilter) {
+        case '24h': columnName = 'earnings_24h'; break;
+        case '7d': columnName = 'earnings_7d'; break;
+        case '30d': columnName = 'earnings_30d'; break;
+        case 'total': 
+        default: columnName = 'total_earnings'; break;
+      }
       
       const result = await this.pool.query(`
         SELECT 
-          to_address as user_address,
-          token_address,
-          SUM(CAST(amount AS DECIMAL)) as total_amount,
-          COUNT(*) as tip_count
-        FROM tip_history 
-        WHERE processed_at > NOW() - INTERVAL '${timeMs}'
-        AND LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
-        GROUP BY to_address, token_address 
-        ORDER BY total_amount DESC 
+          ue.fid,
+          ue.${columnName} as total_amount,
+          ue.last_updated
+        FROM user_earnings ue
+        WHERE ue.${columnName} > 0
+        ORDER BY ue.${columnName} DESC 
         LIMIT 50
       `);
       
       return result.rows.map(row => ({
-        userAddress: row.user_address,
-        tokenAddress: row.token_address,
+        fid: row.fid,
         totalAmount: parseFloat(row.total_amount),
-        tipCount: parseInt(row.tip_count)
+        lastUpdated: row.last_updated
       }));
     } catch (error) {
       console.error('Error getting top earners:', error);
@@ -399,6 +416,177 @@ class PostgresDatabase {
     } catch (error) {
       console.error('Error getting total amount tipped:', error);
       return 0;
+    }
+  }
+
+  // User earnings functions for leaderboard optimization
+  async initializeUserEarnings() {
+    try {
+      console.log('🔄 Initializing user_earnings table from existing tip_history...');
+      
+      // Get all unique FIDs from tip_history (both from and to addresses)
+      const result = await this.pool.query(`
+        SELECT DISTINCT from_address, to_address FROM tip_history
+        WHERE LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+      `);
+      
+      const allAddresses = new Set();
+      result.rows.forEach(row => {
+        allAddresses.add(row.from_address);
+        allAddresses.add(row.to_address);
+      });
+      
+      console.log(`📊 Found ${allAddresses.size} unique addresses in tip_history`);
+      
+      // Calculate earnings and tippings for each address
+      for (const address of allAddresses) {
+        await this.calculateUserEarnings(address);
+      }
+      
+      console.log('✅ User earnings initialization completed');
+    } catch (error) {
+      console.error('❌ Error initializing user earnings:', error);
+    }
+  }
+
+  async calculateUserEarnings(userAddress) {
+    try {
+      // Get FID for this address (you'll need to implement this)
+      const fid = await this.getFidFromAddress(userAddress);
+      if (!fid) return;
+
+      // Calculate earnings (received tips)
+      const earningsResult = await this.pool.query(`
+        SELECT 
+          SUM(CASE WHEN processed_at > NOW() - INTERVAL '24 hours' THEN CAST(amount AS DECIMAL) ELSE 0 END) as earnings_24h,
+          SUM(CASE WHEN processed_at > NOW() - INTERVAL '7 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as earnings_7d,
+          SUM(CASE WHEN processed_at > NOW() - INTERVAL '30 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as earnings_30d,
+          SUM(CAST(amount AS DECIMAL)) as total_earnings
+        FROM tip_history 
+        WHERE to_address = $1 
+        AND LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+      `, [userAddress]);
+
+      // Calculate tippings (sent tips)
+      const tippingsResult = await this.pool.query(`
+        SELECT 
+          SUM(CASE WHEN processed_at > NOW() - INTERVAL '24 hours' THEN CAST(amount AS DECIMAL) ELSE 0 END) as tippings_24h,
+          SUM(CASE WHEN processed_at > NOW() - INTERVAL '7 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as tippings_7d,
+          SUM(CASE WHEN processed_at > NOW() - INTERVAL '30 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as tippings_30d,
+          SUM(CAST(amount AS DECIMAL)) as total_tippings
+        FROM tip_history 
+        WHERE from_address = $1 
+        AND LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+      `, [userAddress]);
+
+      const earnings = earningsResult.rows[0];
+      const tippings = tippingsResult.rows[0];
+
+      // Insert or update user earnings
+      await this.pool.query(`
+        INSERT INTO user_earnings (fid, total_earnings, earnings_24h, earnings_7d, earnings_30d, total_tippings, tippings_24h, tippings_7d, tippings_30d, last_updated)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+        ON CONFLICT (fid) 
+        DO UPDATE SET 
+          total_earnings = EXCLUDED.total_earnings,
+          earnings_24h = EXCLUDED.earnings_24h,
+          earnings_7d = EXCLUDED.earnings_7d,
+          earnings_30d = EXCLUDED.earnings_30d,
+          total_tippings = EXCLUDED.total_tippings,
+          tippings_24h = EXCLUDED.tippings_24h,
+          tippings_7d = EXCLUDED.tippings_7d,
+          tippings_30d = EXCLUDED.tippings_30d,
+          last_updated = NOW()
+      `, [
+        fid,
+        parseFloat(earnings.total_earnings || 0),
+        parseFloat(earnings.earnings_24h || 0),
+        parseFloat(earnings.earnings_7d || 0),
+        parseFloat(earnings.earnings_30d || 0),
+        parseFloat(tippings.total_tippings || 0),
+        parseFloat(tippings.tippings_24h || 0),
+        parseFloat(tippings.tippings_7d || 0),
+        parseFloat(tippings.tippings_30d || 0)
+      ]);
+
+    } catch (error) {
+      console.error(`❌ Error calculating earnings for ${userAddress}:`, error);
+    }
+  }
+
+  async getFidFromAddress(userAddress) {
+    try {
+      // This is a placeholder - you'll need to implement proper FID lookup
+      // For now, return a hash of the address as FID
+      return Math.abs(userAddress.split('').reduce((a, b) => {
+        a = ((a << 5) - a) + b.charCodeAt(0);
+        return a & a;
+      }, 0));
+    } catch (error) {
+      console.error('Error getting FID from address:', error);
+      return null;
+    }
+  }
+
+  async updateUserEarningsAfterTip(fromAddress, toAddress, amount) {
+    try {
+      // Update earnings for recipient
+      await this.calculateUserEarnings(toAddress);
+      // Update tippings for sender
+      await this.calculateUserEarnings(fromAddress);
+    } catch (error) {
+      console.error('Error updating user earnings after tip:', error);
+    }
+  }
+
+  async getUserEarnings(fid) {
+    try {
+      const result = await this.pool.query(`
+        SELECT 
+          fid,
+          total_earnings,
+          earnings_24h,
+          earnings_7d,
+          earnings_30d,
+          total_tippings,
+          tippings_24h,
+          tippings_7d,
+          tippings_30d,
+          last_updated
+        FROM user_earnings 
+        WHERE fid = $1
+      `, [fid]);
+      
+      if (result.rows.length === 0) {
+        return {
+          fid,
+          totalEarnings: 0,
+          earnings24h: 0,
+          earnings7d: 0,
+          earnings30d: 0,
+          totalTippings: 0,
+          tippings24h: 0,
+          tippings7d: 0,
+          tippings30d: 0
+        };
+      }
+      
+      const row = result.rows[0];
+      return {
+        fid: row.fid,
+        totalEarnings: parseFloat(row.total_earnings),
+        earnings24h: parseFloat(row.earnings_24h),
+        earnings7d: parseFloat(row.earnings_7d),
+        earnings30d: parseFloat(row.earnings_30d),
+        totalTippings: parseFloat(row.total_tippings),
+        tippings24h: parseFloat(row.tippings_24h),
+        tippings7d: parseFloat(row.tippings_7d),
+        tippings30d: parseFloat(row.tippings_30d),
+        lastUpdated: row.last_updated
+      };
+    } catch (error) {
+      console.error('Error getting user earnings:', error);
+      return null;
     }
   }
 

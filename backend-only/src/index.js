@@ -2879,7 +2879,7 @@ app.get('/api/homepage', async (req, res) => {
 // Leaderboard endpoints  
 app.get('/api/leaderboard', async (req, res) => {
   try {
-    const { timeFilter = '24h', page = 1, limit = 10 } = req.query;
+    const { timeFilter = 'total', page = 1, limit = 10, userFid } = req.query;
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
     const offset = (pageNum - 1) * limitNum;
@@ -2888,126 +2888,66 @@ app.get('/api/leaderboard', async (req, res) => {
     const topTippers = await database.getTopTippers(timeFilter);
     const topEarners = await database.getTopEarners(timeFilter);
     
+    // Get user's own stats for "You" section
+    let userStats = null;
+    if (userFid) {
+      userStats = await database.getUserEarnings(parseInt(userFid));
+    }
+    
     // Get paginated slices
     const paginatedTippers = topTippers.slice(offset, offset + limitNum);
     const paginatedEarners = topEarners.slice(offset, offset + limitNum);
     
-    // Enrich tippers with user profiles and token info
+    // Enrich tippers with user profiles
     const enrichedTippers = [];
     for (const tipper of paginatedTippers) {
       try {
-        // Fetch user profile
-        const userResponse = await fetch(
-          `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${tipper.userAddress}`,
-          {
-            headers: { 
-              'x-api-key': process.env.NEYNAR_API_KEY,
-              'x-neynar-experimental': 'false'
-            }
-          }
-        );
-        
-        let farcasterUser = null;
-        if (userResponse.ok) {
-          const userData = await userResponse.json();
-          farcasterUser = userData[tipper.userAddress]?.[0];
-        }
-        
-        // Fetch token info
-        let tokenInfo = null;
-        try {
-          const { ethers } = require('ethers');
-          const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-          const tokenContract = new ethers.Contract(tipper.tokenAddress, [
-            "function name() view returns (string)",
-            "function symbol() view returns (string)",
-            "function decimals() view returns (uint8)"
-          ], provider);
-          
-          const [name, symbol, decimals] = await Promise.all([
-            tokenContract.name(),
-            tokenContract.symbol(),
-            tokenContract.decimals()
-          ]);
-          
-          tokenInfo = { name, symbol, decimals: Number(decimals) };
-        } catch (error) {
-          console.log(`Could not fetch token info for ${tipper.tokenAddress}:`, error.message);
-          tokenInfo = { name: 'Unknown', symbol: 'UNK', decimals: 18 };
-        }
+        // Fetch user profile by FID
+        const { getUserDataByFid } = require('./neynar');
+        const farcasterUser = await getUserDataByFid(tipper.fid);
         
         enrichedTippers.push({
           ...tipper,
-          username: farcasterUser?.username,
-          displayName: farcasterUser?.display_name,
-          pfpUrl: farcasterUser?.pfp_url,
-          tokenInfo: tokenInfo
+          username: farcasterUser?.username || 'Unknown',
+          displayName: farcasterUser?.display_name || 'Unknown',
+          pfpUrl: farcasterUser?.pfp_url || null,
+          followerCount: farcasterUser?.follower_count || 0
         });
       } catch (error) {
-        console.log(`Could not fetch profile for tipper ${tipper.userAddress}:`, error.message);
+        console.log(`Could not fetch profile for tipper FID ${tipper.fid}:`, error.message);
         enrichedTippers.push({
           ...tipper,
-          tokenInfo: { name: 'Unknown', symbol: 'UNK', decimals: 18 }
+          username: 'Unknown',
+          displayName: 'Unknown',
+          pfpUrl: null,
+          followerCount: 0
         });
       }
     }
     
-    // Enrich earners with user profiles and token info
+    // Enrich earners with user profiles
     const enrichedEarners = [];
     for (const earner of paginatedEarners) {
       try {
-        // Fetch user profile
-        const userResponse = await fetch(
-          `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${earner.userAddress}`,
-          {
-            headers: { 
-              'x-api-key': process.env.NEYNAR_API_KEY,
-              'x-neynar-experimental': 'false'
-            }
-          }
-        );
-        
-        let farcasterUser = null;
-        if (userResponse.ok) {
-          const userData = await userResponse.json();
-          farcasterUser = userData[earner.userAddress]?.[0];
-        }
-        
-        // Fetch token info
-        let tokenInfo = null;
-        try {
-          const { ethers } = require('ethers');
-          const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-          const tokenContract = new ethers.Contract(earner.tokenAddress, [
-            "function name() view returns (string)",
-            "function symbol() view returns (string)",
-            "function decimals() view returns (uint8)"
-          ], provider);
-          
-          const [name, symbol, decimals] = await Promise.all([
-            tokenContract.name(),
-            tokenContract.symbol(),
-            tokenContract.decimals()
-          ]);
-          
-          tokenInfo = { name, symbol, decimals: Number(decimals) };
-        } catch (error) {
-          console.log(`Could not fetch token info for ${earner.tokenAddress}:`, error.message);
-          tokenInfo = { name: 'Unknown', symbol: 'UNK', decimals: 18 };
-        }
+        // Fetch user profile by FID
+        const { getUserDataByFid } = require('./neynar');
+        const farcasterUser = await getUserDataByFid(earner.fid);
         
         enrichedEarners.push({
           ...earner,
-          username: farcasterUser?.username,
-          displayName: farcasterUser?.display_name,
-          pfpUrl: farcasterUser?.pfp_url,
-          tokenInfo: tokenInfo
+          username: farcasterUser?.username || 'Unknown',
+          displayName: farcasterUser?.display_name || 'Unknown',
+          pfpUrl: farcasterUser?.pfp_url || null,
+          followerCount: farcasterUser?.follower_count || 0
         });
       } catch (error) {
-        console.log(`Could not fetch profile for earner ${earner.userAddress}:`, error.message);
+        console.log(`Could not fetch profile for earner FID ${earner.fid}:`, error.message);
         enrichedEarners.push({
           ...earner,
-          tokenInfo: { name: 'Unknown', symbol: 'UNK', decimals: 18 }
+          username: 'Unknown',
+          displayName: 'Unknown',
+          pfpUrl: null,
+          followerCount: 0
         });
       }
     }
@@ -3021,8 +2961,7 @@ app.get('/api/leaderboard', async (req, res) => {
     res.json({
       tippers: enrichedTippers,
       earners: enrichedEarners,
-      users: enrichedTippers.map(t => t.userAddress),
-      amounts: enrichedTippers.map(t => t.totalAmount),
+      userStats: userStats,
       pagination: {
         page: pageNum,
         limit: limitNum,
@@ -4035,6 +3974,104 @@ app.get('/api/debug/leaderboard-data', async (req, res) => {
   } catch (error) {
     console.error('Error getting leaderboard debug data:', error);
     res.status(500).json({ error: 'Failed to get leaderboard debug data' });
+  }
+});
+
+// Initialize user earnings table (run once to migrate existing data)
+app.post('/api/admin/initialize-user-earnings', async (req, res) => {
+  try {
+    console.log('🔄 Starting user earnings initialization...');
+    await database.initializeUserEarnings();
+    res.json({ 
+      success: true, 
+      message: 'User earnings table initialized successfully' 
+    });
+  } catch (error) {
+    console.error('Error initializing user earnings:', error);
+    res.status(500).json({ error: 'Failed to initialize user earnings' });
+  }
+});
+
+// Share preview endpoint - generates preview image for user stats
+app.get('/api/share/:fid', async (req, res) => {
+  try {
+    const { fid } = req.params;
+    const { time = 'total', type = 'earnings' } = req.query;
+    
+    // Get user earnings data
+    const userStats = await database.getUserEarnings(parseInt(fid));
+    if (!userStats) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Get user profile data
+    const { getUserDataByFid } = require('./neynar');
+    const userProfile = await getUserDataByFid(parseInt(fid));
+    
+    // Get amount based on time and type
+    let amount = 0;
+    let timeLabel = '';
+    
+    switch (time) {
+      case '24h':
+        amount = type === 'earnings' ? userStats.earnings24h : userStats.tippings24h;
+        timeLabel = '24h';
+        break;
+      case '7d':
+        amount = type === 'earnings' ? userStats.earnings7d : userStats.tippings7d;
+        timeLabel = '7d';
+        break;
+      case '30d':
+        amount = type === 'earnings' ? userStats.earnings30d : userStats.tippings30d;
+        timeLabel = '30d';
+        break;
+      case 'total':
+      default:
+        amount = type === 'earnings' ? userStats.totalEarnings : userStats.totalTippings;
+        timeLabel = 'Total';
+        break;
+    }
+    
+    // Generate simple HTML for preview (you can enhance this later)
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta property="og:title" content="Ecion - ${type === 'earnings' ? 'Earnings' : 'Tippings'} ${timeLabel}">
+        <meta property="og:description" content="${userProfile?.username || 'User'} ${type === 'earned' ? 'earned' : 'tipped'} ${amount.toFixed(2)} USDC in ${timeLabel.toLowerCase()}">
+        <meta property="og:image" content="data:image/svg+xml;base64,${Buffer.from(`
+          <svg width="400" height="200" xmlns="http://www.w3.org/2000/svg">
+            <rect width="400" height="200" fill="#FFD700"/>
+            <circle cx="60" cy="100" r="40" fill="#333"/>
+            <text x="120" y="80" font-family="Arial" font-size="24" fill="#000">${userProfile?.username || 'User'}</text>
+            <text x="120" y="110" font-family="Arial" font-size="18" fill="#000">${type === 'earnings' ? 'Earned' : 'Tipped'}: ${amount.toFixed(2)} USDC</text>
+            <text x="120" y="130" font-family="Arial" font-size="16" fill="#000">In ${timeLabel}</text>
+            <text x="200" y="180" font-family="Arial" font-size="14" fill="#000">Ecion</text>
+          </svg>
+        `).toString('base64')}">
+        <meta property="og:url" content="https://ecion.vercel.app/share/${fid}?time=${time}&type=${type}">
+        <meta name="twitter:card" content="summary_large_image">
+        <title>Ecion - ${type === 'earnings' ? 'Earnings' : 'Tippings'} ${timeLabel}</title>
+      </head>
+      <body style="margin:0; padding:20px; background:#FFD700; font-family:Arial;">
+        <div style="text-align:center;">
+          <img src="${userProfile?.pfp_url || 'https://via.placeholder.com/80'}" style="width:80px; height:80px; border-radius:50%; margin-bottom:20px;">
+          <h1 style="color:#000; margin:0;">${userProfile?.username || 'User'}</h1>
+          <h2 style="color:#000; margin:10px 0;">${type === 'earnings' ? 'Earned' : 'Tipped'}: ${amount.toFixed(2)} USDC</h2>
+          <p style="color:#000; margin:0;">In ${timeLabel}</p>
+          <p style="color:#000; margin-top:20px;">Powered by Ecion</p>
+        </div>
+      </body>
+      </html>
+    `;
+    
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+    
+  } catch (error) {
+    console.error('Error generating share preview:', error);
+    res.status(500).json({ error: 'Failed to generate preview' });
   }
 });
 
