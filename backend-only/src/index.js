@@ -4565,6 +4565,79 @@ app.get('/api/test', (req, res) => {
   res.json({ message: 'Backend is working!', timestamp: new Date().toISOString() });
 });
 
+// Test migration with just 1 address
+app.post('/api/test-migration', async (req, res) => {
+  try {
+    console.log('🧪 Testing migration with 1 address...');
+    
+    // First check table structure
+    const tableInfo = await database.pool.query(`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'user_profiles'
+      ORDER BY ordinal_position
+    `);
+    console.log('🧪 user_profiles table structure:', tableInfo.rows);
+    
+    // Get just 1 address from tip_history
+    const addressesResult = await database.pool.query(`
+      SELECT from_address 
+      FROM tip_history 
+      WHERE from_address IS NOT NULL
+      LIMIT 1
+    `);
+    
+    if (addressesResult.rows.length === 0) {
+      return res.json({ success: false, message: 'No addresses found in tip_history' });
+    }
+    
+    const testAddress = addressesResult.rows[0].from_address;
+    console.log(`🧪 Testing with address: ${testAddress}`);
+    
+    // Test Neynar API call
+    const neynarResponse = await neynar.fetchBulkUsersByEthOrSolAddress([testAddress]);
+    console.log(`🧪 Neynar response:`, JSON.stringify(neynarResponse, null, 2));
+    
+    // Test database save
+    if (neynarResponse[testAddress] && neynarResponse[testAddress].length > 0) {
+      const user = neynarResponse[testAddress][0];
+      console.log(`🧪 Trying to save user:`, user);
+      
+      const success = await database.saveUserProfile(
+        user.fid,
+        user.username,
+        user.display_name,
+        user.pfp?.url || user.pfp_url,
+        user.follower_count || 0,
+        testAddress
+      );
+      
+      console.log(`🧪 Save result:`, success);
+      
+      res.json({ 
+        success: true, 
+        message: 'Test completed',
+        address: testAddress,
+        neynarResponse: neynarResponse[testAddress],
+        saveResult: success,
+        tableStructure: tableInfo.rows
+      });
+    } else {
+      res.json({ 
+        success: false, 
+        message: 'No user data found for test address',
+        address: testAddress,
+        neynarResponse,
+        tableStructure: tableInfo.rows
+      });
+    }
+    
+  } catch (error) {
+    console.error('Test migration error:', error);
+    res.status(500).json({ error: 'Test migration failed', details: error.message });
+  }
+});
+
 // Debug endpoint to check user_profiles table structure
 app.get('/api/debug/table-structure', async (req, res) => {
   try {
