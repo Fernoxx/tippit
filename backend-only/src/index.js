@@ -2891,7 +2891,11 @@ app.get('/api/leaderboard', async (req, res) => {
     // Get user's own stats for "You" section
     let userStats = null;
     if (userFid) {
+      console.log(`🔍 Fetching user stats for FID: ${userFid}`);
       userStats = await database.getUserEarnings(parseInt(userFid));
+      console.log(`📊 User stats result:`, userStats);
+    } else {
+      console.log('❌ No userFid provided for user stats');
     }
     
     // Get paginated slices
@@ -2905,6 +2909,7 @@ app.get('/api/leaderboard', async (req, res) => {
         // Fetch user profile by FID
         const { getUserDataByFid } = require('./neynar');
         const farcasterUser = await getUserDataByFid(tipper.fid);
+        console.log(`👤 Fetched profile for FID ${tipper.fid}:`, farcasterUser);
         
         enrichedTippers.push({
           ...tipper,
@@ -2933,6 +2938,7 @@ app.get('/api/leaderboard', async (req, res) => {
         // Fetch user profile by FID
         const { getUserDataByFid } = require('./neynar');
         const farcasterUser = await getUserDataByFid(earner.fid);
+        console.log(`👤 Fetched profile for earner FID ${earner.fid}:`, farcasterUser);
         
         enrichedEarners.push({
           ...earner,

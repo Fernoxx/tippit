@@ -130,15 +130,36 @@ async function getNeynarScore(fid) {
 
 async function getUserData(fid) {
   try {
+    console.log(`🔍 Fetching user data for FID: ${fid}`);
+    console.log(`🔑 Neynar API key exists: ${!!process.env.NEYNAR_API_KEY}`);
+    
     const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`, {
       headers: {
         'x-api-key': process.env.NEYNAR_API_KEY,
       },
     });
     
+    console.log(`📡 Neynar API response status: ${response.status}`);
+    
+    if (!response.ok) {
+      console.error(`❌ Neynar API error: ${response.status} ${response.statusText}`);
+      const errorText = await response.text();
+      console.error(`❌ Error response body:`, errorText);
+      return { 
+        username: null,
+        display_name: null,
+        pfp_url: null,
+        followerCount: 0, 
+        neynarScore: 0 
+      };
+    }
+    
     const data = await response.json();
+    console.log(`📊 Neynar API response data:`, data);
+    
     if (data.users && data.users[0]) {
       const user = data.users[0];
+      console.log(`✅ Found user data:`, user);
       return {
         username: user.username || null,
         display_name: user.display_name || null,
@@ -147,6 +168,8 @@ async function getUserData(fid) {
         neynarScore: user.score || 0
       };
     }
+    
+    console.log(`❌ No user found in response`);
     return { 
       username: null,
       display_name: null,
@@ -155,7 +178,7 @@ async function getUserData(fid) {
       neynarScore: 0 
     };
   } catch (error) {
-    console.error('Error fetching user data:', error);
+    console.error('❌ Error fetching user data:', error);
     return { 
       username: null,
       display_name: null,

@@ -568,8 +568,8 @@ export const useLeaderboardData = (timeFilter: 'total' | '24h' | '7d' | '30d' = 
   const userFid = currentUser?.fid;
 
   useEffect(() => {
-    fetchLeaderboardData(1, true); // Reset to page 1 when timeFilter changes
-  }, [timeFilter]);
+    fetchLeaderboardData(1, true); // Reset to page 1 when timeFilter or userFid changes
+  }, [timeFilter, userFid]);
 
   // No auto-refresh - only refresh when user changes time filter
 
@@ -589,6 +589,8 @@ export const useLeaderboardData = (timeFilter: 'total' | '24h' | '7d' | '30d' = 
       const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
+        console.log('🔍 Leaderboard API response:', data);
+        console.log('📊 User stats from API:', data.userStats);
         
         if (reset || page === 1) {
           // Replace data for first page or reset
