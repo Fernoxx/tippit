@@ -4514,6 +4514,37 @@ app.post('/api/migrate-all-user-earnings', async (req, res) => {
 // Debug endpoint to check user_profiles table
 app.get('/api/debug/user-profiles', async (req, res) => {
   try {
+    const result = await database.pool.query('SELECT fid, username, display_name, pfp_url FROM user_profiles ORDER BY fid DESC LIMIT 10');
+    res.json({
+      count: result.rows.length,
+      profiles: result.rows
+    });
+  } catch (error) {
+    console.error('Debug user-profiles error:', error);
+    res.status(500).json({ error: 'Failed to fetch user profiles' });
+  }
+});
+
+// Debug endpoint to check user_earnings table
+app.get('/api/debug/user-earnings', async (req, res) => {
+  try {
+    const result = await database.pool.query('SELECT fid, total_earnings, total_tippings FROM user_earnings ORDER BY total_earnings DESC LIMIT 10');
+    res.json({
+      count: result.rows.length,
+      earnings: result.rows
+    });
+  } catch (error) {
+    console.error('Debug user-earnings error:', error);
+    res.status(500).json({ error: 'Failed to fetch user earnings' });
+  }
+});
+
+// Simple test endpoint
+app.get('/api/test', (req, res) => {
+  res.json({ message: 'Backend is working!', timestamp: new Date().toISOString() });
+});
+app.get('/api/debug/user-profiles', async (req, res) => {
+  try {
     const result = await database.pool.query(`
       SELECT fid, username, display_name, pfp_url, follower_count, updated_at 
       FROM user_profiles 
