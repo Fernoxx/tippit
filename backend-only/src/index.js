@@ -2907,7 +2907,10 @@ app.get('/api/leaderboard', async (req, res) => {
     
     // Get user profiles from database
     const tipperFids = paginatedTippers.map(t => t.fid);
+    console.log('🔍 Looking up profiles for FIDs:', tipperFids.slice(0, 5));
     const storedProfiles = await database.getUserProfiles(tipperFids);
+    console.log('📊 Found stored profiles:', storedProfiles.length);
+    console.log('📊 Sample stored profile:', storedProfiles[0]);
     const profileMap = new Map(storedProfiles.map(p => [p.fid, p]));
     
     // Enrich tippers with stored user profiles
@@ -2925,7 +2928,7 @@ app.get('/api/leaderboard', async (req, res) => {
           followerCount: profile.follower_count || 0
         });
       } else {
-        // Fallback to showing truncated address
+        // Fallback to showing truncated address or FID
         const displayName = tipper.userAddress ? 
           `${tipper.userAddress.slice(0, 6)}...${tipper.userAddress.slice(-4)}` : 
           `FID ${tipper.fid}`;

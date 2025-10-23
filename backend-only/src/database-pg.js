@@ -183,10 +183,12 @@ class PostgresDatabase {
     try {
       if (fids.length === 0) return [];
       
+      console.log('🔍 getUserProfiles called with FIDs:', fids.slice(0, 5));
       const result = await this.pool.query(
         'SELECT * FROM user_profiles WHERE fid = ANY($1)',
         [fids]
       );
+      console.log('📊 getUserProfiles found:', result.rows.length, 'profiles');
       return result.rows;
     } catch (error) {
       console.error('Error getting user profiles:', error);
