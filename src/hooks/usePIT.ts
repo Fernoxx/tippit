@@ -571,6 +571,8 @@ export const useLeaderboardData = (timeFilter: 'total' | '24h' | '7d' | '30d' = 
   // Use SDK user if available, otherwise fall back to wallet user
   const currentUser = sdkUser || walletUser;
   const userFid = currentUser?.fid;
+  
+  console.log('🔍 usePIT user data:', { walletUser, sdkUser, currentUser, userFid });
 
   useEffect(() => {
     fetchLeaderboardData(1, true); // Reset to page 1 when timeFilter or userFid changes
@@ -590,6 +592,8 @@ export const useLeaderboardData = (timeFilter: 'total' | '24h' | '7d' | '30d' = 
       const url = userFid 
         ? `${BACKEND_URL}/api/leaderboard?timeFilter=${timeFilter}&page=${page}&limit=10&userFid=${userFid}`
         : `${BACKEND_URL}/api/leaderboard?timeFilter=${timeFilter}&page=${page}&limit=10`;
+        
+      console.log('🔍 usePIT API call:', { userFid, url });
         
       const response = await fetch(url);
       if (response.ok) {
