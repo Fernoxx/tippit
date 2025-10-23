@@ -118,6 +118,14 @@ export default function Leaderboard() {
           </div>
         </div>
 
+        {/* Debug info */}
+        {currentUser && (
+          <div className="mb-2 p-2 bg-gray-100 rounded text-xs">
+            <p>Debug - currentUser: {JSON.stringify(currentUser)}</p>
+            <p>Debug - userStats: {JSON.stringify(userStats)}</p>
+          </div>
+        )}
+        
         {/* You Section - Only show if user is logged in and has stats */}
         {currentUser && userStats && (
           <div className="mb-6 p-4 bg-gradient-to-r from-yellow-50 to-yellow-100 rounded-xl border border-yellow-200">

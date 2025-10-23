@@ -559,6 +559,7 @@ class PostgresDatabase {
 
   async getUserEarnings(fid) {
     try {
+      console.log(`🔍 Getting user earnings for FID: ${fid}`);
       const result = await this.pool.query(`
         SELECT 
           fid,
@@ -575,7 +576,10 @@ class PostgresDatabase {
         WHERE fid = $1
       `, [fid]);
       
+      console.log(`📊 User earnings query result:`, result.rows);
+      
       if (result.rows.length === 0) {
+        console.log(`❌ No user earnings found for FID: ${fid}, returning zeros`);
         return {
           fid,
           totalEarnings: 0,
@@ -590,7 +594,7 @@ class PostgresDatabase {
       }
       
       const row = result.rows[0];
-      return {
+      const userStats = {
         fid: row.fid,
         totalEarnings: parseFloat(row.total_earnings),
         earnings24h: parseFloat(row.earnings_24h),
@@ -602,6 +606,8 @@ class PostgresDatabase {
         tippings30d: parseFloat(row.tippings_30d),
         lastUpdated: row.last_updated
       };
+      console.log(`✅ User earnings data:`, userStats);
+      return userStats;
     } catch (error) {
       console.error('Error getting user earnings:', error);
       return null;
