@@ -4343,13 +4343,13 @@ app.post('/api/migrate-user-profiles', async (req, res) => {
         if (data.result && data.result.users) {
           for (const user of data.result.users) {
             try {
-              await database.saveUserProfile({
-                fid: user.fid,
-                username: user.username || `user_${user.custodyAddress?.slice(0, 8) || 'unknown'}`,
-                displayName: user.displayName || `User ${user.custodyAddress?.slice(0, 8) || 'unknown'}`,
-                pfpUrl: user.pfp?.url || '',
-                followerCount: user.followerCount || 0
-              });
+              await database.saveUserProfile(
+                user.fid,
+                user.username || `user_${user.custodyAddress?.slice(0, 8) || 'unknown'}`,
+                user.displayName || `User ${user.custodyAddress?.slice(0, 8) || 'unknown'}`,
+                user.pfp?.url || '',
+                user.followerCount || 0
+              );
               console.log(`✅ Saved profile for ${user.username || user.custodyAddress}`);
               successCount++;
             } catch (error) {
