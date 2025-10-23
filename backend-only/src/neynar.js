@@ -235,6 +235,35 @@ async function getUserDataByAddress(address) {
   }
 }
 
+async function fetchBulkUsersByEthOrSolAddress(addresses) {
+  try {
+    console.log(`🔍 Fetching bulk user data for ${addresses.length} addresses`);
+    
+    // Join addresses with comma for the API
+    const addressesString = addresses.join(',');
+    
+    const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk-by-address?addresses=${addressesString}`, {
+      headers: {
+        'x-api-key': process.env.NEYNAR_API_KEY,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      console.error(`❌ Neynar API error for bulk addresses:`, response.status, response.statusText);
+      return {};
+    }
+
+    const data = await response.json();
+    console.log(`📊 Neynar bulk response:`, Object.keys(data).length, 'users found');
+
+    return data;
+  } catch (error) {
+    console.error(`❌ Error fetching bulk user data:`, error);
+    return {};
+  }
+}
+
 module.exports = {
   getFollowerCount,
   checkAudienceCriteria,
@@ -243,5 +272,6 @@ module.exports = {
   getNeynarScore,
   getUserData,
   getUserDataByFid,
-  getUserDataByAddress
+  getUserDataByAddress,
+  fetchBulkUsersByEthOrSolAddress
 };
