@@ -4386,22 +4386,19 @@ app.post('/api/migrate-all-user-earnings', async (req, res) => {
   try {
     console.log('🚀 Starting migration of ALL user earnings from tip_history...');
     
-    // Get all unique FIDs from tip_history
-    const fidResult = await database.pool.query(`
-      SELECT DISTINCT 
-        COALESCE(
-          (SELECT (config->>'fid')::bigint FROM user_configs WHERE LOWER(user_address) = LOWER(tip_history.from_address) LIMIT 1),
-          (SELECT (config->>'fid')::bigint FROM user_configs WHERE LOWER(user_address) = LOWER(tip_history.to_address) LIMIT 1)
-        ) as fid
+    // Get all unique addresses from tip_history
+    const addressesResult = await database.pool.query(`
+      SELECT DISTINCT from_address as user_address
       FROM tip_history 
       WHERE LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
-      AND COALESCE(
-        (SELECT (config->>'fid')::bigint FROM user_configs WHERE LOWER(user_address) = LOWER(tip_history.from_address) LIMIT 1),
-        (SELECT (config->>'fid')::bigint FROM user_configs WHERE LOWER(user_address) = LOWER(tip_history.to_address) LIMIT 1)
-      ) IS NOT NULL
+      UNION
+      SELECT DISTINCT to_address as user_address
+      FROM tip_history 
+      WHERE LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
     `);
     
-    console.log(`📊 Found ${fidResult.rows.length} unique FIDs with tip history`);
+    const addresses = addressesResult.rows.map(row => row.user_address);
+    console.log(`📊 Found ${addresses.length} unique addresses from tip_history`);
     
     let migratedCount = 0;
     const results = [];
