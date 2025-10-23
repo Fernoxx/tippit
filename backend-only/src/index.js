@@ -4297,17 +4297,36 @@ app.post('/api/migrate-user-profiles', async (req, res) => {
   try {
     console.log('🚀 Starting user profiles migration...');
     
-    // Get all unique FIDs from tip_history
+    // First, let's check what data we have
+    const tipHistoryCount = await database.pool.query('SELECT COUNT(*) FROM tip_history');
+    const userConfigsCount = await database.pool.query('SELECT COUNT(*) FROM user_configs');
+    console.log(`📊 tip_history records: ${tipHistoryCount.rows[0].count}`);
+    console.log(`📊 user_configs records: ${userConfigsCount.rows[0].count}`);
+    
+    // Check sample data from user_configs
+    const sampleConfigs = await database.pool.query('SELECT user_address, config FROM user_configs LIMIT 5');
+    console.log('📊 Sample user_configs:', sampleConfigs.rows);
+    
+    // Check sample data from tip_history
+    const sampleTips = await database.pool.query('SELECT from_address, to_address, token_address FROM tip_history LIMIT 5');
+    console.log('📊 Sample tip_history:', sampleTips.rows);
+    
+    // Get all unique FIDs from tip_history using a simpler approach
     const fidsResult = await database.pool.query(`
-      SELECT DISTINCT (uc.config->>'fid')::bigint as fid
+      SELECT DISTINCT 
+        COALESCE(
+          (SELECT (config->>'fid')::bigint FROM user_configs WHERE LOWER(user_address) = LOWER(th.from_address) LIMIT 1),
+          (SELECT (config->>'fid')::bigint FROM user_configs WHERE LOWER(user_address) = LOWER(th.to_address) LIMIT 1)
+        ) as fid
       FROM tip_history th
-      JOIN user_configs uc ON LOWER(uc.user_address) = LOWER(th.from_address) 
-         OR LOWER(uc.user_address) = LOWER(th.to_address)
-      WHERE uc.config->>'fid' IS NOT NULL
-      AND LOWER(th.token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+      WHERE LOWER(th.token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+      AND COALESCE(
+        (SELECT (config->>'fid')::bigint FROM user_configs WHERE LOWER(user_address) = LOWER(th.from_address) LIMIT 1),
+        (SELECT (config->>'fid')::bigint FROM user_configs WHERE LOWER(user_address) = LOWER(th.to_address) LIMIT 1)
+      ) IS NOT NULL
     `);
     
-    const fids = fidsResult.rows.map(row => row.fid);
+    const fids = fidsResult.rows.map(row => row.fid).filter(fid => fid);
     console.log(`📊 Found ${fids.length} unique FIDs to migrate`);
     
     const { getUserDataByFid } = require('./neynar');
