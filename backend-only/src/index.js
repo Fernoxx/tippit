@@ -2944,29 +2944,19 @@ app.get('/api/leaderboard', async (req, res) => {
         }
         
         enrichedTippers.push({
+          ...tipper,
           fid: farcasterUser?.fid || null,
           username: farcasterUser?.username || null,
           displayName: farcasterUser?.display_name || null,
           pfpUrl: farcasterUser?.pfp_url || null,
           followerCount: farcasterUser?.follower_count || 0,
-          userAddress: tipper.userAddress,
-          totalAmount: tipper.totalAmount,
-          tipCount: tipper.tipCount,
           tokenInfo: tokenInfo
         });
       } catch (error) {
-        console.error('Error enriching tipper:', error);
-        // Add basic info even if enrichment fails
+        console.log(`Could not fetch profile for tipper ${tipper.userAddress}:`, error.message);
         enrichedTippers.push({
-          fid: null,
-          username: null,
-          displayName: null,
-          pfpUrl: null,
-          followerCount: 0,
-          userAddress: tipper.userAddress,
-          totalAmount: tipper.totalAmount,
-          tipCount: tipper.tipCount,
-          tokenInfo: null
+          ...tipper,
+          tokenInfo: { name: 'Unknown', symbol: 'UNK', decimals: 18 }
         });
       }
     }
@@ -3020,29 +3010,19 @@ app.get('/api/leaderboard', async (req, res) => {
         }
         
         enrichedEarners.push({
+          ...earner,
           fid: farcasterUser?.fid || null,
           username: farcasterUser?.username || null,
           displayName: farcasterUser?.display_name || null,
           pfpUrl: farcasterUser?.pfp_url || null,
           followerCount: farcasterUser?.follower_count || 0,
-          userAddress: earner.userAddress,
-          totalAmount: earner.totalAmount,
-          tipCount: earner.tipCount,
           tokenInfo: tokenInfo
         });
       } catch (error) {
-        console.error('Error enriching earner:', error);
-        // Add basic info even if enrichment fails
+        console.log(`Could not fetch profile for earner ${earner.userAddress}:`, error.message);
         enrichedEarners.push({
-          fid: null,
-          username: null,
-          displayName: null,
-          pfpUrl: null,
-          followerCount: 0,
-          userAddress: earner.userAddress,
-          totalAmount: earner.totalAmount,
-          tipCount: earner.tipCount,
-          tokenInfo: null
+          ...earner,
+          tokenInfo: { name: 'Unknown', symbol: 'UNK', decimals: 18 }
         });
       }
     }
