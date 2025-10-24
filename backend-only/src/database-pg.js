@@ -236,6 +236,15 @@ class PostgresDatabase {
 
       console.log(`🔍 Calculating earnings for ${userAddress} with timeFilter: ${timeFilter}`);
 
+      // First check what addresses are actually in the database
+      const addressCheck = await this.pool.query(`
+        SELECT DISTINCT from_address, to_address, amount, token_address
+        FROM tip_history 
+        WHERE token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+        LIMIT 5
+      `);
+      console.log(`📊 Sample addresses in tip_history:`, addressCheck.rows);
+
       const result = await this.pool.query(`
         SELECT 
           SUM(CASE WHEN LOWER(to_address) = LOWER($1) THEN amount::NUMERIC ELSE 0 END) as total_earnings,
