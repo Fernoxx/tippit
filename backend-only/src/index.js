@@ -2961,8 +2961,9 @@ app.get('/api/leaderboard', async (req, res) => {
     }
     
     // Get paginated slices (data already enriched from user_profiles)
-    const paginatedTippers = topTippers.slice(offset, offset + limitNum);
-    const paginatedEarners = topEarners.slice(offset, offset + limitNum);
+    const startIndex = (pageNum - 1) * limitNum;
+    const paginatedTippers = topTippers.slice(startIndex, startIndex + limitNum);
+    const paginatedEarners = topEarners.slice(startIndex, startIndex + limitNum);
     
     // Add followerCount to the data (default to 0 if not available)
     const enrichedTippers = paginatedTippers.map(tipper => ({
@@ -5790,6 +5791,91 @@ module.exports = {
   sendBulkNotification,
   hasNotificationTokens
 };
+// Admin panel - Get total tips statistics
+app.get('/api/admin/total-stats', async (req, res) => {
+  try {
+    console.log('📊 Admin: Fetching total tips statistics...');
+    
+    // Get total USDC tipped (all time)
+    const totalStatsResult = await database.pool.query(`
+      SELECT 
+        COUNT(*) as total_tips,
+        SUM(amount::NUMERIC) as total_usdc_tipped,
+        COUNT(DISTINCT from_address) as unique_tippers,
+        COUNT(DISTINCT to_address) as unique_earners,
+        MIN(processed_at) as first_tip_date,
+        MAX(processed_at) as last_tip_date
+      FROM tip_history 
+      WHERE LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+    `);
+    
+    // Get 24h stats
+    const stats24hResult = await database.pool.query(`
+      SELECT 
+        COUNT(*) as tips_24h,
+        SUM(amount::NUMERIC) as usdc_24h
+      FROM tip_history 
+      WHERE LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+      AND processed_at >= NOW() - INTERVAL '24 hours'
+    `);
+    
+    // Get 7d stats
+    const stats7dResult = await database.pool.query(`
+      SELECT 
+        COUNT(*) as tips_7d,
+        SUM(amount::NUMERIC) as usdc_7d
+      FROM tip_history 
+      WHERE LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+      AND processed_at >= NOW() - INTERVAL '7 days'
+    `);
+    
+    // Get 30d stats
+    const stats30dResult = await database.pool.query(`
+      SELECT 
+        COUNT(*) as tips_30d,
+        SUM(amount::NUMERIC) as usdc_30d
+      FROM tip_history 
+      WHERE LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+      AND processed_at >= NOW() - INTERVAL '30 days'
+    `);
+    
+    const totalStats = totalStatsResult.rows[0];
+    const stats24h = stats24hResult.rows[0];
+    const stats7d = stats7dResult.rows[0];
+    const stats30d = stats30dResult.rows[0];
+    
+    res.json({
+      success: true,
+      data: {
+        allTime: {
+          totalTips: parseInt(totalStats.total_tips) || 0,
+          totalUsdcTipped: parseFloat(totalStats.total_usdc_tipped) || 0,
+          uniqueTippers: parseInt(totalStats.unique_tippers) || 0,
+          uniqueEarners: parseInt(totalStats.unique_earners) || 0,
+          firstTipDate: totalStats.first_tip_date,
+          lastTipDate: totalStats.last_tip_date
+        },
+        last24h: {
+          tips: parseInt(stats24h.tips_24h) || 0,
+          usdc: parseFloat(stats24h.usdc_24h) || 0
+        },
+        last7d: {
+          tips: parseInt(stats7d.tips_7d) || 0,
+          usdc: parseFloat(stats7d.usdc_7d) || 0
+        },
+        last30d: {
+          tips: parseInt(stats30d.tips_30d) || 0,
+          usdc: parseFloat(stats30d.usdc_30d) || 0
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Error fetching admin stats:', error);
+    res.status(500).json({ error: 'Failed to fetch admin statistics' });
+  }
+});
+
 // Clear all blocklist entries
 app.post('/api/clear-blocklist', async (req, res) => {
   try {

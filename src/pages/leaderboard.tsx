@@ -8,7 +8,7 @@ import { useFarcasterWallet } from '@/hooks/useFarcasterWallet';
 import { useFarcasterSDK } from '@/hooks/useFarcasterSDK';
 
 export default function Leaderboard() {
-  const [timeFilter, setTimeFilter] = useState<'total' | '24h' | '7d' | '30d'>('total');
+  const [timeFilter, setTimeFilter] = useState<'24h' | '7d' | '30d'>('24h');
   const { tippers, earners, userStats, isLoading, isLoadingMore, hasMore, loadMore } = useLeaderboardData(timeFilter);
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<'tipped' | 'earned'>('tipped');
@@ -106,7 +106,7 @@ export default function Leaderboard() {
           <div className="flex items-center space-x-3">
             {/* Time Filter - Smaller */}
             <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
-              {(['total', '24h', '7d', '30d'] as const).map((period) => (
+              {(['24h', '7d', '30d'] as const).map((period) => (
                 <button
                   key={period}
                   onClick={() => setTimeFilter(period)}
@@ -116,7 +116,7 @@ export default function Leaderboard() {
                       : 'text-gray-600 hover:text-gray-900'
                   }`}
                 >
-                  {period === 'total' ? '∑' : period}
+                  {period}
                 </button>
               ))}
             </div>

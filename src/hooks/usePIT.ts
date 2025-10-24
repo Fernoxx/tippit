@@ -551,7 +551,7 @@ export const useHomepageData = (timeFilter: '24h' | '7d' | '30d' = '24h') => {
   };
 };
 
-export const useLeaderboardData = (timeFilter: 'total' | '24h' | '7d' | '30d' = 'total') => {
+export const useLeaderboardData = (timeFilter: '24h' | '7d' | '30d' = '24h') => {
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardData>({ 
     tippers: [], 
     earners: [], 
