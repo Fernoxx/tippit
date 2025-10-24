@@ -14,7 +14,7 @@ const { getUserByFid, getCastByHash } = require('./neynar');
 const instantTipProcessor = require('./instantTipProcessor');
 const tipQueueManager = require('./tipQueueManager');
 const batchTransferManager = require('./batchTransferManager');
-const BlocklistService = require('./blocklistService');
+// BlocklistService removed - using webhook filtering instead
 
 // Verify webhook signature from Neynar
 function verifyWebhookSignature(req) {
