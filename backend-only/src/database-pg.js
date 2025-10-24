@@ -35,18 +35,10 @@ class PostgresDatabase {
         )
       `);
       
-      // Add new columns if they don't exist
+      // Add user_address column if it doesn't exist
       await this.pool.query(`
         ALTER TABLE user_profiles 
-        ADD COLUMN IF NOT EXISTS user_address VARCHAR(255),
-        ADD COLUMN IF NOT EXISTS total_earnings DECIMAL(18,6) DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS total_tippings DECIMAL(18,6) DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS earnings_24h DECIMAL(18,6) DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS tippings_24h DECIMAL(18,6) DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS earnings_7d DECIMAL(18,6) DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS tippings_7d DECIMAL(18,6) DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS earnings_30d DECIMAL(18,6) DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS tippings_30d DECIMAL(18,6) DEFAULT 0
+        ADD COLUMN IF NOT EXISTS user_address VARCHAR(255)
       `);
       
       // Fix the created_at column issue - rename it to match what the code expects
@@ -227,6 +219,89 @@ class PostgresDatabase {
     } catch (error) {
       console.error('Error getting user profiles:', error);
       return [];
+    }
+  }
+
+  // Calculate earnings for a specific FID from tip_history
+  async calculateUserEarnings(fid, timeFilter = 'total') {
+    try {
+      let timeCondition = '';
+      if (timeFilter === '24h') {
+        timeCondition = "AND processed_at >= NOW() - INTERVAL '24 hours'";
+      } else if (timeFilter === '7d') {
+        timeCondition = "AND processed_at >= NOW() - INTERVAL '7 days'";
+      } else if (timeFilter === '30d') {
+        timeCondition = "AND processed_at >= NOW() - INTERVAL '30 days'";
+      }
+
+      const result = await this.pool.query(`
+        SELECT 
+          SUM(CASE WHEN to_address IN (
+            SELECT user_address FROM user_profiles WHERE fid = $1
+          ) THEN amount::NUMERIC ELSE 0 END) as total_earnings,
+          SUM(CASE WHEN from_address IN (
+            SELECT user_address FROM user_profiles WHERE fid = $1
+          ) THEN amount::NUMERIC ELSE 0 END) as total_tippings
+        FROM tip_history 
+        WHERE token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+        ${timeCondition}
+      `, [fid]);
+
+      const stats = result.rows[0];
+      return {
+        totalEarnings: parseFloat(stats.total_earnings) || 0,
+        totalTippings: parseFloat(stats.total_tippings) || 0
+      };
+    } catch (error) {
+      console.error('Error calculating user earnings:', error);
+      return { totalEarnings: 0, totalTippings: 0 };
+    }
+  }
+
+  // Get leaderboard data with real-time earnings calculation
+  async getLeaderboardData(timeFilter = 'total', page = 1, limit = 10) {
+    try {
+      // Get all users from user_profiles
+      const usersResult = await this.pool.query(`
+        SELECT fid, username, display_name, pfp_url, follower_count, user_address
+        FROM user_profiles 
+        ORDER BY fid DESC
+      `);
+
+      const users = usersResult.rows;
+      const usersWithEarnings = [];
+
+      // Calculate earnings for each user
+      for (const user of users) {
+        if (user.user_address) {
+          const earnings = await this.calculateUserEarnings(user.fid, timeFilter);
+          usersWithEarnings.push({
+            ...user,
+            ...earnings
+          });
+        }
+      }
+
+      // Sort by earnings
+      usersWithEarnings.sort((a, b) => b.totalEarnings - a.totalEarnings);
+
+      // Pagination
+      const startIndex = (page - 1) * limit;
+      const endIndex = startIndex + limit;
+      const paginatedUsers = usersWithEarnings.slice(startIndex, endIndex);
+
+      return {
+        users: paginatedUsers,
+        pagination: {
+          page,
+          limit,
+          total: usersWithEarnings.length,
+          totalPages: Math.ceil(usersWithEarnings.length / limit)
+        }
+      };
+    } catch (error) {
+      console.error('Error getting leaderboard data:', error);
+      return { users: [], pagination: { page: 1, limit: 10, total: 0, totalPages: 0 } };
     }
   }
 
