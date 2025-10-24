@@ -4771,13 +4771,25 @@ app.post('/api/recalculate-earnings', async (req, res) => {
       const address = user.user_address;
       
       try {
-        // First, let's check if this address has any tips in tip_history
-        const checkResult = await database.pool.query(`
-          SELECT COUNT(*) as tip_count, 
-                 COUNT(CASE WHEN to_address = $1 THEN 1 END) as earnings_count,
-                 COUNT(CASE WHEN from_address = $1 THEN 1 END) as tippings_count
+        // First, let's check what token addresses exist in tip_history
+        const tokenCheckResult = await database.pool.query(`
+          SELECT token_address, COUNT(*) as count
           FROM tip_history 
-          WHERE token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+          GROUP BY token_address
+          ORDER BY count DESC
+          LIMIT 10
+        `);
+        
+        console.log(`🔍 Token addresses in tip_history:`, tokenCheckResult.rows);
+        
+        // Check if this address has any tips at all (any token)
+        const checkResult = await database.pool.query(`
+          SELECT COUNT(*) as total_tips, 
+                 COUNT(CASE WHEN to_address = $1 THEN 1 END) as total_earnings,
+                 COUNT(CASE WHEN from_address = $1 THEN 1 END) as total_tippings,
+                 COUNT(CASE WHEN to_address = $1 AND token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913' THEN 1 END) as usdc_earnings,
+                 COUNT(CASE WHEN from_address = $1 AND token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913' THEN 1 END) as usdc_tippings
+          FROM tip_history 
         `, [address]);
         
         console.log(`🔍 Address ${address} check:`, checkResult.rows[0]);
