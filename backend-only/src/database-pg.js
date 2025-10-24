@@ -222,6 +222,111 @@ class PostgresDatabase {
     }
   }
 
+  async getTopTippers(timeFilter = '24h') {
+    try {
+      let timeCondition = '';
+      if (timeFilter === '24h') {
+        timeCondition = "AND processed_at >= NOW() - INTERVAL '24 hours'";
+      } else if (timeFilter === '7d') {
+        timeCondition = "AND processed_at >= NOW() - INTERVAL '7 days'";
+      } else if (timeFilter === '30d') {
+        timeCondition = "AND processed_at >= NOW() - INTERVAL '30 days'";
+      }
+
+      const result = await this.pool.query(`
+        SELECT 
+          from_address as user_address,
+          SUM(CAST(amount AS DECIMAL)) as total_amount,
+          COUNT(*) as tip_count,
+          MAX(processed_at) as last_updated
+        FROM tip_history 
+        WHERE token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+        ${timeCondition}
+        GROUP BY from_address 
+        ORDER BY total_amount DESC 
+        LIMIT 50
+      `);
+      
+      return result.rows.map(row => ({
+        userAddress: row.user_address,
+        totalAmount: parseFloat(row.total_amount),
+        tipCount: parseInt(row.tip_count),
+        lastUpdated: row.last_updated
+      }));
+    } catch (error) {
+      console.error('Error getting top tippers:', error);
+      return [];
+    }
+  }
+
+  async getTopEarners(timeFilter = '24h') {
+    try {
+      let timeCondition = '';
+      if (timeFilter === '24h') {
+        timeCondition = "AND processed_at >= NOW() - INTERVAL '24 hours'";
+      } else if (timeFilter === '7d') {
+        timeCondition = "AND processed_at >= NOW() - INTERVAL '7 days'";
+      } else if (timeFilter === '30d') {
+        timeCondition = "AND processed_at >= NOW() - INTERVAL '30 days'";
+      }
+
+      const result = await this.pool.query(`
+        SELECT 
+          to_address as user_address,
+          SUM(CAST(amount AS DECIMAL)) as total_amount,
+          COUNT(*) as tip_count,
+          MAX(processed_at) as last_updated
+        FROM tip_history 
+        WHERE token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+        ${timeCondition}
+        GROUP BY to_address 
+        ORDER BY total_amount DESC 
+        LIMIT 50
+      `);
+      
+      return result.rows.map(row => ({
+        userAddress: row.user_address,
+        totalAmount: parseFloat(row.total_amount),
+        tipCount: parseInt(row.tip_count),
+        lastUpdated: row.last_updated
+      }));
+    } catch (error) {
+      console.error('Error getting top earners:', error);
+      return [];
+    }
+  }
+
+  async getUserEarnings(fid) {
+    try {
+      // Get user's address from user_profiles
+      const userResult = await this.pool.query(`
+        SELECT user_address FROM user_profiles WHERE fid = $1
+      `, [fid]);
+      
+      if (userResult.rows.length === 0) {
+        return null;
+      }
+      
+      const userAddress = userResult.rows[0].user_address;
+      const earnings = await this.calculateUserEarnings(userAddress, '24h');
+      
+      return {
+        fid,
+        totalEarnings: earnings.totalEarnings,
+        totalTippings: earnings.totalTippings,
+        earnings24h: earnings.totalEarnings,
+        tippings24h: earnings.totalTippings,
+        earnings7d: earnings.totalEarnings,
+        tippings7d: earnings.totalTippings,
+        earnings30d: earnings.totalEarnings,
+        tippings30d: earnings.totalTippings
+      };
+    } catch (error) {
+      console.error('Error getting user earnings:', error);
+      return null;
+    }
+  }
+
   // Calculate earnings for a specific user address from tip_history
   async calculateUserEarnings(userAddress, timeFilter = 'total') {
     try {
@@ -236,21 +341,12 @@ class PostgresDatabase {
 
       console.log(`🔍 Calculating earnings for ${userAddress} with timeFilter: ${timeFilter}`);
 
-      // First check what addresses are actually in the database
-      const addressCheck = await this.pool.query(`
-        SELECT DISTINCT from_address, to_address, amount, token_address
-        FROM tip_history 
-        WHERE token_address = '0x833589fCD6eDb6E08f4c7C32D4f71b54bd'
-        LIMIT 5
-      `);
-      console.log(`📊 Sample addresses in tip_history:`, addressCheck.rows);
-
       const result = await this.pool.query(`
         SELECT 
           SUM(CASE WHEN LOWER(to_address) = LOWER($1) THEN amount::NUMERIC ELSE 0 END) as total_earnings,
           SUM(CASE WHEN LOWER(from_address) = LOWER($1) THEN amount::NUMERIC ELSE 0 END) as total_tippings
         FROM tip_history 
-        WHERE token_address = '0x833589fCD6eDb6E08f4c7C32D4f71b54bd'
+        WHERE token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
         ${timeCondition}
       `, [userAddress]);
 
