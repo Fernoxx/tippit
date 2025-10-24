@@ -2918,37 +2918,41 @@ app.get('/api/leaderboard', async (req, res) => {
     console.log(`📊 First tipper:`, topTippers[0]);
     console.log(`📊 First earner:`, topEarners[0]);
     
-    // Get user's own stats for "You" section from user_profiles
+    // Get user's own stats for "You" section using real-time calculation
     let userStats = null;
     if (userFid) {
       console.log(`🔍 Fetching user stats for FID: ${userFid}`);
-      const userStatsResult = await database.pool.query(`
-        SELECT 
-          fid,
-          total_earnings,
-          total_tippings,
-          earnings_24h,
-          tippings_24h,
-          earnings_7d,
-          tippings_7d,
-          earnings_30d,
-          tippings_30d
+      
+      // Get user profile to find their address
+      const userProfileResult = await database.pool.query(`
+        SELECT fid, username, display_name, pfp_url, user_address
         FROM user_profiles 
         WHERE fid = $1
       `, [parseInt(userFid)]);
       
-      if (userStatsResult.rows.length > 0) {
-        const row = userStatsResult.rows[0];
+      if (userProfileResult.rows.length > 0 && userProfileResult.rows[0].user_address) {
+        const user = userProfileResult.rows[0];
+        const userAddress = user.user_address;
+        
+        // Calculate real-time earnings for different time periods
+        const totalEarnings = await database.calculateUserEarnings(userAddress, 'total');
+        const earnings24h = await database.calculateUserEarnings(userAddress, '24h');
+        const earnings7d = await database.calculateUserEarnings(userAddress, '7d');
+        const earnings30d = await database.calculateUserEarnings(userAddress, '30d');
+        
         userStats = {
-          fid: row.fid,
-          totalEarnings: parseFloat(row.total_earnings) || 0,
-          totalTippings: parseFloat(row.total_tippings) || 0,
-          earnings24h: parseFloat(row.earnings_24h) || 0,
-          tippings24h: parseFloat(row.tippings_24h) || 0,
-          earnings7d: parseFloat(row.earnings_7d) || 0,
-          tippings7d: parseFloat(row.tippings_7d) || 0,
-          earnings30d: parseFloat(row.earnings_30d) || 0,
-          tippings30d: parseFloat(row.tippings_30d) || 0
+          fid: user.fid,
+          username: user.username,
+          displayName: user.display_name,
+          pfpUrl: user.pfp_url,
+          totalEarnings: totalEarnings.totalEarnings,
+          totalTippings: totalEarnings.totalTippings,
+          earnings24h: earnings24h.totalEarnings,
+          tippings24h: earnings24h.totalTippings,
+          earnings7d: earnings7d.totalEarnings,
+          tippings7d: earnings7d.totalTippings,
+          earnings30d: earnings30d.totalEarnings,
+          tippings30d: earnings30d.totalTippings
         };
       }
       console.log(`📊 User stats result:`, userStats);
