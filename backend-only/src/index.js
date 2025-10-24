@@ -2277,14 +2277,32 @@ app.post('/api/sync-all-users-allowance', async (req, res) => {
         
         console.log(`💰 Total tip amount: ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount})`);
         
-        // Check if user should be added to blocklist
+        // Check if user should be removed from webhook (insufficient allowance)
         if (currentBlockchainAllowance < minTipAmount) {
-          console.log(`❌ User has insufficient allowance - adding to blocklist`);
+          console.log(`❌ User has insufficient allowance - removing from webhook`);
           
-          // Add to blocklist using BlocklistService
-          if (global.blocklistService) {
-            global.blocklistService.addToBlocklist(userAddress, 'insufficient_allowance');
-            console.log(`🚫 Added ${userAddress} to blocklist - insufficient allowance`);
+          // Get user's FID and remove from webhook
+          try {
+            const userProfile = await database.pool.query(
+              'SELECT fid FROM user_profiles WHERE user_address = $1',
+              [userAddress]
+            );
+            
+            if (userProfile.rows.length > 0) {
+              const fid = userProfile.rows[0].fid;
+              console.log(`🔗 Removing FID ${fid} from webhook (insufficient allowance)`);
+              
+              const removed = await removeFidFromWebhook(fid);
+              if (removed) {
+                console.log(`✅ Removed FID ${fid} from webhook`);
+              } else {
+                console.log(`❌ Failed to remove FID ${fid} from webhook`);
+              }
+            } else {
+              console.log(`⚠️ No FID found for user ${userAddress}`);
+            }
+          } catch (error) {
+            console.error(`❌ Error removing FID from webhook for ${userAddress}:`, error);
           }
           
           // Remove from homepage
@@ -2292,12 +2310,30 @@ app.post('/api/sync-all-users-allowance', async (req, res) => {
           removedFromHomepageCount++;
           console.log(`🏠 Removed from homepage cache`);
         } else {
-          console.log(`✅ User has sufficient allowance - removing from blocklist if present`);
+          console.log(`✅ User has sufficient allowance - ensuring FID is in webhook`);
           
-          // Remove from blocklist if user was blocked
-          if (global.blocklistService) {
-            const wasRemoved = global.blocklistService.removeFromBlocklist(userAddress);
-            console.log(`🔄 Blocklist removal result for ${userAddress}: ${wasRemoved ? 'removed' : 'not in blocklist'}`);
+          // Ensure FID is in webhook if user has sufficient allowance
+          try {
+            const userProfile = await database.pool.query(
+              'SELECT fid FROM user_profiles WHERE user_address = $1',
+              [userAddress]
+            );
+            
+            if (userProfile.rows.length > 0) {
+              const fid = userProfile.rows[0].fid;
+              console.log(`🔗 Ensuring FID ${fid} is in webhook`);
+              
+              const added = await addFidToWebhook(fid);
+              if (added) {
+                console.log(`✅ FID ${fid} is in webhook`);
+              } else {
+                console.log(`ℹ️ FID ${fid} already in webhook or failed to add`);
+              }
+            } else {
+              console.log(`⚠️ No FID found for user ${userAddress}`);
+            }
+          } catch (error) {
+            console.error(`❌ Error ensuring FID in webhook for ${userAddress}:`, error);
           }
           
           // Ensure user is in webhook

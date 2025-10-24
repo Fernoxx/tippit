@@ -78,45 +78,59 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager, b
     
     console.log(`💰 Total tip amount: ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount}), Current allowance: ${allowanceAmount}`);
     
-    // Determine blocklist action based on allowance vs min tip
-    let blocklistAction = 'no_change';
-    let blocklistReason = '';
+    // Determine webhook action based on allowance vs min tip
+    let webhookAction = 'no_change';
+    let webhookReason = '';
     
     if (allowanceAmount < minTipAmount) {
-      // User has insufficient allowance - should be blocked
-      if (!blocklistService.isBlocked(userAddress)) {
-        blocklistAction = 'add';
-        blocklistReason = 'insufficient_allowance';
-        console.log(`🚫 User ${userAddress} allowance ${allowanceAmount} < min tip ${minTipAmount} - adding to blocklist`);
-      } else {
-        blocklistAction = 'keep_blocked';
-        blocklistReason = 'already_blocked_insufficient_allowance';
-        console.log(`🚫 User ${userAddress} already blocked - keeping blocked (insufficient allowance)`);
-      }
+      // User has insufficient allowance - should be removed from webhook
+      webhookAction = 'remove';
+      webhookReason = 'insufficient_allowance';
+      console.log(`🚫 User ${userAddress} allowance ${allowanceAmount} < min tip ${minTipAmount} - removing from webhook`);
     } else {
-      // User has sufficient allowance - should not be blocked
-      if (blocklistService.isBlocked(userAddress)) {
-        blocklistAction = 'remove';
-        blocklistReason = 'sufficient_allowance';
-        console.log(`✅ User ${userAddress} allowance ${allowanceAmount} >= min tip ${minTipAmount} - removing from blocklist`);
-      } else {
-        blocklistAction = 'keep_unblocked';
-        blocklistReason = 'already_unblocked_sufficient_allowance';
-        console.log(`✅ User ${userAddress} already unblocked - keeping unblocked (sufficient allowance)`);
-      }
+      // User has sufficient allowance - should be in webhook
+      webhookAction = 'add';
+      webhookReason = 'sufficient_allowance';
+      console.log(`✅ User ${userAddress} allowance ${allowanceAmount} >= min tip ${minTipAmount} - ensuring in webhook`);
     }
     
-    // Execute the blocklist action
-    let blocklistResult = { action: 'no_change', reason: 'no_change_needed' };
+    // Execute the webhook action
+    let webhookResult = { action: 'no_change', reason: 'no_change_needed' };
     
-    if (blocklistAction === 'add') {
-      blocklistService.addToBlocklist(userAddress, blocklistReason);
-      blocklistResult = { action: 'added', reason: blocklistReason };
-    } else if (blocklistAction === 'remove') {
-      blocklistService.removeFromBlocklist(userAddress);
-      blocklistResult = { action: 'removed', reason: blocklistReason };
-    } else {
-      blocklistResult = { action: blocklistAction, reason: blocklistReason };
+    try {
+      // Get user's FID
+      const userProfile = await database.pool.query(
+        'SELECT fid FROM user_profiles WHERE user_address = $1',
+        [userAddress]
+      );
+      
+      if (userProfile.rows.length > 0) {
+        const fid = userProfile.rows[0].fid;
+        
+        if (webhookAction === 'remove') {
+          // Remove FID from webhook
+          const removeFidFromWebhook = require('./index').removeFidFromWebhook;
+          if (removeFidFromWebhook) {
+            const removed = await removeFidFromWebhook(fid);
+            webhookResult = { action: removed ? 'removed' : 'failed', reason: webhookReason };
+            console.log(`🔗 Webhook removal result for FID ${fid}: ${removed ? 'removed' : 'failed'}`);
+          }
+        } else if (webhookAction === 'add') {
+          // Add FID to webhook
+          const addFidToWebhook = require('./index').addFidToWebhook;
+          if (addFidToWebhook) {
+            const added = await addFidToWebhook(fid);
+            webhookResult = { action: added ? 'added' : 'failed', reason: webhookReason };
+            console.log(`🔗 Webhook addition result for FID ${fid}: ${added ? 'added' : 'failed'}`);
+          }
+        }
+      } else {
+        console.log(`⚠️ No FID found for user ${userAddress}`);
+        webhookResult = { action: 'no_fid', reason: 'user_not_found' };
+      }
+    } catch (error) {
+      console.error(`❌ Error managing webhook for ${userAddress}:`, error);
+      webhookResult = { action: 'error', reason: error.message };
     }
     
     // Note: batchTransferManager now uses global.blocklistService, so no manual sync needed
@@ -147,9 +161,9 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager, b
       allowance: allowanceAmount,
       balance: balanceAmount,
       minTipAmount: minTipAmount,
-      isBlocked: isCurrentlyBlocked,
-      blocklistAction: blocklistResult.action,
-      message: `Blocklist updated - user ${isCurrentlyBlocked ? 'blocked' : 'unblocked'}`
+      webhookAction: webhookResult.action,
+      webhookReason: webhookResult.reason,
+      message: `Webhook updated - user ${webhookResult.action === 'removed' ? 'removed from webhook' : 'ensured in webhook'}`
     });
     
   } catch (error) {
