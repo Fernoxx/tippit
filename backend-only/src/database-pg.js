@@ -7,7 +7,7 @@ class PostgresDatabase {
       ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
     });
     
-    console.log('🗄️ PostgreSQL Database initialized');
+    console.log('🗄️ PostgreSQL Database initialized - Updated with all functions');
     this.init();
   }
 
