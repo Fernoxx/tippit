@@ -2945,11 +2945,9 @@ app.get('/api/leaderboard', async (req, res) => {
         
         enrichedTippers.push({
           ...tipper,
-          fid: farcasterUser?.fid || null,
-          username: farcasterUser?.username || null,
-          displayName: farcasterUser?.display_name || null,
-          pfpUrl: farcasterUser?.pfp_url || null,
-          followerCount: farcasterUser?.follower_count || 0,
+          username: farcasterUser?.username,
+          displayName: farcasterUser?.display_name,
+          pfpUrl: farcasterUser?.pfp_url,
           tokenInfo: tokenInfo
         });
       } catch (error) {
@@ -3011,11 +3009,9 @@ app.get('/api/leaderboard', async (req, res) => {
         
         enrichedEarners.push({
           ...earner,
-          fid: farcasterUser?.fid || null,
-          username: farcasterUser?.username || null,
-          displayName: farcasterUser?.display_name || null,
-          pfpUrl: farcasterUser?.pfp_url || null,
-          followerCount: farcasterUser?.follower_count || 0,
+          username: farcasterUser?.username,
+          displayName: farcasterUser?.display_name,
+          pfpUrl: farcasterUser?.pfp_url,
           tokenInfo: tokenInfo
         });
       } catch (error) {
