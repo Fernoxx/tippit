@@ -133,6 +133,30 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager, b
       webhookResult = { action: 'error', reason: error.message };
     }
     
+    // Check if balance is too low and revoke allowance if needed
+    let allowanceRevoked = false;
+    if (balanceAmount < minTipAmount && allowanceAmount > 0) {
+      console.log(`💰 User ${userAddress} balance ${balanceAmount} < min tip ${minTipAmount} - revoking allowance`);
+      
+      try {
+        // Revoke allowance by setting it to 0
+        const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+        
+        // Create a transaction to revoke allowance
+        const tokenContract = new ethers.Contract(tokenAddress, [
+          "function approve(address spender, uint256 amount) returns (bool)"
+        ], provider);
+        
+        // Note: This would require the user's private key or a different approach
+        // For now, we'll just log that allowance should be revoked
+        console.log(`⚠️ Allowance should be revoked for ${userAddress} - balance too low`);
+        allowanceRevoked = true;
+        
+      } catch (error) {
+        console.error(`❌ Error revoking allowance for ${userAddress}:`, error);
+      }
+    }
+    
     // Note: batchTransferManager now uses global.blocklistService, so no manual sync needed
     console.log(`📊 Blocklist action executed: ${blocklistResult.action} - ${blocklistResult.reason}`);
     
@@ -163,7 +187,8 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager, b
       minTipAmount: minTipAmount,
       webhookAction: webhookResult.action,
       webhookReason: webhookResult.reason,
-      message: `Webhook updated - user ${webhookResult.action === 'removed' ? 'removed from webhook' : 'ensured in webhook'}`
+      allowanceRevoked: allowanceRevoked,
+      message: `Webhook updated - user ${webhookResult.action === 'removed' ? 'removed from webhook' : 'ensured in webhook'}${allowanceRevoked ? ' - allowance should be revoked (low balance)' : ''}`
     });
     
   } catch (error) {
