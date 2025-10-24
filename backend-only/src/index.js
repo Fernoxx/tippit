@@ -3942,6 +3942,28 @@ app.get('/api/admin/recent-tips', async (req, res) => {
   }
 });
 
+// Debug endpoint to check tip history
+app.get('/api/debug/tip-history', async (req, res) => {
+  try {
+    const { limit = 10 } = req.query;
+    const result = await database.pool.query(`
+      SELECT * FROM tip_history 
+      WHERE token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+      ORDER BY processed_at DESC 
+      LIMIT $1
+    `, [parseInt(limit)]);
+    
+    res.json({
+      success: true,
+      tips: result.rows,
+      count: result.rows.length
+    });
+  } catch (error) {
+    console.error('Error fetching tip history:', error);
+    res.status(500).json({ error: 'Failed to fetch tip history' });
+  }
+});
+
 // Debug endpoint to check leaderboard data in real-time
 app.get('/api/debug/leaderboard-data', async (req, res) => {
   try {
