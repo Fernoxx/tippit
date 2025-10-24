@@ -3032,6 +3032,8 @@ app.get('/api/leaderboard', async (req, res) => {
     res.json({
       tippers: enrichedTippers,
       earners: enrichedEarners,
+      users: enrichedTippers.map(t => t.userAddress),
+      amounts: enrichedTippers.map(t => t.totalAmount),
       pagination: {
         page: pageNum,
         limit: limitNum,
