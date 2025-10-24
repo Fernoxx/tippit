@@ -5759,15 +5759,6 @@ app.listen(PORT, () => {
   }, 30000); // Wait 30 seconds after startup
 });
 
-// Export functions for use in other modules
-module.exports = {
-  app,
-  getUserFid,
-  sendNeynarNotification,
-  sendFarcasterNotification,
-  sendBulkNotification,
-  hasNotificationTokens
-};
 // Admin panel - Get total tips statistics
 app.get('/api/admin/total-stats', async (req, res) => {
   try {
@@ -5915,3 +5906,13 @@ app.post('/api/force-process-batch', async (req, res) => {
     });
   }
 });
+
+// Export functions for use in other modules
+module.exports = {
+  app,
+  getUserFid,
+  sendNeynarNotification,
+  sendFarcasterNotification,
+  sendBulkNotification,
+  hasNotificationTokens
+};
