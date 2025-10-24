@@ -2882,63 +2882,37 @@ app.get('/api/leaderboard', async (req, res) => {
     const { timeFilter = 'total', page = 1, limit = 10, userFid } = req.query;
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
-    const offset = (pageNum - 1) * limitNum;
     
-    // Get top tippers and earners directly from user_profiles
-    let columnName;
-    switch (timeFilter) {
-      case '24h': columnName = 'tippings_24h'; break;
-      case '7d': columnName = 'tippings_7d'; break;
-      case '30d': columnName = 'tippings_30d'; break;
-      case 'total': 
-      default: columnName = 'total_tippings'; break;
-    }
+    console.log(`🔍 Getting leaderboard data for timeFilter: ${timeFilter}, page: ${pageNum}, limit: ${limitNum}`);
     
-    const topTippersResult = await database.pool.query(`
-      SELECT fid, username, display_name, pfp_url, user_address, ${columnName} as total_amount, updated_at
-      FROM user_profiles 
-      WHERE ${columnName} > 0
-      ORDER BY ${columnName} DESC 
-      LIMIT 50
-    `);
+    // Use the new real-time calculation function
+    const leaderboardData = await database.getLeaderboardData(timeFilter, pageNum, limitNum);
     
-    const topTippers = topTippersResult.rows.map(row => ({
-      fid: row.fid,
-      userAddress: row.user_address,
-      totalAmount: parseFloat(row.total_amount),
-      lastUpdated: row.updated_at,
-      username: row.username,
-      displayName: row.display_name,
-      pfpUrl: row.pfp_url
+    console.log(`📊 Found ${leaderboardData.users.length} users with earnings`);
+    
+    // Transform data for frontend
+    const topEarners = leaderboardData.users.map(user => ({
+      fid: user.fid,
+      userAddress: user.user_address,
+      totalAmount: user.totalEarnings,
+      lastUpdated: user.updated_at,
+      username: user.username,
+      displayName: user.display_name,
+      pfpUrl: user.pfp_url
     }));
     
-    // Get top earners
-    let earningsColumnName;
-    switch (timeFilter) {
-      case '24h': earningsColumnName = 'earnings_24h'; break;
-      case '7d': earningsColumnName = 'earnings_7d'; break;
-      case '30d': earningsColumnName = 'earnings_30d'; break;
-      case 'total': 
-      default: earningsColumnName = 'total_earnings'; break;
-    }
-    
-    const topEarnersResult = await database.pool.query(`
-      SELECT fid, username, display_name, pfp_url, user_address, ${earningsColumnName} as total_amount, updated_at
-      FROM user_profiles 
-      WHERE ${earningsColumnName} > 0
-      ORDER BY ${earningsColumnName} DESC 
-      LIMIT 50
-    `);
-    
-    const topEarners = topEarnersResult.rows.map(row => ({
-      fid: row.fid,
-      userAddress: row.user_address,
-      totalAmount: parseFloat(row.total_amount),
-      lastUpdated: row.updated_at,
-      username: row.username,
-      displayName: row.display_name,
-      pfpUrl: row.pfp_url
-    }));
+    // For tippers, we'll use the same data but sort by tippings
+    const topTippers = leaderboardData.users
+      .sort((a, b) => b.totalTippings - a.totalTippings)
+      .map(user => ({
+        fid: user.fid,
+        userAddress: user.user_address,
+        totalAmount: user.totalTippings,
+        lastUpdated: user.updated_at,
+        username: user.username,
+        displayName: user.display_name,
+        pfpUrl: user.pfp_url
+      }));
     
     console.log(`📊 Top tippers count: ${topTippers.length}, Top earners count: ${topEarners.length}`);
     console.log(`📊 First tipper:`, topTippers[0]);
