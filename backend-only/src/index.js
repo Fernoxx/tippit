@@ -3029,11 +3029,24 @@ app.get('/api/leaderboard', async (req, res) => {
     const totalPages = Math.ceil(Math.max(totalTippers, totalEarners) / limitNum);
     const hasMore = pageNum < totalPages;
     
+    // Calculate user stats if userFid is provided
+    let userStats = null;
+    if (userFid) {
+      try {
+        console.log(`🔍 Fetching user stats for FID: ${userFid}`);
+        userStats = await database.getUserEarnings(userFid);
+        console.log('📊 User stats result:', userStats);
+      } catch (error) {
+        console.log('❌ Error fetching user stats:', error.message);
+      }
+    }
+    
     res.json({
       tippers: enrichedTippers,
       earners: enrichedEarners,
       users: enrichedTippers.map(t => t.userAddress),
       amounts: enrichedTippers.map(t => t.totalAmount),
+      userStats: userStats,
       pagination: {
         page: pageNum,
         limit: limitNum,
