@@ -2899,21 +2899,40 @@ app.get('/api/leaderboard', async (req, res) => {
     const enrichedTippers = [];
     for (const tipper of paginatedTippers) {
       try {
-        // Fetch user profile
-        const userResponse = await fetch(
-          `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${tipper.userAddress}`,
-          {
-            headers: { 
-              'x-api-key': process.env.NEYNAR_API_KEY,
-              'x-neynar-experimental': 'false'
-            }
-          }
-        );
-        
         let farcasterUser = null;
-        if (userResponse.ok) {
-          const userData = await userResponse.json();
-          farcasterUser = userData[tipper.userAddress]?.[0];
+        
+        // If we have a FID, fetch user data by FID
+        if (tipper.fid) {
+          const userResponse = await fetch(
+            `https://api.neynar.com/v2/farcaster/user/bulk?fids=${tipper.fid}`,
+            {
+              headers: { 
+                'x-api-key': process.env.NEYNAR_API_KEY,
+                'x-neynar-experimental': 'false'
+              }
+            }
+          );
+          
+          if (userResponse.ok) {
+            const userData = await userResponse.json();
+            farcasterUser = userData.users?.[0];
+          }
+        } else if (tipper.userAddress) {
+          // Fallback to address-based lookup
+          const userResponse = await fetch(
+            `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${tipper.userAddress}`,
+            {
+              headers: { 
+                'x-api-key': process.env.NEYNAR_API_KEY,
+                'x-neynar-experimental': 'false'
+              }
+            }
+          );
+          
+          if (userResponse.ok) {
+            const userData = await userResponse.json();
+            farcasterUser = userData[tipper.userAddress]?.[0];
+          }
         }
         
         // Fetch token info
@@ -2945,6 +2964,7 @@ app.get('/api/leaderboard', async (req, res) => {
         
         enrichedTippers.push({
           ...tipper,
+          fid: tipper.fid || farcasterUser?.fid,
           username: farcasterUser?.username,
           displayName: farcasterUser?.display_name,
           pfpUrl: farcasterUser?.pfp_url,
@@ -2954,6 +2974,7 @@ app.get('/api/leaderboard', async (req, res) => {
         console.log(`Could not fetch profile for tipper ${tipper.userAddress}:`, error.message);
         enrichedTippers.push({
           ...tipper,
+          fid: tipper.fid,
           tokenInfo: { name: 'Unknown', symbol: 'UNK', decimals: 18 }
         });
       }
@@ -2963,21 +2984,40 @@ app.get('/api/leaderboard', async (req, res) => {
     const enrichedEarners = [];
     for (const earner of paginatedEarners) {
       try {
-        // Fetch user profile
-        const userResponse = await fetch(
-          `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${earner.userAddress}`,
-          {
-            headers: { 
-              'x-api-key': process.env.NEYNAR_API_KEY,
-              'x-neynar-experimental': 'false'
-            }
-          }
-        );
-        
         let farcasterUser = null;
-        if (userResponse.ok) {
-          const userData = await userResponse.json();
-          farcasterUser = userData[earner.userAddress]?.[0];
+        
+        // If we have a FID, fetch user data by FID
+        if (earner.fid) {
+          const userResponse = await fetch(
+            `https://api.neynar.com/v2/farcaster/user/bulk?fids=${earner.fid}`,
+            {
+              headers: { 
+                'x-api-key': process.env.NEYNAR_API_KEY,
+                'x-neynar-experimental': 'false'
+              }
+            }
+          );
+          
+          if (userResponse.ok) {
+            const userData = await userResponse.json();
+            farcasterUser = userData.users?.[0];
+          }
+        } else if (earner.userAddress) {
+          // Fallback to address-based lookup
+          const userResponse = await fetch(
+            `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${earner.userAddress}`,
+            {
+              headers: { 
+                'x-api-key': process.env.NEYNAR_API_KEY,
+                'x-neynar-experimental': 'false'
+              }
+            }
+          );
+          
+          if (userResponse.ok) {
+            const userData = await userResponse.json();
+            farcasterUser = userData[earner.userAddress]?.[0];
+          }
         }
         
         // Fetch token info
@@ -3009,6 +3049,7 @@ app.get('/api/leaderboard', async (req, res) => {
         
         enrichedEarners.push({
           ...earner,
+          fid: earner.fid || farcasterUser?.fid,
           username: farcasterUser?.username,
           displayName: farcasterUser?.display_name,
           pfpUrl: farcasterUser?.pfp_url,
@@ -3018,6 +3059,7 @@ app.get('/api/leaderboard', async (req, res) => {
         console.log(`Could not fetch profile for earner ${earner.userAddress}:`, error.message);
         enrichedEarners.push({
           ...earner,
+          fid: earner.fid,
           tokenInfo: { name: 'Unknown', symbol: 'UNK', decimals: 18 }
         });
       }
@@ -3029,11 +3071,23 @@ app.get('/api/leaderboard', async (req, res) => {
     const totalPages = Math.ceil(Math.max(totalTippers, totalEarners) / limitNum);
     const hasMore = pageNum < totalPages;
     
+    // Get user stats if userFid is provided
+    let userStats = null;
+    if (userFid) {
+      try {
+        userStats = await database.getUserEarnings(parseInt(userFid));
+        console.log(`📊 User stats for FID ${userFid}:`, userStats);
+      } catch (error) {
+        console.error(`❌ Error fetching user stats for FID ${userFid}:`, error);
+      }
+    }
+    
     res.json({
       tippers: enrichedTippers,
       earners: enrichedEarners,
       users: enrichedTippers.map(t => t.userAddress),
       amounts: enrichedTippers.map(t => t.totalAmount),
+      userStats: userStats,
       pagination: {
         page: pageNum,
         limit: limitNum,
