@@ -3044,13 +3044,76 @@ app.get('/api/leaderboard', async (req, res) => {
     const totalPages = Math.ceil(Math.max(totalTippers, totalEarners) / limitNum);
     const hasMore = pageNum < totalPages;
     
-    // Calculate user stats if userFid is provided
+    // Calculate user stats if userFid is provided - get from leaderboard data
     let userStats = null;
     if (userFid) {
       try {
         console.log(`🔍 Fetching user stats for FID: ${userFid}`);
-        userStats = await database.getUserEarnings(userFid);
-        console.log('📊 User stats result:', userStats);
+        
+        // Get user's address from user_profiles
+        const userResult = await database.pool.query(`
+          SELECT user_address FROM user_profiles WHERE fid = $1
+        `, [userFid]);
+        
+        if (userResult.rows.length > 0) {
+          const userAddress = userResult.rows[0].user_address;
+          console.log(`🔍 User address: ${userAddress}`);
+          
+          // Find user in tippers and earners data
+          const userAsTipper = topTippers.find(tipper => 
+            tipper.userAddress.toLowerCase() === userAddress.toLowerCase()
+          );
+          const userAsEarner = topEarners.find(earner => 
+            earner.userAddress.toLowerCase() === userAddress.toLowerCase()
+          );
+          
+          console.log(`🔍 User as tipper:`, userAsTipper);
+          console.log(`🔍 User as earner:`, userAsEarner);
+          
+          // Calculate totals from leaderboard data
+          const totalTippings = userAsTipper ? userAsTipper.totalAmount : 0;
+          const totalEarnings = userAsEarner ? userAsEarner.totalAmount : 0;
+          
+          // For time-specific data, we need to recalculate with the current timeFilter
+          const timeMs = timeFilter === '24h' ? '24 hours' :
+                         timeFilter === '7d' ? '7 days' : '30 days';
+          
+          // Get time-specific data directly from tip_history
+          const tippingsResult = await database.pool.query(`
+            SELECT SUM(CAST(amount AS DECIMAL)) as total_amount
+            FROM tip_history 
+            WHERE from_address = $1 
+            AND processed_at > NOW() - INTERVAL '${timeMs}'
+            AND LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+          `, [userAddress]);
+          
+          const earningsResult = await database.pool.query(`
+            SELECT SUM(CAST(amount AS DECIMAL)) as total_amount
+            FROM tip_history 
+            WHERE to_address = $1 
+            AND processed_at > NOW() - INTERVAL '${timeMs}'
+            AND LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+          `, [userAddress]);
+          
+          const tippingsForPeriod = parseFloat(tippingsResult.rows[0].total_amount || 0);
+          const earningsForPeriod = parseFloat(earningsResult.rows[0].total_amount || 0);
+          
+          userStats = {
+            fid: userFid.toString(),
+            totalEarnings: totalEarnings,
+            earnings24h: timeFilter === '24h' ? earningsForPeriod : 0,
+            earnings7d: timeFilter === '7d' ? earningsForPeriod : 0,
+            earnings30d: timeFilter === '30d' ? earningsForPeriod : 0,
+            totalTippings: totalTippings,
+            tippings24h: timeFilter === '24h' ? tippingsForPeriod : 0,
+            tippings7d: timeFilter === '7d' ? tippingsForPeriod : 0,
+            tippings30d: timeFilter === '30d' ? tippingsForPeriod : 0
+          };
+          
+          console.log('📊 User stats result:', userStats);
+        } else {
+          console.log(`❌ No user found for fid: ${userFid}`);
+        }
       } catch (error) {
         console.log('❌ Error fetching user stats:', error.message);
       }
