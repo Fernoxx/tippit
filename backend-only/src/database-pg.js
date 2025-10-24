@@ -240,7 +240,7 @@ class PostgresDatabase {
       const addressCheck = await this.pool.query(`
         SELECT DISTINCT from_address, to_address, amount, token_address
         FROM tip_history 
-        WHERE token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+        WHERE token_address = '0x833589fCD6eDb6E08f4c7C32D4f71b54bd'
         LIMIT 5
       `);
       console.log(`📊 Sample addresses in tip_history:`, addressCheck.rows);
@@ -250,7 +250,7 @@ class PostgresDatabase {
           SUM(CASE WHEN LOWER(to_address) = LOWER($1) THEN amount::NUMERIC ELSE 0 END) as total_earnings,
           SUM(CASE WHEN LOWER(from_address) = LOWER($1) THEN amount::NUMERIC ELSE 0 END) as total_tippings
         FROM tip_history 
-        WHERE token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+        WHERE token_address = '0x833589fCD6eDb6E08f4c7C32D4f71b54bd'
         ${timeCondition}
       `, [userAddress]);
 

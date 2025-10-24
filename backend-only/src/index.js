@@ -3971,7 +3971,7 @@ app.get('/api/debug/addresses', async (req, res) => {
     const tipAddresses = await database.pool.query(`
       SELECT DISTINCT from_address, to_address, amount, token_address
       FROM tip_history 
-      WHERE token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+      WHERE token_address = '0x833589fCD6eDb6E08f4c7C32D4f71b54bd'
       LIMIT 5
     `);
     
