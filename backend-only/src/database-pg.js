@@ -286,16 +286,22 @@ class PostgresDatabase {
 
   async getUserEarnings(fid) {
     try {
+      console.log(`🔍 getUserEarnings called with fid: ${fid}`);
+      
       // Get user's address from user_profiles
       const userResult = await this.pool.query(`
         SELECT user_address FROM user_profiles WHERE fid = $1
       `, [fid]);
       
+      console.log(`🔍 User query result:`, userResult.rows);
+      
       if (userResult.rows.length === 0) {
+        console.log(`❌ No user found for fid: ${fid}`);
         return null;
       }
       
       const userAddress = userResult.rows[0].user_address;
+      console.log(`🔍 User address: ${userAddress}`);
       
       // Calculate all time periods from tip_history directly
       const totalEarnings = await this.calculateUserEarnings(userAddress, 'total');
