@@ -167,11 +167,9 @@ export default function Leaderboard() {
                 <div className="text-right">
                   <p className="text-sm font-semibold text-gray-900">
                     {activeTab === 'tipped' 
-                      ? (timeFilter === 'total' ? userStats.totalTippings : 
-                         timeFilter === '24h' ? userStats.tippings24h :
+                      ? (timeFilter === '24h' ? userStats.tippings24h :
                          timeFilter === '7d' ? userStats.tippings7d : userStats.tippings30d).toFixed(2)
-                      : (timeFilter === 'total' ? userStats.totalEarnings :
-                         timeFilter === '24h' ? userStats.earnings24h :
+                      : (timeFilter === '24h' ? userStats.earnings24h :
                          timeFilter === '7d' ? userStats.earnings7d : userStats.earnings30d).toFixed(2)
                     } USDC
                   </p>

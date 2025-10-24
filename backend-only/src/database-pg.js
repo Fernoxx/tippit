@@ -234,6 +234,8 @@ class PostgresDatabase {
         timeCondition = "AND processed_at >= NOW() - INTERVAL '30 days'";
       }
 
+      console.log(`🔍 Calculating earnings for ${userAddress} with timeFilter: ${timeFilter}`);
+
       const result = await this.pool.query(`
         SELECT 
           SUM(CASE WHEN LOWER(to_address) = LOWER($1) THEN amount::NUMERIC ELSE 0 END) as total_earnings,
@@ -244,10 +246,13 @@ class PostgresDatabase {
       `, [userAddress]);
 
       const stats = result.rows[0];
-      return {
+      const earnings = {
         totalEarnings: parseFloat(stats.total_earnings) || 0,
         totalTippings: parseFloat(stats.total_tippings) || 0
       };
+      
+      console.log(`📊 Earnings for ${userAddress}:`, earnings);
+      return earnings;
     } catch (error) {
       console.error('Error calculating user earnings:', error);
       return { totalEarnings: 0, totalTippings: 0 };
@@ -257,6 +262,13 @@ class PostgresDatabase {
   // Get leaderboard data with real-time earnings calculation
   async getLeaderboardData(timeFilter = 'total', page = 1, limit = 10) {
     try {
+      // First check if there are any tips in the database
+      const tipCountResult = await this.pool.query(`
+        SELECT COUNT(*) as tip_count FROM tip_history 
+        WHERE token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+      `);
+      console.log(`📊 Total tips in database: ${tipCountResult.rows[0].tip_count}`);
+
       // Get all users from user_profiles
       const usersResult = await this.pool.query(`
         SELECT fid, username, display_name, pfp_url, follower_count, user_address
@@ -265,6 +277,7 @@ class PostgresDatabase {
       `);
 
       const users = usersResult.rows;
+      console.log(`📊 Found ${users.length} users in user_profiles`);
       const usersWithEarnings = [];
 
       // Calculate earnings for each user using their address
