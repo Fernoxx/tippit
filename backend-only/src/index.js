@@ -2891,6 +2891,15 @@ app.get('/api/leaderboard', async (req, res) => {
     const topTippers = await database.getTopTippers(timeFilter);
     const topEarners = await database.getTopEarners(timeFilter);
     
+    console.log(`📊 Raw topTippers count: ${topTippers.length}`);
+    console.log(`📊 Raw topEarners count: ${topEarners.length}`);
+    if (topTippers.length > 0) {
+      console.log(`📊 First raw tipper:`, topTippers[0]);
+    }
+    if (topEarners.length > 0) {
+      console.log(`📊 First raw earner:`, topEarners[0]);
+    }
+    
     // Get paginated slices
     const paginatedTippers = topTippers.slice(offset, offset + limitNum);
     const paginatedEarners = topEarners.slice(offset, offset + limitNum);
