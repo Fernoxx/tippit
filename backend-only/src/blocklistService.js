@@ -189,13 +189,32 @@ class BlocklistService {
   }
 
   // Add to blocklist
-  async addToBlocklist(userAddress) {
+  async addToBlocklist(userAddress, reason = 'insufficient_allowance') {
     const normalizedAddress = userAddress.toLowerCase();
     
     if (!this.blockedUsers.has(normalizedAddress)) {
       this.blockedUsers.add(normalizedAddress);
       await this.database.addToBlocklist(normalizedAddress);
-      console.log(`📝 Added ${normalizedAddress} to blocklist`);
+      console.log(`📝 Added ${normalizedAddress} to blocklist - ${reason}`);
+      
+      // Also remove FID from webhook when adding to blocklist
+      try {
+        const userProfile = await this.database.pool.query(
+          'SELECT fid FROM user_profiles WHERE user_address = $1',
+          [normalizedAddress]
+        );
+        
+        if (userProfile.rows.length > 0) {
+          const fid = userProfile.rows[0].fid;
+          console.log(`🔗 Removing FID ${fid} from webhook (user added to blocklist)`);
+          
+          // Remove FID from webhook directly
+          await this.removeFidFromWebhook(fid);
+          console.log(`✅ Removed FID ${fid} from webhook`);
+        }
+      } catch (error) {
+        console.error(`❌ Error removing FID from webhook for ${normalizedAddress}:`, error);
+      }
     } else {
       console.log(`ℹ️ User ${normalizedAddress} already in blocklist`);
     }
