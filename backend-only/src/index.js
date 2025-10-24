@@ -3964,6 +3964,38 @@ app.get('/api/debug/tip-history', async (req, res) => {
   }
 });
 
+// Debug endpoint to check addresses
+app.get('/api/debug/addresses', async (req, res) => {
+  try {
+    // Get sample addresses from tip_history
+    const tipAddresses = await database.pool.query(`
+      SELECT DISTINCT from_address, to_address, amount, token_address
+      FROM tip_history 
+      WHERE token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+      LIMIT 5
+    `);
+    
+    // Get sample addresses from user_profiles
+    const userAddresses = await database.pool.query(`
+      SELECT user_address, fid, username
+      FROM user_profiles 
+      WHERE user_address IS NOT NULL
+      LIMIT 5
+    `);
+    
+    res.json({
+      success: true,
+      tipAddresses: tipAddresses.rows,
+      userAddresses: userAddresses.rows,
+      tipCount: tipAddresses.rows.length,
+      userCount: userAddresses.rows.length
+    });
+  } catch (error) {
+    console.error('Error fetching addresses:', error);
+    res.status(500).json({ error: 'Failed to fetch addresses' });
+  }
+});
+
 // Debug endpoint to add test tips
 app.post('/api/debug/add-test-tips', async (req, res) => {
   try {
