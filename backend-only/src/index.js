@@ -2879,7 +2879,7 @@ app.get('/api/homepage', async (req, res) => {
 // Leaderboard endpoints  
 app.get('/api/leaderboard', async (req, res) => {
   try {
-    const { timeFilter = 'total', page = 1, limit = 10, userFid } = req.query;
+    const { timeFilter = '24h', page = 1, limit = 10, userFid } = req.query;
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
     
