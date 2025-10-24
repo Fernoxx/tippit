@@ -466,6 +466,105 @@ class Database {
     }
   }
 
+  // Homepage and leaderboard functions
+  async getActiveUsers() {
+    return this.getAllActiveUsers();
+  }
+
+  async getActiveUsersWithApprovals() {
+    try {
+      const result = await this.pool.query(`
+        SELECT DISTINCT LOWER(user_address) as user_address FROM user_configs 
+        WHERE config->>'isActive' = 'true' 
+        AND config->>'tokenAddress' IS NOT NULL
+      `);
+      return result.rows.map(row => row.user_address);
+    } catch (error) {
+      console.error('Error getting users with approvals:', error);
+      return [];
+    }
+  }
+
+  async getAllActiveUsers() {
+    try {
+      const result = await this.pool.query(`
+        SELECT DISTINCT LOWER(user_address) as user_address FROM user_configs 
+        WHERE config->>'isActive' = 'true'
+      `);
+      return result.rows.map(row => row.user_address);
+    } catch (error) {
+      console.error('Error getting all active users:', error);
+      return [];
+    }
+  }
+
+  // Pending tips
+  async addPendingTip(tip) {
+    try {
+      const result = await this.pool.query(`
+        INSERT INTO pending_tips (from_address, to_address, token_address, amount, action_type, cast_hash, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        RETURNING id
+      `, [tip.fromAddress, tip.toAddress, tip.tokenAddress, tip.amount, tip.actionType, tip.castHash]);
+      
+      console.log(`✅ Pending tip added with ID: ${result.rows[0].id}`);
+      return result.rows[0].id;
+    } catch (error) {
+      console.error('❌ Error adding pending tip:', error);
+      throw error;
+    }
+  }
+
+  async getPendingTips() {
+    try {
+      const result = await this.pool.query(`
+        SELECT * FROM pending_tips 
+        ORDER BY created_at ASC
+      `);
+      return result.rows;
+    } catch (error) {
+      console.error('Error getting pending tips:', error);
+      return [];
+    }
+  }
+
+  async removePendingTip(id) {
+    try {
+      await this.pool.query(`
+        DELETE FROM pending_tips WHERE id = $1
+      `, [id]);
+      console.log(`✅ Pending tip ${id} removed`);
+    } catch (error) {
+      console.error('Error removing pending tip:', error);
+    }
+  }
+
+  // User stats
+  async getUserStats(userAddress) {
+    try {
+      const result = await this.pool.query(`
+        SELECT 
+          SUM(CASE WHEN LOWER(to_address) = LOWER($1) THEN CAST(amount AS DECIMAL) ELSE 0 END) as total_earnings,
+          SUM(CASE WHEN LOWER(from_address) = LOWER($1) THEN CAST(amount AS DECIMAL) ELSE 0 END) as total_tippings,
+          COUNT(CASE WHEN LOWER(to_address) = LOWER($1) THEN 1 END) as earnings_count,
+          COUNT(CASE WHEN LOWER(from_address) = LOWER($1) THEN 1 END) as tippings_count
+        FROM tip_history 
+        WHERE LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+      `, [userAddress]);
+
+      const stats = result.rows[0];
+      return {
+        totalEarnings: parseFloat(stats.total_earnings) || 0,
+        totalTippings: parseFloat(stats.total_tippings) || 0,
+        earningsCount: parseInt(stats.earnings_count) || 0,
+        tippingsCount: parseInt(stats.tippings_count) || 0
+      };
+    } catch (error) {
+      console.error('Error getting user stats:', error);
+      return { totalEarnings: 0, totalTippings: 0, earningsCount: 0, tippingsCount: 0 };
+    }
+  }
+
   async close() {
     await this.pool.end();
   }
