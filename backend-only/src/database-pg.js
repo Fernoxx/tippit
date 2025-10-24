@@ -702,70 +702,7 @@ class PostgresDatabase {
     }
   }
 
-  async calculateUserEarnings(userAddress) {
-    try {
-      // Get FID for this address (you'll need to implement this)
-      const fid = await this.getFidFromAddress(userAddress);
-      if (!fid) return;
-
-      // Calculate earnings (received tips)
-      const earningsResult = await this.pool.query(`
-        SELECT 
-          SUM(CASE WHEN processed_at > NOW() - INTERVAL '24 hours' THEN CAST(amount AS DECIMAL) ELSE 0 END) as earnings_24h,
-          SUM(CASE WHEN processed_at > NOW() - INTERVAL '7 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as earnings_7d,
-          SUM(CASE WHEN processed_at > NOW() - INTERVAL '30 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as earnings_30d,
-          SUM(CAST(amount AS DECIMAL)) as total_earnings
-        FROM tip_history 
-        WHERE to_address = $1 
-        AND LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
-      `, [userAddress]);
-
-      // Calculate tippings (sent tips)
-      const tippingsResult = await this.pool.query(`
-        SELECT 
-          SUM(CASE WHEN processed_at > NOW() - INTERVAL '24 hours' THEN CAST(amount AS DECIMAL) ELSE 0 END) as tippings_24h,
-          SUM(CASE WHEN processed_at > NOW() - INTERVAL '7 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as tippings_7d,
-          SUM(CASE WHEN processed_at > NOW() - INTERVAL '30 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as tippings_30d,
-          SUM(CAST(amount AS DECIMAL)) as total_tippings
-        FROM tip_history 
-        WHERE from_address = $1 
-        AND LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
-      `, [userAddress]);
-
-      const earnings = earningsResult.rows[0];
-      const tippings = tippingsResult.rows[0];
-
-      // Insert or update user earnings
-      await this.pool.query(`
-        INSERT INTO user_earnings (fid, total_earnings, earnings_24h, earnings_7d, earnings_30d, total_tippings, tippings_24h, tippings_7d, tippings_30d, last_updated)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
-        ON CONFLICT (fid) 
-        DO UPDATE SET 
-          total_earnings = EXCLUDED.total_earnings,
-          earnings_24h = EXCLUDED.earnings_24h,
-          earnings_7d = EXCLUDED.earnings_7d,
-          earnings_30d = EXCLUDED.earnings_30d,
-          total_tippings = EXCLUDED.total_tippings,
-          tippings_24h = EXCLUDED.tippings_24h,
-          tippings_7d = EXCLUDED.tippings_7d,
-          tippings_30d = EXCLUDED.tippings_30d,
-          last_updated = NOW()
-      `, [
-        fid,
-        parseFloat(earnings.total_earnings || 0),
-        parseFloat(earnings.earnings_24h || 0),
-        parseFloat(earnings.earnings_7d || 0),
-        parseFloat(earnings.earnings_30d || 0),
-        parseFloat(tippings.total_tippings || 0),
-        parseFloat(tippings.tippings_24h || 0),
-        parseFloat(tippings.tippings_7d || 0),
-        parseFloat(tippings.tippings_30d || 0)
-      ]);
-
-    } catch (error) {
-      console.error(`❌ Error calculating earnings for ${userAddress}:`, error);
-    }
-  }
+  // Duplicate calculateUserEarnings function removed - using the one with timeFilter parameter
 
   async getFidFromAddress(userAddress) {
     try {
