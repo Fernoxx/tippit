@@ -1106,10 +1106,28 @@ app.post('/api/approve', async (req, res) => {
     
     console.log(`User ${userAddress} approved ${amount} of token ${tokenAddress}`);
     
-    // Update blocklist status after token approval
-    if (global.blocklistService) {
-      const result = await global.blocklistService.updateUserBlocklistStatus(userAddress);
-      console.log(`🔄 Blocklist update result for ${userAddress}:`, result);
+    // Add user's FID to webhook after token approval
+    try {
+      const userProfile = await database.pool.query(
+        'SELECT fid FROM user_profiles WHERE user_address = $1',
+        [userAddress]
+      );
+      
+      if (userProfile.rows.length > 0) {
+        const fid = userProfile.rows[0].fid;
+        console.log(`🔗 Adding FID ${fid} to webhook after token approval`);
+        
+        const added = await addFidToWebhook(fid);
+        if (added) {
+          console.log(`✅ FID ${fid} added to webhook`);
+        } else {
+          console.log(`ℹ️ FID ${fid} already in webhook or failed to add`);
+        }
+      } else {
+        console.log(`⚠️ No FID found for user ${userAddress}`);
+      }
+    } catch (error) {
+      console.error(`❌ Error adding FID to webhook for ${userAddress}:`, error);
     }
     
     res.json({ 
@@ -1136,10 +1154,28 @@ app.post('/api/revoke', async (req, res) => {
     
     console.log(`User ${userAddress} revoked token ${tokenAddress}`);
     
-    // Update blocklist status after token revocation
-    if (global.blocklistService) {
-      const result = await global.blocklistService.updateUserBlocklistStatus(userAddress);
-      console.log(`🔄 Blocklist update result for ${userAddress}:`, result);
+    // Remove user's FID from webhook after token revocation
+    try {
+      const userProfile = await database.pool.query(
+        'SELECT fid FROM user_profiles WHERE user_address = $1',
+        [userAddress]
+      );
+      
+      if (userProfile.rows.length > 0) {
+        const fid = userProfile.rows[0].fid;
+        console.log(`🔗 Removing FID ${fid} from webhook after token revocation`);
+        
+        const removed = await removeFidFromWebhook(fid);
+        if (removed) {
+          console.log(`✅ FID ${fid} removed from webhook`);
+        } else {
+          console.log(`ℹ️ FID ${fid} not in webhook or failed to remove`);
+        }
+      } else {
+        console.log(`⚠️ No FID found for user ${userAddress}`);
+      }
+    } catch (error) {
+      console.error(`❌ Error removing FID from webhook for ${userAddress}:`, error);
     }
     
     res.json({ 
@@ -2748,25 +2784,17 @@ app.get('/api/homepage', async (req, res) => {
     // Get users with active configurations and token approvals
     const activeUsers = await database.getActiveUsersWithApprovals();
     
-    // Filter out blocklisted users FIRST (before any blockchain calls)
-    const nonBlockedUsers = activeUsers.filter(userAddress => {
-      if (global.blocklistService && global.blocklistService.isBlocked(userAddress)) {
-        console.log(`⏭️ Skipping ${userAddress} - user is in blocklist (insufficient allowance)`);
-        return false;
-      }
-      return true;
-    });
-    
-    console.log(`🏠 Homepage: ${activeUsers.length} total users, ${nonBlockedUsers.length} non-blocked users`);
+    // No need to filter - webhook already handles this by only including users with sufficient allowance
+    console.log(`🏠 Homepage: ${activeUsers.length} total users (webhook already filters by allowance)`);
     
     const { ethers } = require('ethers');
     const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     
-    // Get allowance and cast for each NON-BLOCKED user only
+    // Get allowance and cast for each user (webhook already filters by allowance)
     const usersWithAllowance = [];
     
-    for (const userAddress of nonBlockedUsers) {
+    for (const userAddress of activeUsers) {
       try {
         
         // Get user's configured token address

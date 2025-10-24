@@ -157,28 +157,8 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager, b
       }
     }
     
-    // Note: batchTransferManager now uses global.blocklistService, so no manual sync needed
-    console.log(`📊 Blocklist action executed: ${blocklistResult.action} - ${blocklistResult.reason}`);
-    
-    console.log(`📊 Blocklist update result: ${blocklistResult.action} - ${blocklistResult.reason}`);
-    
-    // Update webhook and homepage based on blocklist status
-    const isCurrentlyBlocked = blocklistService.isBlocked(userAddress);
-    
-    if (!isCurrentlyBlocked) {
-      console.log(`✅ User ${userAddress} is not blocked - keeping active`);
-      
-      const fid = await getUserFid(userAddress);
-      if (fid) {
-        await addFidToWebhook(fid);
-        console.log(`🔗 Added FID ${fid} to webhook`);
-      }
-      
-      console.log(`🏠 User remains in homepage cache`);
-    } else {
-      console.log(`❌ User ${userAddress} is blocked - removing from active`);
-      await clearHomepageCache(userAddress);
-    }
+    // Webhook management is already handled above
+    console.log(`📊 Webhook action executed: ${webhookResult.action} - ${webhookResult.reason}`);
     
     res.json({
       success: true,
