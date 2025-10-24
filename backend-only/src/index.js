@@ -2885,96 +2885,157 @@ app.get('/api/leaderboard', async (req, res) => {
     
     console.log(`🔍 Getting leaderboard data for timeFilter: ${timeFilter}, page: ${pageNum}, limit: ${limitNum}`);
     
-    // Use the new real-time calculation function
-    const leaderboardData = await database.getLeaderboardData(timeFilter, pageNum, limitNum);
+    const offset = (pageNum - 1) * limitNum;
     
-    console.log(`📊 Found ${leaderboardData.users.length} users with earnings`);
+    // Get top tippers and earners with amounts
+    const topTippers = await database.getTopTippers(timeFilter);
+    const topEarners = await database.getTopEarners(timeFilter);
     
-    // Transform data for frontend
-    const topEarners = leaderboardData.users.map(user => ({
-      fid: user.fid,
-      userAddress: user.user_address,
-      totalAmount: user.totalEarnings,
-      lastUpdated: user.updated_at,
-      username: user.username,
-      displayName: user.display_name,
-      pfpUrl: user.pfp_url
-    }));
+    // Get paginated slices
+    const paginatedTippers = topTippers.slice(offset, offset + limitNum);
+    const paginatedEarners = topEarners.slice(offset, offset + limitNum);
     
-    // For tippers, we'll use the same data but sort by tippings
-    const topTippers = leaderboardData.users
-      .sort((a, b) => b.totalTippings - a.totalTippings)
-      .map(user => ({
-        fid: user.fid,
-        userAddress: user.user_address,
-        totalAmount: user.totalTippings,
-        lastUpdated: user.updated_at,
-        username: user.username,
-        displayName: user.display_name,
-        pfpUrl: user.pfp_url
-      }));
-    
-    console.log(`📊 Top tippers count: ${topTippers.length}, Top earners count: ${topEarners.length}`);
-    console.log(`📊 First tipper:`, topTippers[0]);
-    console.log(`📊 First earner:`, topEarners[0]);
-    
-    // Get user's own stats for "You" section using real-time calculation
-    let userStats = null;
-    if (userFid) {
-      console.log(`🔍 Fetching user stats for FID: ${userFid}`);
-      
-      // Get user profile to find their address
-      const userProfileResult = await database.pool.query(`
-        SELECT fid, username, display_name, pfp_url, user_address
-        FROM user_profiles 
-        WHERE fid = $1
-      `, [parseInt(userFid)]);
-      
-      if (userProfileResult.rows.length > 0 && userProfileResult.rows[0].user_address) {
-        const user = userProfileResult.rows[0];
-        const userAddress = user.user_address;
+    // Enrich tippers with user profiles and token info
+    const enrichedTippers = [];
+    for (const tipper of paginatedTippers) {
+      try {
+        // Fetch user profile
+        const userResponse = await fetch(
+          `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${tipper.userAddress}`,
+          {
+            headers: { 
+              'x-api-key': process.env.NEYNAR_API_KEY,
+              'x-neynar-experimental': 'false'
+            }
+          }
+        );
         
-        // Calculate real-time earnings for different time periods
-        const totalEarnings = await database.calculateUserEarnings(userAddress, 'total');
-        const earnings24h = await database.calculateUserEarnings(userAddress, '24h');
-        const earnings7d = await database.calculateUserEarnings(userAddress, '7d');
-        const earnings30d = await database.calculateUserEarnings(userAddress, '30d');
+        let farcasterUser = null;
+        if (userResponse.ok) {
+          const userData = await userResponse.json();
+          farcasterUser = userData[tipper.userAddress]?.[0];
+        }
         
-        userStats = {
-          fid: user.fid,
-          username: user.username,
-          displayName: user.display_name,
-          pfpUrl: user.pfp_url,
-          totalEarnings: totalEarnings.totalEarnings,
-          totalTippings: totalEarnings.totalTippings,
-          earnings24h: earnings24h.totalEarnings,
-          tippings24h: earnings24h.totalTippings,
-          earnings7d: earnings7d.totalEarnings,
-          tippings7d: earnings7d.totalTippings,
-          earnings30d: earnings30d.totalEarnings,
-          tippings30d: earnings30d.totalTippings
-        };
+        // Fetch token info
+        let tokenInfo = null;
+        try {
+          const { ethers } = require('ethers');
+          const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+          const tokenContract = new ethers.Contract(tipper.tokenAddress, [
+            "function name() view returns (string)",
+            "function symbol() view returns (string)",
+            "function decimals() view returns (uint8)"
+          ], provider);
+          
+          const [name, symbol, decimals] = await Promise.all([
+            tokenContract.name(),
+            tokenContract.symbol(),
+            tokenContract.decimals()
+          ]);
+          
+          tokenInfo = { name, symbol, decimals };
+        } catch (tokenError) {
+          console.error('Error fetching token info:', tokenError);
+        }
+        
+        enrichedTippers.push({
+          fid: farcasterUser?.fid || null,
+          username: farcasterUser?.username || null,
+          displayName: farcasterUser?.display_name || null,
+          pfpUrl: farcasterUser?.pfp_url || null,
+          followerCount: farcasterUser?.follower_count || 0,
+          userAddress: tipper.userAddress,
+          totalAmount: tipper.totalAmount,
+          tipCount: tipper.tipCount,
+          tokenInfo: tokenInfo
+        });
+      } catch (error) {
+        console.error('Error enriching tipper:', error);
+        // Add basic info even if enrichment fails
+        enrichedTippers.push({
+          fid: null,
+          username: null,
+          displayName: null,
+          pfpUrl: null,
+          followerCount: 0,
+          userAddress: tipper.userAddress,
+          totalAmount: tipper.totalAmount,
+          tipCount: tipper.tipCount,
+          tokenInfo: null
+        });
       }
-      console.log(`📊 User stats result:`, userStats);
-    } else {
-      console.log('❌ No userFid provided for user stats');
     }
     
-    // Get paginated slices (data already enriched from user_profiles)
-    const startIndex = (pageNum - 1) * limitNum;
-    const paginatedTippers = topTippers.slice(startIndex, startIndex + limitNum);
-    const paginatedEarners = topEarners.slice(startIndex, startIndex + limitNum);
-    
-    // Add followerCount to the data (default to 0 if not available)
-    const enrichedTippers = paginatedTippers.map(tipper => ({
-      ...tipper,
-      followerCount: 0 // We can add this later if needed
-    }));
-    
-    const enrichedEarners = paginatedEarners.map(earner => ({
-      ...earner,
-      followerCount: 0 // We can add this later if needed
-    }));
+    // Enrich earners with user profiles and token info
+    const enrichedEarners = [];
+    for (const earner of paginatedEarners) {
+      try {
+        // Fetch user profile
+        const userResponse = await fetch(
+          `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${earner.userAddress}`,
+          {
+            headers: { 
+              'x-api-key': process.env.NEYNAR_API_KEY,
+              'x-neynar-experimental': 'false'
+            }
+          }
+        );
+        
+        let farcasterUser = null;
+        if (userResponse.ok) {
+          const userData = await userResponse.json();
+          farcasterUser = userData[earner.userAddress]?.[0];
+        }
+        
+        // Fetch token info
+        let tokenInfo = null;
+        try {
+          const { ethers } = require('ethers');
+          const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+          const tokenContract = new ethers.Contract(earner.tokenAddress, [
+            "function name() view returns (string)",
+            "function symbol() view returns (string)",
+            "function decimals() view returns (uint8)"
+          ], provider);
+          
+          const [name, symbol, decimals] = await Promise.all([
+            tokenContract.name(),
+            tokenContract.symbol(),
+            tokenContract.decimals()
+          ]);
+          
+          tokenInfo = { name, symbol, decimals };
+        } catch (tokenError) {
+          console.error('Error fetching token info:', tokenError);
+        }
+        
+        enrichedEarners.push({
+          fid: farcasterUser?.fid || null,
+          username: farcasterUser?.username || null,
+          displayName: farcasterUser?.display_name || null,
+          pfpUrl: farcasterUser?.pfp_url || null,
+          followerCount: farcasterUser?.follower_count || 0,
+          userAddress: earner.userAddress,
+          totalAmount: earner.totalAmount,
+          tipCount: earner.tipCount,
+          tokenInfo: tokenInfo
+        });
+      } catch (error) {
+        console.error('Error enriching earner:', error);
+        // Add basic info even if enrichment fails
+        enrichedEarners.push({
+          fid: null,
+          username: null,
+          displayName: null,
+          pfpUrl: null,
+          followerCount: 0,
+          userAddress: earner.userAddress,
+          totalAmount: earner.totalAmount,
+          tipCount: earner.tipCount,
+          tokenInfo: null
+        });
+      }
+    }
     
     // Calculate pagination info
     const totalTippers = topTippers.length;
@@ -2985,7 +3046,6 @@ app.get('/api/leaderboard', async (req, res) => {
     res.json({
       tippers: enrichedTippers,
       earners: enrichedEarners,
-      userStats: userStats,
       pagination: {
         page: pageNum,
         limit: limitNum,
