@@ -11,7 +11,7 @@ let database;
 try {
   if (process.env.DATABASE_URL) {
     database = require('./database-pg');
-    console.log('🗄️ Using PostgreSQL database');
+    console.log('🗄️ Using PostgreSQL database - Updated with all functions');
   } else {
     database = require('./database');
     console.log('📁 Using file-based database');
