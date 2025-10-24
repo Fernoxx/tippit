@@ -271,42 +271,79 @@ class PostgresDatabase {
   // Get leaderboard data with real-time earnings calculation
   async getLeaderboardData(timeFilter = 'total', page = 1, limit = 10) {
     try {
-      // First check if there are any tips in the database
-      const tipCountResult = await this.pool.query(`
-        SELECT COUNT(*) as tip_count FROM tip_history 
-        WHERE token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+      console.log(`🔍 Getting leaderboard data for timeFilter: ${timeFilter}, page: ${page}, limit: ${limit}`);
+
+      // Get all unique addresses from tip_history
+      let timeCondition = '';
+      if (timeFilter === '24h') {
+        timeCondition = "AND processed_at >= NOW() - INTERVAL '24 hours'";
+      } else if (timeFilter === '7d') {
+        timeCondition = "AND processed_at >= NOW() - INTERVAL '7 days'";
+      } else if (timeFilter === '30d') {
+        timeCondition = "AND processed_at >= NOW() - INTERVAL '30 days'";
+      }
+
+      const addressesResult = await this.pool.query(`
+        SELECT DISTINCT from_address, to_address
+        FROM tip_history 
+        WHERE token_address = '0x833589fCD6eDb6E08f4c7C32D4f71b54bd'
+        ${timeCondition}
       `);
-      console.log(`📊 Total tips in database: ${tipCountResult.rows[0].tip_count}`);
 
-      // Get all users from user_profiles
-      const usersResult = await this.pool.query(`
-        SELECT fid, username, display_name, pfp_url, follower_count, user_address
-        FROM user_profiles 
-        ORDER BY fid DESC
-      `);
+      // Get all unique addresses
+      const allAddresses = new Set();
+      addressesResult.rows.forEach(row => {
+        allAddresses.add(row.from_address);
+        allAddresses.add(row.to_address);
+      });
 
-      const users = usersResult.rows;
-      console.log(`📊 Found ${users.length} users in user_profiles`);
-      const usersWithEarnings = [];
+      console.log(`📊 Found ${allAddresses.size} unique addresses in tip_history`);
 
-      // Calculate earnings for each user using their address
-      for (const user of users) {
-        if (user.user_address) {
-          const earnings = await this.calculateUserEarnings(user.user_address, timeFilter);
-          usersWithEarnings.push({
-            ...user,
+      if (allAddresses.size === 0) {
+        return { users: [], pagination: { page: 1, limit: 10, total: 0, totalPages: 0 } };
+      }
+
+      // Calculate earnings for each address
+      const addressEarnings = [];
+      for (const address of allAddresses) {
+        const earnings = await this.calculateUserEarnings(address, timeFilter);
+        if (earnings.totalEarnings > 0 || earnings.totalTippings > 0) {
+          addressEarnings.push({
+            address,
             ...earnings
           });
         }
       }
 
       // Sort by earnings
-      usersWithEarnings.sort((a, b) => b.totalEarnings - a.totalEarnings);
+      addressEarnings.sort((a, b) => b.totalEarnings - a.totalTippings);
+
+      // Get user data from Neynar for addresses with earnings
+      const addressesToFetch = addressEarnings.slice(0, 50).map(item => item.address); // Limit to 50 for API
+      const neynar = require('./neynar');
+      const userData = await neynar.fetchBulkUsersByEthOrSolAddress(addressesToFetch);
+
+      // Combine earnings with user data
+      const usersWithEarnings = addressEarnings.map(item => {
+        const user = userData[item.address]?.[0] || {};
+        return {
+          fid: user.fid || null,
+          username: user.username || null,
+          display_name: user.display_name || null,
+          pfp_url: user.pfp_url || null,
+          follower_count: user.follower_count || 0,
+          user_address: item.address,
+          totalEarnings: item.totalEarnings,
+          totalTippings: item.totalTippings
+        };
+      });
 
       // Pagination
       const startIndex = (page - 1) * limit;
       const endIndex = startIndex + limit;
       const paginatedUsers = usersWithEarnings.slice(startIndex, endIndex);
+
+      console.log(`📊 Returning ${paginatedUsers.length} users with earnings`);
 
       return {
         users: paginatedUsers,
