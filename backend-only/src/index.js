@@ -2993,7 +2993,7 @@ app.get('/api/homepage', async (req, res) => {
       }
     });
     
-    console.log(`🏠 Homepage completed: ${usersWithAllowance.length} users with sufficient allowance (saved ${activeUsers.length - nonBlockedUsers.length} blockchain API calls)`);
+    console.log(`🏠 Homepage completed: ${usersWithAllowance.length} users with sufficient allowance`);
   } catch (error) {
     console.error('Homepage fetch error:', error);
     res.status(500).json({ error: 'Failed to fetch homepage data' });
