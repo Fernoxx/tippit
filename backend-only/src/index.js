@@ -3964,6 +3964,55 @@ app.get('/api/debug/tip-history', async (req, res) => {
   }
 });
 
+// Debug endpoint to add test tips
+app.post('/api/debug/add-test-tips', async (req, res) => {
+  try {
+    console.log('🧪 Adding test tips to database...');
+    
+    // Add some test tips
+    const testTips = [
+      {
+        from_address: '0xb09691a58bd198eddad12081a5aa6fdc2df68324',
+        to_address: '0x62cac63fd2ca1d54800221b6a40e6ca451e4713c',
+        amount: '0.1',
+        token_address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+        processed_at: new Date()
+      },
+      {
+        from_address: '0x62cac63fd2ca1d54800221b6a40e6ca451e4713c',
+        to_address: '0xb4e5bcf6a033fcc18a1d91b09a6ddaa75bf3ca40',
+        amount: '0.05',
+        token_address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+        processed_at: new Date(Date.now() - 1000 * 60 * 60 * 2) // 2 hours ago
+      },
+      {
+        from_address: '0xb4e5bcf6a033fcc18a1d91b09a6ddaa75bf3ca40',
+        to_address: '0xa7c63c32659198edabb59a6440a07169142f013a',
+        amount: '0.15',
+        token_address: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+        processed_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2) // 2 days ago
+      }
+    ];
+    
+    for (const tip of testTips) {
+      await database.pool.query(`
+        INSERT INTO tip_history (from_address, to_address, amount, token_address, processed_at)
+        VALUES ($1, $2, $3, $4, $5)
+      `, [tip.from_address, tip.to_address, tip.amount, tip.token_address, tip.processed_at]);
+    }
+    
+    console.log('✅ Test tips added successfully');
+    res.json({
+      success: true,
+      message: 'Test tips added successfully',
+      tips: testTips
+    });
+  } catch (error) {
+    console.error('Error adding test tips:', error);
+    res.status(500).json({ error: 'Failed to add test tips' });
+  }
+});
+
 // Debug endpoint to check leaderboard data in real-time
 app.get('/api/debug/leaderboard-data', async (req, res) => {
   try {
