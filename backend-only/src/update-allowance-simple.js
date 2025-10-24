@@ -2,7 +2,7 @@
 const express = require('express');
 const { ethers } = require('ethers');
 
-async function updateAllowanceSimple(req, res, database, batchTransferManager, blocklistService) {
+async function updateAllowanceSimple(req, res, database, batchTransferManager) {
   try {
     const { userAddress, tokenAddress, transactionType, isRealTransaction = false } = req.body;
     console.log(`🔄 Updating allowance for ${userAddress} (${transactionType}) - Real transaction: ${isRealTransaction}`);

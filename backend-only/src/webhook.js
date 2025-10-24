@@ -301,35 +301,7 @@ async function webhookHandler(req, res) {
       }
     }
 
-    // Check if user is blocked using BlocklistService or database fallback
-    let isUserBlocked = false;
-    
-    if (global.blocklistService) {
-      isUserBlocked = global.blocklistService.isBlocked(interaction.authorAddress);
-      console.log(`🔍 BlocklistService check: ${isUserBlocked ? 'BLOCKED' : 'ALLOWED'}`);
-    } else {
-      // Fallback to database blocklist check
-      try {
-        const databaseBlocklist = await database.getBlocklist();
-        isUserBlocked = databaseBlocklist.includes(interaction.authorAddress.toLowerCase());
-        console.log(`🔍 Database blocklist check: ${isUserBlocked ? 'BLOCKED' : 'ALLOWED'}`);
-      } catch (error) {
-        console.error(`❌ Error checking database blocklist:`, error);
-      }
-    }
-    
-    if (isUserBlocked) {
-      console.log(`⏭️ Skipping webhook event - user ${interaction.authorAddress} is in blocklist (insufficient allowance)`);
-      const blocklistSize = global.blocklistService ? global.blocklistService.getBlocklistSize() : 'unknown';
-      console.log(`🔍 Blocklist size: ${blocklistSize}`);
-      return res.status(200).json({
-        success: true,
-        processed: false,
-        instant: true,
-        interactionType: interaction.interactionType,
-        reason: 'User blocked - insufficient allowance'
-      });
-    }
+    // Blocklist check removed - using webhook filtering instead
 
     // Process tip through batch system (like Noice - 1 minute batches for gas efficiency)
     const result = await batchTransferManager.addTipToBatch(interaction, authorConfig);

@@ -20,19 +20,7 @@ try {
   database = require('./database');
 }
 
-// Initialize BlocklistService
-try {
-  const { ethers } = require('ethers');
-  const rpcUrl = process.env.BASE_RPC_URL || process.env.RPC_URL || 'https://mainnet.base.org';
-  console.log(`🔗 Using RPC URL: ${rpcUrl}`);
-  
-  const provider = new ethers.JsonRpcProvider(rpcUrl);
-  console.log('🚫 BlocklistService initialized successfully');
-} catch (error) {
-  console.error('❌ Failed to initialize BlocklistService:', error);
-  console.error('❌ Error details:', error.message);
-  console.error('❌ Stack trace:', error.stack);
-}
+// BlocklistService removed - using webhook filtering instead
 
 // Initialize batchTransferManager
 console.log('🔄 Initializing batchTransferManager...');
@@ -1613,11 +1601,7 @@ async function updateUserWebhookStatus(userAddress) {
       return false;
     }
     
-    // Check if user is in blocklist first (instant check, zero API calls)
-    if (batchTransferManager && batchTransferManager.isUserBlocked && batchTransferManager.isUserBlocked(userAddress)) {
-      console.log(`⏭️ Skipping webhook update for ${userAddress} - user is in blocklist (no Neynar calls needed)`);
-      return true; // Return true because blocklist handles this efficiently
-    }
+    // Blocklist check removed - using webhook filtering instead
     
     const fid = await getUserFid(userAddress);
     if (!fid) {
@@ -1633,7 +1617,10 @@ async function updateUserWebhookStatus(userAddress) {
         console.log(`✅ User ${userAddress} (FID: ${fid}) has sufficient allowance - added to webhook`);
       }
     } else {
-      console.log(`✅ User ${userAddress} (FID: ${fid}) has insufficient allowance - blocklist will handle filtering`);
+      const success = await removeFidFromWebhook(fid);
+      if (success) {
+        console.log(`✅ User ${userAddress} (FID: ${fid}) has insufficient allowance - removed from webhook`);
+      }
     }
     
     return true;
@@ -1836,7 +1823,7 @@ async function updateDatabaseAllowance(userAddress, allowanceAmount) {
       const minTipAmount = likeAmount + recastAmount + replyAmount;
       
       if (allowanceAmount < minTipAmount) {
-        console.log(`🚫 User ${userAddress} allowance ${allowanceAmount} < total tip ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount}) - blocklist will handle filtering`);
+        console.log(`🚫 User ${userAddress} allowance ${allowanceAmount} < total tip ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount}) - will be removed from webhook`);
           
           // Send allowance empty notification ONLY if:
           // 1. Previous allowance was > 0 (user had allowance before)
@@ -2709,7 +2696,7 @@ const handleFarcasterWebhook = require('./farcaster-webhook');
 // NEW: Update allowance endpoint for instant database/webhook updates after user approves/revokes
 // This endpoint should ONLY be called after actual approve/revoke transactions
 app.post('/api/update-allowance', async (req, res) => {
-  await updateAllowanceSimple(req, res, database, batchTransferManager, blocklistService);
+  await updateAllowanceSimple(req, res, database, batchTransferManager);
 });
 
 // Farcaster notification webhook endpoint
@@ -3507,43 +3494,7 @@ app.get('/api/debug/test-homepage', async (req, res) => {
 });
 
 
-// Debug endpoint to manually remove user from blocklist
-app.post('/api/debug/remove-from-blocklist', async (req, res) => {
-  try {
-    const { userAddress } = req.body;
-    
-    if (!userAddress) {
-      return res.status(400).json({ error: 'userAddress is required' });
-    }
-    
-    if (!batchTransferManager) {
-      return res.status(500).json({ error: 'BatchTransferManager not initialized' });
-    }
-    
-    console.log(`🔧 DEBUG: Manually removing ${userAddress} from blocklist`);
-    const blocklistBefore = global.blocklistService ? global.blocklistService.getBlockedUsers() : [];
-    console.log(`🔧 DEBUG: Blocklist before:`, blocklistBefore);
-    
-    let wasRemoved = false;
-    if (global.blocklistService) {
-      wasRemoved = global.blocklistService.removeFromBlocklist(userAddress);
-    }
-    
-    console.log(`🔧 DEBUG: Removal result: ${wasRemoved}`);
-    const blocklistAfter = global.blocklistService ? global.blocklistService.getBlockedUsers() : [];
-    console.log(`🔧 DEBUG: Blocklist after:`, blocklistAfter);
-    
-    res.json({ 
-      success: true, 
-      wasRemoved,
-      blocklist: blocklistAfter,
-      message: wasRemoved ? 'User removed from blocklist' : 'User not found in blocklist'
-    });
-  } catch (error) {
-    console.error('Debug remove from blocklist error:', error);
-    res.status(500).json({ error: 'Failed to remove from blocklist' });
-  }
-});
+// Blocklist endpoints removed - using webhook filtering instead
 
 // Simple endpoint to remove specific user from blocklist
 app.post('/api/debug/remove-user', async (req, res) => {
@@ -3652,36 +3603,7 @@ app.get('/api/test', (req, res) => {
 
 // Test FID lookup endpoint - removed for debugging
 
-// Simple blocklist status endpoint
-app.get('/api/blocklist-status', async (req, res) => {
-  console.log('🔍 API Route Hit: /api/blocklist-status');
-  try {
-    if (!global.blocklistService) {
-      console.log('❌ BlocklistService not initialized');
-      return res.json({
-        success: false,
-        error: 'BlocklistService not initialized',
-        blocklistSize: 0,
-        blockedUsers: []
-      });
-    }
-
-    const blocklistSize = global.blocklistService.getBlocklistSize();
-    const blockedUsers = global.blocklistService.getBlockedUsers();
-    
-    console.log(`📊 Blocklist status: ${blocklistSize} users blocked`);
-    
-    res.json({
-      success: true,
-      blocklistSize: blocklistSize,
-      blockedUsers: Array.from(blockedUsers),
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('Error checking blocklist status:', error);
-    res.status(500).json({ error: 'Failed to check blocklist status' });
-  }
-});
+// Blocklist endpoints removed - using webhook filtering instead
 
 // Debug endpoint to check BlocklistService status
 app.get('/api/debug/blocklist-service', (req, res) => {
