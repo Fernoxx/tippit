@@ -2918,24 +2918,29 @@ app.get('/api/leaderboard', async (req, res) => {
         
         // Fetch token info
         let tokenInfo = null;
-        try {
-          const { ethers } = require('ethers');
-          const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-          const tokenContract = new ethers.Contract(tipper.tokenAddress, [
-            "function name() view returns (string)",
-            "function symbol() view returns (string)",
-            "function decimals() view returns (uint8)"
-          ], provider);
-          
-          const [name, symbol, decimals] = await Promise.all([
-            tokenContract.name(),
-            tokenContract.symbol(),
-            tokenContract.decimals()
-          ]);
-          
-          tokenInfo = { name, symbol, decimals };
-        } catch (tokenError) {
-          console.error('Error fetching token info:', tokenError);
+        if (tipper.tokenAddress) {
+          try {
+            const { ethers } = require('ethers');
+            const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+            const tokenContract = new ethers.Contract(tipper.tokenAddress, [
+              "function name() view returns (string)",
+              "function symbol() view returns (string)",
+              "function decimals() view returns (uint8)"
+            ], provider);
+            
+            const [name, symbol, decimals] = await Promise.all([
+              tokenContract.name(),
+              tokenContract.symbol(),
+              tokenContract.decimals()
+            ]);
+            
+            tokenInfo = { name, symbol, decimals: Number(decimals) };
+          } catch (tokenError) {
+            console.log(`Could not fetch token info for ${tipper.tokenAddress}:`, tokenError.message);
+            tokenInfo = { name: 'Unknown', symbol: 'UNK', decimals: 18 };
+          }
+        } else {
+          tokenInfo = { name: 'Unknown', symbol: 'UNK', decimals: 18 };
         }
         
         enrichedTippers.push({
@@ -2989,24 +2994,29 @@ app.get('/api/leaderboard', async (req, res) => {
         
         // Fetch token info
         let tokenInfo = null;
-        try {
-          const { ethers } = require('ethers');
-          const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-          const tokenContract = new ethers.Contract(earner.tokenAddress, [
-            "function name() view returns (string)",
-            "function symbol() view returns (string)",
-            "function decimals() view returns (uint8)"
-          ], provider);
-          
-          const [name, symbol, decimals] = await Promise.all([
-            tokenContract.name(),
-            tokenContract.symbol(),
-            tokenContract.decimals()
-          ]);
-          
-          tokenInfo = { name, symbol, decimals };
-        } catch (tokenError) {
-          console.error('Error fetching token info:', tokenError);
+        if (earner.tokenAddress) {
+          try {
+            const { ethers } = require('ethers');
+            const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+            const tokenContract = new ethers.Contract(earner.tokenAddress, [
+              "function name() view returns (string)",
+              "function symbol() view returns (string)",
+              "function decimals() view returns (uint8)"
+            ], provider);
+            
+            const [name, symbol, decimals] = await Promise.all([
+              tokenContract.name(),
+              tokenContract.symbol(),
+              tokenContract.decimals()
+            ]);
+            
+            tokenInfo = { name, symbol, decimals: Number(decimals) };
+          } catch (tokenError) {
+            console.log(`Could not fetch token info for ${earner.tokenAddress}:`, tokenError.message);
+            tokenInfo = { name: 'Unknown', symbol: 'UNK', decimals: 18 };
+          }
+        } else {
+          tokenInfo = { name: 'Unknown', symbol: 'UNK', decimals: 18 };
         }
         
         enrichedEarners.push({
@@ -5914,7 +5924,6 @@ app.listen(PORT, () => {
   }
   
   // Blocklist persists - only updates on approve/revoke transactions
-  console.log(`📋 BlocklistService initialized with ${global.blocklistService ? global.blocklistService.getBlocklistSize() : 0} blocked users`);
   
   // Run cleanup once on startup (non-blocking)
   setTimeout(() => {
