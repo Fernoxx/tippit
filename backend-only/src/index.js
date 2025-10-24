@@ -328,6 +328,39 @@ app.post('/api/add-user-to-webhook', async (req, res) => {
   }
 });
 
+// Remove FID from webhook filter endpoint
+app.post('/api/remove-fid-from-webhook', async (req, res) => {
+  try {
+    const { fid } = req.body;
+    
+    if (!fid) {
+      return res.status(400).json({
+        success: false,
+        error: 'fid is required'
+      });
+    }
+    
+    console.log(`🔗 Removing FID ${fid} from webhook filter...`);
+    
+    const success = await removeFidFromWebhook(parseInt(fid));
+    
+    if (success) {
+      res.json({
+        success: true,
+        message: `FID ${fid} removed from webhook filter`
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to remove FID from webhook filter'
+      });
+    }
+  } catch (error) {
+    console.error('Error removing FID from webhook:', error);
+    res.status(500).json({ error: 'Failed to remove FID from webhook' });
+  }
+});
+
 // Get current tracked FIDs
 app.get('/api/tracked-fids', async (req, res) => {
   try {
