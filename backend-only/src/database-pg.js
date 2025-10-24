@@ -67,6 +67,15 @@ class Database {
         )
       `);
 
+      // Create app_settings table for blocklist and other settings
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS app_settings (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL,
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+
       console.log('✅ Database tables initialized successfully');
     } catch (error) {
       console.error('❌ Database initialization error:', error);
@@ -328,6 +337,132 @@ class Database {
     } catch (error) {
       console.error('Error getting webhook config:', error);
       return null;
+    }
+  }
+
+  // Clean up tips older than 30 days to save database space
+  async cleanupOldTips() {
+    try {
+      // Only run cleanup once per day to avoid performance issues
+      const lastCleanup = await this.pool.query(`
+        SELECT value FROM app_settings WHERE key = 'last_cleanup' LIMIT 1
+      `).catch(() => ({ rows: [] }));
+      
+      const today = new Date().toDateString();
+      if (lastCleanup.rows.length > 0 && lastCleanup.rows[0].value === today) {
+        return; // Already cleaned up today
+      }
+      
+      // Delete tips older than 30 days
+      const result = await this.pool.query(`
+        DELETE FROM tip_history 
+        WHERE processed_at < NOW() - INTERVAL '30 days'
+      `);
+      
+      console.log(`🧹 Cleaned up ${result.rowCount} old tips`);
+      
+      // Update last cleanup date
+      await this.pool.query(`
+        INSERT INTO app_settings (key, value) 
+        VALUES ('last_cleanup', $1)
+        ON CONFLICT (key) 
+        DO UPDATE SET value = EXCLUDED.value
+      `, [today]);
+      
+    } catch (error) {
+      console.error('Error cleaning up old tips:', error);
+    }
+  }
+
+  // Blocklist management
+  async setBlocklist(blocklist) {
+    try {
+      await this.pool.query(`
+        INSERT INTO app_settings (key, value) 
+        VALUES ('blocklist', $1)
+        ON CONFLICT (key) 
+        DO UPDATE SET value = EXCLUDED.value
+      `, [JSON.stringify(blocklist)]);
+      
+      console.log('✅ Blocklist saved to database');
+    } catch (error) {
+      console.error('Error saving blocklist:', error);
+    }
+  }
+
+  // Get blocklist from database
+  async getBlocklist() {
+    try {
+      const result = await this.pool.query(`
+        SELECT value FROM app_settings WHERE key = 'blocklist'
+      `);
+      
+      if (result.rows.length > 0) {
+        return JSON.parse(result.rows[0].value);
+      }
+      return [];
+    } catch (error) {
+      console.error('Error getting blocklist:', error);
+      return [];
+    }
+  }
+
+  async addToBlocklist(userAddress) {
+    try {
+      const normalizedAddress = userAddress.toLowerCase();
+      
+      // Get current blocklist
+      const currentBlocklist = await this.getBlocklist();
+      
+      // Add user if not already present
+      if (!currentBlocklist.includes(normalizedAddress)) {
+        currentBlocklist.push(normalizedAddress);
+        await this.setBlocklist(currentBlocklist);
+        console.log(`📝 Added ${normalizedAddress} to database blocklist`);
+        return true;
+      } else {
+        console.log(`ℹ️ User ${normalizedAddress} already in database blocklist`);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error adding to blocklist:', error);
+      return false;
+    }
+  }
+
+  async removeFromBlocklist(userAddress) {
+    try {
+      const normalizedAddress = userAddress.toLowerCase();
+      
+      // Get current blocklist
+      const currentBlocklist = await this.getBlocklist();
+      
+      // Remove user if present
+      const index = currentBlocklist.indexOf(normalizedAddress);
+      if (index > -1) {
+        currentBlocklist.splice(index, 1);
+        await this.setBlocklist(currentBlocklist);
+        console.log(`📝 Removed ${normalizedAddress} from database blocklist`);
+        return true;
+      } else {
+        console.log(`ℹ️ User ${normalizedAddress} not in database blocklist`);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error removing from blocklist:', error);
+      return false;
+    }
+  }
+
+  // Check if user is in blocklist
+  async isUserBlocked(userAddress) {
+    try {
+      const normalizedAddress = userAddress.toLowerCase();
+      const blocklist = await this.getBlocklist();
+      return blocklist.includes(normalizedAddress);
+    } catch (error) {
+      console.error(`❌ Error checking if ${userAddress} is blocked:`, error);
+      return false;
     }
   }
 
