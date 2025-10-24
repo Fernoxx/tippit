@@ -236,7 +236,7 @@ class PostgresDatabase {
         FROM tip_history 
         WHERE processed_at > NOW() - INTERVAL '${timeMs}'
         AND LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
-        GROUP BY from_address, token_address 
+        GROUP BY from_address 
         ORDER BY total_amount DESC 
         LIMIT 50
       `);
@@ -267,7 +267,7 @@ class PostgresDatabase {
         FROM tip_history 
         WHERE processed_at > NOW() - INTERVAL '${timeMs}'
         AND LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
-        GROUP BY to_address, token_address 
+        GROUP BY to_address 
         ORDER BY total_amount DESC 
         LIMIT 50
       `);

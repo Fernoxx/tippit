@@ -2914,6 +2914,9 @@ app.get('/api/leaderboard', async (req, res) => {
         if (userResponse.ok) {
           const userData = await userResponse.json();
           farcasterUser = userData[tipper.userAddress]?.[0];
+          console.log(`🔍 Neynar API response for ${tipper.userAddress}:`, farcasterUser ? 'Found user' : 'No user found');
+        } else {
+          console.log(`❌ Neynar API error for ${tipper.userAddress}: ${userResponse.status}`);
         }
         
         // Fetch token info
@@ -2978,6 +2981,9 @@ app.get('/api/leaderboard', async (req, res) => {
         if (userResponse.ok) {
           const userData = await userResponse.json();
           farcasterUser = userData[earner.userAddress]?.[0];
+          console.log(`🔍 Neynar API response for ${earner.userAddress}:`, farcasterUser ? 'Found user' : 'No user found');
+        } else {
+          console.log(`❌ Neynar API error for ${earner.userAddress}: ${userResponse.status}`);
         }
         
         // Fetch token info
