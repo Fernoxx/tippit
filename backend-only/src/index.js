@@ -3923,30 +3923,7 @@ app.get('/api/debug/gas-prices', async (req, res) => {
   }
 });
 
-// ADMIN ENDPOINTS - Total App Statistics
-app.get('/api/admin/total-stats', async (req, res) => {
-  try {
-    // Get total tips count and amount
-    const totalTips = await database.getTotalTips();
-    const totalAmount = await database.getTotalAmountTipped();
-    const totalUsers = await database.getTotalUsers();
-    const totalTransactions = await database.getTotalTransactions();
-    
-    res.json({
-      success: true,
-      stats: {
-        totalTips: totalTips,
-        totalAmountTipped: totalAmount,
-        totalUsers: totalUsers,
-        totalTransactions: totalTransactions,
-        timestamp: new Date().toISOString()
-      }
-    });
-  } catch (error) {
-    console.error('Error getting total stats:', error);
-    res.status(500).json({ error: 'Failed to get total stats' });
-  }
-});
+// ADMIN ENDPOINTS - Total App Statistics (removed duplicate, using comprehensive version below)
 
 // Get recent tips for admin monitoring
 app.get('/api/admin/recent-tips', async (req, res) => {
