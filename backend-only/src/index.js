@@ -5,7 +5,6 @@ require('dotenv').config();
 
 const webhookHandler = require('./webhook');
 const batchTransferManager = require('./batchTransferManager');
-const BlocklistService = require('./blocklistService');
 // Use PostgreSQL database if available, fallback to file storage
 let database;
 try {
@@ -22,22 +21,17 @@ try {
 }
 
 // Initialize BlocklistService
-let blocklistService;
 try {
   const { ethers } = require('ethers');
   const rpcUrl = process.env.BASE_RPC_URL || process.env.RPC_URL || 'https://mainnet.base.org';
   console.log(`🔗 Using RPC URL: ${rpcUrl}`);
   
   const provider = new ethers.JsonRpcProvider(rpcUrl);
-  blocklistService = new BlocklistService(provider, database);
-  global.blocklistService = blocklistService; // Make globally available
   console.log('🚫 BlocklistService initialized successfully');
-  console.log(`📊 BlocklistService status: ${blocklistService ? 'ACTIVE' : 'INACTIVE'}`);
 } catch (error) {
   console.error('❌ Failed to initialize BlocklistService:', error);
   console.error('❌ Error details:', error.message);
   console.error('❌ Stack trace:', error.stack);
-  global.blocklistService = null;
 }
 
 // Initialize batchTransferManager
@@ -3451,30 +3445,6 @@ app.get('/api/debug/test-homepage', async (req, res) => {
   }
 });
 
-// Debug endpoint to check blocklist contents
-app.get('/api/debug/blocklist', async (req, res) => {
-  try {
-    const blockedUsers = global.blocklistService ? global.blocklistService.getBlockedUsers() : [];
-    
-    // Check for invalid addresses
-    const invalidAddresses = blockedUsers.filter(addr => 
-      !addr || addr === '0x' || addr.startsWith('0x0x') || addr.length < 42
-    );
-    
-    res.json({
-      success: true,
-      blockedUsers: blockedUsers,
-      count: blockedUsers.length,
-      invalidAddresses: invalidAddresses,
-      invalidCount: invalidAddresses.length,
-      blocklistServiceAvailable: !!global.blocklistService,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('Error checking blocklist:', error);
-    res.status(500).json({ error: 'Failed to check blocklist' });
-  }
-});
 
 // Debug endpoint to manually remove user from blocklist
 app.post('/api/debug/remove-from-blocklist', async (req, res) => {
