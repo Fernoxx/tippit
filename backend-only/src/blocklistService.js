@@ -296,6 +296,61 @@ class BlocklistService {
   getBlocklistSize() {
     return this.blockedUsers.size;
   }
+
+  // Remove FID from webhook
+  async removeFidFromWebhook(fid) {
+    try {
+      const webhookId = await this.database.getWebhookId();
+      if (!webhookId) {
+        console.log('❌ No webhook ID found');
+        return false;
+      }
+      
+      const trackedFids = await this.database.getTrackedFids();
+      if (!trackedFids.includes(fid)) {
+        console.log(`✅ FID ${fid} not in webhook filter`);
+        return true;
+      }
+      
+      const updatedFids = trackedFids.filter(f => f !== fid);
+      
+      const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook`, {
+        method: 'PUT',
+        headers: {
+          'x-api-key': process.env.NEYNAR_API_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          webhook_id: webhookId,
+          name: "Ecion Farcaster Events Webhook",
+          subscription: {
+            "cast.created": { 
+              author_fids: updatedFids,
+              parent_author_fids: updatedFids
+            },
+            "reaction.created": { 
+              target_fids: updatedFids
+            },
+            "follow.created": { 
+              target_fids: updatedFids
+            }
+          }
+        })
+      });
+      
+      if (webhookResponse.ok) {
+        await this.database.setTrackedFids(updatedFids);
+        console.log(`✅ Removed FID ${fid} from webhook filter`);
+        return true;
+      } else {
+        console.error('❌ Failed to remove FID from webhook:', await webhookResponse.text());
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ Error removing FID from webhook:', error);
+      return false;
+    }
+  }
 }
 
 module.exports = BlocklistService;
