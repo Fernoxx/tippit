@@ -5877,7 +5877,7 @@ app.get('/api/admin/total-stats', async (req, res) => {
         MIN(processed_at) as first_tip_date,
         MAX(processed_at) as last_tip_date
       FROM tip_history 
-      WHERE LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+      WHERE LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bd'
     `);
     
     // Get 24h stats
