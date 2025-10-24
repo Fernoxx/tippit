@@ -222,8 +222,8 @@ class PostgresDatabase {
     }
   }
 
-  // Calculate earnings for a specific FID from tip_history
-  async calculateUserEarnings(fid, timeFilter = 'total') {
+  // Calculate earnings for a specific user address from tip_history
+  async calculateUserEarnings(userAddress, timeFilter = 'total') {
     try {
       let timeCondition = '';
       if (timeFilter === '24h') {
@@ -236,16 +236,12 @@ class PostgresDatabase {
 
       const result = await this.pool.query(`
         SELECT 
-          SUM(CASE WHEN to_address IN (
-            SELECT user_address FROM user_profiles WHERE fid = $1
-          ) THEN amount::NUMERIC ELSE 0 END) as total_earnings,
-          SUM(CASE WHEN from_address IN (
-            SELECT user_address FROM user_profiles WHERE fid = $1
-          ) THEN amount::NUMERIC ELSE 0 END) as total_tippings
+          SUM(CASE WHEN LOWER(to_address) = LOWER($1) THEN amount::NUMERIC ELSE 0 END) as total_earnings,
+          SUM(CASE WHEN LOWER(from_address) = LOWER($1) THEN amount::NUMERIC ELSE 0 END) as total_tippings
         FROM tip_history 
         WHERE token_address = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
         ${timeCondition}
-      `, [fid]);
+      `, [userAddress]);
 
       const stats = result.rows[0];
       return {
@@ -271,10 +267,10 @@ class PostgresDatabase {
       const users = usersResult.rows;
       const usersWithEarnings = [];
 
-      // Calculate earnings for each user
+      // Calculate earnings for each user using their address
       for (const user of users) {
         if (user.user_address) {
-          const earnings = await this.calculateUserEarnings(user.fid, timeFilter);
+          const earnings = await this.calculateUserEarnings(user.user_address, timeFilter);
           usersWithEarnings.push({
             ...user,
             ...earnings
@@ -318,6 +314,29 @@ class PostgresDatabase {
     } catch (error) {
       console.error('📖 Error reading user config:', error.message);
       return null;
+    }
+  }
+
+  // Save user profile when they approve USDC (called from backend)
+  async saveUserProfileFromApproval(userAddress, fid, username, displayName, pfpUrl) {
+    try {
+      const result = await this.pool.query(`
+        INSERT INTO user_profiles (fid, username, display_name, pfp_url, user_address, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+        ON CONFLICT (fid) 
+        DO UPDATE SET 
+          username = EXCLUDED.username,
+          display_name = EXCLUDED.display_name,
+          pfp_url = EXCLUDED.pfp_url,
+          user_address = EXCLUDED.user_address,
+          updated_at = NOW()
+      `, [fid, username, displayName, pfpUrl, userAddress]);
+
+      console.log(`✅ Saved user profile for FID ${fid} with address ${userAddress}`);
+      return true;
+    } catch (error) {
+      console.error('Error saving user profile from approval:', error);
+      return false;
     }
   }
 
