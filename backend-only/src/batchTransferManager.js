@@ -416,7 +416,7 @@ class BatchTransferManager {
               const replyAmount = parseFloat(userConfig.replyAmount || '0');
               const minTipAmount = likeAmount + recastAmount + replyAmount;
               
-              // Check both allowance AND balance after tip processing
+              // Check if user still has sufficient allowance + balance after tip
               const finalCheck = await this.checkAllowanceAndBalance(tip.interaction.authorAddress, tip.tokenAddress, minTipAmount);
               if (!finalCheck.canAfford) {
                 let reason = 'Insufficient funds';
@@ -447,13 +447,8 @@ class BatchTransferManager {
                   }
                 }
               } else {
-                // User has sufficient allowance AND balance - ensure they are in webhook filter
-                const { addFidToWebhook, getUserFid } = require('./index');
-                const userFid = await getUserFid(tip.interaction.authorAddress);
-                if (userFid) {
-                  await addFidToWebhook(userFid);
-                  console.log(`✅ Ensured FID ${userFid} is in webhook filter - has sufficient funds`);
-                }
+                // User has sufficient allowance AND balance - no action needed (should already be in webhook)
+                console.log(`✅ User ${tip.interaction.authorAddress} still has sufficient funds after tip - no webhook action needed`);
               }
               
               // Send earned tip notification to recipient (skip to avoid unnecessary API calls)
