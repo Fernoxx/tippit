@@ -6076,5 +6076,9 @@ module.exports = {
   sendNeynarNotification,
   sendFarcasterNotification,
   sendBulkNotification,
-  hasNotificationTokens
+  hasNotificationTokens,
+  addFidToWebhook,
+  removeFidFromWebhook,
+  updateUserWebhookStatus,
+  autoRevokeAllowance
 };

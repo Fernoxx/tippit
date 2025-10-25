@@ -334,8 +334,7 @@ class BatchTransferManager {
       
       console.log(`✅ Batch processing complete: ${result.processed} processed, ${result.failed} failed`);
       
-      // Update webhook status for users who might have insufficient allowance now
-      await this.updateWebhookStatusForProcessedTips(tipsToProcess);
+      // Webhook status updates are handled automatically when users approve/revoke allowances
 
     } catch (error) {
       console.error('❌ Batch processing error:', error);
@@ -457,18 +456,8 @@ class BatchTransferManager {
                 }
               }
               
-              // Send earned tip notification to recipient
-              try {
-                const { sendFarcasterNotification } = require('./index');
-                await sendFarcasterNotification(
-                  tip.interaction.interactorAddress,
-                  "Earned from Ecion!",
-                  `You earned ${tip.amount} USDC from a ${tip.interaction.interactionType}!`,
-                  "https://ecion.vercel.app"
-                );
-              } catch (notificationError) {
-                console.log(`⚠️ Error sending earned notification: ${notificationError.message}`);
-              }
+              // Send earned tip notification to recipient (skip to avoid unnecessary API calls)
+              // Note: Notifications are handled by the frontend when users check their earnings
             }
             processed++;
           }
@@ -818,9 +807,7 @@ class BatchTransferManager {
             continue;
           }
           
-          // Use the main webhook status update function
-          const { updateUserWebhookStatus } = require('./index');
-          await updateUserWebhookStatus(userAddress);
+          // Webhook status updates are handled automatically when users approve/revoke allowances
           processedCount++;
           
         } catch (error) {
