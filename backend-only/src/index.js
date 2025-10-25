@@ -1127,29 +1127,67 @@ app.post('/api/approve', async (req, res) => {
     
     console.log(`User ${userAddress} approved ${amount} of token ${tokenAddress}`);
     
-    // Add user's FID to webhook after token approval
-    try {
-      const userProfile = await database.pool.query(
-        'SELECT fid FROM user_profiles WHERE user_address = $1',
-        [userAddress]
-      );
-      
-      if (userProfile.rows.length > 0) {
-        const fid = userProfile.rows[0].fid;
-        console.log(`🔗 Adding FID ${fid} to webhook after token approval`);
+    // Wait 8 seconds for blockchain to update, then check allowance and update webhook
+    setTimeout(async () => {
+      try {
+        console.log(`⏳ Waiting 8 seconds for blockchain to update after approval...`);
+        await new Promise(resolve => setTimeout(resolve, 8000));
         
-        const added = await addFidToWebhook(fid);
-        if (added) {
-          console.log(`✅ FID ${fid} added to webhook`);
-        } else {
-          console.log(`ℹ️ FID ${fid} already in webhook or failed to add`);
+        // Check current allowance and balance from blockchain
+        const { ethers } = require('ethers');
+        const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+        const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+        
+        const tokenContract = new ethers.Contract(tokenAddress, [
+          "function allowance(address owner, address spender) view returns (uint256)",
+          "function balanceOf(address owner) view returns (uint256)"
+        ], provider);
+        
+        const [allowance, balance] = await Promise.all([
+          tokenContract.allowance(userAddress, ecionBatchAddress),
+          tokenContract.balanceOf(userAddress)
+        ]);
+        
+        const tokenDecimals = tokenAddress === '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' ? 6 : 18;
+        const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
+        const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
+        
+        console.log(`📊 Blockchain check after approval: Allowance: ${allowanceAmount}, Balance: ${balanceAmount}`);
+        
+        // Get user's FID
+        const fid = await getUserFid(userAddress);
+        if (!fid) {
+          console.log(`⚠️ No FID found for user ${userAddress}`);
+          return;
         }
-      } else {
-        console.log(`⚠️ No FID found for user ${userAddress}`);
+        
+        // Check if user has sufficient allowance and balance
+        const userConfig = await database.getUserConfig(userAddress);
+        if (!userConfig) {
+          console.log(`⚠️ No config found for user ${userAddress}`);
+          return;
+        }
+        
+        const likeAmount = parseFloat(userConfig.likeAmount || '0');
+        const recastAmount = parseFloat(userConfig.recastAmount || '0');
+        const replyAmount = parseFloat(userConfig.replyAmount || '0');
+        const minTipAmount = likeAmount + recastAmount + replyAmount;
+        
+        if (allowanceAmount >= minTipAmount && balanceAmount >= minTipAmount) {
+          console.log(`✅ User ${userAddress} has sufficient allowance and balance - adding to webhook`);
+          const added = await addFidToWebhook(fid);
+          if (added) {
+            console.log(`✅ FID ${fid} added to webhook`);
+          } else {
+            console.log(`ℹ️ FID ${fid} already in webhook or failed to add`);
+          }
+        } else {
+          console.log(`❌ User ${userAddress} has insufficient allowance (${allowanceAmount}) or balance (${balanceAmount}) - not adding to webhook`);
+        }
+      } catch (error) {
+        console.error(`❌ Error checking allowance and updating webhook for ${userAddress}:`, error);
       }
-    } catch (error) {
-      console.error(`❌ Error adding FID to webhook for ${userAddress}:`, error);
-    }
+    }, 0);
     
     res.json({ 
       success: true, 
@@ -1175,29 +1213,67 @@ app.post('/api/revoke', async (req, res) => {
     
     console.log(`User ${userAddress} revoked token ${tokenAddress}`);
     
-    // Remove user's FID from webhook after token revocation
-    try {
-      const userProfile = await database.pool.query(
-        'SELECT fid FROM user_profiles WHERE user_address = $1',
-        [userAddress]
-      );
-      
-      if (userProfile.rows.length > 0) {
-        const fid = userProfile.rows[0].fid;
-        console.log(`🔗 Removing FID ${fid} from webhook after token revocation`);
+    // Wait 8 seconds for blockchain to update, then check allowance and update webhook
+    setTimeout(async () => {
+      try {
+        console.log(`⏳ Waiting 8 seconds for blockchain to update after revocation...`);
+        await new Promise(resolve => setTimeout(resolve, 8000));
         
-        const removed = await removeFidFromWebhook(fid);
-        if (removed) {
-          console.log(`✅ FID ${fid} removed from webhook`);
-        } else {
-          console.log(`ℹ️ FID ${fid} not in webhook or failed to remove`);
+        // Check current allowance and balance from blockchain
+        const { ethers } = require('ethers');
+        const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+        const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+        
+        const tokenContract = new ethers.Contract(tokenAddress, [
+          "function allowance(address owner, address spender) view returns (uint256)",
+          "function balanceOf(address owner) view returns (uint256)"
+        ], provider);
+        
+        const [allowance, balance] = await Promise.all([
+          tokenContract.allowance(userAddress, ecionBatchAddress),
+          tokenContract.balanceOf(userAddress)
+        ]);
+        
+        const tokenDecimals = tokenAddress === '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' ? 6 : 18;
+        const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
+        const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
+        
+        console.log(`📊 Blockchain check after revocation: Allowance: ${allowanceAmount}, Balance: ${balanceAmount}`);
+        
+        // Get user's FID
+        const fid = await getUserFid(userAddress);
+        if (!fid) {
+          console.log(`⚠️ No FID found for user ${userAddress}`);
+          return;
         }
-      } else {
-        console.log(`⚠️ No FID found for user ${userAddress}`);
+        
+        // Check if user has sufficient allowance and balance
+        const userConfig = await database.getUserConfig(userAddress);
+        if (!userConfig) {
+          console.log(`⚠️ No config found for user ${userAddress}`);
+          return;
+        }
+        
+        const likeAmount = parseFloat(userConfig.likeAmount || '0');
+        const recastAmount = parseFloat(userConfig.recastAmount || '0');
+        const replyAmount = parseFloat(userConfig.replyAmount || '0');
+        const minTipAmount = likeAmount + recastAmount + replyAmount;
+        
+        if (allowanceAmount < minTipAmount || balanceAmount < minTipAmount) {
+          console.log(`✅ User ${userAddress} has insufficient allowance (${allowanceAmount}) or balance (${balanceAmount}) - removing from webhook`);
+          const removed = await removeFidFromWebhook(fid);
+          if (removed) {
+            console.log(`✅ FID ${fid} removed from webhook`);
+          } else {
+            console.log(`ℹ️ FID ${fid} not in webhook or failed to remove`);
+          }
+        } else {
+          console.log(`ℹ️ User ${userAddress} still has sufficient allowance and balance - keeping in webhook`);
+        }
+      } catch (error) {
+        console.error(`❌ Error checking allowance and updating webhook for ${userAddress}:`, error);
       }
-    } catch (error) {
-      console.error(`❌ Error removing FID from webhook for ${userAddress}:`, error);
-    }
+    }, 0);
     
     res.json({ 
       success: true, 
