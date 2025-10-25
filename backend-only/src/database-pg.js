@@ -131,7 +131,7 @@ class PostgresDatabase {
         )
       `);
       
-      // Blocklist table removed - using webhook filtering instead
+      // Using webhook filtering based on allowance and balance checks
 
       // Create notification tokens table
       await this.pool.query(`
@@ -1073,7 +1073,7 @@ class PostgresDatabase {
     }
   }
 
-  // Blocklist functions removed - using webhook filtering instead
+  // Using webhook filtering based on allowance and balance checks
 
   // Notification token methods
   async saveNotificationToken(userAddress, fid, token, notificationUrl) {

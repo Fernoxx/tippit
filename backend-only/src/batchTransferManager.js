@@ -47,7 +47,6 @@ class BatchTransferManager {
     // Pending tips queue
     this.pendingTips = [];
     
-    // Blocked users (insufficient allowance) - load from database on startup
     this.isProcessing = false;
     
     // Start batch processing timer
@@ -428,12 +427,15 @@ class BatchTransferManager {
                   reason = 'Insufficient balance';
                 }
                 
-                console.log(`🚫 User ${tip.interaction.authorAddress} ${reason} after tip - adding to blocklist`);
+                console.log(`🚫 User ${tip.interaction.authorAddress} ${reason} after tip - removing from webhook`);
                 
-                // Add to blocklist to prevent future tip processing
-                global.blocklistService.addToBlocklist(tip.interaction.authorAddress);
-                console.log(`🚫 Added ${tip.interaction.authorAddress} to blocklist - ${reason} after tip`);
-                console.log(`✅ Blocklist prevents future webhook processing - no Neynar call needed`);
+                // Remove FID from webhook filter to prevent future tip processing
+                const { removeFidFromWebhook, getUserFid } = require('./index');
+                const userFid = await getUserFid(tip.interaction.authorAddress);
+                if (userFid) {
+                  await removeFidFromWebhook(userFid);
+                  console.log(`🚫 Removed FID ${userFid} from webhook filter - ${reason} after tip`);
+                }
                 
                 // If balance is insufficient, auto-revoke allowance to 0
                 if (!finalCheck.hasSufficientBalance) {
@@ -446,12 +448,12 @@ class BatchTransferManager {
                   }
                 }
               } else {
-                // User has sufficient allowance AND balance - check if they should be removed from blocklist
-                if (global.blocklistService) {
-                  const blocklistResult = await global.blocklistService.updateUserBlocklistStatus(tip.interaction.authorAddress);
-                  if (blocklistResult.action === 'removed') {
-                    console.log(`✅ Removed ${tip.interaction.authorAddress} from blocklist - now has sufficient funds`);
-                  }
+                // User has sufficient allowance AND balance - ensure they are in webhook filter
+                const { addFidToWebhook, getUserFid } = require('./index');
+                const userFid = await getUserFid(tip.interaction.authorAddress);
+                if (userFid) {
+                  await addFidToWebhook(userFid);
+                  console.log(`✅ Ensured FID ${userFid} is in webhook filter - has sufficient funds`);
                 }
               }
               
@@ -749,12 +751,16 @@ class BatchTransferManager {
     try {
       console.log(`🔄 Auto-revoking allowance for ${userAddress} - token: ${tokenAddress}`);
       
+      const { ethers } = require('ethers');
+      const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+      const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+      
       const tokenContract = new ethers.Contract(tokenAddress, [
         "function approve(address spender, uint256 amount) returns (bool)"
-      ], this.provider);
+      ], provider);
       
       // Revoke allowance by setting it to 0
-      const tx = await tokenContract.approve(this.ecionBatchContractAddress, 0);
+      const tx = await tokenContract.approve(ecionBatchAddress, 0);
       console.log(`📝 Revoke transaction sent: ${tx.hash}`);
       
       // Wait for confirmation
@@ -812,17 +818,18 @@ class BatchTransferManager {
             continue;
           }
           
-          // Check if user still has sufficient allowance using blockchain (most accurate)
-          const allowanceCheck = await this.checkBlockchainAllowance(userAddress, tips.find(t => t.interaction.authorAddress === userAddress).authorConfig);
+          // Use the main webhook status update function
+          const { updateUserWebhookStatus } = require('./index');
+          await updateUserWebhookStatus(userAddress);
+          processedCount++;
           
-          if (!allowanceCheck.canAfford) {
-            console.log(`🔄 User ${userAddress} has insufficient allowance after tip - cleaning up`);
-            // Clean up webhook and homepage immediately
-          }
         } catch (error) {
-          console.error(`❌ Error checking allowance for ${userAddress}:`, error);
+          console.error(`❌ Error updating webhook status for ${userAddress}:`, error);
+          errorCount++;
         }
       }
+      
+      console.log(`✅ Webhook status update completed - processed: ${processedCount}, errors: ${errorCount}`);
     } catch (error) {
       console.error(`❌ Error updating webhook status:`, error);
     }

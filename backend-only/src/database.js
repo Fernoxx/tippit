@@ -357,9 +357,9 @@ class Database {
     return { cleaned: 0 };
   }
 
-  // Get blocklist (placeholder for file-based database)
+  // Webhook filtering based on allowance and balance checks
   async getBlocklist() {
-    console.log('📋 File-based database: getBlocklist called (returning empty)');
+    console.log('📋 File-based database: getBlocklist called (returning empty - using webhook filtering)');
     return [];
   }
 

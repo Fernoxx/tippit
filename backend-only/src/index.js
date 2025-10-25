@@ -20,7 +20,7 @@ try {
   database = require('./database');
 }
 
-// BlocklistService removed - using webhook filtering instead
+// Using webhook filtering based on allowance and balance checks
 
 // Initialize batchTransferManager
 console.log('🔄 Initializing batchTransferManager...');
@@ -1395,56 +1395,54 @@ async function checkUserAllowanceForWebhook(userAddress) {
       return false;
     }
     
-    const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
-    
-    // Get user config
     const userConfig = await database.getUserConfig(userAddress);
-    if (!userConfig) {
-      console.log(`⚠️ No config found for ${userAddress} - skipping`);
+    if (!userConfig || !userConfig.isActive) {
+      console.log(`⚠️ No active config found for ${userAddress} - skipping`);
       return false;
     }
     
-    const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
-    
-    // Get token decimals with error handling
-    let decimals;
-    try {
-      const tokenContract = new ethers.Contract(tokenAddress, [
-        "function decimals() view returns (uint8)"
-      ], provider);
-      decimals = await tokenContract.decimals();
-    } catch (decimalsError) {
-      console.log(`⚠️ Could not get decimals for token ${tokenAddress} - using default 6`);
-      decimals = 6; // Default to USDC decimals
-    }
-    
-    // Get allowance with error handling
-    let allowanceAmount = 0;
-    try {
-      const allowanceContract = new ethers.Contract(tokenAddress, [
-        "function allowance(address owner, address spender) view returns (uint256)"
-      ], provider);
-      const allowance = await allowanceContract.allowance(userAddress, ecionBatchAddress);
-      allowanceAmount = parseFloat(ethers.formatUnits(allowance, decimals));
-    } catch (allowanceError) {
-      console.log(`⚠️ Could not get allowance for ${userAddress} - assuming 0`);
-      allowanceAmount = 0;
-    }
-    
-    // Calculate total tip amount (like + recast + reply)
+    // Calculate minimum tip amount
     const likeAmount = parseFloat(userConfig.likeAmount || '0');
     const recastAmount = parseFloat(userConfig.recastAmount || '0');
     const replyAmount = parseFloat(userConfig.replyAmount || '0');
     const minTipAmount = likeAmount + recastAmount + replyAmount;
     
-    const hasAllowance = allowanceAmount >= minTipAmount;
-    console.log(`🔍 Allowance check: ${userAddress} - allowance: ${allowanceAmount}, total tip: ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount}), has allowance: ${hasAllowance}`);
+    if (minTipAmount <= 0) {
+      console.log(`⚠️ User ${userAddress} has no tip amounts set - skipping`);
+      return false;
+    }
     
-    return hasAllowance;
+    const { ethers } = require('ethers');
+    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+    
+    const tokenContract = new ethers.Contract(tokenAddress, [
+      "function allowance(address owner, address spender) view returns (uint256)",
+      "function balanceOf(address owner) view returns (uint256)"
+    ], provider);
+    
+    const [allowance, balance] = await Promise.all([
+      tokenContract.allowance(userAddress, ecionBatchAddress),
+      tokenContract.balanceOf(userAddress)
+    ]);
+    
+    const tokenDecimals = tokenAddress === '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' ? 6 : 18;
+    const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
+    const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
+    
+    const hasSufficientAllowance = allowanceAmount >= minTipAmount;
+    const hasSufficientBalance = balanceAmount >= minTipAmount;
+    const canAfford = hasSufficientAllowance && hasSufficientBalance;
+    
+    console.log(`🔍 Allowance & Balance check: ${userAddress}`);
+    console.log(`  - Allowance: ${allowanceAmount} (required: ${minTipAmount}) - ${hasSufficientAllowance ? '✅' : '❌'}`);
+    console.log(`  - Balance: ${balanceAmount} (required: ${minTipAmount}) - ${hasSufficientBalance ? '✅' : '❌'}`);
+    console.log(`  - Can afford: ${canAfford ? '✅' : '❌'}`);
+    
+    return canAfford;
   } catch (error) {
-    console.log(`⚠️ Error checking allowance for ${userAddress}: ${error.message} - assuming no allowance`);
+    console.log(`⚠️ Error checking allowance and balance for ${userAddress}: ${error.message} - assuming insufficient funds`);
     return false;
   }
 }
@@ -1592,7 +1590,7 @@ async function removeFidFromWebhook(fid) {
   }
 }
 
-// Update user's webhook status based on allowance
+// Update user's webhook status based on allowance and balance
 async function updateUserWebhookStatus(userAddress) {
   try {
     // Validate address format
@@ -1601,7 +1599,57 @@ async function updateUserWebhookStatus(userAddress) {
       return false;
     }
     
-    // Blocklist check removed - using webhook filtering instead
+    const userConfig = await database.getUserConfig(userAddress);
+    if (!userConfig || !userConfig.isActive) {
+      console.log(`❌ User ${userAddress} has no active config - removing from webhook`);
+      const fid = await getUserFid(userAddress);
+      if (fid) {
+        await removeFidFromWebhook(fid);
+      }
+      return false;
+    }
+    
+    // Calculate minimum tip amount
+    const likeAmount = parseFloat(userConfig.likeAmount || '0');
+    const recastAmount = parseFloat(userConfig.recastAmount || '0');
+    const replyAmount = parseFloat(userConfig.replyAmount || '0');
+    const minTipAmount = likeAmount + recastAmount + replyAmount;
+    
+    if (minTipAmount <= 0) {
+      console.log(`❌ User ${userAddress} has no tip amounts set - removing from webhook`);
+      const fid = await getUserFid(userAddress);
+      if (fid) {
+        await removeFidFromWebhook(fid);
+      }
+      return false;
+    }
+    
+    // Check current allowance and balance from blockchain
+    const { ethers } = require('ethers');
+    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    
+    const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+    const tokenContract = new ethers.Contract(tokenAddress, [
+      "function allowance(address owner, address spender) view returns (uint256)",
+      "function balanceOf(address owner) view returns (uint256)"
+    ], provider);
+    
+    const [allowance, balance] = await Promise.all([
+      tokenContract.allowance(userAddress, ecionBatchAddress),
+      tokenContract.balanceOf(userAddress)
+    ]);
+    
+    const tokenDecimals = tokenAddress === '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' ? 6 : 18;
+    const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
+    const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
+    
+    console.log(`💰 Allowance & Balance check: ${userAddress}`);
+    console.log(`  - Allowance: ${allowanceAmount} (required: ${minTipAmount}) - ${allowanceAmount >= minTipAmount ? '✅' : '❌'}`);
+    console.log(`  - Balance: ${balanceAmount} (required: ${minTipAmount}) - ${balanceAmount >= minTipAmount ? '✅' : '❌'}`);
+    
+    const hasSufficientAllowance = allowanceAmount >= minTipAmount;
+    const hasSufficientBalance = balanceAmount >= minTipAmount;
     
     const fid = await getUserFid(userAddress);
     if (!fid) {
@@ -1609,19 +1657,52 @@ async function updateUserWebhookStatus(userAddress) {
       return false;
     }
     
-    const hasAllowance = await checkUserAllowanceForWebhook(userAddress);
-    
-    if (hasAllowance) {
-      const success = await addFidToWebhook(fid);
-      if (success) {
-        console.log(`✅ User ${userAddress} (FID: ${fid}) has sufficient allowance - added to webhook`);
+    if (!hasSufficientAllowance || !hasSufficientBalance) {
+      console.log(`❌ User ${userAddress} has insufficient funds - removing from webhook`);
+      await removeFidFromWebhook(fid);
+      
+      // If balance is insufficient, auto-revoke allowance
+      if (!hasSufficientBalance) {
+        console.log(`🔄 Auto-revoking allowance for ${userAddress} due to insufficient balance`);
+        try {
+          await autoRevokeAllowance(userAddress, tokenAddress);
+          console.log(`✅ Auto-revoked allowance for ${userAddress}`);
+        } catch (revokeError) {
+          console.error(`❌ Failed to auto-revoke allowance for ${userAddress}:`, revokeError);
+        }
+      }
+      
+      // Send notification about insufficient funds
+      const previousAllowance = userConfig.lastAllowance || 0;
+      
+      // Check if we should send notification
+      if (previousAllowance > 0 && allowanceAmount === 0 && !userConfig.allowanceEmptyNotificationSent) {
+        await sendNeynarNotification(
+          fid,
+          "Allowance Empty",
+          "Your token allowance is empty. Please approve more tokens to continue earning tips!",
+          "https://ecion.vercel.app"
+        );
+        
+        // Mark notification as sent
+        userConfig.allowanceEmptyNotificationSent = true;
+        await database.setUserConfig(userAddress, userConfig);
       }
     } else {
-      const success = await removeFidFromWebhook(fid);
-      if (success) {
-        console.log(`✅ User ${userAddress} (FID: ${fid}) has insufficient allowance - removed from webhook`);
+      console.log(`✅ User ${userAddress} has sufficient funds - ensuring in webhook`);
+      await addFidToWebhook(fid);
+      
+      // Reset notification flag if they have sufficient funds again
+      if (userConfig.allowanceEmptyNotificationSent) {
+        userConfig.allowanceEmptyNotificationSent = false;
+        await database.setUserConfig(userAddress, userConfig);
       }
     }
+    
+    // Update last allowance check
+    userConfig.lastAllowance = allowanceAmount;
+    userConfig.lastAllowanceCheck = Date.now();
+    await database.setUserConfig(userAddress, userConfig);
     
     return true;
   } catch (error) {
@@ -1629,6 +1710,55 @@ async function updateUserWebhookStatus(userAddress) {
     return false;
   }
 }
+
+// Auto-revoke allowance to 0 when user has insufficient balance
+async function autoRevokeAllowance(userAddress, tokenAddress) {
+  try {
+    console.log(`🔄 Auto-revoking allowance for ${userAddress} - token: ${tokenAddress}`);
+    
+    const { ethers } = require('ethers');
+    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    
+    const tokenContract = new ethers.Contract(tokenAddress, [
+      "function approve(address spender, uint256 amount) returns (bool)"
+    ], provider);
+    
+    // Revoke allowance by setting it to 0
+    const tx = await tokenContract.approve(ecionBatchAddress, 0);
+    console.log(`📝 Revoke transaction sent: ${tx.hash}`);
+    
+    // Wait for confirmation
+    await tx.wait();
+    console.log(`✅ Allowance revoked for ${userAddress}`);
+    
+    return true;
+  } catch (error) {
+    console.error(`❌ Error auto-revoking allowance for ${userAddress}:`, error);
+    return false;
+  }
+}
+
+// Handle allowance approval/revocation events
+app.post('/api/allowance-updated', async (req, res) => {
+  try {
+    const { userAddress, tokenAddress, allowanceAmount, balanceAmount } = req.body;
+    
+    if (!userAddress) {
+      return res.status(400).json({ error: 'userAddress is required' });
+    }
+    
+    console.log(`🔄 Allowance updated for ${userAddress}: allowance=${allowanceAmount}, balance=${balanceAmount}`);
+    
+    // Update webhook status based on new allowance/balance
+    await updateUserWebhookStatus(userAddress);
+    
+    res.json({ success: true, message: 'Webhook status updated based on allowance change' });
+  } catch (error) {
+    console.error('Error handling allowance update:', error);
+    res.status(500).json({ error: 'Failed to update webhook status' });
+  }
+});
 
 // OLD PERIODIC CLEANUP REMOVED - Now using allowance sync system that updates webhooks every 3 hours
 

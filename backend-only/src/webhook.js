@@ -14,7 +14,7 @@ const { getUserByFid, getCastByHash } = require('./neynar');
 const instantTipProcessor = require('./instantTipProcessor');
 const tipQueueManager = require('./tipQueueManager');
 const batchTransferManager = require('./batchTransferManager');
-// BlocklistService removed - using webhook filtering instead
+// Using webhook filtering based on allowance and balance checks
 
 // Verify webhook signature from Neynar
 function verifyWebhookSignature(req) {
@@ -301,7 +301,7 @@ async function webhookHandler(req, res) {
       }
     }
 
-    // Blocklist check removed - using webhook filtering instead
+    // Webhook filtering handles allowance/balance checks automatically
 
     // Process tip through batch system (like Noice - 1 minute batches for gas efficiency)
     const result = await batchTransferManager.addTipToBatch(interaction, authorConfig);
