@@ -1760,6 +1760,33 @@ app.post('/api/allowance-updated', async (req, res) => {
   }
 });
 
+// Periodic webhook status update - check all users every hour
+setInterval(async () => {
+  try {
+    console.log('🔄 Running periodic webhook status update...');
+    
+    const activeUsers = await database.getActiveUsersWithApprovals();
+    console.log(`📊 Checking webhook status for ${activeUsers.length} active users`);
+    
+    let processedCount = 0;
+    let errorCount = 0;
+    
+    for (const userAddress of activeUsers) {
+      try {
+        await updateUserWebhookStatus(userAddress);
+        processedCount++;
+      } catch (error) {
+        console.error(`❌ Error updating webhook status for ${userAddress}:`, error);
+        errorCount++;
+      }
+    }
+    
+    console.log(`✅ Periodic webhook update completed - processed: ${processedCount}, errors: ${errorCount}`);
+  } catch (error) {
+    console.error('❌ Error in periodic webhook update:', error);
+  }
+}, 60 * 60 * 1000); // Every hour
+
 // OLD PERIODIC CLEANUP REMOVED - Now using allowance sync system that updates webhooks every 3 hours
 
 // Send Farcaster notification using stored notification tokens
