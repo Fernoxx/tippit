@@ -1150,11 +1150,16 @@ app.post('/api/approve', async (req, res) => {
         console.log(`📊 Blockchain check after approval: Allowance: ${allowanceAmount}, Balance: ${balanceAmount}`);
         
         // Get user's FID
+        console.log(`🔍 Getting FID for user ${userAddress}...`);
         const fid = await getUserFid(userAddress);
         if (!fid) {
-          console.log(`⚠️ No FID found for user ${userAddress}`);
+          console.log(`⚠️ No FID found for user ${userAddress} - this user has no verified Farcaster address`);
+          console.log(`📊 User has sufficient allowance (${allowanceAmount}) and balance (${balanceAmount}) but no FID`);
+          console.log(`❌ Cannot add to webhook without FID - user needs to verify their address on Farcaster`);
           return;
         }
+        
+        console.log(`✅ Found FID ${fid} for user ${userAddress}`);
         
         // Check if user has sufficient allowance and balance
         const userConfig = await database.getUserConfig(userAddress);
@@ -1401,7 +1406,13 @@ async function getUserFid(userAddress) {
         user = data[userAddressLower][0];
         console.log(`🔍 Found user in response for ${userAddressLower}:`, user);
       } else {
-        console.log(`🔍 No user found for address ${userAddressLower} in response keys:`, Object.keys(data));
+        // Try alternative response format - check if it's an array of users
+        if (Array.isArray(data) && data.length > 0) {
+          user = data[0];
+          console.log(`🔍 Found user in array response:`, user);
+        } else {
+          console.log(`🔍 No user found for address ${userAddressLower} in response keys:`, Object.keys(data));
+        }
       }
       
       if (user?.fid) {
@@ -1412,6 +1423,37 @@ async function getUserFid(userAddress) {
       } else {
         console.log(`⚠️ No Farcaster account found for address: ${userAddress}`);
         console.log(`📊 API returned:`, data);
+        
+        // Try alternative approach - check if user has verified addresses
+        if (user && user.verified_addresses) {
+          console.log(`🔍 User found but no FID - checking verified addresses:`, user.verified_addresses);
+        }
+        
+        // Try the verification endpoint as fallback
+        console.log(`🔍 Trying verification endpoint as fallback for ${userAddress}`);
+        try {
+          const verificationResponse = await fetch(
+            `https://api.neynar.com/v2/farcaster/user/by-verification?address=${userAddress}`,
+            {
+              headers: { 
+                "x-api-key": process.env.NEYNAR_API_KEY
+              }
+            }
+          );
+          
+          if (verificationResponse.ok) {
+            const verificationData = await verificationResponse.json();
+            console.log(`🔍 Verification API response:`, JSON.stringify(verificationData, null, 2));
+            
+            if (verificationData?.fid) {
+              userFidMap.set(userAddress.toLowerCase(), verificationData.fid);
+              console.log(`✅ Found FID ${verificationData.fid} via verification endpoint`);
+              return verificationData.fid;
+            }
+          }
+        } catch (verificationError) {
+          console.log(`⚠️ Verification endpoint also failed: ${verificationError.message}`);
+        }
       }
     } else if (response.status === 402) {
       console.log(`⚠️ Neynar API requires payment for address lookup - skipping ${userAddress}`);
