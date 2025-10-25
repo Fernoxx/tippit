@@ -1559,6 +1559,12 @@ app.post('/api/remove-fid-from-webhook', async (req, res) => {
 // Add FID to webhook filter
 async function addFidToWebhook(fid) {
   try {
+    // First verify that the FID has a verified address
+    if (!fid || fid === null) {
+      console.log(`❌ Cannot add FID to webhook: FID is null or invalid - user has no verified address`);
+      return false;
+    }
+    
     const webhookId = await database.getWebhookId();
     if (!webhookId) {
       console.log('❌ No webhook ID found');
@@ -2508,6 +2514,113 @@ setInterval(async () => {
 // 1. User approves/revokes allowance (handled in updateDatabaseAllowance)
 // 2. Bulk sync every 12 hours (handled in syncAllUsersAllowancesFromBlockchain)
 // 3. Homepage filtering already removes users with insufficient allowance
+
+// API endpoint to find and remove users without verified addresses
+app.post('/api/remove-unverified-users', async (req, res) => {
+  try {
+    console.log('🔍 Starting removal of users without verified addresses...');
+    
+    // Get all users from database
+    const users = await db.query(`
+      SELECT DISTINCT 
+        u.user_address,
+        u.custody_address,
+        u.verification_address,
+        u.token_address,
+        u.min_tip_amount,
+        u.like_tip_amount,
+        u.recast_tip_amount,
+        u.reply_tip_amount
+      FROM user_configs u
+      WHERE u.is_active = true
+    `);
+    
+    console.log(`📊 Found ${users.rows.length} active users to check`);
+    
+    const results = [];
+    let removedCount = 0;
+    let errorCount = 0;
+    
+    for (const user of users.rows) {
+      const userAddress = user.user_address || user.custody_address || user.verification_address;
+      
+      if (!userAddress) {
+        console.log(`⚠️ No address found for user config:`, user);
+        continue;
+      }
+      
+      try {
+        console.log(`🔍 Checking verification for ${userAddress}...`);
+        
+        // Check if user has verified address using Neynar API
+        const fid = await getUserFid(userAddress);
+        
+        if (!fid) {
+          console.log(`❌ No verified address found for ${userAddress} - removing from webhook`);
+          
+          // Remove from webhook filters
+          await removeFidFromWebhook(fid, 'No verified address');
+          
+          // Update database to mark as inactive
+          await db.query(`
+            UPDATE user_configs 
+            SET is_active = false, 
+                updated_at = NOW(),
+                notes = COALESCE(notes, '') || 'Removed: No verified address'
+            WHERE user_address = $1 OR custody_address = $1 OR verification_address = $1
+          `, [userAddress]);
+          
+          // Clear homepage cache
+          await clearHomepageCache(userAddress);
+          
+          results.push({
+            userAddress,
+            reason: 'No verified address found',
+            removed: true
+          });
+          
+          removedCount++;
+        } else {
+          console.log(`✅ User ${userAddress} has verified address (FID: ${fid})`);
+          results.push({
+            userAddress,
+            fid,
+            reason: 'Has verified address',
+            removed: false
+          });
+        }
+        
+      } catch (error) {
+        console.error(`❌ Error checking user ${userAddress}:`, error.message);
+        results.push({
+          userAddress,
+          error: error.message,
+          removed: false
+        });
+        errorCount++;
+      }
+    }
+    
+    console.log(`✅ Unverified users removal completed: ${removedCount} removed, ${errorCount} errors`);
+    
+    res.json({
+      success: true,
+      message: `Removed ${removedCount} users without verified addresses`,
+      totalUsers: users.rows.length,
+      removedCount,
+      errorCount,
+      results
+    });
+    
+  } catch (error) {
+    console.error('❌ Error removing unverified users:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to remove unverified users',
+      error: error.message
+    });
+  }
+});
 
 // COMPREHENSIVE USER ALLOWANCE SYNC - Updates all users' database allowance from blockchain
 app.post('/api/sync-all-users-allowance', async (req, res) => {
