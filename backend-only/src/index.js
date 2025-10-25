@@ -1376,37 +1376,9 @@ async function getUserFid(userAddress) {
   }
   
   try {
-    // Try by-verification endpoint first (from old commits)
-    console.log(`🔍 Trying by-verification endpoint for ${userAddress}`);
-    const verificationResponse = await fetch(
-      `https://api.neynar.com/v2/farcaster/user/by-verification?address=${userAddress}`,
-      {
-        headers: { 
-          "x-api-key": process.env.NEYNAR_API_KEY
-        }
-      }
-    );
-    
-    if (verificationResponse.ok) {
-      const data = await verificationResponse.json();
-      console.log(`🔍 by-verification response for ${userAddress}:`, JSON.stringify(data, null, 2));
-      
-      const user = data.result?.user;
-      if (user?.fid) {
-        // Cache the FID
-        userFidMap.set(userAddress.toLowerCase(), user.fid);
-        console.log(`✅ Found FID ${user.fid} for address ${userAddress} via by-verification`);
-        return user.fid;
-      }
-    } else if (verificationResponse.status === 402) {
-      console.log(`⚠️ by-verification API requires payment - trying bulk-by-address`);
-    } else {
-      console.log(`⚠️ by-verification API error: ${verificationResponse.status}`);
-    }
-    
-    // Fallback to bulk-by-address endpoint
-    console.log(`🔍 Trying bulk-by-address endpoint for ${userAddress}`);
-    const bulkResponse = await fetch(
+    // Use the official Neynar API endpoint
+    console.log(`🔍 Fetching FID for ${userAddress} using bulk-by-address endpoint`);
+    const response = await fetch(
       `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${userAddress}`,
       {
         headers: { 
@@ -1416,32 +1388,36 @@ async function getUserFid(userAddress) {
       }
     );
     
-    if (bulkResponse.ok) {
-      const data = await bulkResponse.json();
-      console.log(`🔍 bulk-by-address response for ${userAddress}:`, JSON.stringify(data, null, 2));
+    if (response.ok) {
+      const data = await response.json();
+      console.log(`🔍 API response for ${userAddress}:`, JSON.stringify(data, null, 2));
       
-      // Handle both response formats
+      // Handle the official Neynar API response format
       let user = null;
-      if (data.users && data.users.length > 0) {
-        user = data.users[0];
-      } else if (data[userAddress.toLowerCase()] && data[userAddress.toLowerCase()].length > 0) {
-        user = data[userAddress.toLowerCase()][0];
+      const userAddressLower = userAddress.toLowerCase();
+      
+      // Check if the address exists as a key in the response
+      if (data[userAddressLower] && Array.isArray(data[userAddressLower]) && data[userAddressLower].length > 0) {
+        user = data[userAddressLower][0];
+        console.log(`🔍 Found user in response for ${userAddressLower}:`, user);
+      } else {
+        console.log(`🔍 No user found for address ${userAddressLower} in response keys:`, Object.keys(data));
       }
       
       if (user?.fid) {
         // Cache the FID
         userFidMap.set(userAddress.toLowerCase(), user.fid);
-        console.log(`✅ Found FID ${user.fid} for address ${userAddress} via bulk-by-address`);
+        console.log(`✅ Found FID ${user.fid} for address ${userAddress}`);
         return user.fid;
       } else {
         console.log(`⚠️ No Farcaster account found for address: ${userAddress}`);
         console.log(`📊 API returned:`, data);
       }
-    } else if (bulkResponse.status === 402) {
+    } else if (response.status === 402) {
       console.log(`⚠️ Neynar API requires payment for address lookup - skipping ${userAddress}`);
     } else {
-      const errorText = await bulkResponse.text();
-      console.log(`⚠️ Neynar API error for ${userAddress}: ${bulkResponse.status} - ${errorText}`);
+      const errorText = await response.text();
+      console.log(`⚠️ Neynar API error for ${userAddress}: ${response.status} - ${errorText}`);
     }
   } catch (error) {
     console.log(`⚠️ Error getting FID for ${userAddress}: ${error.message} - skipping`);
