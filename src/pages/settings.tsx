@@ -180,7 +180,7 @@ export default function Settings() {
     if (newAddress && newAddress.length === 42 && newAddress.startsWith('0x')) {
       setSelectedToken(newAddress);
       await lookupTokenName(newAddress);
-      // Fetch allowance for display (no blocklist updates)
+      // Fetch allowance for display (no webhook updates)
       if (address) {
         console.log('🔍 Fetching allowance for new token selection');
         fetchTokenAllowance(newAddress);
@@ -188,7 +188,7 @@ export default function Settings() {
     }
   };
 
-  // Fetch allowance when user config loads (for display only - no blocklist updates)
+  // Fetch allowance when user config loads (for display only - no webhook updates)
   useEffect(() => {
     if (userConfig?.tokenAddress && address) {
       console.log('🔍 Fetching allowance for display on settings page');

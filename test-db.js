@@ -17,11 +17,7 @@ try {
     console.log('❌ getUserConfig function missing');
   }
   
-  if (typeof database.getBlocklist === 'function') {
-    console.log('✅ getBlocklist function exists');
-  } else {
-    console.log('❌ getBlocklist function missing');
-  }
+  // Blocklist functions removed - using webhook filtering instead
   
 } catch (error) {
   console.error('❌ Error loading database:', error.message);

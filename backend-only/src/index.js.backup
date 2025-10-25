@@ -5934,7 +5934,113 @@ app.get('/api/debug/ecionbatch-status', async (req, res) => {
   }
 });
 
+// Debug endpoint to check blocklist status
+app.get('/api/debug/blocklist-status/:userAddress', async (req, res) => {
+  try {
+    const { userAddress } = req.params;
+    console.log(`🔧 DEBUG: Checking blocklist status for ${userAddress}`);
+    
+    // Check database blocklist
+    const databaseBlocklist = await database.getBlocklist();
+    const isInDatabaseBlocklist = databaseBlocklist.includes(userAddress.toLowerCase());
+    
+    // Check memory blocklist
+    const isInMemoryBlocklist = batchTransferManager ? batchTransferManager.isUserBlocked(userAddress) : 'N/A';
+    
+    // Check user config
+    const userConfig = await database.getUserConfig(userAddress);
+    const minTipAmount = userConfig ? 
+      parseFloat(userConfig.likeAmount || '0') + 
+      parseFloat(userConfig.recastAmount || '0') + 
+      parseFloat(userConfig.replyAmount || '0') : 'N/A';
+    
+    res.json({
+      success: true,
+      userAddress,
+      databaseBlocklist: databaseBlocklist,
+      isInDatabaseBlocklist,
+      isInMemoryBlocklist,
+      userConfig: userConfig ? {
+        likeAmount: userConfig.likeAmount,
+        recastAmount: userConfig.recastAmount,
+        replyAmount: userConfig.replyAmount,
+        minTipAmount
+      } : null,
+      batchTransferManagerAvailable: !!batchTransferManager,
+      removeFromBlocklistAvailable: !!(batchTransferManager && batchTransferManager.removeFromBlocklist)
+    });
+  } catch (error) {
+    console.error('Error checking blocklist status:', error);
+    res.status(500).json({ error: 'Failed to check blocklist status' });
+  }
+});
 
+// Debug endpoint to check and clean blocklist
+app.post('/api/debug/clean-blocklist', async (req, res) => {
+  try {
+    console.log(`🔧 CLEANING: Checking all blocklisted users for sufficient allowance`);
+    
+    const currentBlocklist = await database.getBlocklist();
+    console.log(`🔧 Current blocklist:`, currentBlocklist);
+    
+    const cleanedBlocklist = [];
+    const removedUsers = [];
+    
+    for (const userAddress of currentBlocklist || []) {
+      try {
+        // Get user config
+        const userConfig = await database.getUserConfig(userAddress);
+        if (!userConfig) {
+          console.log(`🔧 User ${userAddress} not found in config, removing from blocklist`);
+          removedUsers.push(userAddress);
+          continue;
+        }
+        
+        const { tokenAddress, likeAmount, recastAmount, replyAmount } = userConfig;
+        const minTipAmount = likeAmount + recastAmount + replyAmount;
+        
+        // Check current blockchain allowance
+        const currentBlockchainAllowance = await batchTransferManager.getCurrentBlockchainAllowance(userAddress, tokenAddress);
+        
+        console.log(`🔧 Checking ${userAddress}: allowance=${currentBlockchainAllowance}, minTip=${minTipAmount}`);
+        
+        if (currentBlockchainAllowance >= minTipAmount) {
+          console.log(`✅ User ${userAddress} has sufficient allowance, removing from blocklist`);
+          removedUsers.push(userAddress);
+        } else {
+          console.log(`❌ User ${userAddress} still has insufficient allowance, keeping in blocklist`);
+          cleanedBlocklist.push(userAddress);
+        }
+      } catch (error) {
+        console.error(`❌ Error checking ${userAddress}:`, error);
+        // Keep in blocklist if we can't check
+        cleanedBlocklist.push(userAddress);
+      }
+    }
+    
+    // Update database with cleaned blocklist
+    await database.setBlocklist(cleanedBlocklist);
+    
+    // Update BlocklistService memory
+    if (global.blocklistService) {
+      global.blocklistService.clearBlocklist();
+      // Reload from database
+      await global.blocklistService.loadFromDatabase();
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Blocklist cleaned`,
+      removedUsers,
+      cleanedBlocklist,
+      removedCount: removedUsers.length,
+      remainingCount: cleanedBlocklist.length
+    });
+  } catch (error) {
+    console.error('Error cleaning blocklist:', error);
+    res.status(500).json({ error: 'Failed to clean blocklist' });
+  }
+});
 
 // Start server
 app.listen(PORT, () => {
@@ -5945,7 +6051,7 @@ app.listen(PORT, () => {
     console.log(`🌐 Frontend also served from this Railway service`);
   }
   
-  // Webhook filtering persists - only updates on approve/revoke transactions
+  // Blocklist persists - only updates on approve/revoke transactions
   
   // Run cleanup once on startup (non-blocking)
   setTimeout(() => {
@@ -6038,6 +6144,38 @@ app.get('/api/admin/total-stats', async (req, res) => {
   }
 });
 
+// Clear all blocklist entries
+app.post('/api/clear-blocklist', async (req, res) => {
+  try {
+    console.log('🧹 Clearing all blocklist entries...');
+    
+    // Clear blocklist table (only if using PostgreSQL)
+    if (database.pool) {
+      await database.pool.query('DELETE FROM blocklist');
+      console.log('✅ Cleared blocklist table');
+    } else {
+      console.log('ℹ️ Using file-based storage - no database table to clear');
+    }
+    
+    // Clear blocklistService cache
+    if (global.blocklistService) {
+      global.blocklistService.clearBlocklist();
+      console.log('✅ Cleared blocklistService cache');
+    }
+    
+    res.json({
+      success: true,
+      message: 'Blocklist cleared - system will rebuild based on current allowances',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Error clearing blocklist:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
 
 // Force process current batch
 app.post('/api/force-process-batch', async (req, res) => {

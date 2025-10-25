@@ -7,12 +7,12 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
     const { userAddress, tokenAddress, transactionType, isRealTransaction = false } = req.body;
     console.log(`🔄 Updating allowance for ${userAddress} (${transactionType}) - Real transaction: ${isRealTransaction}`);
     
-    // Only update blocklist for real transactions, not page visits
+    // Only update webhook for real transactions, not page visits
     if (!isRealTransaction) {
-      console.log(`⏭️ Skipping blocklist update - not a real transaction`);
+      console.log(`⏭️ Skipping webhook update - not a real transaction`);
       return res.json({ 
         success: true, 
-        message: 'Allowance fetched without blocklist update',
+        message: 'Allowance fetched without webhook update',
         isRealTransaction: false
       });
     }

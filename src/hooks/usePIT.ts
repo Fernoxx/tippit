@@ -79,9 +79,9 @@ export const useEcion = () => {
       toast.success('Transaction confirmed successfully!', { duration: 2000 });
       
       if (userConfig?.tokenAddress) {
-        // Wait for blockchain to update, then update blocklist
+        // Wait for blockchain to update, then update webhook status
         setTimeout(async () => {
-          console.log('🔄 Updating blocklist after transaction confirmation...');
+          console.log('🔄 Updating webhook status after transaction confirmation...');
           updateAllowanceAndWebhooks(userConfig.tokenAddress);
         }, 12000); // Wait 12 seconds for blockchain to update
       }
@@ -103,7 +103,7 @@ export const useEcion = () => {
     fetchBackendWalletAddress();
   }, [address]);
 
-  // Note: Removed automatic allowance fetching to prevent unwanted blocklist updates
+  // Note: Removed automatic allowance fetching to prevent unwanted webhook updates
   // Allowance will only be fetched when user explicitly performs approve/revoke actions
 
   const fetchUserConfig = async () => {
