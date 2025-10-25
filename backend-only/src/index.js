@@ -1566,12 +1566,12 @@ async function addFidToWebhook(fid) {
     }
     
     const trackedFids = await database.getTrackedFids();
-    if (trackedFids.includes(fid)) {
+    if (trackedFids.includes(parseInt(fid))) {
       console.log(`✅ FID ${fid} already in webhook filter`);
       return true;
     }
     
-    const updatedFids = [...trackedFids, fid];
+    const updatedFids = [...trackedFids, parseInt(fid)];
     
     const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook/`, {
       method: 'PUT',
@@ -1622,12 +1622,12 @@ async function removeFidFromWebhook(fid) {
     }
     
     const trackedFids = await database.getTrackedFids();
-    if (!trackedFids.includes(fid)) {
+    if (!trackedFids.includes(parseInt(fid))) {
       console.log(`✅ FID ${fid} not in webhook filter`);
       return true;
     }
     
-    const updatedFids = trackedFids.filter(f => f !== fid);
+    const updatedFids = trackedFids.filter(f => f !== parseInt(fid));
     
     const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook/`, {
       method: 'PUT',
