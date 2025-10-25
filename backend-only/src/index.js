@@ -895,12 +895,7 @@ app.post('/api/config', async (req, res) => {
       console.error('⚠️ Webhook filter update failed (non-critical):', webhookError.message);
     }
     
-    // Update webhook status based on allowance
-    try {
-      await updateUserWebhookStatus(userAddress);
-    } catch (webhookStatusError) {
-      console.error('⚠️ Webhook status update failed (non-critical):', webhookStatusError.message);
-    }
+    // Webhook status updates are handled by approve/revoke endpoints with 8-second wait
     
     res.json({ success: true });
   } catch (error) {
