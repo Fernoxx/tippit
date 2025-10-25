@@ -1573,7 +1573,7 @@ async function addFidToWebhook(fid) {
     
     const updatedFids = [...trackedFids, fid];
     
-    const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook`, {
+    const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook/`, {
       method: 'PUT',
       headers: {
         'x-api-key': process.env.NEYNAR_API_KEY,
@@ -1582,6 +1582,7 @@ async function addFidToWebhook(fid) {
       body: JSON.stringify({
         webhook_id: webhookId,
         name: "Ecion Farcaster Events Webhook",
+        url: "https://tippit-production.up.railway.app/webhook/neynar",
         subscription: {
           "cast.created": { 
             author_fids: updatedFids,
@@ -1628,7 +1629,7 @@ async function removeFidFromWebhook(fid) {
     
     const updatedFids = trackedFids.filter(f => f !== fid);
     
-    const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook`, {
+    const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook/`, {
       method: 'PUT',
       headers: {
         'x-api-key': process.env.NEYNAR_API_KEY,
@@ -1637,6 +1638,7 @@ async function removeFidFromWebhook(fid) {
       body: JSON.stringify({
         webhook_id: webhookId,
         name: "Ecion Farcaster Events Webhook",
+        url: "https://tippit-production.up.railway.app/webhook/neynar",
         subscription: {
           "cast.created": { 
             author_fids: updatedFids,
