@@ -98,14 +98,11 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
     let webhookResult = { action: 'no_change', reason: 'no_change_needed' };
     
     try {
-      // Get user's FID
-      const userProfile = await database.pool.query(
-        'SELECT fid FROM user_profiles WHERE user_address = $1',
-        [userAddress]
-      );
+      // Get user's FID using the proper FID lookup function
+      const { getUserFid } = require('./index');
+      const fid = await getUserFid(userAddress);
       
-      if (userProfile.rows.length > 0) {
-        const fid = userProfile.rows[0].fid;
+      if (fid) {
         
         if (webhookAction === 'remove') {
           // Remove FID from webhook
