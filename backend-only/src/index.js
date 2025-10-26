@@ -1383,6 +1383,10 @@ async function getUserFid(userAddress) {
   try {
     // Try verification endpoint first (should be free)
     console.log(`🔍 Fetching FID for ${userAddress} using verification endpoint`);
+    console.log(`🔑 API Key exists: ${!!process.env.NEYNAR_API_KEY}`);
+    console.log(`🔑 API Key length: ${process.env.NEYNAR_API_KEY ? process.env.NEYNAR_API_KEY.length : 0}`);
+    console.log(`🔑 All env vars with 'API' or 'NEYNAR':`, Object.keys(process.env).filter(key => key.includes('API') || key.includes('NEYNAR')));
+    
     const response = await fetch(
       `https://api.neynar.com/v2/farcaster/user/by-verification?address=${userAddress}`,
       {
