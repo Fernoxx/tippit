@@ -1387,11 +1387,24 @@ async function getUserFid(userAddress) {
     console.log(`🔑 API Key length: ${process.env.NEYNAR_API_KEY ? process.env.NEYNAR_API_KEY.length : 0}`);
     console.log(`🔑 All env vars with 'API' or 'NEYNAR':`, Object.keys(process.env).filter(key => key.includes('API') || key.includes('NEYNAR')));
     
+    // Try different possible environment variable names
+    const apiKey = process.env.NEYNAR_API_KEY || 
+                   process.env.NEYNAR_API_KEY || 
+                   process.env.NEYNAR_KEY || 
+                   process.env.API_KEY;
+    
+    console.log(`🔑 Using API key: ${apiKey ? 'Found' : 'Not found'}`);
+    
+    if (!apiKey) {
+      console.log(`❌ No Neynar API key found in environment variables`);
+      return null;
+    }
+    
     const response = await fetch(
       `https://api.neynar.com/v2/farcaster/user/by-verification?address=${userAddress}`,
       {
         headers: { 
-          "x-api-key": process.env.NEYNAR_API_KEY
+          "x-api-key": apiKey
         }
       }
     );
@@ -1430,7 +1443,7 @@ async function getUserFid(userAddress) {
         `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${userAddress}&address_types=custody_address,verified_address`,
         {
           headers: { 
-            "x-api-key": process.env.NEYNAR_API_KEY,
+            "x-api-key": apiKey,
             "x-neynar-experimental": "false"
           }
         }
