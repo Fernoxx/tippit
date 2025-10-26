@@ -1380,6 +1380,23 @@ async function getUserFid(userAddress) {
     return userFidMap.get(userAddress.toLowerCase());
   }
   
+  // Check database for stored FID first
+  try {
+    const result = await database.pool.query(
+      'SELECT fid FROM user_profiles WHERE user_address = $1',
+      [userAddress.toLowerCase()]
+    );
+    
+    if (result.rows.length > 0) {
+      const fid = result.rows[0].fid;
+      console.log(`✅ Found stored FID ${fid} for ${userAddress} in database`);
+      userFidMap.set(userAddress.toLowerCase(), fid);
+      return fid;
+    }
+  } catch (error) {
+    console.log(`⚠️ Error checking database for FID: ${error.message}`);
+  }
+  
   try {
     // Try verification endpoint first (should be free)
     console.log(`🔍 Fetching FID for ${userAddress} using verification endpoint`);
@@ -6306,6 +6323,86 @@ app.post('/api/force-process-batch', async (req, res) => {
       success: false,
       error: error.message
     });
+  }
+});
+
+// API endpoint to get current user's FID (for frontend integration)
+app.get('/api/get-user-fid/:userAddress', async (req, res) => {
+  try {
+    const userAddress = req.params.userAddress;
+    
+    // Check database for stored FID
+    const result = await database.pool.query(
+      'SELECT fid, username, display_name, pfp_url FROM user_profiles WHERE user_address = $1',
+      [userAddress.toLowerCase()]
+    );
+    
+    if (result.rows.length > 0) {
+      const user = result.rows[0];
+      res.json({
+        success: true,
+        hasFid: true,
+        fid: user.fid,
+        username: user.username,
+        displayName: user.display_name,
+        pfpUrl: user.pfp_url
+      });
+    } else {
+      res.json({
+        success: true,
+        hasFid: false,
+        message: 'No FID found - user needs to interact with the app via Farcaster'
+      });
+    }
+    
+  } catch (error) {
+    console.error('Error getting user FID:', error);
+    res.status(500).json({ error: 'Failed to get user FID' });
+  }
+});
+
+// API endpoint to store user FID when they interact with the app
+app.post('/api/store-user-fid', async (req, res) => {
+  try {
+    const { userAddress, fid, username, displayName, pfpUrl } = req.body;
+    
+    if (!userAddress || !fid) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    // Store FID in database
+    await database.pool.query(`
+      INSERT INTO user_profiles (fid, username, display_name, pfp_url, user_address, updated_at)
+      VALUES ($1, $2, $3, $4, $5, NOW())
+      ON CONFLICT (fid) 
+      DO UPDATE SET 
+        username = $2,
+        display_name = $3,
+        pfp_url = $4,
+        user_address = $5,
+        updated_at = NOW()
+    `, [fid, username, displayName, pfpUrl, userAddress]);
+    
+    console.log(`✅ Stored FID ${fid} for user ${userAddress}`);
+    
+    // Update webhook status now that we have the FID
+    try {
+      await updateUserWebhookStatus(userAddress);
+      console.log(`🔗 Updated webhook status for ${userAddress} after FID storage`);
+    } catch (webhookError) {
+      console.log(`⚠️ Webhook update failed for ${userAddress}: ${webhookError.message}`);
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'FID stored successfully',
+      fid,
+      userAddress
+    });
+    
+  } catch (error) {
+    console.error('Error storing FID:', error);
+    res.status(500).json({ error: 'Failed to store FID' });
   }
 });
 
