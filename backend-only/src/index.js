@@ -1407,7 +1407,10 @@ async function getUserFid(userAddress) {
         console.log(`📊 Verification API returned:`, data);
       }
     } else if (response.status === 401) {
-      console.log(`⚠️ Neynar API key issue for ${userAddress}: ${response.status} - ${await response.text()}`);
+      const errorText = await response.text();
+      console.log(`❌ Neynar API key issue for ${userAddress}: ${response.status} - ${errorText}`);
+      console.log(`🔑 Check if NEYNAR_API_KEY environment variable is set correctly`);
+      return null; // Don't try bulk endpoint if API key is invalid
     } else if (response.status === 402) {
       console.log(`⚠️ Neynar API requires payment for address lookup - skipping ${userAddress}`);
     } else {
@@ -1415,9 +1418,10 @@ async function getUserFid(userAddress) {
       console.log(`⚠️ Neynar API error for ${userAddress}: ${response.status} - ${errorText}`);
     }
     
-    // Try bulk endpoint as fallback if verification endpoint fails
-    console.log(`🔍 Trying bulk-by-address endpoint as fallback for ${userAddress}`);
-    try {
+    // Try bulk endpoint as fallback if verification endpoint fails (and API key is valid)
+    if (response.status !== 401) {
+      console.log(`🔍 Trying bulk-by-address endpoint as fallback for ${userAddress}`);
+      try {
       const bulkResponse = await fetch(
         `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${userAddress}`,
         {
@@ -1450,8 +1454,11 @@ async function getUserFid(userAddress) {
       } else {
         console.log(`⚠️ Bulk endpoint also failed with status: ${bulkResponse.status}`);
       }
-    } catch (bulkError) {
-      console.log(`⚠️ Bulk endpoint also failed: ${bulkError.message}`);
+      } catch (bulkError) {
+        console.log(`⚠️ Bulk endpoint also failed: ${bulkError.message}`);
+      }
+    } else {
+      console.log(`⏭️ Skipping bulk endpoint due to API key issue`);
     }
   } catch (error) {
     console.log(`⚠️ Error getting FID for ${userAddress}: ${error.message} - skipping`);
@@ -2098,7 +2105,7 @@ async function updateDatabaseAllowance(userAddress, allowanceAmount) {
       const minTipAmount = likeAmount + recastAmount + replyAmount;
       
       if (allowanceAmount < minTipAmount) {
-        console.log(`🚫 User ${userAddress} allowance ${allowanceAmount} < total tip ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount}) - will be removed from webhook`);
+        console.log(`🚫 User ${userAddress} allowance ${allowanceAmount} < total tip ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount}) - webhook update will happen after blockchain confirmation`);
           
           // Send allowance empty notification ONLY if:
           // 1. Previous allowance was > 0 (user had allowance before)
@@ -2124,17 +2131,13 @@ async function updateDatabaseAllowance(userAddress, allowanceAmount) {
           }
         }
       } else {
-        console.log(`✅ User ${userAddress} allowance ${allowanceAmount} >= min tip ${minTipAmount} - keeping in webhook`);
-        const fid = await getUserFid(userAddress);
-        if (fid) {
-          await addFidToWebhook(fid);
-          
-          // Reset notification flag if user approved more tokens (allowance went from 0 to >0)
-          if (previousAllowance === 0 && allowanceAmount > 0) {
-            userConfig.allowanceEmptyNotificationSent = false;
-            await database.setUserConfig(userAddress, userConfig);
-            console.log(`🔄 Reset allowance empty notification flag for ${userAddress} - user approved more tokens`);
-          }
+        console.log(`✅ User ${userAddress} allowance ${allowanceAmount} >= min tip ${minTipAmount} - webhook update will happen after blockchain confirmation`);
+        
+        // Reset notification flag if user approved more tokens (allowance went from 0 to >0)
+        if (previousAllowance === 0 && allowanceAmount > 0) {
+          userConfig.allowanceEmptyNotificationSent = false;
+          await database.setUserConfig(userAddress, userConfig);
+          console.log(`🔄 Reset allowance empty notification flag for ${userAddress} - user approved more tokens`);
         }
       }
   } catch (error) {
@@ -2468,13 +2471,8 @@ async function syncAllUsersAllowancesFromBlockchain() {
         // Update database with blockchain allowance
         await updateDatabaseAllowance(userAddress, allowanceAmount);
         
-        // Update webhook FID status after allowance update
-        try {
-          await updateUserWebhookStatus(userAddress);
-          console.log(`🔗 Updated webhook status for ${userAddress} after allowance sync`);
-        } catch (webhookError) {
-          console.log(`⚠️ Webhook update failed for ${userAddress}: ${webhookError.message}`);
-        }
+        // Note: Webhook updates are handled separately in approve/revoke endpoints
+        // This sync only updates database allowance
         
         syncedCount++;
         results.push({
