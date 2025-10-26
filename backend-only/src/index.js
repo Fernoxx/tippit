@@ -1403,6 +1403,9 @@ async function getUserFid(userAddress) {
     
     const { NeynarAPIClient, Configuration } = require('@neynar/nodejs-sdk');
     
+    console.log(`🔑 API Key exists: ${!!process.env.NEYNAR_API_KEY}`);
+    console.log(`🔑 API Key length: ${process.env.NEYNAR_API_KEY ? process.env.NEYNAR_API_KEY.length : 0}`);
+    
     const config = new Configuration({
       apiKey: process.env.NEYNAR_API_KEY,
     });
