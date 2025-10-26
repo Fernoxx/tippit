@@ -1418,9 +1418,9 @@ async function getUserFid(userAddress) {
     
     console.log(`🔍 Neynar SDK response for ${userAddress}:`, JSON.stringify(result, null, 2));
     
-    // Check if we got a user in the response
-    if (result && result[userAddress.toLowerCase()]) {
-      const user = result[userAddress.toLowerCase()];
+    // Check if we got a user in the response (correct format from docs)
+    if (result && result.result && result.result.user) {
+      const user = result.result.user;
       const fid = user.fid;
       
       // Cache the FID
