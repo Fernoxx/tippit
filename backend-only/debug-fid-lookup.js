@@ -1,5 +1,4 @@
 // Debug script to test FID lookup for specific address
-const fetch = require('node-fetch');
 
 async function debugFidLookup() {
   const testAddress = '0x3cF87B76d2A1D36F9542B4Da2a6B4B3Dc0f0Bb2e';

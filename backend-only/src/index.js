@@ -1401,17 +1401,36 @@ async function getUserFid(userAddress) {
       let user = null;
       const userAddressLower = userAddress.toLowerCase();
       
-      // Check if the address exists as a key in the response
-      if (data[userAddressLower] && Array.isArray(data[userAddressLower]) && data[userAddressLower].length > 0) {
-        user = data[userAddressLower][0];
-        console.log(`🔍 Found user in response for ${userAddressLower}:`, user);
-      } else {
-        // Try alternative response format - check if it's an array of users
-        if (Array.isArray(data) && data.length > 0) {
+      // Check multiple possible response formats
+      if (data && typeof data === 'object') {
+        // Format 1: Address as key with array of users
+        if (data[userAddressLower] && Array.isArray(data[userAddressLower]) && data[userAddressLower].length > 0) {
+          user = data[userAddressLower][0];
+          console.log(`🔍 Found user in response for ${userAddressLower}:`, user);
+        }
+        // Format 2: Address as key with single user object
+        else if (data[userAddressLower] && typeof data[userAddressLower] === 'object' && data[userAddressLower].fid) {
+          user = data[userAddressLower];
+          console.log(`🔍 Found user object for ${userAddressLower}:`, user);
+        }
+        // Format 3: Check if response has users array
+        else if (data.users && Array.isArray(data.users) && data.users.length > 0) {
+          user = data.users[0];
+          console.log(`🔍 Found user in users array:`, user);
+        }
+        // Format 4: Check if response is directly an array
+        else if (Array.isArray(data) && data.length > 0) {
           user = data[0];
           console.log(`🔍 Found user in array response:`, user);
-        } else {
+        }
+        // Format 5: Check if response has result array
+        else if (data.result && Array.isArray(data.result) && data.result.length > 0) {
+          user = data.result[0];
+          console.log(`🔍 Found user in result array:`, user);
+        }
+        else {
           console.log(`🔍 No user found for address ${userAddressLower} in response keys:`, Object.keys(data));
+          console.log(`🔍 Response structure:`, typeof data, Array.isArray(data) ? 'array' : 'object');
         }
       }
       
@@ -1423,11 +1442,6 @@ async function getUserFid(userAddress) {
       } else {
         console.log(`⚠️ No Farcaster account found for address: ${userAddress}`);
         console.log(`📊 API returned:`, data);
-        
-        // Try alternative approach - check if user has verified addresses
-        if (user && user.verified_addresses) {
-          console.log(`🔍 User found but no FID - checking verified addresses:`, user.verified_addresses);
-        }
         
         // Try the verification endpoint as fallback
         console.log(`🔍 Trying verification endpoint as fallback for ${userAddress}`);
@@ -1450,6 +1464,8 @@ async function getUserFid(userAddress) {
               console.log(`✅ Found FID ${verificationData.fid} via verification endpoint`);
               return verificationData.fid;
             }
+          } else {
+            console.log(`⚠️ Verification endpoint failed with status: ${verificationResponse.status}`);
           }
         } catch (verificationError) {
           console.log(`⚠️ Verification endpoint also failed: ${verificationError.message}`);
@@ -6298,6 +6314,31 @@ app.post('/api/force-process-batch', async (req, res) => {
     res.status(500).json({
       success: false,
       error: error.message
+    });
+  }
+});
+
+// Debug endpoint to test FID lookup for specific address
+app.get('/api/debug-fid-lookup/:userAddress', async (req, res) => {
+  try {
+    const userAddress = req.params.userAddress;
+    console.log(`🔍 Testing FID lookup for address: ${userAddress}`);
+    
+    const fid = await getUserFid(userAddress);
+    
+    res.json({
+      success: true,
+      userAddress,
+      fid,
+      hasFid: !!fid,
+      message: fid ? `Found FID: ${fid}` : 'No FID found - user has no verified Farcaster address'
+    });
+    
+  } catch (error) {
+    console.error('Error testing FID lookup:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
     });
   }
 });
