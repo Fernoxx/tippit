@@ -6292,11 +6292,69 @@ app.post('/api/force-process-batch', async (req, res) => {
   }
 });
 
+// Debug endpoint to test Neynar API directly
+app.get('/api/debug-neynar-api/:userAddress', async (req, res) => {
+  try {
+    const userAddress = req.params.userAddress;
+    console.log(`🔍 Testing Neynar API directly for address: ${userAddress}`);
+    
+    // Debug environment variables
+    const envDebug = {
+      hasNeynarKey: !!process.env.NEYNAR_API_KEY,
+      keyLength: process.env.NEYNAR_API_KEY ? process.env.NEYNAR_API_KEY.length : 0,
+      keyStart: process.env.NEYNAR_API_KEY ? process.env.NEYNAR_API_KEY.substring(0, 10) + '...' : 'undefined',
+      allEnvKeys: Object.keys(process.env).filter(key => key.includes('NEYNAR') || key.includes('API'))
+    };
+    
+    console.log('🔑 Environment debug:', envDebug);
+    
+    // Test verification endpoint directly
+    const response = await fetch(
+      `https://api.neynar.com/v2/farcaster/user/by-verification?address=${userAddress}`,
+      {
+        headers: { 
+          "x-api-key": process.env.NEYNAR_API_KEY
+        }
+      }
+    );
+    
+    const responseData = await response.json();
+    
+    res.json({
+      success: true,
+      userAddress,
+      envDebug,
+      apiResponse: {
+        status: response.status,
+        data: responseData
+      },
+      message: response.status === 200 ? 'API call successful' : `API call failed with status ${response.status}`
+    });
+    
+  } catch (error) {
+    console.error('Error testing Neynar API:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
 // Debug endpoint to test FID lookup for specific address
 app.get('/api/debug-fid-lookup/:userAddress', async (req, res) => {
   try {
     const userAddress = req.params.userAddress;
     console.log(`🔍 Testing FID lookup for address: ${userAddress}`);
+    
+    // Debug environment variables
+    const envDebug = {
+      hasNeynarKey: !!process.env.NEYNAR_API_KEY,
+      keyLength: process.env.NEYNAR_API_KEY ? process.env.NEYNAR_API_KEY.length : 0,
+      keyStart: process.env.NEYNAR_API_KEY ? process.env.NEYNAR_API_KEY.substring(0, 10) + '...' : 'undefined',
+      allEnvKeys: Object.keys(process.env).filter(key => key.includes('NEYNAR') || key.includes('API'))
+    };
+    
+    console.log('🔑 Environment debug:', envDebug);
     
     const fid = await getUserFid(userAddress);
     
@@ -6305,6 +6363,7 @@ app.get('/api/debug-fid-lookup/:userAddress', async (req, res) => {
       userAddress,
       fid,
       hasFid: !!fid,
+      envDebug,
       message: fid ? `Found FID: ${fid}` : 'No FID found - user has no verified Farcaster address'
     });
     
