@@ -1427,7 +1427,7 @@ async function getUserFid(userAddress) {
       console.log(`🔍 Trying bulk-by-address endpoint as fallback for ${userAddress}`);
       try {
       const bulkResponse = await fetch(
-        `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${userAddress}`,
+        `https://api.neynar.com/v2/farcaster/user/bulk-by-address/?addresses=${userAddress}&address_types=custody_address,verified_address`,
         {
           headers: { 
             "x-api-key": process.env.NEYNAR_API_KEY,
