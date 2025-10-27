@@ -4,14 +4,13 @@
   "description": "Ecion Backend - Backend-only tipping system like Noice",
   "main": "src/index.js",
   "engines": {
-    "node": "18.20.5"
+    "node": ">=18.20.5"
   },
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js"
   },
   "dependencies": {
-    "@neynar/nodejs-sdk": "^3.34.0",
     "axios": "^1.12.2",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",

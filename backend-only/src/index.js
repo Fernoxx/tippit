@@ -1398,68 +1398,77 @@ async function getUserFid(userAddress) {
   }
   
   try {
-    // Use Neynar SDK to get FID from wallet address
-    console.log(`🔍 Fetching FID for ${userAddress} using Neynar SDK`);
-    
-    const { NeynarAPIClient, Configuration } = require('@neynar/nodejs-sdk');
+    // Use direct Neynar API to get FID from wallet address
+    console.log(`🔍 Fetching FID for ${userAddress} using Neynar API`);
     
     console.log(`🔑 API Key exists: ${!!process.env.NEYNAR_API_KEY}`);
     console.log(`🔑 API Key length: ${process.env.NEYNAR_API_KEY ? process.env.NEYNAR_API_KEY.length : 0}`);
     
-    const config = new Configuration({
-      apiKey: process.env.NEYNAR_API_KEY,
+    const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk-by-address?addresses=${userAddress}`, {
+      headers: {
+        'x-api-key': process.env.NEYNAR_API_KEY
+      }
     });
     
-    const client = new NeynarAPIClient(config);
+    console.log(`📡 Neynar API response status: ${response.status}`);
     
-    const result = await client.fetchBulkUsersByEthOrSolAddress({
-      addresses: [userAddress]
-    });
-    
-    console.log(`🔍 Neynar SDK response for ${userAddress}:`, JSON.stringify(result, null, 2));
-    
-    // Check if we got a user in the response (correct format from docs)
-    if (result && result.result && result.result.user) {
-      const user = result.result.user;
-      const fid = user.fid;
+    if (response.ok) {
+      const result = await response.json();
+      console.log(`🔍 Neynar API response for ${userAddress}:`, JSON.stringify(result, null, 2));
       
-      // Cache the FID
-      userFidMap.set(userAddress.toLowerCase(), fid);
-      console.log(`✅ Found FID ${fid} for address ${userAddress} using Neynar SDK`);
-      
-      // Store in database for future use
-      try {
-        await database.pool.query(`
-          INSERT INTO user_profiles (fid, username, display_name, pfp_url, user_address, updated_at)
-          VALUES ($1, $2, $3, $4, $5, NOW())
-          ON CONFLICT (fid) 
-          DO UPDATE SET 
-            username = $2,
-            display_name = $3,
-            pfp_url = $4,
-            user_address = $5,
-            updated_at = NOW()
-        `, [fid, user.username, user.displayName, user.pfp?.url, userAddress]);
-        console.log(`💾 Stored FID ${fid} in database for future use`);
-      } catch (dbError) {
-        console.log(`⚠️ Error storing FID in database: ${dbError.message}`);
+      // Check different possible response formats
+      let user = null;
+      if (result && result.users && result.users.length > 0) {
+        user = result.users[0];
+      } else if (result && result.result && result.result.user) {
+        user = result.result.user;
+      } else if (result && result[userAddress.toLowerCase()]) {
+        user = result[userAddress.toLowerCase()];
       }
       
-      return fid;
+      if (user && user.fid) {
+        const fid = user.fid;
+        
+        // Cache the FID
+        userFidMap.set(userAddress.toLowerCase(), fid);
+        console.log(`✅ Found FID ${fid} for address ${userAddress} using Neynar API`);
+        
+        // Store in database for future use
+        try {
+          await database.pool.query(`
+            INSERT INTO user_profiles (fid, username, display_name, pfp_url, user_address, updated_at)
+            VALUES ($1, $2, $3, $4, $5, NOW())
+            ON CONFLICT (fid) 
+            DO UPDATE SET 
+              username = $2,
+              display_name = $3,
+              pfp_url = $4,
+              user_address = $5,
+              updated_at = NOW()
+          `, [fid, user.username || user.display_name, user.display_name, user.pfp?.url, userAddress]);
+          console.log(`💾 Stored FID ${fid} in database for future use`);
+        } catch (dbError) {
+          console.log(`⚠️ Error storing FID in database: ${dbError.message}`);
+        }
+        
+        return fid;
+      } else {
+        console.log(`⚠️ No Farcaster account found for address: ${userAddress}`);
+        console.log(`📊 Neynar API returned:`, result);
+      }
     } else {
-      console.log(`⚠️ No Farcaster account found for address: ${userAddress}`);
-      console.log(`📊 Neynar SDK returned:`, result);
+      const errorText = await response.text();
+      console.log(`❌ Neynar API error: ${response.status} - ${errorText}`);
+      
+      if (response.status === 401) {
+        console.log(`❌ Neynar API key issue - check NEYNAR_API_KEY environment variable`);
+      } else if (response.status === 402) {
+        console.log(`❌ Neynar API payment required - check your subscription`);
+      }
     }
     
   } catch (error) {
-    console.log(`⚠️ Error getting FID for ${userAddress} using Neynar SDK: ${error.message}`);
-    
-    // Check if it's an API key issue
-    if (error.message.includes('401') || error.message.includes('Unauthorized')) {
-      console.log(`❌ Neynar API key issue - check NEYNAR_API_KEY environment variable`);
-    } else if (error.message.includes('402')) {
-      console.log(`❌ Neynar API payment required - check your subscription`);
-    }
+    console.log(`⚠️ Error getting FID for ${userAddress} using Neynar API: ${error.message}`);
   }
   
   return null;
