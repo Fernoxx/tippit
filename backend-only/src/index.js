@@ -1667,7 +1667,7 @@ async function getActiveUserFids() {
       AND uc.config->>'isActive' = 'true'
     `);
     
-    return result.rows.map(row => row.fid);
+    return result.rows.map(row => parseInt(row.fid));
   } catch (error) {
     console.log(`❌ Error getting active user FIDs: ${error.message}`);
     return [];
@@ -1844,12 +1844,13 @@ async function addFidToWebhook(fid) {
     }
     
     const trackedFids = await database.getTrackedFids();
-    if (trackedFids.includes(parseInt(fid))) {
+    const fidInt = parseInt(fid);
+    if (trackedFids.includes(fidInt)) {
       console.log(`✅ FID ${fid} already in webhook filter`);
       return true;
     }
     
-    const updatedFids = [...trackedFids, parseInt(fid)];
+    const updatedFids = [...trackedFids, fidInt];
     
     // Get latest cast hashes for reaction/reply tracking
     const latestCasts = await getAllLatestCastHashes();
@@ -1902,12 +1903,13 @@ async function removeFidFromWebhook(fid) {
     }
     
     const trackedFids = await database.getTrackedFids();
-    if (!trackedFids.includes(parseInt(fid))) {
+    const fidInt = parseInt(fid);
+    if (!trackedFids.includes(fidInt)) {
       console.log(`✅ FID ${fid} not in webhook filter`);
       return true;
     }
     
-    const updatedFids = trackedFids.filter(f => f !== parseInt(fid));
+    const updatedFids = trackedFids.filter(f => f !== fidInt);
     
     // Get latest cast hashes for reaction/reply tracking
     const latestCasts = await getAllLatestCastHashes();
