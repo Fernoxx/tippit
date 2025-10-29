@@ -1527,12 +1527,11 @@ async function updateLatestCastHash(userAddress, castHash, castTimestamp) {
   }
 }
 
-// Get all active users (users with sufficient allowance and balance)
+// Get all active users (users with approved allowance - simple version)
 async function getActiveUsers() {
   try {
-    // First get all users with FIDs and configs
     const result = await database.pool.query(`
-      SELECT up.fid, up.user_address, up.latest_cast_hash, up.is_tracking, uc.config
+      SELECT up.fid, up.user_address, up.latest_cast_hash, up.is_tracking
       FROM user_profiles up
       JOIN user_configs uc ON up.user_address = uc.user_address
       WHERE up.fid IS NOT NULL 
@@ -1540,47 +1539,7 @@ async function getActiveUsers() {
       AND uc.config->>'isActive' = 'true'
     `);
     
-    const activeUsers = [];
-    
-    for (const user of result.rows) {
-      const userConfig = user.config;
-      const tokenAddress = userConfig.tokenAddress;
-      const minTip = parseFloat(userConfig.likeAmount) + parseFloat(userConfig.recastAmount) + parseFloat(userConfig.replyAmount);
-      
-      try {
-        // Check allowance and balance
-        const allowance = await checkTokenAllowance(user.user_address, tokenAddress);
-        const balance = await checkTokenBalance(user.user_address, tokenAddress);
-        
-        console.log(`🔍 Checking user ${user.user_address}: allowance=${allowance}, balance=${balance}, minTip=${minTip}`);
-        
-        // Check if user meets active user criteria
-        if (allowance > 0 && allowance >= minTip && balance >= minTip) {
-          activeUsers.push(user);
-          console.log(`✅ User ${user.user_address} is active`);
-        } else {
-          console.log(`🚫 User ${user.user_address} is not active - removing from tracking`);
-          
-          if (allowance < minTip) {
-            console.log(`   Reason: Insufficient allowance (${allowance} < ${minTip})`);
-          } else if (balance < minTip) {
-            console.log(`   Reason: Insufficient balance (${balance} < ${minTip}) - auto-revoking allowance`);
-            // Auto-revoke allowance (set to 0)
-            await autoRevokeAllowance(user.user_address, tokenAddress);
-          }
-          
-          // Remove from tracking
-          await removeUserFromTracking(user.user_address, user.fid);
-        }
-      } catch (error) {
-        console.log(`❌ Error checking user ${user.user_address}: ${error.message}`);
-        // If we can't check, remove from tracking to be safe
-        await removeUserFromTracking(user.user_address, user.fid);
-      }
-    }
-    
-    console.log(`👥 Found ${activeUsers.length} active users out of ${result.rows.length} total users`);
-    return activeUsers;
+    return result.rows;
   } catch (error) {
     console.log(`❌ Error getting active users: ${error.message}`);
     return [];
@@ -1633,33 +1592,6 @@ async function pollLatestCasts() {
   }
 }
 
-// Remove user from tracking (set is_tracking = false)
-async function removeUserFromTracking(userAddress, fid) {
-  try {
-    // Update user_profiles to stop tracking
-    await database.pool.query(`
-      UPDATE user_profiles 
-      SET is_tracking = false, updated_at = NOW()
-      WHERE user_address = $1
-    `, [userAddress.toLowerCase()]);
-    
-    // Update user_configs to set inactive
-    await database.pool.query(`
-      UPDATE user_configs 
-      SET config = jsonb_set(config, '{isActive}', 'false'), updated_at = NOW()
-      WHERE user_address = $1
-    `, [userAddress.toLowerCase()]);
-    
-    // Remove FID from webhook filters
-    if (fid) {
-      await removeFidFromWebhook(fid);
-    }
-    
-    console.log(`✅ Removed user ${userAddress} from tracking`);
-  } catch (error) {
-    console.log(`❌ Error removing user from tracking: ${error.message}`);
-  }
-}
 
 // Update Neynar webhook with new filters
 async function updateNeynarWebhook(webhookFilter) {
