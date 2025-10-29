@@ -6675,15 +6675,6 @@ app.get('/api/latest-cast-hashes', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-    
-  } catch (error) {
-    console.error('Error testing FID lookup:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message 
-    });
-  }
-});
 
 // Export functions for use in other modules
 module.exports = {
