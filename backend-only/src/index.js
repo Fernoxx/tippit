@@ -1572,6 +1572,27 @@ async function pollLatestCasts() {
     console.log(`👥 Found ${activeUsers.length} active users to poll`);
     
     for (const user of activeUsers) {
+      // Check if user still has sufficient allowance
+      const userConfig = await database.getUserConfig(user.user_address);
+      if (userConfig && userConfig.isActive) {
+        // Check allowance and balance
+        const { allowance, balance } = await checkAllowanceAndBalance(user.user_address, userConfig.tokenAddress);
+        const minTip = parseFloat(userConfig.likeAmount) + parseFloat(userConfig.recastAmount) + parseFloat(userConfig.replyAmount);
+        
+        if (allowance < minTip) {
+          console.log(`🚫 User ${user.user_address} has insufficient allowance (${allowance} < ${minTip}) - removing from tracking`);
+          await removeUserFromTracking(user.user_address, user.fid);
+          continue;
+        }
+        
+        if (balance < minTip) {
+          console.log(`🚫 User ${user.user_address} has insufficient balance (${balance} < ${minTip}) - revoking allowance and removing from tracking`);
+          await autoRevokeAllowance(user.user_address, userConfig.tokenAddress);
+          await removeUserFromTracking(user.user_address, user.fid);
+          continue;
+        }
+      }
+      
       const latestCast = await getLatestCast(user.fid);
       
       if (latestCast) {
@@ -1588,6 +1609,34 @@ async function pollLatestCasts() {
     
   } catch (error) {
     console.log(`❌ Error polling latest casts: ${error.message}`);
+  }
+}
+
+// Remove user from tracking (set is_tracking = false)
+async function removeUserFromTracking(userAddress, fid) {
+  try {
+    // Update user_profiles to stop tracking
+    await database.pool.query(`
+      UPDATE user_profiles 
+      SET is_tracking = false, updated_at = NOW()
+      WHERE user_address = $1
+    `, [userAddress.toLowerCase()]);
+    
+    // Update user_configs to set inactive
+    await database.pool.query(`
+      UPDATE user_configs 
+      SET config = jsonb_set(config, '{isActive}', 'false'), updated_at = NOW()
+      WHERE user_address = $1
+    `, [userAddress.toLowerCase()]);
+    
+    // Remove FID from webhook filters
+    if (fid) {
+      await removeFidFromWebhook(fid);
+    }
+    
+    console.log(`✅ Removed user ${userAddress} from tracking`);
+  } catch (error) {
+    console.log(`❌ Error removing user from tracking: ${error.message}`);
   }
 }
 
@@ -1634,7 +1683,7 @@ async function updateWebhookFiltersForLatestCasts() {
     const latestCasts = await getAllLatestCastHashes();
     const activeUserFids = await getActiveUserFids();
     
-    console.log(`🔧 Updating webhook filters with ${latestCasts.length} latest casts`);
+    console.log(`🔧 Updating webhook filters with ${latestCasts.length} latest casts and ${activeUserFids.length} active users`);
     
     const webhookFilter = {
       "reaction.created": {
