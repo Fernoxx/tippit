@@ -1591,6 +1591,43 @@ async function pollLatestCasts() {
   }
 }
 
+// Update Neynar webhook with new filters
+async function updateNeynarWebhook(webhookFilter) {
+  try {
+    const webhookId = await database.getWebhookId();
+    if (!webhookId) {
+      console.log('❌ No webhook ID found');
+      return false;
+    }
+    
+    const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook/`, {
+      method: 'PUT',
+      headers: {
+        'x-api-key': process.env.NEYNAR_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        webhook_id: webhookId,
+        name: "Ecion Farcaster Events Webhook",
+        url: "https://tippit-production.up.railway.app/webhook/neynar",
+        subscription: webhookFilter
+      })
+    });
+    
+    if (webhookResponse.ok) {
+      console.log(`✅ Webhook filters updated successfully`);
+      return true;
+    } else {
+      const errorText = await webhookResponse.text();
+      console.log(`❌ Failed to update webhook filters: ${errorText}`);
+      return false;
+    }
+  } catch (error) {
+    console.log(`❌ Error updating webhook: ${error.message}`);
+    return false;
+  }
+}
+
 // Update webhook filters to track only latest casts
 async function updateWebhookFiltersForLatestCasts() {
   try {
@@ -6672,6 +6709,78 @@ app.get('/api/latest-cast-hashes', async (req, res) => {
     res.json({ success: true, latestCasts, count: latestCasts.length });
   } catch (error) {
     console.log(`❌ Error getting latest cast hashes: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Admin panel stats endpoint
+app.get('/api/admin/stats', async (req, res) => {
+  try {
+    // Get total tips count
+    const tipsResult = await database.pool.query(`
+      SELECT COUNT(*) as total_tips, 
+             SUM(CAST(config->>'totalSpent' AS NUMERIC)) as total_usdc_tipped
+      FROM user_configs 
+      WHERE config->>'totalSpent' IS NOT NULL
+    `);
+    
+    // Get active users count
+    const activeUsersResult = await database.pool.query(`
+      SELECT COUNT(*) as active_users
+      FROM user_profiles up
+      JOIN user_configs uc ON up.user_address = uc.user_address
+      WHERE up.is_tracking = true 
+      AND uc.config->>'isActive' = 'true'
+    `);
+    
+    // Get total users count
+    const totalUsersResult = await database.pool.query(`
+      SELECT COUNT(*) as total_users
+      FROM user_profiles
+    `);
+    
+    // Get recent tips (last 24 hours)
+    const recentTipsResult = await database.pool.query(`
+      SELECT COUNT(*) as recent_tips
+      FROM tip_history 
+      WHERE created_at >= NOW() - INTERVAL '24 hours'
+    `);
+    
+    const stats = {
+      total_tips: parseInt(tipsResult.rows[0].total_tips) || 0,
+      total_usdc_tipped: parseFloat(tipsResult.rows[0].total_usdc_tipped) || 0,
+      active_users: parseInt(activeUsersResult.rows[0].active_users) || 0,
+      total_users: parseInt(totalUsersResult.rows[0].total_users) || 0,
+      recent_tips_24h: parseInt(recentTipsResult.rows[0].recent_tips) || 0
+    };
+    
+    res.json({ success: true, stats });
+  } catch (error) {
+    console.log(`❌ Error getting admin stats: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get detailed tip history for admin
+app.get('/api/admin/tip-history', async (req, res) => {
+  try {
+    const { limit = 50, offset = 0 } = req.query;
+    
+    const result = await database.pool.query(`
+      SELECT 
+        th.*,
+        up.username,
+        up.display_name,
+        up.pfp_url
+      FROM tip_history th
+      LEFT JOIN user_profiles up ON th.user_address = up.user_address
+      ORDER BY th.created_at DESC
+      LIMIT $1 OFFSET $2
+    `, [parseInt(limit), parseInt(offset)]);
+    
+    res.json({ success: true, tips: result.rows });
+  } catch (error) {
+    console.log(`❌ Error getting tip history: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });

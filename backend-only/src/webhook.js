@@ -238,16 +238,42 @@ async function webhookHandler(req, res) {
       if (interaction.castHash.startsWith("follow_")) {
         console.log(`✅ Follow cast ${interaction.castHash} is always eligible for tips`);
       } else {
-        const isCastEligible = await database.isCastEligibleForTips(interaction.authorFid, interaction.castHash);
-        if (!isCastEligible) {
-          console.log(`🚫 Cast ${interaction.castHash} not eligible for tips (not the latest main cast)`);
+        // Check if this cast is one of the latest casts we're tracking
+        const isLatestCast = await database.pool.query(`
+          SELECT 1 FROM user_profiles 
+          WHERE latest_cast_hash = $1 AND is_tracking = true
+        `, [interaction.castHash]);
+        
+        if (isLatestCast.rows.length === 0) {
+          console.log(`🚫 Cast ${interaction.castHash} not eligible for tips (not a latest tracked cast)`);
           return res.status(200).json({
             success: true,
             processed: false,
-            reason: "Cast not eligible for tips (not the latest main cast)"
+            reason: "Cast not eligible for tips (not a latest tracked cast)"
           });
         }
+        
+        console.log(`✅ Cast ${interaction.castHash} is eligible for tips (latest tracked cast)`);
       }
+    }
+    
+    // For replies, also check if the parent cast is a latest tracked cast
+    if (interaction.interactionType === 'reply' && interaction.parentHash) {
+      const isParentLatestCast = await database.pool.query(`
+        SELECT 1 FROM user_profiles 
+        WHERE latest_cast_hash = $1 AND is_tracking = true
+      `, [interaction.parentHash]);
+      
+      if (isParentLatestCast.rows.length === 0) {
+        console.log(`🚫 Reply to cast ${interaction.parentHash} not eligible for tips (parent not a latest tracked cast)`);
+        return res.status(200).json({
+          success: true,
+          processed: false,
+          reason: "Reply not eligible for tips (parent cast not a latest tracked cast)"
+        });
+      }
+      
+      console.log(`✅ Reply to cast ${interaction.parentHash} is eligible for tips (parent is latest tracked cast)`);
     }
     
     // Check if interactor has verified address before processing
