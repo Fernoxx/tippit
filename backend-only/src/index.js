@@ -1527,11 +1527,12 @@ async function updateLatestCastHash(userAddress, castHash, castTimestamp) {
   }
 }
 
-// Get all active users (users with approved allowance)
+// Get all active users (users with sufficient allowance and balance)
 async function getActiveUsers() {
   try {
+    // First get all users with FIDs and configs
     const result = await database.pool.query(`
-      SELECT up.fid, up.user_address, up.latest_cast_hash, up.is_tracking
+      SELECT up.fid, up.user_address, up.latest_cast_hash, up.is_tracking, uc.config
       FROM user_profiles up
       JOIN user_configs uc ON up.user_address = uc.user_address
       WHERE up.fid IS NOT NULL 
@@ -1539,7 +1540,47 @@ async function getActiveUsers() {
       AND uc.config->>'isActive' = 'true'
     `);
     
-    return result.rows;
+    const activeUsers = [];
+    
+    for (const user of result.rows) {
+      const userConfig = user.config;
+      const tokenAddress = userConfig.tokenAddress;
+      const minTip = parseFloat(userConfig.likeAmount) + parseFloat(userConfig.recastAmount) + parseFloat(userConfig.replyAmount);
+      
+      try {
+        // Check allowance and balance
+        const allowance = await checkTokenAllowance(user.user_address, tokenAddress);
+        const balance = await checkTokenBalance(user.user_address, tokenAddress);
+        
+        console.log(`🔍 Checking user ${user.user_address}: allowance=${allowance}, balance=${balance}, minTip=${minTip}`);
+        
+        // Check if user meets active user criteria
+        if (allowance > 0 && allowance >= minTip && balance >= minTip) {
+          activeUsers.push(user);
+          console.log(`✅ User ${user.user_address} is active`);
+        } else {
+          console.log(`🚫 User ${user.user_address} is not active - removing from tracking`);
+          
+          if (allowance < minTip) {
+            console.log(`   Reason: Insufficient allowance (${allowance} < ${minTip})`);
+          } else if (balance < minTip) {
+            console.log(`   Reason: Insufficient balance (${balance} < ${minTip}) - auto-revoking allowance`);
+            // Auto-revoke allowance (set to 0)
+            await autoRevokeAllowance(user.user_address, tokenAddress);
+          }
+          
+          // Remove from tracking
+          await removeUserFromTracking(user.user_address, user.fid);
+        }
+      } catch (error) {
+        console.log(`❌ Error checking user ${user.user_address}: ${error.message}`);
+        // If we can't check, remove from tracking to be safe
+        await removeUserFromTracking(user.user_address, user.fid);
+      }
+    }
+    
+    console.log(`👥 Found ${activeUsers.length} active users out of ${result.rows.length} total users`);
+    return activeUsers;
   } catch (error) {
     console.log(`❌ Error getting active users: ${error.message}`);
     return [];
@@ -1568,32 +1609,11 @@ async function pollLatestCasts() {
   try {
     console.log(`🔄 Polling latest casts for active users...`);
     
+    // getActiveUsers() now handles allowance/balance checking and removes inactive users
     const activeUsers = await getActiveUsers();
     console.log(`👥 Found ${activeUsers.length} active users to poll`);
     
     for (const user of activeUsers) {
-      // Check if user still has sufficient allowance
-      const userConfig = await database.getUserConfig(user.user_address);
-      if (userConfig && userConfig.isActive) {
-        // Check allowance and balance
-        const allowance = await checkTokenAllowance(user.user_address, userConfig.tokenAddress);
-        const balance = await checkTokenBalance(user.user_address, userConfig.tokenAddress);
-        const minTip = parseFloat(userConfig.likeAmount) + parseFloat(userConfig.recastAmount) + parseFloat(userConfig.replyAmount);
-        
-        if (allowance < minTip) {
-          console.log(`🚫 User ${user.user_address} has insufficient allowance (${allowance} < ${minTip}) - removing from tracking`);
-          await removeUserFromTracking(user.user_address, user.fid);
-          continue;
-        }
-        
-        if (balance < minTip) {
-          console.log(`🚫 User ${user.user_address} has insufficient balance (${balance} < ${minTip}) - revoking allowance and removing from tracking`);
-          await autoRevokeAllowance(user.user_address, userConfig.tokenAddress);
-          await removeUserFromTracking(user.user_address, user.fid);
-          continue;
-        }
-      }
-      
       const latestCast = await getLatestCast(user.fid);
       
       if (latestCast) {
