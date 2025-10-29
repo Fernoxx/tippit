@@ -6746,8 +6746,14 @@ app.get('/api/admin/stats', async (req, res) => {
       WHERE created_at >= NOW() - INTERVAL '24 hours'
     `);
     
+    // Get total tips count from tip_history table (all time)
+    const totalTipsResult = await database.pool.query(`
+      SELECT COUNT(*) as total_tips_count
+      FROM tip_history
+    `);
+    
     const stats = {
-      total_tips: parseInt(tipsResult.rows[0].total_tips) || 0,
+      total_tips: parseInt(totalTipsResult.rows[0].total_tips_count) || 0,
       total_usdc_tipped: parseFloat(tipsResult.rows[0].total_usdc_tipped) || 0,
       active_users: parseInt(activeUsersResult.rows[0].active_users) || 0,
       total_users: parseInt(totalUsersResult.rows[0].total_users) || 0,
