@@ -1576,7 +1576,8 @@ async function pollLatestCasts() {
       const userConfig = await database.getUserConfig(user.user_address);
       if (userConfig && userConfig.isActive) {
         // Check allowance and balance
-        const { allowance, balance } = await checkAllowanceAndBalance(user.user_address, userConfig.tokenAddress);
+        const allowance = await checkTokenAllowance(user.user_address, userConfig.tokenAddress);
+        const balance = await checkTokenBalance(user.user_address, userConfig.tokenAddress);
         const minTip = parseFloat(userConfig.likeAmount) + parseFloat(userConfig.recastAmount) + parseFloat(userConfig.replyAmount);
         
         if (allowance < minTip) {
