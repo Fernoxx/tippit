@@ -1479,14 +1479,17 @@ async function getUserFid(userAddress) {
 
 // ===== API POLLING SYSTEM FOR LATEST CASTS =====
 
-// Get latest cast for a user
+// Get latest cast for a user using correct Neynar API endpoint
 async function getLatestCast(fid) {
   try {
     console.log(`🔍 Fetching latest cast for FID: ${fid}`);
     
-    const response = await fetch(`https://api.neynar.com/v2/farcaster/feed/user/casts?fid=${fid}&limit=1&include_replies=false`, {
+    // Use correct Neynar API endpoint: GET /v2/farcaster/feed/user/casts/
+    // Parameters: fid (required), limit=1, include_replies=false to get only main casts
+    const response = await fetch(`https://api.neynar.com/v2/farcaster/feed/user/casts/?fid=${fid}&limit=1&include_replies=false`, {
       headers: {
-        'x-api-key': process.env.NEYNAR_API_KEY
+        'x-api-key': process.env.NEYNAR_API_KEY,
+        'x-neynar-experimental': 'false'
       }
     });
     
@@ -1494,16 +1497,25 @@ async function getLatestCast(fid) {
       const data = await response.json();
       if (data.casts && data.casts.length > 0) {
         const cast = data.casts[0];
-        console.log(`✅ Found latest cast for FID ${fid}: ${cast.hash}`);
-        return {
-          hash: cast.hash,
-          timestamp: cast.timestamp,
-          text: cast.text,
-          author: cast.author
-        };
+        // Only return main casts (not replies)
+        if (!cast.parent_hash && (!cast.parent_author || !cast.parent_author.fid)) {
+          console.log(`✅ Found latest main cast for FID ${fid}: ${cast.hash}`);
+          return {
+            hash: cast.hash,
+            timestamp: cast.timestamp,
+            text: cast.text,
+            author: cast.author
+          };
+        } else {
+          console.log(`⏭️ Latest cast for FID ${fid} is a reply - skipping`);
+          return null;
+        }
+      } else {
+        console.log(`ℹ️ No casts found for FID ${fid}`);
       }
     } else {
-      console.log(`❌ Error fetching latest cast for FID ${fid}: ${response.status}`);
+      const errorText = await response.text();
+      console.log(`❌ Error fetching latest cast for FID ${fid}: ${response.status} - ${errorText}`);
     }
   } catch (error) {
     console.log(`❌ Error fetching latest cast for FID ${fid}: ${error.message}`);
@@ -1527,7 +1539,8 @@ async function updateLatestCastHash(userAddress, castHash, castTimestamp) {
   }
 }
 
-// Get all active users (users with approved allowance - simple version)
+// Get all active users (users with active config - NO allowance checking here!)
+// Allowance/balance checks happen in the batch tip processor, not during polling
 async function getActiveUsers() {
   try {
     const result = await database.pool.query(`
@@ -1539,6 +1552,7 @@ async function getActiveUsers() {
       AND uc.config->>'isActive' = 'true'
     `);
     
+    console.log(`👥 Found ${result.rows.length} users with active configs`);
     return result.rows;
   } catch (error) {
     console.log(`❌ Error getting active users: ${error.message}`);
@@ -1564,14 +1578,17 @@ async function getAllLatestCastHashes() {
 }
 
 // Poll for latest casts of all active users
+// NOTE: We DON'T check allowance/balance here - that's done in the batch tip processor!
+// This function only updates the latest cast tracking for active users
 async function pollLatestCasts() {
   try {
     console.log(`🔄 Polling latest casts for active users...`);
     
-    // getActiveUsers() now handles allowance/balance checking and removes inactive users
+    // Get all users with active configs (NO allowance/balance checking!)
     const activeUsers = await getActiveUsers();
     console.log(`👥 Found ${activeUsers.length} active users to poll`);
     
+    let updatedCount = 0;
     for (const user of activeUsers) {
       const latestCast = await getLatestCast(user.fid);
       
@@ -1580,9 +1597,16 @@ async function pollLatestCasts() {
         if (user.latest_cast_hash !== latestCast.hash) {
           console.log(`🆕 New cast detected for ${user.user_address}: ${latestCast.hash}`);
           await updateLatestCastHash(user.user_address, latestCast.hash, latestCast.timestamp);
+          updatedCount++;
+        } else {
+          console.log(`✅ Latest cast for ${user.user_address} is still ${latestCast.hash}`);
         }
+      } else {
+        console.log(`ℹ️ No main cast found for ${user.user_address} (FID: ${user.fid})`);
       }
     }
+    
+    console.log(`📊 Polling complete: ${updatedCount} new casts found out of ${activeUsers.length} users`);
     
     // Update webhook filters with all latest cast hashes
     await updateWebhookFiltersForLatestCasts();
