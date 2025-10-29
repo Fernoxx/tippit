@@ -20,3 +20,10 @@ clear-blocklist*.js
 
 # Node modules (will be installed during build)
 node_modules/
+
+# Backup folders (not needed for deployment)
+backend-only-backup-*/
+backend-only/backend-only-backup-*/
+
+# Frontend node_modules
+node_modules/
