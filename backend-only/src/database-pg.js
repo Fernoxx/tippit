@@ -41,6 +41,22 @@ class PostgresDatabase {
         ADD COLUMN IF NOT EXISTS user_address VARCHAR(255)
       `);
       
+      // Add latest cast tracking columns
+      await this.pool.query(`
+        ALTER TABLE user_profiles 
+        ADD COLUMN IF NOT EXISTS latest_cast_hash VARCHAR(66)
+      `);
+      
+      await this.pool.query(`
+        ALTER TABLE user_profiles 
+        ADD COLUMN IF NOT EXISTS latest_cast_timestamp TIMESTAMP
+      `);
+      
+      await this.pool.query(`
+        ALTER TABLE user_profiles 
+        ADD COLUMN IF NOT EXISTS is_tracking BOOLEAN DEFAULT true
+      `);
+      
       // Fix the created_at column issue - rename it to match what the code expects
       try {
         await this.pool.query(`

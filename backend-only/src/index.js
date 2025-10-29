@@ -1367,6 +1367,9 @@ app.get('/api/neynar/user/score/:fid', async (req, res) => {
 // Store user address to FID mapping
 const userFidMap = new Map();
 
+// API Polling for latest casts
+let pollingInterval = null;
+
 // Get FID from user address using Neynar SDK
 async function getUserFid(userAddress) {
   // Validate address format
@@ -1472,6 +1475,190 @@ async function getUserFid(userAddress) {
   }
   
   return null;
+}
+
+// ===== API POLLING SYSTEM FOR LATEST CASTS =====
+
+// Get latest cast for a user
+async function getLatestCast(fid) {
+  try {
+    console.log(`🔍 Fetching latest cast for FID: ${fid}`);
+    
+    const response = await fetch(`https://api.neynar.com/v2/farcaster/feed/user/casts?fid=${fid}&limit=1&include_replies=false`, {
+      headers: {
+        'x-api-key': process.env.NEYNAR_API_KEY
+      }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data.casts && data.casts.length > 0) {
+        const cast = data.casts[0];
+        console.log(`✅ Found latest cast for FID ${fid}: ${cast.hash}`);
+        return {
+          hash: cast.hash,
+          timestamp: cast.timestamp,
+          text: cast.text,
+          author: cast.author
+        };
+      }
+    } else {
+      console.log(`❌ Error fetching latest cast for FID ${fid}: ${response.status}`);
+    }
+  } catch (error) {
+    console.log(`❌ Error fetching latest cast for FID ${fid}: ${error.message}`);
+  }
+  
+  return null;
+}
+
+// Update user's latest cast in database
+async function updateLatestCastHash(userAddress, castHash, castTimestamp) {
+  try {
+    await database.pool.query(`
+      UPDATE user_profiles 
+      SET latest_cast_hash = $1, latest_cast_timestamp = $2, updated_at = NOW()
+      WHERE user_address = $3
+    `, [castHash, castTimestamp, userAddress.toLowerCase()]);
+    
+    console.log(`💾 Updated latest cast for ${userAddress}: ${castHash}`);
+  } catch (error) {
+    console.log(`❌ Error updating latest cast: ${error.message}`);
+  }
+}
+
+// Get all active users (users with approved allowance)
+async function getActiveUsers() {
+  try {
+    const result = await database.pool.query(`
+      SELECT up.fid, up.user_address, up.latest_cast_hash, up.is_tracking
+      FROM user_profiles up
+      JOIN user_configs uc ON up.user_address = uc.user_address
+      WHERE up.fid IS NOT NULL 
+      AND up.is_tracking = true
+      AND uc.config->>'isActive' = 'true'
+    `);
+    
+    return result.rows;
+  } catch (error) {
+    console.log(`❌ Error getting active users: ${error.message}`);
+    return [];
+  }
+}
+
+// Get all latest cast hashes for webhook filtering
+async function getAllLatestCastHashes() {
+  try {
+    const result = await database.pool.query(`
+      SELECT latest_cast_hash 
+      FROM user_profiles 
+      WHERE latest_cast_hash IS NOT NULL 
+      AND is_tracking = true
+    `);
+    
+    return result.rows.map(row => row.latest_cast_hash);
+  } catch (error) {
+    console.log(`❌ Error getting latest cast hashes: ${error.message}`);
+    return [];
+  }
+}
+
+// Poll for latest casts of all active users
+async function pollLatestCasts() {
+  try {
+    console.log(`🔄 Polling latest casts for active users...`);
+    
+    const activeUsers = await getActiveUsers();
+    console.log(`👥 Found ${activeUsers.length} active users to poll`);
+    
+    for (const user of activeUsers) {
+      const latestCast = await getLatestCast(user.fid);
+      
+      if (latestCast) {
+        // Check if this is a new cast
+        if (user.latest_cast_hash !== latestCast.hash) {
+          console.log(`🆕 New cast detected for ${user.user_address}: ${latestCast.hash}`);
+          await updateLatestCastHash(user.user_address, latestCast.hash, latestCast.timestamp);
+        }
+      }
+    }
+    
+    // Update webhook filters with all latest cast hashes
+    await updateWebhookFiltersForLatestCasts();
+    
+  } catch (error) {
+    console.log(`❌ Error polling latest casts: ${error.message}`);
+  }
+}
+
+// Update webhook filters to track only latest casts
+async function updateWebhookFiltersForLatestCasts() {
+  try {
+    const latestCasts = await getAllLatestCastHashes();
+    const activeUserFids = await getActiveUserFids();
+    
+    console.log(`🔧 Updating webhook filters with ${latestCasts.length} latest casts`);
+    
+    const webhookFilter = {
+      "reaction.created": {
+        "target_cast_hashes": latestCasts
+      },
+      "cast.created": {
+        "parent_hashes": latestCasts
+      },
+      "follow.created": {
+        "target_fids": activeUserFids
+      }
+    };
+    
+    await updateNeynarWebhook(webhookFilter);
+    
+  } catch (error) {
+    console.log(`❌ Error updating webhook filters: ${error.message}`);
+  }
+}
+
+// Get active user FIDs for follow tracking
+async function getActiveUserFids() {
+  try {
+    const result = await database.pool.query(`
+      SELECT up.fid
+      FROM user_profiles up
+      JOIN user_configs uc ON up.user_address = uc.user_address
+      WHERE up.fid IS NOT NULL 
+      AND up.is_tracking = true
+      AND uc.config->>'isActive' = 'true'
+    `);
+    
+    return result.rows.map(row => row.fid);
+  } catch (error) {
+    console.log(`❌ Error getting active user FIDs: ${error.message}`);
+    return [];
+  }
+}
+
+// Start API polling
+function startApiPolling() {
+  if (pollingInterval) {
+    clearInterval(pollingInterval);
+  }
+  
+  // Poll every 2 minutes
+  pollingInterval = setInterval(pollLatestCasts, 2 * 60 * 1000);
+  
+  // Initial poll
+  setTimeout(pollLatestCasts, 5000); // Start after 5 seconds
+  
+  console.log(`⏰ API polling started - checking every 2 minutes`);
+}
+
+// Stop API polling
+function stopApiPolling() {
+  if (pollingInterval) {
+    clearInterval(pollingInterval);
+    pollingInterval = null;
+    console.log(`⏹️ API polling stopped`);
+  }
 }
 
 // Helper function to get user address from FID
@@ -1627,6 +1814,9 @@ async function addFidToWebhook(fid) {
     
     const updatedFids = [...trackedFids, parseInt(fid)];
     
+    // Get latest cast hashes for reaction/reply tracking
+    const latestCasts = await getAllLatestCastHashes();
+    
     const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook/`, {
       method: 'PUT',
       headers: {
@@ -1638,12 +1828,11 @@ async function addFidToWebhook(fid) {
         name: "Ecion Farcaster Events Webhook",
         url: "https://tippit-production.up.railway.app/webhook/neynar",
         subscription: {
-          "cast.created": { 
-            author_fids: updatedFids,
-            parent_author_fids: updatedFids
-          },
           "reaction.created": { 
-            target_fids: updatedFids
+            target_cast_hashes: latestCasts
+          },
+          "cast.created": { 
+            parent_hashes: latestCasts
           },
           "follow.created": { 
             target_fids: updatedFids
@@ -1683,6 +1872,9 @@ async function removeFidFromWebhook(fid) {
     
     const updatedFids = trackedFids.filter(f => f !== parseInt(fid));
     
+    // Get latest cast hashes for reaction/reply tracking
+    const latestCasts = await getAllLatestCastHashes();
+    
     const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook/`, {
       method: 'PUT',
       headers: {
@@ -1694,12 +1886,11 @@ async function removeFidFromWebhook(fid) {
         name: "Ecion Farcaster Events Webhook",
         url: "https://tippit-production.up.railway.app/webhook/neynar",
         subscription: {
-          "cast.created": { 
-            author_fids: updatedFids,
-            parent_author_fids: updatedFids
-          },
           "reaction.created": { 
-            target_fids: updatedFids
+            target_cast_hashes: latestCasts
+          },
+          "cast.created": { 
+            parent_hashes: latestCasts
           },
           "follow.created": { 
             target_fids: updatedFids
@@ -6175,6 +6366,9 @@ app.listen(PORT, () => {
     console.log(`🌐 Frontend also served from this Railway service`);
   }
   
+  // Start API polling for latest casts
+  startApiPolling();
+  
   // Webhook filtering persists - only updates on approve/revoke transactions
   
   // Run cleanup once on startup (non-blocking)
@@ -6453,6 +6647,34 @@ app.get('/api/debug-fid-lookup/:userAddress', async (req, res) => {
       envDebug,
       message: fid ? `Found FID: ${fid}` : 'No FID found - user has no verified Farcaster address'
     });
+  } catch (error) {
+    console.log(`❌ Error in FID lookup debug: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Manual API polling endpoint
+app.post('/api/poll-latest-casts', async (req, res) => {
+  try {
+    console.log(`🔄 Manual API polling triggered`);
+    await pollLatestCasts();
+    res.json({ success: true, message: 'API polling completed' });
+  } catch (error) {
+    console.log(`❌ Error in manual API polling: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get latest cast hashes endpoint
+app.get('/api/latest-cast-hashes', async (req, res) => {
+  try {
+    const latestCasts = await getAllLatestCastHashes();
+    res.json({ success: true, latestCasts, count: latestCasts.length });
+  } catch (error) {
+    console.log(`❌ Error getting latest cast hashes: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
     
   } catch (error) {
     console.error('Error testing FID lookup:', error);
