@@ -1539,12 +1539,60 @@ async function updateLatestCastHash(userAddress, castHash, castTimestamp) {
   }
 }
 
-// Get all active users (users with active config - NO allowance checking here!)
-// Allowance/balance checks happen in the batch tip processor, not during polling
+// Helper function to check token allowance
+async function checkTokenAllowance(userAddress, tokenAddress) {
+  try {
+    const { ethers } = require('ethers');
+    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    
+    const tokenContract = new ethers.Contract(tokenAddress, [
+      "function allowance(address owner, address spender) view returns (uint256)"
+    ], provider);
+    
+    const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
+    
+    // Get token decimals
+    const tokenDecimals = tokenAddress.toLowerCase() === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913' ? 6 : 18;
+    const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
+    
+    return allowanceAmount;
+  } catch (error) {
+    console.error(`❌ Error checking allowance for ${userAddress}:`, error.message);
+    return 0;
+  }
+}
+
+// Helper function to check token balance
+async function checkTokenBalance(userAddress, tokenAddress) {
+  try {
+    const { ethers } = require('ethers');
+    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    
+    const tokenContract = new ethers.Contract(tokenAddress, [
+      "function balanceOf(address owner) view returns (uint256)"
+    ], provider);
+    
+    const balance = await tokenContract.balanceOf(userAddress);
+    
+    // Get token decimals
+    const tokenDecimals = tokenAddress.toLowerCase() === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913' ? 6 : 18;
+    const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
+    
+    return balanceAmount;
+  } catch (error) {
+    console.error(`❌ Error checking balance for ${userAddress}:`, error.message);
+    return 0;
+  }
+}
+
+// Get all active users (users with sufficient allowance AND balance)
+// Active Users = allowance > 0 AND allowance >= minTip AND balance >= minTip
+// NOTE: We DON'T remove users from tracking - just return only those who are truly active
 async function getActiveUsers() {
   try {
     const result = await database.pool.query(`
-      SELECT up.fid, up.user_address, up.latest_cast_hash, up.is_tracking
+      SELECT up.fid, up.user_address, up.latest_cast_hash, up.is_tracking, uc.config
       FROM user_profiles up
       JOIN user_configs uc ON up.user_address = uc.user_address
       WHERE up.fid IS NOT NULL 
@@ -1552,8 +1600,38 @@ async function getActiveUsers() {
       AND uc.config->>'isActive' = 'true'
     `);
     
-    console.log(`👥 Found ${result.rows.length} users with active configs`);
-    return result.rows;
+    console.log(`👥 Checking ${result.rows.length} users with active configs...`);
+    
+    const activeUsers = [];
+    
+    for (const user of result.rows) {
+      const userConfig = user.config;
+      const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+      const minTip = parseFloat(userConfig.likeAmount || '0') + 
+                     parseFloat(userConfig.recastAmount || '0') + 
+                     parseFloat(userConfig.replyAmount || '0');
+      
+      try {
+        // Check allowance and balance in parallel for speed
+        const [allowance, balance] = await Promise.all([
+          checkTokenAllowance(user.user_address, tokenAddress),
+          checkTokenBalance(user.user_address, tokenAddress)
+        ]);
+        
+        // Active user criteria: allowance > 0 AND allowance >= minTip AND balance >= minTip
+        if (allowance > 0 && allowance >= minTip && balance >= minTip) {
+          activeUsers.push(user);
+          console.log(`✅ ACTIVE: ${user.user_address} - allowance: ${allowance}, balance: ${balance}, minTip: ${minTip}`);
+        } else {
+          console.log(`⏸️ INACTIVE: ${user.user_address} - allowance: ${allowance}, balance: ${balance}, minTip: ${minTip} (not removed, just not polled)`);
+        }
+      } catch (error) {
+        console.log(`⚠️ Error checking ${user.user_address}: ${error.message} (skipping)`);
+      }
+    }
+    
+    console.log(`🎯 Found ${activeUsers.length} truly active users out of ${result.rows.length} total users`);
+    return activeUsers;
   } catch (error) {
     console.log(`❌ Error getting active users: ${error.message}`);
     return [];
