@@ -6969,6 +6969,56 @@ const restoreDeletedUsersHandler = async (req, res) => {
 app.get('/api/restore-deleted-users', restoreDeletedUsersHandler);
 app.post('/api/restore-deleted-users', restoreDeletedUsersHandler);
 
+// Sync webhook_config.tracked_fids with the 23 FIDs
+// Run this to add the 23 FIDs to the database webhook config
+app.get('/api/sync-webhook-fids', async (req, res) => {
+  try {
+    console.log(`🔄 SYNCING WEBHOOK FIDs TO DATABASE...`);
+    
+    // The 23 FIDs that should be in follow.created
+    const fidsToAdd = [
+      249432, 15086, 250869, 564447, 1052964, 200375, 849116, 1161826,
+      520364, 1351395, 1007471, 1104000, 507756, 243108, 306502, 963470,
+      230238, 472963, 240486, 441699, 476026, 242597, 4163
+    ];
+    
+    // Get current tracked FIDs from database
+    const currentFids = await database.getTrackedFids();
+    console.log(`📋 Current FIDs in database: ${currentFids.length}`);
+    console.log(`📋 FIDs to add: ${fidsToAdd.length}`);
+    
+    // Merge and deduplicate
+    const allFids = [...new Set([...currentFids, ...fidsToAdd])];
+    console.log(`📋 Total unique FIDs: ${allFids.length}`);
+    
+    // Update database
+    await database.setTrackedFids(allFids);
+    console.log(`✅ Updated webhook_config.tracked_fids with ${allFids.length} FIDs`);
+    
+    // Also set is_tracking=true for these users
+    await database.pool.query(`
+      UPDATE user_profiles 
+      SET is_tracking = true, updated_at = NOW()
+      WHERE fid = ANY($1)
+    `, [fidsToAdd]);
+    
+    console.log(`✅ Set is_tracking=true for ${fidsToAdd.length} users`);
+    
+    res.json({
+      success: true,
+      message: 'Webhook FIDs synced to database',
+      previousCount: currentFids.length,
+      addedCount: fidsToAdd.length,
+      totalCount: allFids.length,
+      allFids: allFids
+    });
+    
+  } catch (error) {
+    console.error(`❌ Error syncing webhook FIDs:`, error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get latest cast hashes endpoint
 app.get('/api/latest-cast-hashes', async (req, res) => {
   try {
