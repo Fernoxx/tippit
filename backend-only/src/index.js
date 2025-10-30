@@ -1637,6 +1637,31 @@ async function getActiveUsers() {
           activeUsers.push(user);
           console.log(`✅ ACTIVE: ${user.user_address} (FID: ${user.fid}) - token: ${tokenAddress}, allowance: ${allowance}, balance: ${balance}, minTip: ${minTip}`);
         } else {
+          // Handle users with allowance but insufficient balance
+          if (allowance > 0 && balance < minTip) {
+            console.log(`⚠️ LOW BALANCE: ${user.user_address} (FID: ${user.fid}) has allowance but insufficient balance`);
+            
+            // Send notification to user (one-time per occurrence)
+            const notificationKey = `lowBalanceNotificationSent_${Date.now()}`;
+            if (!userConfig[notificationKey]) {
+              try {
+                await sendNeynarNotification(
+                  user.fid,
+                  "Low Balance Alert",
+                  `Your ${tokenAddress === '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' ? 'USDC' : 'token'} balance is too low to tip. Add ${minTip} or more to continue tipping!`,
+                  "https://ecion.vercel.app"
+                );
+                console.log(`📧 Sent low balance notification to FID ${user.fid}`);
+                
+                // Mark notification as sent
+                userConfig[notificationKey] = true;
+                await database.setUserConfig(user.user_address, userConfig);
+              } catch (notifError) {
+                console.log(`⚠️ Error sending notification: ${notifError.message}`);
+              }
+            }
+          }
+          
           // REMOVE from webhook follow.created if insufficient funds
           console.log(`🚫 REMOVING: ${user.user_address} (FID: ${user.fid}) - token: ${tokenAddress}, allowance: ${allowance}, balance: ${balance}, minTip: ${minTip}`);
           
