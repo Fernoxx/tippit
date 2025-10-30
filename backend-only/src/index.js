@@ -6808,6 +6808,94 @@ app.post('/api/poll-latest-casts', async (req, res) => {
   }
 });
 
+// EMERGENCY: Restore deleted users and add back to webhook
+app.post('/api/restore-deleted-users', async (req, res) => {
+  try {
+    console.log(`🚨 RESTORING DELETED USERS...`);
+    
+    // The 23 FIDs that were incorrectly deleted
+    const deletedFids = [
+      249432, 15086, 250869, 564447, 1052964, 200375, 849116, 1161826,
+      520364, 1351395, 1007471, 1104000, 507756, 243108, 306502, 963470,
+      230238, 472963, 240486, 441699, 476026, 242597, 4163
+    ];
+    
+    console.log(`📋 Restoring ${deletedFids.length} users...`);
+    
+    // Step 1: Set is_tracking=true for all these users
+    const updateResult = await database.pool.query(`
+      UPDATE user_profiles 
+      SET is_tracking = true, updated_at = NOW()
+      WHERE fid = ANY($1)
+      RETURNING fid, user_address, username, display_name
+    `, [deletedFids]);
+    
+    console.log(`✅ Restored ${updateResult.rows.length} users in database`);
+    
+    // Step 2: Add all FIDs back to webhook filter
+    const webhookId = await database.getWebhookId();
+    if (!webhookId) {
+      throw new Error('No webhook ID found');
+    }
+    
+    // Get current tracked FIDs and add the restored ones
+    const currentTrackedFids = await database.getTrackedFids();
+    const allFids = [...new Set([...currentTrackedFids, ...deletedFids])];
+    
+    console.log(`🔧 Updating webhook with ${allFids.length} total FIDs...`);
+    
+    // Get latest cast hashes for reaction/reply tracking
+    const latestCasts = await getAllLatestCastHashes();
+    
+    const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook/`, {
+      method: 'PUT',
+      headers: {
+        'x-api-key': process.env.NEYNAR_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        webhook_id: webhookId,
+        name: "Ecion Farcaster Events Webhook",
+        url: `https://${req.get('host')}/webhook/neynar`,
+        subscription: {
+          "reaction.created": { 
+            target_cast_hashes: latestCasts
+          },
+          "cast.created": { 
+            parent_hashes: latestCasts
+          },
+          "follow.created": { 
+            target_fids: allFids
+          }
+        }
+      })
+    });
+    
+    if (!webhookResponse.ok) {
+      const errorText = await webhookResponse.text();
+      throw new Error(`Webhook update failed: ${errorText}`);
+    }
+    
+    // Save updated FIDs to database
+    await database.setTrackedFids(allFids);
+    
+    console.log(`✅ Webhook updated with all ${allFids.length} FIDs`);
+    
+    res.json({
+      success: true,
+      message: 'Successfully restored all deleted users',
+      restored: updateResult.rows.length,
+      fidsRestored: deletedFids,
+      totalFidsInWebhook: allFids.length,
+      restoredUsers: updateResult.rows
+    });
+    
+  } catch (error) {
+    console.error(`❌ Error restoring deleted users:`, error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get latest cast hashes endpoint
 app.get('/api/latest-cast-hashes', async (req, res) => {
   try {
