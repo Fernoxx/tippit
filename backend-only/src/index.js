@@ -1588,7 +1588,7 @@ async function checkTokenBalance(userAddress, tokenAddress) {
 
 // Get all active users (users with sufficient allowance AND balance)
 // Active Users = allowance > 0 AND allowance >= minTip AND balance >= minTip
-// NOTE: We DON'T remove users from tracking - just return only those who are truly active
+// REMOVE users from tracking if they don't meet criteria
 async function getActiveUsers() {
   try {
     const result = await database.pool.query(`
@@ -1621,12 +1621,23 @@ async function getActiveUsers() {
         // Active user criteria: allowance > 0 AND allowance >= minTip AND balance >= minTip
         if (allowance > 0 && allowance >= minTip && balance >= minTip) {
           activeUsers.push(user);
-          console.log(`✅ ACTIVE: ${user.user_address} - allowance: ${allowance}, balance: ${balance}, minTip: ${minTip}`);
+          console.log(`✅ ACTIVE: ${user.user_address} (FID: ${user.fid}) - allowance: ${allowance}, balance: ${balance}, minTip: ${minTip}`);
         } else {
-          console.log(`⏸️ INACTIVE: ${user.user_address} - allowance: ${allowance}, balance: ${balance}, minTip: ${minTip} (not removed, just not polled)`);
+          // REMOVE from tracking if insufficient funds
+          console.log(`🚫 REMOVING: ${user.user_address} (FID: ${user.fid}) - allowance: ${allowance}, balance: ${balance}, minTip: ${minTip}`);
+          
+          // Auto-revoke if balance is insufficient
+          if (balance < minTip && allowance > 0) {
+            console.log(`🔄 Auto-revoking allowance due to insufficient balance...`);
+            await autoRevokeAllowance(user.user_address, tokenAddress);
+          }
+          
+          // Remove from tracking
+          await removeUserFromTracking(user.user_address, user.fid);
         }
       } catch (error) {
-        console.log(`⚠️ Error checking ${user.user_address}: ${error.message} (skipping)`);
+        console.log(`❌ Error checking ${user.user_address}: ${error.message} - removing from tracking`);
+        await removeUserFromTracking(user.user_address, user.fid);
       }
     }
     
@@ -2178,6 +2189,31 @@ async function updateUserWebhookStatus(userAddress) {
 }
 
 // Auto-revoke allowance to 0 when user has insufficient balance
+// Remove user from tracking when they don't have sufficient funds
+async function removeUserFromTracking(userAddress, fid) {
+  try {
+    console.log(`🚫 Removing user ${userAddress} (FID: ${fid}) from tracking...`);
+    
+    // Set is_tracking=false in database
+    await database.pool.query(`
+      UPDATE user_profiles 
+      SET is_tracking = false, updated_at = NOW()
+      WHERE user_address = $1
+    `, [userAddress.toLowerCase()]);
+    
+    // Remove FID from webhook filter
+    if (fid) {
+      await removeFidFromWebhook(fid);
+    }
+    
+    console.log(`✅ Removed user ${userAddress} from tracking`);
+    return true;
+  } catch (error) {
+    console.error(`❌ Error removing user from tracking:`, error);
+    return false;
+  }
+}
+
 async function autoRevokeAllowance(userAddress, tokenAddress) {
   try {
     console.log(`🔄 Auto-revoking allowance for ${userAddress} - token: ${tokenAddress}`);
@@ -6808,8 +6844,8 @@ app.post('/api/poll-latest-casts', async (req, res) => {
   }
 });
 
-// EMERGENCY: Restore deleted users and add back to webhook
-app.post('/api/restore-deleted-users', async (req, res) => {
+// EMERGENCY: Restore deleted users and add back to webhook (GET and POST)
+const restoreDeletedUsersHandler = async (req, res) => {
   try {
     console.log(`🚨 RESTORING DELETED USERS...`);
     
@@ -6894,7 +6930,10 @@ app.post('/api/restore-deleted-users', async (req, res) => {
     console.error(`❌ Error restoring deleted users:`, error);
     res.status(500).json({ error: error.message });
   }
-});
+};
+
+app.get('/api/restore-deleted-users', restoreDeletedUsersHandler);
+app.post('/api/restore-deleted-users', restoreDeletedUsersHandler);
 
 // Get latest cast hashes endpoint
 app.get('/api/latest-cast-hashes', async (req, res) => {
