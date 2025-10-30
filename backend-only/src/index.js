@@ -1586,25 +1586,39 @@ async function checkTokenBalance(userAddress, tokenAddress) {
   }
 }
 
-// Get all active users (users with sufficient allowance AND balance)
-// Active Users = allowance > 0 AND allowance >= minTip AND balance >= minTip
+// Get all active users by reading from webhook's follow.created.target_fids
+// THIS IS THE SOURCE OF TRUTH - webhook follow.created determines who is active
+// Active Users = FIDs in follow.created that have sufficient allowance & balance
 // REMOVE users from tracking if they don't meet criteria
 async function getActiveUsers() {
   try {
+    // Get active user FIDs from webhook follow.created (source of truth)
+    const trackedFids = await database.getTrackedFids();
+    console.log(`👥 Found ${trackedFids.length} FIDs in webhook follow.created (active users)`);
+    
+    if (trackedFids.length === 0) {
+      console.log(`⚠️ No FIDs in webhook follow.created - no active users`);
+      return [];
+    }
+    
+    // Get user data for these FIDs
     const result = await database.pool.query(`
       SELECT up.fid, up.user_address, up.latest_cast_hash, up.is_tracking, uc.config
       FROM user_profiles up
-      JOIN user_configs uc ON up.user_address = uc.user_address
-      WHERE up.fid IS NOT NULL 
-      AND up.is_tracking = true
-      AND uc.config->>'isActive' = 'true'
-    `);
+      LEFT JOIN user_configs uc ON up.user_address = uc.user_address
+      WHERE up.fid = ANY($1)
+    `, [trackedFids]);
     
-    console.log(`👥 Checking ${result.rows.length} users with active configs...`);
+    console.log(`📋 Found ${result.rows.length} users in database for ${trackedFids.length} FIDs`);
     
     const activeUsers = [];
     
     for (const user of result.rows) {
+      if (!user.config) {
+        console.log(`⚠️ FID ${user.fid} has no config - skipping`);
+        continue;
+      }
+      
       const userConfig = user.config;
       const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
       const minTip = parseFloat(userConfig.likeAmount || '0') + 
@@ -1623,7 +1637,7 @@ async function getActiveUsers() {
           activeUsers.push(user);
           console.log(`✅ ACTIVE: ${user.user_address} (FID: ${user.fid}) - allowance: ${allowance}, balance: ${balance}, minTip: ${minTip}`);
         } else {
-          // REMOVE from tracking if insufficient funds
+          // REMOVE from webhook follow.created if insufficient funds
           console.log(`🚫 REMOVING: ${user.user_address} (FID: ${user.fid}) - allowance: ${allowance}, balance: ${balance}, minTip: ${minTip}`);
           
           // Auto-revoke if balance is insufficient
@@ -1632,7 +1646,7 @@ async function getActiveUsers() {
             await autoRevokeAllowance(user.user_address, tokenAddress);
           }
           
-          // Remove from tracking
+          // Remove from webhook follow.created
           await removeUserFromTracking(user.user_address, user.fid);
         }
       } catch (error) {
@@ -1641,7 +1655,7 @@ async function getActiveUsers() {
       }
     }
     
-    console.log(`🎯 Found ${activeUsers.length} truly active users out of ${result.rows.length} total users`);
+    console.log(`🎯 Found ${activeUsers.length} truly active users out of ${trackedFids.length} FIDs in follow.created`);
     return activeUsers;
   } catch (error) {
     console.log(`❌ Error getting active users: ${error.message}`);
@@ -1775,20 +1789,14 @@ async function updateWebhookFiltersForLatestCasts() {
 }
 
 // Get active user FIDs for follow tracking
-// These FIDs are stored in webhook's follow.created.target_fids
-// Active users = users with is_tracking=true (sufficient allowance & balance)
+// READ from webhook_config.tracked_fids (source of truth)
+// These FIDs represent the current active users in follow.created.target_fids
 async function getActiveUserFids() {
   try {
-    const result = await database.pool.query(`
-      SELECT up.fid
-      FROM user_profiles up
-      JOIN user_configs uc ON up.user_address = uc.user_address
-      WHERE up.fid IS NOT NULL 
-      AND up.is_tracking = true
-      AND uc.config->>'isActive' = 'true'
-    `);
-    
-    return result.rows.map(row => parseInt(row.fid));
+    // Read from webhook config database (this mirrors webhook's follow.created)
+    const trackedFids = await database.getTrackedFids();
+    console.log(`📋 getActiveUserFids: ${trackedFids.length} FIDs from webhook config`);
+    return trackedFids;
   } catch (error) {
     console.log(`❌ Error getting active user FIDs: ${error.message}`);
     return [];
