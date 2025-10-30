@@ -3793,12 +3793,16 @@ app.get('/api/homepage', async (req, res) => {
           const farcasterUser = userData[userAddress]?.[0];
           
           if (farcasterUser) {
-            // Get user's latest earnable cast from DATABASE (not API - faster!)
-            const eligibleCasts = await database.getEligibleCasts(farcasterUser.fid);
+            // Get user's LATEST cast hash from user_profiles (updated every 2 minutes by polling)
+            const userProfileResult = await database.pool.query(`
+              SELECT latest_cast_hash
+              FROM user_profiles
+              WHERE fid = $1 AND latest_cast_hash IS NOT NULL
+            `, [farcasterUser.fid]);
             
-            if (eligibleCasts.length > 0) {
-              const castHash = eligibleCasts[0];
-              
+            const castHash = userProfileResult.rows[0]?.latest_cast_hash;
+            
+            if (castHash) {
               // Fetch cast details from Neynar
               const castResponse = await fetch(
                 `https://api.neynar.com/v2/farcaster/cast?identifier=${castHash}&type=hash`,
