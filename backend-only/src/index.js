@@ -1642,8 +1642,7 @@ async function getActiveUsers() {
             console.log(`⚠️ LOW BALANCE: ${user.user_address} (FID: ${user.fid}) has allowance but insufficient balance`);
             
             // Send notification to user (one-time per occurrence)
-            const notificationKey = `lowBalanceNotificationSent_${Date.now()}`;
-            if (!userConfig[notificationKey]) {
+            if (!userConfig.lowBalanceNotificationSent) {
               try {
                 await sendNeynarNotification(
                   user.fid,
@@ -1653,12 +1652,21 @@ async function getActiveUsers() {
                 );
                 console.log(`📧 Sent low balance notification to FID ${user.fid}`);
                 
-                // Mark notification as sent
-                userConfig[notificationKey] = true;
+                // Mark notification as sent and track removal reason
+                userConfig.lowBalanceNotificationSent = true;
+                userConfig.removalReason = 'low_balance';
+                userConfig.removedAt = Date.now();
+                userConfig.lastCheckedBalance = balance;
+                userConfig.lastCheckedAllowance = allowance;
                 await database.setUserConfig(user.user_address, userConfig);
               } catch (notifError) {
                 console.log(`⚠️ Error sending notification: ${notifError.message}`);
               }
+            } else {
+              // Update last checked values even if notification already sent
+              userConfig.lastCheckedBalance = balance;
+              userConfig.lastCheckedAllowance = allowance;
+              await database.setUserConfig(user.user_address, userConfig);
             }
           }
           
@@ -1825,6 +1833,92 @@ async function getActiveUserFids() {
   }
 }
 
+// Check removed users for balance restoration
+// Runs every 10 minutes to see if users added balance back
+async function checkRemovedUsersForBalanceRestoration() {
+  try {
+    console.log(`🔄 Checking removed users for balance restoration...`);
+    
+    // Get all users who were removed due to low balance
+    const result = await database.pool.query(`
+      SELECT up.fid, up.user_address, uc.config
+      FROM user_profiles up
+      JOIN user_configs uc ON up.user_address = uc.user_address
+      WHERE up.is_tracking = false
+      AND uc.config->>'removalReason' = 'low_balance'
+      AND up.fid IS NOT NULL
+    `);
+    
+    console.log(`📋 Found ${result.rows.length} users removed due to low balance`);
+    
+    let restoredCount = 0;
+    
+    for (const user of result.rows) {
+      const userConfig = user.config;
+      const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+      const minTip = parseFloat(userConfig.likeAmount || '0') + 
+                     parseFloat(userConfig.recastAmount || '0') + 
+                     parseFloat(userConfig.replyAmount || '0');
+      
+      try {
+        // Check current balance and allowance
+        const [allowance, balance] = await Promise.all([
+          checkTokenAllowance(user.user_address, tokenAddress),
+          checkTokenBalance(user.user_address, tokenAddress)
+        ]);
+        
+        // If user now has sufficient funds, restore them
+        if (allowance > 0 && allowance >= minTip && balance >= minTip) {
+          console.log(`✅ RESTORING: ${user.user_address} (FID: ${user.fid}) - balance restored! balance: ${balance}, minTip: ${minTip}`);
+          
+          // Reset tracking flags
+          userConfig.lowBalanceNotificationSent = false;
+          userConfig.removalReason = null;
+          userConfig.removedAt = null;
+          await database.setUserConfig(user.user_address, userConfig);
+          
+          // Set is_tracking=true
+          await database.pool.query(`
+            UPDATE user_profiles 
+            SET is_tracking = true, updated_at = NOW()
+            WHERE user_address = $1
+          `, [user.user_address.toLowerCase()]);
+          
+          // Add back to webhook
+          await addFidToWebhook(user.fid);
+          
+          // Send welcome back notification
+          try {
+            await sendNeynarNotification(
+              user.fid,
+              "You're Back!",
+              `Your balance is restored! You're now active and can tip your audience again. 🎉`,
+              "https://ecion.vercel.app"
+            );
+            console.log(`📧 Sent restoration notification to FID ${user.fid}`);
+          } catch (notifError) {
+            console.log(`⚠️ Error sending restoration notification: ${notifError.message}`);
+          }
+          
+          restoredCount++;
+        } else {
+          console.log(`⏳ Still low: ${user.user_address} (FID: ${user.fid}) - allowance: ${allowance}, balance: ${balance}, minTip: ${minTip}`);
+        }
+      } catch (error) {
+        console.log(`❌ Error checking ${user.user_address}: ${error.message}`);
+      }
+      
+      // Small delay to avoid rate limits
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
+    console.log(`✅ Balance restoration check complete: ${restoredCount} users restored`);
+    
+  } catch (error) {
+    console.log(`❌ Error in balance restoration check: ${error.message}`);
+  }
+}
+
 // Start API polling
 function startApiPolling() {
   if (pollingInterval) {
@@ -1834,10 +1928,15 @@ function startApiPolling() {
   // Poll every 2 minutes
   pollingInterval = setInterval(pollLatestCasts, 2 * 60 * 1000);
   
+  // Check for balance restoration every 10 minutes
+  setInterval(checkRemovedUsersForBalanceRestoration, 10 * 60 * 1000);
+  
   // Initial poll
   setTimeout(pollLatestCasts, 5000); // Start after 5 seconds
+  setTimeout(checkRemovedUsersForBalanceRestoration, 30000); // Check after 30 seconds
   
   console.log(`⏰ API polling started - checking every 2 minutes`);
+  console.log(`⏰ Balance restoration check started - checking every 10 minutes`);
 }
 
 // Stop API polling
