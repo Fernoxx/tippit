@@ -1834,12 +1834,16 @@ async function getActiveUserFids() {
 }
 
 // Check removed users for balance restoration
-// Runs every 10 minutes to see if users added balance back
+// Runs every 1 HOUR to see if users added balance back
+// ONLY checks users who have allowance but no balance (removalReason='low_balance')
+// Users with no allowance must re-approve via frontend to come back
 async function checkRemovedUsersForBalanceRestoration() {
   try {
-    console.log(`🔄 Checking removed users for balance restoration...`);
+    console.log(`🔄 Checking removed users for balance restoration (users with allowance but no balance)...`);
     
-    // Get all users who were removed due to low balance
+    // ONLY get users who:
+    // 1. Were removed due to low balance (have allowance but insufficient balance)
+    // 2. NOT users with no allowance (they must re-approve manually)
     const result = await database.pool.query(`
       SELECT up.fid, up.user_address, uc.config
       FROM user_profiles up
@@ -1849,7 +1853,7 @@ async function checkRemovedUsersForBalanceRestoration() {
       AND up.fid IS NOT NULL
     `);
     
-    console.log(`📋 Found ${result.rows.length} users removed due to low balance`);
+    console.log(`📋 Found ${result.rows.length} users with allowance but no balance (waiting for balance top-up)`);
     
     let restoredCount = 0;
     
@@ -1928,15 +1932,15 @@ function startApiPolling() {
   // Poll every 2 minutes
   pollingInterval = setInterval(pollLatestCasts, 2 * 60 * 1000);
   
-  // Check for balance restoration every 10 minutes
-  setInterval(checkRemovedUsersForBalanceRestoration, 10 * 60 * 1000);
+  // Check for balance restoration every 1 HOUR (only for users with allowance but no balance)
+  setInterval(checkRemovedUsersForBalanceRestoration, 60 * 60 * 1000);
   
   // Initial poll
   setTimeout(pollLatestCasts, 5000); // Start after 5 seconds
-  setTimeout(checkRemovedUsersForBalanceRestoration, 30000); // Check after 30 seconds
+  setTimeout(checkRemovedUsersForBalanceRestoration, 60000); // Check after 1 minute
   
   console.log(`⏰ API polling started - checking every 2 minutes`);
-  console.log(`⏰ Balance restoration check started - checking every 10 minutes`);
+  console.log(`⏰ Balance restoration check started - checking every 1 hour`);
 }
 
 // Stop API polling
@@ -3695,17 +3699,37 @@ app.get('/api/homepage', async (req, res) => {
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
     
-    // Get users with active configurations and token approvals
-    const activeUsers = await database.getActiveUsersWithApprovals();
+    // Get active users from WEBHOOK (source of truth)
+    const trackedFids = await database.getTrackedFids();
+    console.log(`🏠 Homepage: ${trackedFids.length} FIDs in webhook follow.created (active users)`);
     
-    // No need to filter - webhook already handles this by only including users with sufficient allowance
-    console.log(`🏠 Homepage: ${activeUsers.length} total users (webhook already filters by allowance)`);
+    if (trackedFids.length === 0) {
+      return res.json({
+        success: true,
+        users: [],
+        amounts: [],
+        casts: [],
+        pagination: { page: pageNum, limit: limitNum, hasMore: false }
+      });
+    }
+    
+    // Get user addresses for these FIDs (only users with verified addresses)
+    const userProfiles = await database.pool.query(`
+      SELECT fid, user_address 
+      FROM user_profiles 
+      WHERE fid = ANY($1)
+      AND user_address IS NOT NULL
+      AND user_address != ''
+    `, [trackedFids]);
+    
+    const activeUsers = userProfiles.rows.map(row => row.user_address);
+    console.log(`🏠 Homepage: ${activeUsers.length} users with verified addresses out of ${trackedFids.length} FIDs`);
     
     const { ethers } = require('ethers');
     const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     
-    // Get allowance and cast for each user (webhook already filters by allowance)
+    // Get allowance and cast for each user
     const usersWithAllowance = [];
     
     for (const userAddress of activeUsers) {
