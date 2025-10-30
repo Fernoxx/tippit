@@ -1635,16 +1635,13 @@ async function getActiveUsers() {
         // Active user criteria: allowance > 0 AND allowance >= minTip AND balance >= minTip
         if (allowance > 0 && allowance >= minTip && balance >= minTip) {
           activeUsers.push(user);
-          console.log(`✅ ACTIVE: ${user.user_address} (FID: ${user.fid}) - allowance: ${allowance}, balance: ${balance}, minTip: ${minTip}`);
+          console.log(`✅ ACTIVE: ${user.user_address} (FID: ${user.fid}) - token: ${tokenAddress}, allowance: ${allowance}, balance: ${balance}, minTip: ${minTip}`);
         } else {
           // REMOVE from webhook follow.created if insufficient funds
-          console.log(`🚫 REMOVING: ${user.user_address} (FID: ${user.fid}) - allowance: ${allowance}, balance: ${balance}, minTip: ${minTip}`);
+          console.log(`🚫 REMOVING: ${user.user_address} (FID: ${user.fid}) - token: ${tokenAddress}, allowance: ${allowance}, balance: ${balance}, minTip: ${minTip}`);
           
-          // Auto-revoke if balance is insufficient
-          if (balance < minTip && allowance > 0) {
-            console.log(`🔄 Auto-revoking allowance due to insufficient balance...`);
-            await autoRevokeAllowance(user.user_address, tokenAddress);
-          }
+          // Note: Backend cannot auto-revoke allowances (requires user's wallet)
+          // User must manually revoke via frontend if they want to
           
           // Remove from webhook follow.created
           await removeUserFromTracking(user.user_address, user.fid);
@@ -2248,31 +2245,13 @@ async function removeUserFromTracking(userAddress, fid) {
   }
 }
 
+// NOTE: Backend cannot auto-revoke allowances - requires user's private key
+// This function is kept for reference but should NOT be called
+// Users must revoke allowances manually via frontend
 async function autoRevokeAllowance(userAddress, tokenAddress) {
-  try {
-    console.log(`🔄 Auto-revoking allowance for ${userAddress} - token: ${tokenAddress}`);
-    
-    const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
-    
-    const tokenContract = new ethers.Contract(tokenAddress, [
-      "function approve(address spender, uint256 amount) returns (bool)"
-    ], provider);
-    
-    // Revoke allowance by setting it to 0
-    const tx = await tokenContract.approve(ecionBatchAddress, 0);
-    console.log(`📝 Revoke transaction sent: ${tx.hash}`);
-    
-    // Wait for confirmation
-    await tx.wait();
-    console.log(`✅ Allowance revoked for ${userAddress}`);
-    
-    return true;
-  } catch (error) {
-    console.error(`❌ Error auto-revoking allowance for ${userAddress}:`, error);
-    return false;
-  }
+  console.log(`⚠️ Cannot auto-revoke allowance for ${userAddress} - backend doesn't have wallet access`);
+  console.log(`📝 User should revoke manually via frontend if needed`);
+  return false;
 }
 
 // Handle allowance approval/revocation events
