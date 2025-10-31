@@ -1,0 +1,1186 @@
+{
+  "generatedAt": "2025-10-31T15:49:26.313Z",
+  "summary": [
+    {
+      "fid": 249432,
+      "username": "hdr",
+      "displayName": "hdr 🟦 🧬",
+      "addresses": [
+        {
+          "address": "0xD175f211eC6afb9a582ed67b8c2e650952acA82F",
+          "allowance": 0,
+          "balance": 0,
+          "minTip": 0.015,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": false,
+          "balanceMeetsMinTip": false,
+          "allowanceError": null,
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x35aAAB0D9EacfcaF93d84A5B563F5ba73eF27EF8",
+          "allowance": 0,
+          "balance": 0.000132,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": false,
+          "balanceMeetsMinTip": false,
+          "allowanceError": null,
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0xDEC24DD5A76a53f8f00Ad852001De7a0838e329B",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0x70a08231000000000000000000000000dec24dd5a76a53f8f00ad852001de7a0838e329b\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0xCe7F741063adbB11Cd4fa868896CfA8bE2541991",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000ce7f741063adbb11cd4fa868896cfa8be25419910000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        }
+      ]
+    },
+    {
+      "fid": 15086,
+      "username": "alby",
+      "displayName": "Alby 🎩🧬",
+      "addresses": [
+        {
+          "address": "0xACBf90a3F03A34faA8235854Ca6c3Ee0cC8c7546",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000acbf90a3f03a34faa8235854ca6c3ee0cc8c75460000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0xec5a50cc34c5b2e6A05d40cd7f26491c5697594a",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000ec5a50cc34c5b2e6a05d40cd7f26491c5697594a0000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x095B4F6B3Eba00542c37a62CF870C1c5348DFf64",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000095b4f6b3eba00542c37a62cf870c1c5348dff640000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0xD1a061296d2D40169Fb4721451E1BD124e114866",
+          "allowance": 0,
+          "balance": 0,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": false,
+          "balanceMeetsMinTip": false,
+          "allowanceError": null,
+          "isActive": false,
+          "removalReason": null
+        }
+      ]
+    },
+    {
+      "fid": 250869,
+      "username": "vinu07",
+      "displayName": "vinu07.base.eth",
+      "addresses": [
+        {
+          "address": "0xE595a019B48378FEE0971ee1703537964E2A3B05",
+          "allowance": 0.03,
+          "balance": 0.576315,
+          "minTip": 0.045,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": false,
+          "balanceMeetsMinTip": true,
+          "allowanceError": null,
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x74dAb599516C4B85EE95fb645dc6E2FC48F37703",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0x70a0823100000000000000000000000074dab599516c4b85ee95fb645dc6e2fc48f37703\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x2c4a35e74377B3618D5789873299a3F811228e8a",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e0000000000000000000000002c4a35e74377b3618d5789873299a3f811228e8a0000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x9E7E53Df5e98E2305ed54B07Eba85c81Ab33fD83",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e0000000000000000000000009e7e53df5e98e2305ed54b07eba85c81ab33fd830000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x40eF7C75b4eD0dB677C37ec891834B25095825d6",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e00000000000000000000000040ef7c75b4ed0db677c37ec891834b25095825d60000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        }
+      ]
+    },
+    {
+      "fid": 564447,
+      "username": "tweenky.eth",
+      "displayName": "tweenky",
+      "addresses": [
+        {
+          "address": "0x275aB0037e50BDA1cdA147e3Ac9AeaeFB3D21E85",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.015,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000275ab0037e50bda1cda147e3ac9aeaefb3d21e850000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0xa8E17bE2B11E744561859C9C31EA060EE30bf37c",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000a8e17be2b11e744561859c9c31ea060ee30bf37c0000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x7ecaF9a39e6591566c7397c8222582A630fEc2D1",
+          "allowance": 0,
+          "balance": 0,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": false,
+          "balanceMeetsMinTip": false,
+          "allowanceError": null,
+          "isActive": false,
+          "removalReason": null
+        }
+      ]
+    },
+    {
+      "fid": 1052964,
+      "username": "geesmike",
+      "displayName": "mikegees",
+      "addresses": [
+        {
+          "address": "0x4123282CF01ff00d31cE2834863dd266a2Fe6806",
+          "allowance": 0.145,
+          "balance": 0,
+          "minTip": 0.045,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": true,
+          "balanceMeetsMinTip": false,
+          "allowanceError": null,
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0xB85F16C6Fd7FbC7b2E4334F49996caF9685Af3dA",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0x70a08231000000000000000000000000b85f16c6fd7fbc7b2e4334f49996caf9685af3da\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x0ab81CCA308AB3160A49F783327C53193C358dd9",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e0000000000000000000000000ab81cca308ab3160a49f783327c53193c358dd90000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x773744BF45034757C2c36Fde26077Cb3F05f81B0",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000773744bf45034757c2c36fde26077cb3f05f81b00000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        }
+      ]
+    },
+    {
+      "fid": 200375,
+      "username": "adnum",
+      "displayName": "adnum",
+      "addresses": [
+        {
+          "address": "0xB902352464AC345C0889374bf873B074Ad73A0dD",
+          "allowance": null,
+          "balance": null,
+          "minTip": 8.5,
+          "tokenAddress": "0xEc01dd316CC8612CC21d1F723616e72Da181d63a",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000b902352464ac345c0889374bf873b074ad73a0dd0000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0xEc01dd316CC8612CC21d1F723616e72Da181d63a\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x4005470902ba4113d8D92E6AB4413C6142dC7150",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e0000000000000000000000004005470902ba4113d8d92e6ab4413c6142dc71500000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x6cDD8488189A3b27A727ebB934c92dd7EAf7e099",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e0000000000000000000000006cdd8488189a3b27a727ebb934c92dd7eaf7e0990000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x863596eCC89E9EA836A5503EFe52088b6A77ac55",
+          "allowance": 0,
+          "balance": 4.000385,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": false,
+          "balanceMeetsMinTip": true,
+          "allowanceError": null,
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0xCDd9D06e242F52908589b2d25614329e154166E5",
+          "allowance": 0,
+          "balance": 0,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": false,
+          "balanceMeetsMinTip": false,
+          "allowanceError": null,
+          "isActive": false,
+          "removalReason": null
+        }
+      ]
+    },
+    {
+      "fid": 849116,
+      "username": "uniquebeing404",
+      "displayName": "Uniquebeing.base.eth 👨‍💻",
+      "addresses": [
+        {
+          "address": "0xd6B69E58D44e523EB58645F1B78425c96Dfa648C",
+          "allowance": null,
+          "balance": null,
+          "minTip": 300,
+          "tokenAddress": "0x051024B653E8ec69E72693F776c41C2A9401FB07",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0x70a08231000000000000000000000000d6b69e58d44e523eb58645f1b78425c96dfa648c\", \"to\": \"0x051024B653E8ec69E72693F776c41C2A9401FB07\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x170c5a413136F094421fad8Dd20285b5e05Fff5e",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000170c5a413136f094421fad8dd20285b5e05fff5e0000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0xd3D5bFc28bc2099884a36ed41656874BCdD46315",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000d3d5bfc28bc2099884a36ed41656874bcdd463150000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        }
+      ]
+    },
+    {
+      "fid": 1161826,
+      "username": "renaldy",
+      "displayName": "fomusEth",
+      "addresses": [
+        {
+          "address": "0xECeF59A09E11A5E489ac6C1dA4F2f6C785EE4B72",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000ecef59a09e11a5e489ac6c1da4f2f6c785ee4b720000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x47617fFAe7C1F6659Dc33b58A942BB70610292e9",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e00000000000000000000000047617ffae7c1f6659dc33b58a942bb70610292e90000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        }
+      ]
+    },
+    {
+      "fid": 520364,
+      "username": "earnwithalee",
+      "displayName": "White Wolf \"base.eth\"",
+      "addresses": [
+        {
+          "address": "0x2aEad657c4acc9C5D1cD63d4131f55f4D3e3910A",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.045,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e0000000000000000000000002aead657c4acc9c5d1cd63d4131f55f4d3e3910a0000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0xF78C2B56C8b3745DF374bdd4C98dACc8EC218Af6",
+          "allowance": 0,
+          "balance": 0.004472,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": false,
+          "balanceMeetsMinTip": false,
+          "allowanceError": null,
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x1839E20163Ac73618aB83648d520ebc9ebab55d2",
+          "allowance": 0,
+          "balance": 0,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": false,
+          "balanceMeetsMinTip": false,
+          "allowanceError": null,
+          "isActive": false,
+          "removalReason": null
+        }
+      ]
+    },
+    {
+      "fid": 1351395,
+      "username": "ecion",
+      "displayName": "ecion",
+      "addresses": [
+        {
+          "address": "0xb4e5BCF6A033fCc18a1D91B09a6ddAa75bf3Ca40",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.12,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0x70a08231000000000000000000000000b4e5bcf6a033fcc18a1d91b09a6ddaa75bf3ca40\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0xdF8cfBD143062335af4E292e3055C9c62741f805",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000df8cfbd143062335af4e292e3055c9c62741f8050000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        }
+      ]
+    },
+    {
+      "fid": 1007471,
+      "username": "insanelabz",
+      "displayName": "andra",
+      "addresses": [
+        {
+          "address": "0x3D4232fa57eaC13f9818C63e9dB9e6993cDC10e9",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e0000000000000000000000003d4232fa57eac13f9818c63e9db9e6993cdc10e90000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x6999681C72c5EA9c0aDd6889cDF1091C924bBD21",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e0000000000000000000000006999681c72c5ea9c0add6889cdf1091c924bbd210000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        }
+      ]
+    },
+    {
+      "fid": 1104000,
+      "username": "blogx",
+      "displayName": "Blog X",
+      "addresses": [
+        {
+          "address": "0x2d24251DCa56f845900D84cE1AfD82d131442E81",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.04,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e0000000000000000000000002d24251dca56f845900d84ce1afd82d131442e810000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0xCD12a672e9B6D2c30243e9C895aa97ce3C2c507b",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000cd12a672e9b6d2c30243e9c895aa97ce3c2c507b0000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        }
+      ]
+    },
+    {
+      "fid": 507756,
+      "username": "linah",
+      "displayName": "Lina 🎩🧬☑️",
+      "addresses": [
+        {
+          "address": "0x9f645B4bb3941f6a6FDbaa51B9c20798B85531E4",
+          "allowance": 4.84,
+          "balance": 0.011,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": true,
+          "balanceMeetsMinTip": false,
+          "allowanceError": null,
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0xE3Ac6DC6Ed6ca890397373cD4Fe6dC8b6FfADdac",
+          "allowance": 0,
+          "balance": 0,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": false,
+          "balanceMeetsMinTip": false,
+          "allowanceError": null,
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x9e1c04aaaeb00FcE435836740c1DAFd87624CBaC",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0x70a082310000000000000000000000009e1c04aaaeb00fce435836740c1dafd87624cbac\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x650845e960e7BAb70a87416E424F18e5A1048b4D",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000650845e960e7bab70a87416e424f18e5a1048b4d0000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        }
+      ]
+    },
+    {
+      "fid": 243108,
+      "username": "tos",
+      "displayName": "Tos",
+      "addresses": [
+        {
+          "address": "0xB75B63E27a53471f293F29BfF35b9cC43057Bb51",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.07200000000000001,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000b75b63e27a53471f293f29bff35b9cc43057bb510000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": true,
+          "removalReason": "low_balance"
+        },
+        {
+          "address": "0x12fb165CDd16a8983ca27D6cF6b8aB89eAA34F4a",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e00000000000000000000000012fb165cdd16a8983ca27d6cf6b8ab89eaa34f4a0000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0xA4Cb2d7fF856030aA96B59F727B828E81dd80fDC",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000a4cb2d7ff856030aa96b59f727b828e81dd80fdc0000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x7c015fE24e991C317AC141D3c1Ba16F4A2B8CfCf",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e0000000000000000000000007c015fe24e991c317ac141d3c1ba16f4a2b8cfcf0000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        }
+      ]
+    },
+    {
+      "fid": 306502,
+      "username": "zksen.eth",
+      "displayName": "zksen.base.eth  🧬",
+      "addresses": [
+        {
+          "address": "0xABb57831eA27B2610EAb0Da51d8b351C5B3aF5C4",
+          "allowance": 9.98,
+          "balance": 0,
+          "minTip": 0.05,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": true,
+          "balanceMeetsMinTip": false,
+          "allowanceError": null,
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x2B83F654B3aA613D91a49fc323EBF8edC5592734",
+          "allowance": 0,
+          "balance": 0,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": false,
+          "balanceMeetsMinTip": false,
+          "allowanceError": null,
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x8C343142aB21CbD3FcA28BbaF566B937f4a893d5",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0x70a082310000000000000000000000008c343142ab21cbd3fca28bbaf566b937f4a893d5\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        }
+      ]
+    },
+    {
+      "fid": 963470,
+      "username": "wawiks",
+      "displayName": "wawiks.base.eth",
+      "addresses": [
+        {
+          "address": "0x8166A1f8d01cc65CE44dd56acE99Db3fcd401269",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.035,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e0000000000000000000000008166a1f8d01cc65ce44dd56ace99db3fcd4012690000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0xe50eC02A327e40C99cc4cc32859B0fFB309f69BD",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000e50ec02a327e40c99cc4cc32859b0ffb309f69bd0000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0xeA2faA0fC203F82B300A0efdc73E4EAFf0510f09",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000ea2faa0fc203f82b300a0efdc73e4eaff0510f090000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x11cdC68F3ec5BB784EBbA9945E34a91fE7A32a71",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e00000000000000000000000011cdc68f3ec5bb784ebba9945e34a91fe7a32a710000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x8A01d0f7497A3e092Aea68b77A123302A503FdE6",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e0000000000000000000000008a01d0f7497a3e092aea68b77a123302a503fde60000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        }
+      ]
+    },
+    {
+      "fid": 230238,
+      "username": "mvr",
+      "displayName": "mvr 🐹",
+      "addresses": [
+        {
+          "address": "0xa272bc9d6f462F4f08849AdeAF6E49A5D4430C38",
+          "allowance": 0.005,
+          "balance": 405.364506,
+          "minTip": 0.04,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": false,
+          "balanceMeetsMinTip": true,
+          "allowanceError": null,
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0xD4Bf6958538f26266eF2a32dB47D296323734B5a",
+          "allowance": 0,
+          "balance": 288.611452,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": false,
+          "balanceMeetsMinTip": true,
+          "allowanceError": null,
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x1Be1271398C355d23C3695a00A6334a1F89B6EeC",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0x70a082310000000000000000000000001be1271398c355d23c3695a00a6334a1f89b6eec\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0xB9AeCdEc70B384990b47201b27187EC6581995ec",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000b9aecdec70b384990b47201b27187ec6581995ec0000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        }
+      ]
+    },
+    {
+      "fid": 472963,
+      "username": "kzl27.eth",
+      "displayName": "walid",
+      "addresses": [
+        {
+          "address": "0x13dBC7D5Ace21d1EEB5f884666e284138fBff620",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.065,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e00000000000000000000000013dbc7d5ace21d1eeb5f884666e284138fbff6200000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0xCcD19aE1cC4E80Bed4Df1eFC9A38DeE81832B3a9",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000ccd19ae1cc4e80bed4df1efc9a38dee81832b3a90000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x485300f5E2524F814E21891767aebbf53EaE9260",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000485300f5e2524f814e21891767aebbf53eae92600000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        }
+      ]
+    },
+    {
+      "fid": 240486,
+      "username": "unknownking",
+      "displayName": "abhinav",
+      "addresses": [
+        {
+          "address": "0x5b2AfE4Da1DF4440C9dbE987A22FE9fD13B7a659",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.015,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e0000000000000000000000005b2afe4da1df4440c9dbe987a22fe9fd13b7a6590000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0xc2599F1009669f4cdA7Ac2493De06D450Fc79EF9",
+          "allowance": 0,
+          "balance": 2095.659382,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": false,
+          "balanceMeetsMinTip": true,
+          "allowanceError": null,
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x3F8610a93bf3d2154424A6F858E513ECCb8e7F75",
+          "allowance": 0,
+          "balance": 0,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": false,
+          "balanceMeetsMinTip": false,
+          "allowanceError": null,
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x5af184D20A0F10bfd914e56F78775C67B0E7Ec88",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0x70a082310000000000000000000000005af184d20a0f10bfd914e56f78775c67b0e7ec88\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x799ffDaec38A881b793AB17AF08B7Fa9794d16C3",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000799ffdaec38a881b793ab17af08b7fa9794d16c30000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        }
+      ]
+    },
+    {
+      "fid": 441699,
+      "username": "elaine16",
+      "displayName": "elaineseraphina.base.eth",
+      "addresses": [
+        {
+          "address": "0x96eef8c1B0df7b4d9d19cf0C73a9Dc80b5600A3b",
+          "allowance": null,
+          "balance": null,
+          "minTip": 3000,
+          "tokenAddress": "0x7512B6F66707fc7345C5e86BC71C1E1CF5e29b07",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e00000000000000000000000096eef8c1b0df7b4d9d19cf0c73a9dc80b5600a3b0000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x7512B6F66707fc7345C5e86BC71C1E1CF5e29b07\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x4b347ED507539B4cAA2a5aA473719882b87aA40C",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e0000000000000000000000004b347ed507539b4caa2a5aa473719882b87aa40c0000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x3a3E30f3aADB3Da78d1aC6F9a5e7C12C0635b965",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e0000000000000000000000003a3e30f3aadb3da78d1ac6f9a5e7c12c0635b9650000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x08ca06A8e2D5cC62FcbF4EBEbb762A993dDb629c",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e00000000000000000000000008ca06a8e2d5cc62fcbf4ebebb762a993ddb629c0000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x12339Ad2d1e74a4012752F9BbB38A87E5f935734",
+          "allowance": 0,
+          "balance": 0,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": false,
+          "balanceMeetsMinTip": false,
+          "allowanceError": null,
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x110779eD80818135C72591888AFd1615aB074Bf4",
+          "allowance": 0,
+          "balance": 0,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": false,
+          "balanceMeetsMinTip": false,
+          "allowanceError": null,
+          "isActive": false,
+          "removalReason": null
+        }
+      ]
+    },
+    {
+      "fid": 476026,
+      "username": "sqweez10",
+      "displayName": "tops87sqweez.base.eth🧬",
+      "addresses": [
+        {
+          "address": "0x9132Cff1d4f2555d0Fd09Bde8486aB5BA3AED9aD",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0x70a082310000000000000000000000009132cff1d4f2555d0fd09bde8486ab5ba3aed9ad\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x3FA68a4952b2439c636B0340a1296A46FA25d99C",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e0000000000000000000000003fa68a4952b2439c636b0340a1296a46fa25d99c0000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x24f091813c7CF0020d56b5c6b67766bBB965E3D4",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e00000000000000000000000024f091813c7cf0020d56b5c6b67766bbb965e3d40000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        }
+      ]
+    },
+    {
+      "fid": 242597,
+      "username": "doteth",
+      "displayName": "Ferno",
+      "addresses": [
+        {
+          "address": "0x3cF87B76d2A1D36F9542B4Da2a6B4B3Dc0f0Bb2e",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.099,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e0000000000000000000000003cf87b76d2a1d36f9542b4da2a6b4b3dc0f0bb2e0000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": true,
+          "removalReason": null
+        },
+        {
+          "address": "0xe43C85ca13aCA2D5f297fc8f35d8256332c1eaB3",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000e43c85ca13aca2d5f297fc8f35d8256332c1eab30000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0xD9d69f74D5464e417B4b7a317083234278df9721",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000d9d69f74d5464e417b4b7a317083234278df97210000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x759E19d704357ffC0801589D779853bdeed89053",
+          "allowance": 0,
+          "balance": 0,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": false,
+          "balanceMeetsMinTip": false,
+          "allowanceError": null,
+          "isActive": false,
+          "removalReason": null
+        }
+      ]
+    },
+    {
+      "fid": 4163,
+      "username": "kmacb.eth",
+      "displayName": "KMac",
+      "addresses": [
+        {
+          "address": "0xDf087B724174A3E4eD2338C0798193932E851F1b",
+          "allowance": 1.725,
+          "balance": 1723.1060720214,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x62c1275eef43645B10160CB2462D94EedAe10648",
+          "allowanceMeetsMinTip": true,
+          "balanceMeetsMinTip": true,
+          "allowanceError": null,
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x8b80755C441d355405CA7571443Bb9247B77Ec16",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0x70a082310000000000000000000000008b80755c441d355405ca7571443bb9247b77ec16\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x9Eb59cD29db306F09A7c8dfe22E0B7574c6D4fb3",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e0000000000000000000000009eb59cd29db306f09a7c8dfe22e0b7574c6d4fb30000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0xcc8dF7aB477EA26F7D4d4f2576c673F3E7BC5eD6",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000cc8df7ab477ea26f7d4d4f2576c673f3e7bc5ed60000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        },
+        {
+          "address": "0x85f9886c48B17b534f3A64F2460dD9C04AB9a236",
+          "allowance": null,
+          "balance": null,
+          "minTip": 0.060000000000000005,
+          "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "allowanceMeetsMinTip": null,
+          "balanceMeetsMinTip": null,
+          "allowanceError": "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e00000000000000000000000085f9886c48b17b534f3a64f2460dd9c04ab9a2360000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+          "isActive": false,
+          "removalReason": null
+        }
+      ]
+    }
+  ]
+}
