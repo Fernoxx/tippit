@@ -428,24 +428,32 @@ class BatchTransferManager {
                 
                 console.log(`🚫 User ${tip.interaction.authorAddress} ${reason} after tip - removing from webhook`);
                 
-                // Remove FID from webhook filter to prevent future tip processing
-                const { removeFidFromWebhook, getUserFid } = require('./index');
+                // Remove FID from webhook follow.created (active users) to prevent future tip processing
+                const { removeFidFromWebhook, getUserFid, sendNeynarNotification } = require('./index');
                 const userFid = await getUserFid(tip.interaction.authorAddress);
                 if (userFid) {
                   await removeFidFromWebhook(userFid);
-                  console.log(`🚫 Removed FID ${userFid} from webhook filter - ${reason} after tip`);
-                }
-                
-                // If balance is insufficient, auto-revoke allowance to 0
-                if (!finalCheck.hasSufficientBalance) {
-                  console.log(`🔄 Auto-revoking allowance for ${tip.interaction.authorAddress} due to insufficient balance`);
-                  try {
-                    await this.autoRevokeAllowance(tip.interaction.authorAddress, tip.tokenAddress);
-                    console.log(`✅ Auto-revoked allowance for ${tip.interaction.authorAddress}`);
-                  } catch (revokeError) {
-                    console.error(`❌ Failed to auto-revoke allowance for ${tip.interaction.authorAddress}:`, revokeError);
+                  console.log(`🚫 Removed FID ${userFid} from webhook follow.created - ${reason} after tip`);
+                  
+                  // Send notification if balance is insufficient (user needs to add tokens)
+                  if (!finalCheck.hasSufficientBalance) {
+                    try {
+                      await sendNeynarNotification(
+                        userFid,
+                        "Insufficient Balance",
+                        `Your token balance is too low to continue tipping. Please add more tokens to continue earning tips!`,
+                        "https://ecion.vercel.app"
+                      );
+                      console.log(`📧 Sent low balance notification to FID ${userFid}`);
+                    } catch (notifError) {
+                      console.log(`⚠️ Error sending notification: ${notifError.message}`);
+                    }
                   }
                 }
+                
+                // Note: We cannot auto-revoke allowances without user's wallet access
+                // User must manually revoke via frontend if they want to
+                // We just remove them from active users (follow.created) so they stop receiving tips
               } else {
                 // User has sufficient allowance AND balance - no action needed (should already be in webhook)
                 console.log(`✅ User ${tip.interaction.authorAddress} still has sufficient funds after tip - no webhook action needed`);

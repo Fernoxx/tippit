@@ -1588,8 +1588,8 @@ async function checkTokenBalance(userAddress, tokenAddress) {
 
 // Get all active users by reading from webhook's follow.created.target_fids
 // THIS IS THE SOURCE OF TRUTH - webhook follow.created determines who is active
-// Active Users = FIDs in follow.created that have sufficient allowance & balance
-// REMOVE users from tracking if they don't meet criteria
+// Active Users = FIDs in follow.created (NO blockchain checking here - that's done only when tips are processed)
+// This function is used for polling - NO blockchain calls allowed
 async function getActiveUsers() {
   try {
     // Get active user FIDs from webhook follow.created (source of truth)
@@ -1601,7 +1601,7 @@ async function getActiveUsers() {
       return [];
     }
     
-    // Get user data for these FIDs
+    // Get user data for these FIDs (NO blockchain checking - just return users from webhook)
     const result = await database.pool.query(`
       SELECT up.fid, up.user_address, up.latest_cast_hash, up.is_tracking, uc.config
       FROM user_profiles up
@@ -1611,82 +1611,8 @@ async function getActiveUsers() {
     
     console.log(`📋 Found ${result.rows.length} users in database for ${trackedFids.length} FIDs`);
     
-    const activeUsers = [];
-    
-    for (const user of result.rows) {
-      if (!user.config) {
-        console.log(`⚠️ FID ${user.fid} has no config - skipping`);
-        continue;
-      }
-      
-      const userConfig = user.config;
-      const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
-      const minTip = parseFloat(userConfig.likeAmount || '0') + 
-                     parseFloat(userConfig.recastAmount || '0') + 
-                     parseFloat(userConfig.replyAmount || '0');
-      
-      try {
-        // Check allowance and balance in parallel for speed
-        const [allowance, balance] = await Promise.all([
-          checkTokenAllowance(user.user_address, tokenAddress),
-          checkTokenBalance(user.user_address, tokenAddress)
-        ]);
-        
-        // Active user criteria: allowance > 0 AND allowance >= minTip AND balance >= minTip
-        if (allowance > 0 && allowance >= minTip && balance >= minTip) {
-          activeUsers.push(user);
-          console.log(`✅ ACTIVE: ${user.user_address} (FID: ${user.fid}) - token: ${tokenAddress}, allowance: ${allowance}, balance: ${balance}, minTip: ${minTip}`);
-        } else {
-          // Handle users with allowance but insufficient balance
-          if (allowance > 0 && balance < minTip) {
-            console.log(`⚠️ LOW BALANCE: ${user.user_address} (FID: ${user.fid}) has allowance but insufficient balance`);
-            
-            // Send notification to user (one-time per occurrence)
-            if (!userConfig.lowBalanceNotificationSent) {
-              try {
-                await sendNeynarNotification(
-                  user.fid,
-                  "Low Balance Alert",
-                  `Your ${tokenAddress === '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' ? 'USDC' : 'token'} balance is too low to tip. Add ${minTip} or more to continue tipping!`,
-                  "https://ecion.vercel.app"
-                );
-                console.log(`📧 Sent low balance notification to FID ${user.fid}`);
-                
-                // Mark notification as sent and track removal reason
-                userConfig.lowBalanceNotificationSent = true;
-                userConfig.removalReason = 'low_balance';
-                userConfig.removedAt = Date.now();
-                userConfig.lastCheckedBalance = balance;
-                userConfig.lastCheckedAllowance = allowance;
-                await database.setUserConfig(user.user_address, userConfig);
-              } catch (notifError) {
-                console.log(`⚠️ Error sending notification: ${notifError.message}`);
-              }
-            } else {
-              // Update last checked values even if notification already sent
-              userConfig.lastCheckedBalance = balance;
-              userConfig.lastCheckedAllowance = allowance;
-              await database.setUserConfig(user.user_address, userConfig);
-            }
-          }
-          
-          // REMOVE from webhook follow.created if insufficient funds
-          console.log(`🚫 REMOVING: ${user.user_address} (FID: ${user.fid}) - token: ${tokenAddress}, allowance: ${allowance}, balance: ${balance}, minTip: ${minTip}`);
-          
-          // Note: Backend cannot auto-revoke allowances (requires user's wallet)
-          // User must manually revoke via frontend if they want to
-          
-          // Remove from webhook follow.created
-          await removeUserFromTracking(user.user_address, user.fid);
-        }
-      } catch (error) {
-        console.log(`❌ Error checking ${user.user_address}: ${error.message} - removing from tracking`);
-        await removeUserFromTracking(user.user_address, user.fid);
-      }
-    }
-    
-    console.log(`🎯 Found ${activeUsers.length} truly active users out of ${trackedFids.length} FIDs in follow.created`);
-    return activeUsers;
+    // Return all users from webhook - blockchain checking happens only during tip processing
+    return result.rows.filter(user => user.config); // Only return users with config
   } catch (error) {
     console.log(`❌ Error getting active users: ${error.message}`);
     return [];
