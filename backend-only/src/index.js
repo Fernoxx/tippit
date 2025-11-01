@@ -6727,17 +6727,6 @@ app.get('/api/debug/ecionbatch-status', async (req, res) => {
   }
 });
 
-
-
-    }
-    const currentTrackedFids = await database.getTrackedFids();
-    res.json({ success: true, message: 'Allowance check completed', summary: { totalChecked: results.length, canAddBack: results.filter(r => r.canAddBack).length, usersAddedBack: usersAddedBack.length, errors: errors.length, currentActiveUsers: currentTrackedFids.length }, results, usersAddedBack, errors: errors.length > 0 ? errors : undefined, currentTrackedFidsCount: currentTrackedFids.length });
-  } catch (error) {
-    console.error(`❌ Error in check-allowances-and-restore:`, error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Ecion Backend running on port ${PORT}`);
