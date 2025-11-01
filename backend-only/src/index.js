@@ -2034,8 +2034,36 @@ async function addFidToWebhook(fid) {
     // Add FID to follow.created (active users)
     const updatedFids = [...trackedFids, fidInt];
     
-    // Get latest cast hashes for reaction/reply tracking
-    const latestCasts = await getAllLatestCastHashes();
+    // Get existing latest cast hashes for reaction/reply tracking
+    const existingLatestCasts = await getAllLatestCastHashes();
+    
+    // IMPORTANT: Fetch and add the NEW user's latest cast (only when adding user)
+    // This ensures their cast is tracked immediately, before next polling cycle (every 15 min)
+    console.log(`🔍 Fetching latest cast for newly added FID ${fid}...`);
+    const newUserLatestCast = await getLatestCast(fidInt);
+    let latestCasts = [...existingLatestCasts];
+    
+    if (newUserLatestCast && newUserLatestCast.hash) {
+      // Add the new user's latest cast to tracking (if not already there)
+      if (!latestCasts.includes(newUserLatestCast.hash)) {
+        latestCasts.push(newUserLatestCast.hash);
+        console.log(`✅ Added latest cast ${newUserLatestCast.hash} for FID ${fid} to webhook tracking`);
+        
+        // Also update database with this cast hash for the user
+        const userAddressResult = await database.pool.query(`
+          SELECT user_address FROM user_profiles WHERE fid = $1
+        `, [fidInt]);
+        
+        if (userAddressResult.rows.length > 0 && userAddressResult.rows[0].user_address) {
+          await updateLatestCastHash(userAddressResult.rows[0].user_address, newUserLatestCast.hash, newUserLatestCast.timestamp);
+          console.log(`💾 Updated database with latest cast hash for FID ${fid}`);
+        }
+      } else {
+        console.log(`ℹ️ Cast ${newUserLatestCast.hash} already in tracking`);
+      }
+    } else {
+      console.log(`ℹ️ No latest cast found for FID ${fid} - will be fetched in next polling cycle`);
+    }
     
     console.log(`➕ Adding FID ${fid} to follow.created (active users)`);
     
@@ -2065,7 +2093,7 @@ async function addFidToWebhook(fid) {
     
     if (webhookResponse.ok) {
       await database.setTrackedFids(updatedFids);
-      console.log(`✅ Added FID ${fid} to follow.created (active users)`);
+      console.log(`✅ Added FID ${fid} to follow.created (active users)${newUserLatestCast && newUserLatestCast.hash ? ` and their latest cast to webhook tracking` : ''}`);
       return true;
     } else {
       console.error('❌ Failed to add FID to webhook:', await webhookResponse.text());
@@ -7162,262 +7190,6 @@ app.get('/api/admin/tip-history', async (req, res) => {
   } catch (error) {
     console.log(`❌ Error getting tip history: ${error.message}`);
     res.status(500).json({ error: error.message });
-  }
-});
-
-// Check allowances for 23 FIDs and specific address, then add back users with sufficient allowance
-app.get('/api/check-allowances-and-restore', async (req, res) => {
-  try {
-    console.log(`🔍 CHECKING ALLOWANCES FOR 23 FIDs AND RESTORING USERS...`);
-    
-    // The 23 FIDs to check
-    const fidsToCheck = [
-      249432, 15086, 250869, 564447, 1052964, 200375, 849116, 1161826,
-      520364, 1351395, 1007471, 1104000, 507756, 243108, 306502, 963470,
-      230238, 472963, 240486, 441699, 476026, 242597, 4163
-    ];
-    
-    // Specific address to check
-    const specificAddress = '0x275aB0037e50BDA1cdA147e3Ac9AeaeFB3D21E85';
-    
-    const results = [];
-    const usersAddedBack = [];
-    const errors = [];
-    
-    // Check each FID
-    for (const fid of fidsToCheck) {
-      try {
-        console.log(`\n📋 Checking FID ${fid}...`);
-        
-        // Get user address from database
-        const userResult = await database.pool.query(`
-          SELECT user_address, fid
-          FROM user_profiles
-          WHERE fid = $1
-        `, [fid]);
-        
-        if (userResult.rows.length === 0) {
-          console.log(`  ⚠️ No user profile found for FID ${fid}`);
-          results.push({
-            fid,
-            userAddress: null,
-            status: 'not_found',
-            reason: 'No user profile in database'
-          });
-          continue;
-        }
-        
-        const userAddress = userResult.rows[0].user_address;
-        if (!userAddress) {
-          console.log(`  ⚠️ No address for FID ${fid}`);
-          results.push({
-            fid,
-            userAddress: null,
-            status: 'no_address',
-            reason: 'No user address in profile'
-          });
-          continue;
-        }
-        
-        console.log(`  Address: ${userAddress}`);
-        
-        // Get user config
-        const userConfig = await database.getUserConfig(userAddress);
-        if (!userConfig) {
-          console.log(`  ⚠️ No config found for ${userAddress}`);
-          results.push({
-            fid,
-            userAddress,
-            status: 'no_config',
-            reason: 'No user config found'
-          });
-          continue;
-        }
-        
-        const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
-        const likeAmount = parseFloat(userConfig.likeAmount || '0');
-        const recastAmount = parseFloat(userConfig.recastAmount || '0');
-        const replyAmount = parseFloat(userConfig.replyAmount || '0');
-        const minTip = likeAmount + recastAmount + replyAmount;
-        
-        console.log(`  Token: ${tokenAddress}`);
-        console.log(`  MinTip: ${minTip}`);
-        
-        // Check allowance and balance
-        const [allowance, balance] = await Promise.all([
-          checkTokenAllowance(userAddress, tokenAddress),
-          checkTokenBalance(userAddress, tokenAddress)
-        ]);
-        
-        const hasSufficientAllowance = allowance >= minTip && allowance > 0;
-        const hasSufficientBalance = balance >= minTip;
-        const canAddBack = hasSufficientAllowance && hasSufficientBalance;
-        
-        console.log(`  Allowance: ${allowance}`);
-        console.log(`  Balance: ${balance}`);
-        console.log(`  ✅ Sufficient Allowance: ${hasSufficientAllowance}`);
-        console.log(`  ✅ Sufficient Balance: ${hasSufficientBalance}`);
-        
-        results.push({
-          fid,
-          userAddress,
-          tokenAddress,
-          allowance,
-          balance,
-          minTip,
-          hasSufficientAllowance,
-          hasSufficientBalance,
-          canAddBack,
-          status: canAddBack ? 'ready' : 'insufficient'
-        });
-        
-        // Add user back if they have sufficient allowance
-        if (canAddBack) {
-          console.log(`  ➕ Adding FID ${fid} back to webhook...`);
-          const added = await addFidToWebhook(fid);
-          if (added) {
-            // Set is_tracking=true
-            await database.pool.query(`
-              UPDATE user_profiles 
-              SET is_tracking = true, updated_at = NOW()
-              WHERE fid = $1
-            `, [fid]);
-            
-            usersAddedBack.push({
-              fid,
-              userAddress,
-              allowance,
-              balance,
-              minTip
-            });
-            console.log(`  ✅ Successfully added FID ${fid} back to active users`);
-          } else {
-            console.log(`  ❌ Failed to add FID ${fid} to webhook`);
-            errors.push({
-              fid,
-              userAddress,
-              error: 'Failed to add to webhook'
-            });
-          }
-        } else {
-          console.log(`  ⏭️ Not adding FID ${fid} back - insufficient funds`);
-        }
-        
-      } catch (error) {
-        console.error(`❌ Error checking FID ${fid}:`, error);
-        errors.push({
-          fid,
-          error: error.message
-        });
-      }
-    }
-    
-    // Check specific address
-    console.log(`\n\n🔍 Checking specific address: ${specificAddress}...`);
-    try {
-      const userConfig = await database.getUserConfig(specificAddress);
-      
-      if (userConfig) {
-        const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
-        const likeAmount = parseFloat(userConfig.likeAmount || '0');
-        const recastAmount = parseFloat(userConfig.recastAmount || '0');
-        const replyAmount = parseFloat(userConfig.replyAmount || '0');
-        const minTip = likeAmount + recastAmount + replyAmount;
-        
-        const [allowance, balance] = await Promise.all([
-          checkTokenAllowance(specificAddress, tokenAddress),
-          checkTokenBalance(specificAddress, tokenAddress)
-        ]);
-        
-        const hasSufficientAllowance = allowance >= minTip && allowance > 0;
-        const hasSufficientBalance = balance >= minTip;
-        
-        console.log(`  Token: ${tokenAddress}`);
-        console.log(`  MinTip: ${minTip}`);
-        console.log(`  Allowance: ${allowance}`);
-        console.log(`  Balance: ${balance}`);
-        console.log(`  ✅ Sufficient Allowance: ${hasSufficientAllowance}`);
-        console.log(`  ✅ Sufficient Balance: ${hasSufficientBalance}`);
-        
-        results.push({
-          fid: null,
-          userAddress: specificAddress,
-          tokenAddress,
-          allowance,
-          balance,
-          minTip,
-          hasSufficientAllowance,
-          hasSufficientBalance,
-          canAddBack: hasSufficientAllowance && hasSufficientBalance,
-          status: (hasSufficientAllowance && hasSufficientBalance) ? 'ready' : 'insufficient'
-        });
-        
-        // Try to get FID for this address and add back
-        if (hasSufficientAllowance && hasSufficientBalance) {
-          const fid = await getUserFid(specificAddress);
-          if (fid) {
-            console.log(`  ➕ Adding FID ${fid} for ${specificAddress} back to webhook...`);
-            const added = await addFidToWebhook(fid);
-            if (added) {
-              await database.pool.query(`
-                UPDATE user_profiles 
-                SET is_tracking = true, updated_at = NOW()
-                WHERE user_address = $1
-              `, [specificAddress.toLowerCase()]);
-              
-              usersAddedBack.push({
-                fid,
-                userAddress: specificAddress,
-                allowance,
-                balance,
-                minTip
-              });
-              console.log(`  ✅ Successfully added FID ${fid} back to active users`);
-            }
-          }
-        }
-      } else {
-        console.log(`  ⚠️ No config found for ${specificAddress}`);
-        results.push({
-          fid: null,
-          userAddress: specificAddress,
-          status: 'no_config',
-          reason: 'No user config found'
-        });
-      }
-    } catch (error) {
-      console.error(`❌ Error checking specific address:`, error);
-      errors.push({
-        address: specificAddress,
-        error: error.message
-      });
-    }
-    
-    // Get current tracked FIDs count
-    const currentTrackedFids = await database.getTrackedFids();
-    
-    res.json({
-      success: true,
-      message: 'Allowance check completed',
-      summary: {
-        totalChecked: results.length,
-        canAddBack: results.filter(r => r.canAddBack).length,
-        usersAddedBack: usersAddedBack.length,
-        errors: errors.length,
-        currentActiveUsers: currentTrackedFids.length
-      },
-      results,
-      usersAddedBack,
-      errors: errors.length > 0 ? errors : undefined,
-      currentTrackedFidsCount: currentTrackedFids.length
-    });
-    
-  } catch (error) {
-    console.error(`❌ Error in check-allowances-and-restore:`, error);
-    res.status(500).json({ 
-      success: false,
-      error: error.message 
-    });
   }
 });
 
