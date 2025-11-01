@@ -1,0 +1,209 @@
+[
+  {
+    "fid": 249432,
+    "username": "hdr",
+    "address": "0xD175f211eC6afb9a582ed67b8c2e650952acA82F",
+    "allowance": 0,
+    "minTip": 0.015,
+    "balance": 0,
+    "status": "needs allowance & balance"
+  },
+  {
+    "fid": 15086,
+    "username": "alby",
+    "address": "0xD1a061296d2D40169Fb4721451E1BD124e114866",
+    "allowance": 0,
+    "minTip": 0.060000000000000005,
+    "balance": 0,
+    "status": "needs allowance & balance"
+  },
+  {
+    "fid": 250869,
+    "username": "vinu07",
+    "address": "0xE595a019B48378FEE0971ee1703537964E2A3B05",
+    "allowance": 0.03,
+    "minTip": 0.045,
+    "balance": 0.576315,
+    "status": "needs allowance"
+  },
+  {
+    "fid": 564447,
+    "username": "tweenky.eth",
+    "address": "0x7ecaF9a39e6591566c7397c8222582A630fEc2D1",
+    "allowance": 0,
+    "minTip": 0.060000000000000005,
+    "balance": 0,
+    "status": "needs allowance & balance"
+  },
+  {
+    "fid": 1052964,
+    "username": "geesmike",
+    "address": "0x4123282CF01ff00d31cE2834863dd266a2Fe6806",
+    "allowance": 0.145,
+    "minTip": 0.045,
+    "balance": 0,
+    "status": "needs balance"
+  },
+  {
+    "fid": 200375,
+    "username": "adnum",
+    "address": "0x863596eCC89E9EA836A5503EFe52088b6A77ac55",
+    "allowance": 0,
+    "minTip": 0.060000000000000005,
+    "balance": 4.000385,
+    "status": "needs allowance"
+  },
+  {
+    "fid": 849116,
+    "username": "uniquebeing404",
+    "address": "—",
+    "allowance": "—",
+    "minTip": "—",
+    "balance": "—",
+    "status": "no_allowance_data"
+  },
+  {
+    "fid": 1161826,
+    "username": "renaldy",
+    "address": "—",
+    "allowance": "—",
+    "minTip": "—",
+    "balance": "—",
+    "status": "no_allowance_data"
+  },
+  {
+    "fid": 520364,
+    "username": "earnwithalee",
+    "address": "0xF78C2B56C8b3745DF374bdd4C98dACc8EC218Af6",
+    "allowance": 0,
+    "minTip": 0.060000000000000005,
+    "balance": 0.004472,
+    "status": "needs allowance & balance"
+  },
+  {
+    "fid": 1351395,
+    "username": "ecion",
+    "address": "—",
+    "allowance": "—",
+    "minTip": "—",
+    "balance": "—",
+    "status": "no_allowance_data"
+  },
+  {
+    "fid": 1007471,
+    "username": "insanelabz",
+    "address": "—",
+    "allowance": "—",
+    "minTip": "—",
+    "balance": "—",
+    "status": "no_allowance_data"
+  },
+  {
+    "fid": 1104000,
+    "username": "blogx",
+    "address": "—",
+    "allowance": "—",
+    "minTip": "—",
+    "balance": "—",
+    "status": "no_allowance_data"
+  },
+  {
+    "fid": 507756,
+    "username": "linah",
+    "address": "0x9f645B4bb3941f6a6FDbaa51B9c20798B85531E4",
+    "allowance": 4.84,
+    "minTip": 0.060000000000000005,
+    "balance": 0.011,
+    "status": "needs balance"
+  },
+  {
+    "fid": 243108,
+    "username": "tos",
+    "address": "—",
+    "allowance": "—",
+    "minTip": "—",
+    "balance": "—",
+    "status": "no_allowance_data"
+  },
+  {
+    "fid": 306502,
+    "username": "zksen.eth",
+    "address": "0xABb57831eA27B2610EAb0Da51d8b351C5B3aF5C4",
+    "allowance": 9.98,
+    "minTip": 0.05,
+    "balance": 0,
+    "status": "needs balance"
+  },
+  {
+    "fid": 963470,
+    "username": "wawiks",
+    "address": "—",
+    "allowance": "—",
+    "minTip": "—",
+    "balance": "—",
+    "status": "no_allowance_data"
+  },
+  {
+    "fid": 230238,
+    "username": "mvr",
+    "address": "0xa272bc9d6f462F4f08849AdeAF6E49A5D4430C38",
+    "allowance": 0.005,
+    "minTip": 0.04,
+    "balance": 405.364506,
+    "status": "needs allowance"
+  },
+  {
+    "fid": 472963,
+    "username": "kzl27.eth",
+    "address": "—",
+    "allowance": "—",
+    "minTip": "—",
+    "balance": "—",
+    "status": "no_allowance_data"
+  },
+  {
+    "fid": 240486,
+    "username": "unknownking",
+    "address": "0xc2599F1009669f4cdA7Ac2493De06D450Fc79EF9",
+    "allowance": 0,
+    "minTip": 0.060000000000000005,
+    "balance": 2095.659382,
+    "status": "needs allowance"
+  },
+  {
+    "fid": 441699,
+    "username": "elaine16",
+    "address": "0x12339Ad2d1e74a4012752F9BbB38A87E5f935734",
+    "allowance": 0,
+    "minTip": 0.060000000000000005,
+    "balance": 0,
+    "status": "needs allowance & balance"
+  },
+  {
+    "fid": 476026,
+    "username": "sqweez10",
+    "address": "—",
+    "allowance": "—",
+    "minTip": "—",
+    "balance": "—",
+    "status": "no_allowance_data"
+  },
+  {
+    "fid": 242597,
+    "username": "doteth",
+    "address": "0x759E19d704357ffC0801589D779853bdeed89053",
+    "allowance": 0,
+    "minTip": 0.060000000000000005,
+    "balance": 0,
+    "status": "needs allowance & balance"
+  },
+  {
+    "fid": 4163,
+    "username": "kmacb.eth",
+    "address": "0xDf087B724174A3E4eD2338C0798193932E851F1b",
+    "allowance": 1.725,
+    "minTip": 0.060000000000000005,
+    "balance": 1723.1060720214,
+    "status": "ready"
+  }
+]

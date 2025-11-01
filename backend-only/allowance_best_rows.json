@@ -1,0 +1,260 @@
+[
+  {
+    "fid": 249432,
+    "username": "hdr",
+    "displayName": "hdr 🟦 🧬",
+    "address": "0xD175f211eC6afb9a582ed67b8c2e650952acA82F",
+    "allowance": 0,
+    "balance": 0,
+    "minTip": 0.015,
+    "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "allowanceMeetsMinTip": false,
+    "balanceMeetsMinTip": false
+  },
+  {
+    "fid": 15086,
+    "username": "alby",
+    "displayName": "Alby 🎩🧬",
+    "address": "0xD1a061296d2D40169Fb4721451E1BD124e114866",
+    "allowance": 0,
+    "balance": 0,
+    "minTip": 0.060000000000000005,
+    "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "allowanceMeetsMinTip": false,
+    "balanceMeetsMinTip": false
+  },
+  {
+    "fid": 250869,
+    "username": "vinu07",
+    "displayName": "vinu07.base.eth",
+    "address": "0xE595a019B48378FEE0971ee1703537964E2A3B05",
+    "allowance": 0.03,
+    "balance": 0.576315,
+    "minTip": 0.045,
+    "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "allowanceMeetsMinTip": false,
+    "balanceMeetsMinTip": true
+  },
+  {
+    "fid": 564447,
+    "username": "tweenky.eth",
+    "displayName": "tweenky",
+    "address": "0x7ecaF9a39e6591566c7397c8222582A630fEc2D1",
+    "allowance": 0,
+    "balance": 0,
+    "minTip": 0.060000000000000005,
+    "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "allowanceMeetsMinTip": false,
+    "balanceMeetsMinTip": false
+  },
+  {
+    "fid": 1052964,
+    "username": "geesmike",
+    "displayName": "mikegees",
+    "address": "0x4123282CF01ff00d31cE2834863dd266a2Fe6806",
+    "allowance": 0.145,
+    "balance": 0,
+    "minTip": 0.045,
+    "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "allowanceMeetsMinTip": true,
+    "balanceMeetsMinTip": false
+  },
+  {
+    "fid": 200375,
+    "username": "adnum",
+    "displayName": "adnum",
+    "address": "0x863596eCC89E9EA836A5503EFe52088b6A77ac55",
+    "allowance": 0,
+    "balance": 4.000385,
+    "minTip": 0.060000000000000005,
+    "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "allowanceMeetsMinTip": false,
+    "balanceMeetsMinTip": true
+  },
+  {
+    "fid": 849116,
+    "username": "uniquebeing404",
+    "displayName": "Uniquebeing.base.eth 👨‍💻",
+    "status": "no_allowance_data",
+    "details": [
+      "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0x70a08231000000000000000000000000d6b69e58d44e523eb58645f1b78425c96dfa648c\", \"to\": \"0x051024B653E8ec69E72693F776c41C2A9401FB07\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+      "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000170c5a413136f094421fad8dd20285b5e05fff5e0000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)"
+    ]
+  },
+  {
+    "fid": 1161826,
+    "username": "renaldy",
+    "displayName": "fomusEth",
+    "status": "no_allowance_data",
+    "details": [
+      "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000ecef59a09e11a5e489ac6c1da4f2f6c785ee4b720000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+      "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e00000000000000000000000047617ffae7c1f6659dc33b58a942bb70610292e90000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)"
+    ]
+  },
+  {
+    "fid": 520364,
+    "username": "earnwithalee",
+    "displayName": "White Wolf \"base.eth\"",
+    "address": "0xF78C2B56C8b3745DF374bdd4C98dACc8EC218Af6",
+    "allowance": 0,
+    "balance": 0.004472,
+    "minTip": 0.060000000000000005,
+    "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "allowanceMeetsMinTip": false,
+    "balanceMeetsMinTip": false
+  },
+  {
+    "fid": 1351395,
+    "username": "ecion",
+    "displayName": "ecion",
+    "status": "no_allowance_data",
+    "details": [
+      "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0x70a08231000000000000000000000000b4e5bcf6a033fcc18a1d91b09a6ddaa75bf3ca40\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+      "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000df8cfbd143062335af4e292e3055c9c62741f8050000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)"
+    ]
+  },
+  {
+    "fid": 1007471,
+    "username": "insanelabz",
+    "displayName": "andra",
+    "status": "no_allowance_data",
+    "details": [
+      "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e0000000000000000000000003d4232fa57eac13f9818c63e9db9e6993cdc10e90000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+      "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e0000000000000000000000006999681c72c5ea9c0add6889cdf1091c924bbd210000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)"
+    ]
+  },
+  {
+    "fid": 1104000,
+    "username": "blogx",
+    "displayName": "Blog X",
+    "status": "no_allowance_data",
+    "details": [
+      "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e0000000000000000000000002d24251dca56f845900d84ce1afd82d131442e810000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+      "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000cd12a672e9b6d2c30243e9c895aa97ce3c2c507b0000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)"
+    ]
+  },
+  {
+    "fid": 507756,
+    "username": "linah",
+    "displayName": "Lina 🎩🧬☑️",
+    "address": "0x9f645B4bb3941f6a6FDbaa51B9c20798B85531E4",
+    "allowance": 4.84,
+    "balance": 0.011,
+    "minTip": 0.060000000000000005,
+    "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "allowanceMeetsMinTip": true,
+    "balanceMeetsMinTip": false
+  },
+  {
+    "fid": 243108,
+    "username": "tos",
+    "displayName": "Tos",
+    "status": "no_allowance_data",
+    "details": [
+      "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000b75b63e27a53471f293f29bff35b9cc43057bb510000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+      "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e00000000000000000000000012fb165cdd16a8983ca27d6cf6b8ab89eaa34f4a0000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)"
+    ]
+  },
+  {
+    "fid": 306502,
+    "username": "zksen.eth",
+    "displayName": "zksen.base.eth  🧬",
+    "address": "0xABb57831eA27B2610EAb0Da51d8b351C5B3aF5C4",
+    "allowance": 9.98,
+    "balance": 0,
+    "minTip": 0.05,
+    "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "allowanceMeetsMinTip": true,
+    "balanceMeetsMinTip": false
+  },
+  {
+    "fid": 963470,
+    "username": "wawiks",
+    "displayName": "wawiks.base.eth",
+    "status": "no_allowance_data",
+    "details": [
+      "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e0000000000000000000000008166a1f8d01cc65ce44dd56ace99db3fcd4012690000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+      "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000e50ec02a327e40c99cc4cc32859b0ffb309f69bd0000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)"
+    ]
+  },
+  {
+    "fid": 230238,
+    "username": "mvr",
+    "displayName": "mvr 🐹",
+    "address": "0xa272bc9d6f462F4f08849AdeAF6E49A5D4430C38",
+    "allowance": 0.005,
+    "balance": 405.364506,
+    "minTip": 0.04,
+    "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "allowanceMeetsMinTip": false,
+    "balanceMeetsMinTip": true
+  },
+  {
+    "fid": 472963,
+    "username": "kzl27.eth",
+    "displayName": "walid",
+    "status": "no_allowance_data",
+    "details": [
+      "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e00000000000000000000000013dbc7d5ace21d1eeb5f884666e284138fbff6200000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+      "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e000000000000000000000000ccd19ae1cc4e80bed4df1efc9a38dee81832b3a90000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)"
+    ]
+  },
+  {
+    "fid": 240486,
+    "username": "unknownking",
+    "displayName": "abhinav",
+    "address": "0xc2599F1009669f4cdA7Ac2493De06D450Fc79EF9",
+    "allowance": 0,
+    "balance": 2095.659382,
+    "minTip": 0.060000000000000005,
+    "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "allowanceMeetsMinTip": false,
+    "balanceMeetsMinTip": true
+  },
+  {
+    "fid": 441699,
+    "username": "elaine16",
+    "displayName": "elaineseraphina.base.eth",
+    "address": "0x12339Ad2d1e74a4012752F9BbB38A87E5f935734",
+    "allowance": 0,
+    "balance": 0,
+    "minTip": 0.060000000000000005,
+    "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "allowanceMeetsMinTip": false,
+    "balanceMeetsMinTip": false
+  },
+  {
+    "fid": 476026,
+    "username": "sqweez10",
+    "displayName": "tops87sqweez.base.eth🧬",
+    "status": "no_allowance_data",
+    "details": [
+      "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0x70a082310000000000000000000000009132cff1d4f2555d0fd09bde8486ab5ba3aed9ad\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)",
+      "missing revert data (action=\"call\", data=null, reason=null, transaction={ \"data\": \"0xdd62ed3e0000000000000000000000003fa68a4952b2439c636b0340a1296a46fa25d99c0000000000000000000000002f47bcc17665663d1b63e8d882faa0a366907bb8\", \"to\": \"0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913\" }, invocation=null, revert=null, code=CALL_EXCEPTION, version=6.15.0)"
+    ]
+  },
+  {
+    "fid": 242597,
+    "username": "doteth",
+    "displayName": "Ferno",
+    "address": "0x759E19d704357ffC0801589D779853bdeed89053",
+    "allowance": 0,
+    "balance": 0,
+    "minTip": 0.060000000000000005,
+    "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "allowanceMeetsMinTip": false,
+    "balanceMeetsMinTip": false
+  },
+  {
+    "fid": 4163,
+    "username": "kmacb.eth",
+    "displayName": "KMac",
+    "address": "0xDf087B724174A3E4eD2338C0798193932E851F1b",
+    "allowance": 1.725,
+    "balance": 1723.1060720214,
+    "minTip": 0.060000000000000005,
+    "tokenAddress": "0x62c1275eef43645B10160CB2462D94EedAe10648",
+    "allowanceMeetsMinTip": true,
+    "balanceMeetsMinTip": true
+  }
+]
