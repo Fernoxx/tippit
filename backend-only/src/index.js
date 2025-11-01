@@ -6655,6 +6655,80 @@ app.get('/api/debug/ecionbatch-status', async (req, res) => {
 
 
 
+// Check allowances for 23 FIDs and specific address, then add back users with sufficient allowance
+app.get('/api/check-allowances-and-restore', async (req, res) => {
+  try {
+    console.log(`🔍 CHECKING ALLOWANCES FOR 23 FIDs AND RESTORING USERS...`);
+    const fidsToCheck = [249432, 15086, 250869, 564447, 1052964, 200375, 849116, 1161826, 520364, 1351395, 1007471, 1104000, 507756, 243108, 306502, 963470, 230238, 472963, 240486, 441699, 476026, 242597, 4163];
+    const specificAddress = '0x275aB0037e50BDA1cdA147e3Ac9AeaeFB3D21E85';
+    const results = [];
+    const usersAddedBack = [];
+    const errors = [];
+    for (const fid of fidsToCheck) {
+      try {
+        console.log(`\n📋 Checking FID ${fid}...`);
+        const userResult = await database.pool.query(`SELECT user_address, fid FROM user_profiles WHERE fid = $1`, [fid]);
+        if (userResult.rows.length === 0 || !userResult.rows[0].user_address) {
+          results.push({ fid, userAddress: null, status: 'not_found' });
+          continue;
+        }
+        const userAddress = userResult.rows[0].user_address;
+        const userConfig = await database.getUserConfig(userAddress);
+        if (!userConfig) {
+          results.push({ fid, userAddress, status: 'no_config' });
+          continue;
+        }
+        const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+        const minTip = parseFloat(userConfig.likeAmount || '0') + parseFloat(userConfig.recastAmount || '0') + parseFloat(userConfig.replyAmount || '0');
+        const [allowance, balance] = await Promise.all([checkTokenAllowance(userAddress, tokenAddress), checkTokenBalance(userAddress, tokenAddress)]);
+        const hasSufficientAllowance = allowance >= minTip && allowance > 0;
+        const hasSufficientBalance = balance >= minTip;
+        const canAddBack = hasSufficientAllowance && hasSufficientBalance;
+        results.push({ fid, userAddress, tokenAddress, allowance, balance, minTip, hasSufficientAllowance, hasSufficientBalance, canAddBack, status: canAddBack ? 'ready' : 'insufficient' });
+        if (canAddBack) {
+          const added = await addFidToWebhook(fid);
+          if (added) {
+            await database.pool.query(`UPDATE user_profiles SET is_tracking = true, updated_at = NOW() WHERE fid = $1`, [fid]);
+            usersAddedBack.push({ fid, userAddress, allowance, balance, minTip });
+            console.log(`  ✅ Successfully added FID ${fid} back to active users`);
+          }
+        }
+      } catch (error) {
+        console.error(`❌ Error checking FID ${fid}:`, error);
+        errors.push({ fid, error: error.message });
+      }
+    }
+    try {
+      const userConfig = await database.getUserConfig(specificAddress);
+      if (userConfig) {
+        const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+        const minTip = parseFloat(userConfig.likeAmount || '0') + parseFloat(userConfig.recastAmount || '0') + parseFloat(userConfig.replyAmount || '0');
+        const [allowance, balance] = await Promise.all([checkTokenAllowance(specificAddress, tokenAddress), checkTokenBalance(specificAddress, tokenAddress)]);
+        const hasSufficientAllowance = allowance >= minTip && allowance > 0;
+        const hasSufficientBalance = balance >= minTip;
+        results.push({ fid: null, userAddress: specificAddress, tokenAddress, allowance, balance, minTip, hasSufficientAllowance, hasSufficientBalance, canAddBack: hasSufficientAllowance && hasSufficientBalance, status: (hasSufficientAllowance && hasSufficientBalance) ? 'ready' : 'insufficient' });
+        if (hasSufficientAllowance && hasSufficientBalance) {
+          const fid = await getUserFid(specificAddress);
+          if (fid) {
+            const added = await addFidToWebhook(fid);
+            if (added) {
+              await database.pool.query(`UPDATE user_profiles SET is_tracking = true, updated_at = NOW() WHERE user_address = $1`, [specificAddress.toLowerCase()]);
+              usersAddedBack.push({ fid, userAddress: specificAddress, allowance, balance, minTip });
+            }
+          }
+        }
+      }
+    } catch (error) {
+      errors.push({ address: specificAddress, error: error.message });
+    }
+    const currentTrackedFids = await database.getTrackedFids();
+    res.json({ success: true, message: 'Allowance check completed', summary: { totalChecked: results.length, canAddBack: results.filter(r => r.canAddBack).length, usersAddedBack: usersAddedBack.length, errors: errors.length, currentActiveUsers: currentTrackedFids.length }, results, usersAddedBack, errors: errors.length > 0 ? errors : undefined, currentTrackedFidsCount: currentTrackedFids.length });
+  } catch (error) {
+    console.error(`❌ Error in check-allowances-and-restore:`, error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Ecion Backend running on port ${PORT}`);
