@@ -3,6 +3,7 @@ const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
 
+const { ethers } = require('ethers');
 const webhookHandler = require('./webhook');
 const batchTransferManager = require('./batchTransferManager');
 // Use PostgreSQL database if available, fallback to file storage
@@ -18,6 +19,74 @@ try {
 } catch (error) {
   console.log('⚠️ PostgreSQL not available, using file storage:', error.message);
   database = require('./database');
+}
+
+const DEFAULT_BASE_RPC_URL = 'https://mainnet.base.org';
+const DEFAULT_ECION_BATCH_ADDRESS = '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+const SEED_ACTIVE_FIDS = [
+  249432, 15086, 250869, 564447, 1052964, 200375, 849116, 1161826,
+  520364, 1351395, 1007471, 1104000, 507756, 243108, 306502, 963470,
+  230238, 472963, 240486, 441699, 476026, 242597, 4163
+];
+
+let cachedBaseRpcProvider = null;
+let cachedBaseRpcUrl = null;
+let cachedBatchAddress = null;
+
+const TOKEN_DECIMALS_CACHE = new Map([
+  ['0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', 6], // USDC
+  ['0x4200000000000000000000000000000000000006', 18], // WETH
+  ['0x50c5725949a6f0c72e6c4a641f24049a917db0cb', 18], // DAI
+  ['0x940181a94a35a4569e4529a3cdfb74e38fd98631', 18], // AERO
+  ['0x62c1275eef43645b10160cb2462d94eedae10648', 18]  // EcionBatch (for non-USDC tokens)
+]);
+
+function getBaseRpcProvider() {
+  const configured = (process.env.BASE_RPC_URL || '').trim();
+  const rpcUrl = configured || DEFAULT_BASE_RPC_URL;
+
+  if (!cachedBaseRpcProvider || rpcUrl !== cachedBaseRpcUrl) {
+    cachedBaseRpcProvider = new ethers.JsonRpcProvider(rpcUrl);
+    cachedBaseRpcUrl = rpcUrl;
+    console.log(`🔌 Using Base RPC provider: ${rpcUrl}${configured ? '' : ' (default)'}`);
+  }
+
+  return cachedBaseRpcProvider;
+}
+
+function getEcionBatchAddress() {
+  if (cachedBatchAddress) {
+    return cachedBatchAddress;
+  }
+
+  const configured = (process.env.ECION_BATCH_CONTRACT_ADDRESS || '').trim();
+  try {
+    cachedBatchAddress = ethers.getAddress(configured || DEFAULT_ECION_BATCH_ADDRESS);
+  } catch (error) {
+    console.warn(`⚠️ Invalid ECION_BATCH_CONTRACT_ADDRESS '${configured}' - falling back to default`);
+    cachedBatchAddress = ethers.getAddress(DEFAULT_ECION_BATCH_ADDRESS);
+  }
+
+  return cachedBatchAddress;
+}
+
+async function getTokenDecimals(tokenAddress, provider = getBaseRpcProvider()) {
+  const normalized = tokenAddress.toLowerCase();
+
+  if (TOKEN_DECIMALS_CACHE.has(normalized)) {
+    return TOKEN_DECIMALS_CACHE.get(normalized);
+  }
+
+  try {
+    const contract = new ethers.Contract(tokenAddress, ["function decimals() view returns (uint8)"], provider);
+    const decimals = Number(await contract.decimals());
+    TOKEN_DECIMALS_CACHE.set(normalized, decimals);
+    return decimals;
+  } catch (error) {
+    console.log(`⚠️ Unable to fetch decimals for ${tokenAddress}: ${error.message} - defaulting to 18`);
+    TOKEN_DECIMALS_CACHE.set(normalized, 18);
+    return 18;
+  }
 }
 
 // Using webhook filtering based on allowance and balance checks
@@ -936,29 +1005,6 @@ app.get('/api/config/:userAddress', async (req, res) => {
   }
 });
 
-// Helper function to get token decimals
-async function getTokenDecimals(tokenAddress) {
-  try {
-    // Known tokens
-    if (tokenAddress.toLowerCase() === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913') {
-      return 6; // USDC
-    }
-    
-    // Query contract for decimals
-    const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-    const tokenContract = new ethers.Contract(tokenAddress, [
-      "function decimals() view returns (uint8)"
-    ], provider);
-    
-    const decimals = await tokenContract.decimals();
-    return Number(decimals);
-  } catch (error) {
-    console.log(`Could not get decimals for token ${tokenAddress}, defaulting to 18`);
-    return 18; // Default to 18 decimals
-  }
-}
-
 // Simple allowance check endpoint (for backward compatibility)
 app.get('/api/check-allowance', async (req, res) => {
   try {
@@ -969,8 +1015,8 @@ app.get('/api/check-allowance', async (req, res) => {
     }
     
     const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    const provider = getBaseRpcProvider();
+    const ecionBatchAddress = getEcionBatchAddress();
     
     const tokenContract = new ethers.Contract(tokenAddress, [
       "function allowance(address owner, address spender) view returns (uint256)",
@@ -1020,8 +1066,8 @@ app.get('/api/allowance-balance/:userAddress/:tokenAddress', async (req, res) =>
     const { userAddress, tokenAddress } = req.params;
     const { ethers } = require('ethers');
     
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    const provider = getBaseRpcProvider();
+    const ecionBatchAddress = getEcionBatchAddress();
     
     const tokenContract = new ethers.Contract(tokenAddress, [
       "function allowance(address owner, address spender) view returns (uint256)",
@@ -1058,10 +1104,10 @@ app.get('/api/allowance/:userAddress/:tokenAddress', async (req, res) => {
     const { userAddress, tokenAddress } = req.params;
     const { ethers } = require('ethers');
     
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const provider = getBaseRpcProvider();
     
     // Check allowance for ECION BATCH CONTRACT, not backend wallet!
-    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    const ecionBatchAddress = getEcionBatchAddress();
     
     const tokenContract = new ethers.Contract(tokenAddress, [
       "function allowance(address owner, address spender) view returns (uint256)"
@@ -1090,7 +1136,7 @@ app.get('/api/token-info/:tokenAddress', async (req, res) => {
     const { tokenAddress } = req.params;
     const { ethers } = require('ethers');
     
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const provider = getBaseRpcProvider();
     
     const tokenContract = new ethers.Contract(tokenAddress, [
       "function name() view returns (string)",
@@ -1130,8 +1176,8 @@ app.post('/api/approve', async (req, res) => {
         
         // Check current allowance and balance from blockchain
         const { ethers } = require('ethers');
-        const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-        const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+        const provider = getBaseRpcProvider();
+        const ecionBatchAddress = getEcionBatchAddress();
         
         const tokenContract = new ethers.Contract(tokenAddress, [
           "function allowance(address owner, address spender) view returns (uint256)",
@@ -1221,8 +1267,8 @@ app.post('/api/revoke', async (req, res) => {
         
         // Check current allowance and balance from blockchain
         const { ethers } = require('ethers');
-        const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-        const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+        const provider = getBaseRpcProvider();
+        const ecionBatchAddress = getEcionBatchAddress();
         
         const tokenContract = new ethers.Contract(tokenAddress, [
           "function allowance(address owner, address spender) view returns (uint256)",
@@ -1542,47 +1588,44 @@ async function updateLatestCastHash(userAddress, castHash, castTimestamp) {
 // Helper function to check token allowance
 async function checkTokenAllowance(userAddress, tokenAddress) {
   try {
-    const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
-    
-    const tokenContract = new ethers.Contract(tokenAddress, [
+    const provider = getBaseRpcProvider();
+    const spender = getEcionBatchAddress();
+
+    const normalizedOwner = ethers.getAddress(userAddress);
+    const normalizedToken = ethers.getAddress(tokenAddress);
+
+    const tokenContract = new ethers.Contract(normalizedToken, [
       "function allowance(address owner, address spender) view returns (uint256)"
     ], provider);
-    
-    const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
-    
-    // Get token decimals
-    const tokenDecimals = tokenAddress.toLowerCase() === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913' ? 6 : 18;
-    const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
-    
-    return allowanceAmount;
+
+    const allowance = await tokenContract.allowance(normalizedOwner, spender);
+    const tokenDecimals = await getTokenDecimals(normalizedToken, provider);
+
+    return parseFloat(ethers.formatUnits(allowance, tokenDecimals));
   } catch (error) {
-    console.error(`❌ Error checking allowance for ${userAddress}:`, error.message);
-    return 0;
+    console.error(`❌ Error checking allowance for ${userAddress}: ${error.message}`);
+    return null;
   }
 }
 
 // Helper function to check token balance
 async function checkTokenBalance(userAddress, tokenAddress) {
   try {
-    const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-    
-    const tokenContract = new ethers.Contract(tokenAddress, [
+    const provider = getBaseRpcProvider();
+    const normalizedOwner = ethers.getAddress(userAddress);
+    const normalizedToken = ethers.getAddress(tokenAddress);
+
+    const tokenContract = new ethers.Contract(normalizedToken, [
       "function balanceOf(address owner) view returns (uint256)"
     ], provider);
-    
-    const balance = await tokenContract.balanceOf(userAddress);
-    
-    // Get token decimals
-    const tokenDecimals = tokenAddress.toLowerCase() === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913' ? 6 : 18;
-    const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
-    
-    return balanceAmount;
+
+    const balance = await tokenContract.balanceOf(normalizedOwner);
+    const tokenDecimals = await getTokenDecimals(normalizedToken, provider);
+
+    return parseFloat(ethers.formatUnits(balance, tokenDecimals));
   } catch (error) {
-    console.error(`❌ Error checking balance for ${userAddress}:`, error.message);
-    return 0;
+    console.error(`❌ Error checking balance for ${userAddress}: ${error.message}`);
+    return null;
   }
 }
 
@@ -1631,7 +1674,13 @@ async function getActiveUsers() {
           checkTokenAllowance(user.user_address, tokenAddress),
           checkTokenBalance(user.user_address, tokenAddress)
         ]);
-        
+
+        if (allowance === null || balance === null) {
+          console.log(`⚠️ Skipping allowance/balance validation for ${user.user_address} (FID: ${user.fid}) - unable to fetch on-chain data, keeping user active`);
+          activeUsers.push(user);
+          continue;
+        }
+
         // Active user criteria: allowance > 0 AND allowance >= minTip AND balance >= minTip
         if (allowance > 0 && allowance >= minTip && balance >= minTip) {
           activeUsers.push(user);
@@ -1680,8 +1729,8 @@ async function getActiveUsers() {
           await removeUserFromTracking(user.user_address, user.fid);
         }
       } catch (error) {
-        console.log(`❌ Error checking ${user.user_address}: ${error.message} - removing from tracking`);
-        await removeUserFromTracking(user.user_address, user.fid);
+        console.log(`❌ Error checking ${user.user_address}: ${error.message} - keeping user active to avoid unintended removals`);
+        activeUsers.push(user);
       }
     }
     
@@ -1870,7 +1919,12 @@ async function checkRemovedUsersForBalanceRestoration() {
           checkTokenAllowance(user.user_address, tokenAddress),
           checkTokenBalance(user.user_address, tokenAddress)
         ]);
-        
+
+        if (allowance === null || balance === null) {
+          console.log(`⚠️ Unable to re-check ${user.user_address} (FID: ${user.fid}) - skipping restoration this cycle`);
+          continue;
+        }
+
         // If user now has sufficient funds, restore them
         if (allowance > 0 && allowance >= minTip && balance >= minTip) {
           console.log(`✅ RESTORING: ${user.user_address} (FID: ${user.fid}) - balance restored! balance: ${balance}, minTip: ${minTip}`);
@@ -2015,8 +2069,8 @@ async function checkUserAllowanceForWebhook(userAddress) {
     }
     
     const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    const provider = getBaseRpcProvider();
+    const ecionBatchAddress = getEcionBatchAddress();
     const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
     
     const tokenContract = new ethers.Contract(tokenAddress, [
@@ -2261,24 +2315,17 @@ async function updateUserWebhookStatus(userAddress) {
     }
     
     // Check current allowance and balance from blockchain
-    const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
-    
     const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
-    const tokenContract = new ethers.Contract(tokenAddress, [
-      "function allowance(address owner, address spender) view returns (uint256)",
-      "function balanceOf(address owner) view returns (uint256)"
-    ], provider);
-    
-    const [allowance, balance] = await Promise.all([
-      tokenContract.allowance(userAddress, ecionBatchAddress),
-      tokenContract.balanceOf(userAddress)
+
+    const [allowanceAmount, balanceAmount] = await Promise.all([
+      checkTokenAllowance(userAddress, tokenAddress),
+      checkTokenBalance(userAddress, tokenAddress)
     ]);
-    
-    const tokenDecimals = tokenAddress === '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' ? 6 : 18;
-    const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
-    const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
+
+    if (allowanceAmount === null || balanceAmount === null) {
+      console.log(`⚠️ Unable to fetch allowance or balance for ${userAddress} - skipping webhook update`);
+      return false;
+    }
     
     console.log(`💰 Allowance & Balance check: ${userAddress}`);
     console.log(`  - Allowance: ${allowanceAmount} (required: ${minTipAmount}) - ${allowanceAmount >= minTipAmount ? '✅' : '❌'}`);
@@ -2667,7 +2714,7 @@ async function updateDatabaseAllowance(userAddress, allowanceAmount) {
 async function getTokenSymbol(tokenAddress) {
   try {
     const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const provider = getBaseRpcProvider();
     
     const tokenContract = new ethers.Contract(tokenAddress, [
       "function symbol() view returns (string)"
@@ -2953,8 +3000,8 @@ async function syncAllUsersAllowancesFromBlockchain() {
     console.log(`📊 Found ${activeUsers.length} active users to sync`);
     
     const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    const provider = getBaseRpcProvider();
+    const ecionBatchAddress = getEcionBatchAddress();
     
     let syncedCount = 0;
     let errorCount = 0;
@@ -3178,8 +3225,8 @@ app.post('/api/sync-all-users-allowance', async (req, res) => {
     console.log('🔄 Starting comprehensive user allowance sync...');
     
     const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    const provider = getBaseRpcProvider();
+    const ecionBatchAddress = getEcionBatchAddress();
     
     // Get all users with active configurations
     const activeUsers = await database.getActiveUsersWithApprovals();
@@ -3726,8 +3773,8 @@ app.get('/api/homepage', async (req, res) => {
     console.log(`🏠 Homepage: ${activeUsers.length} users with verified addresses out of ${trackedFids.length} FIDs`);
     
     const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    const provider = getBaseRpcProvider();
+    const ecionBatchAddress = getEcionBatchAddress();
     
     // Get allowance and cast for each user
     const usersWithAllowance = [];
@@ -3966,7 +4013,7 @@ app.get('/api/leaderboard', async (req, res) => {
         if (tipper.tokenAddress) {
           try {
             const { ethers } = require('ethers');
-            const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+            const provider = getBaseRpcProvider();
             const tokenContract = new ethers.Contract(tipper.tokenAddress, [
               "function name() view returns (string)",
               "function symbol() view returns (string)",
@@ -4033,7 +4080,7 @@ app.get('/api/leaderboard', async (req, res) => {
         if (earner.tokenAddress) {
           try {
             const { ethers } = require('ethers');
-            const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+            const provider = getBaseRpcProvider();
             const tokenContract = new ethers.Contract(earner.tokenAddress, [
               "function name() view returns (string)",
               "function symbol() view returns (string)",
@@ -4192,7 +4239,7 @@ app.get('/api/backend-wallet', (req, res) => {
     
     // Return ECION BATCH CONTRACT address for approvals (not backend wallet)
     // Users need to approve the contract, not the backend wallet!
-    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    const ecionBatchAddress = getEcionBatchAddress();
     
     res.json({ 
       address: ecionBatchAddress, // Contract address for token approvals
@@ -4441,8 +4488,8 @@ app.get('/api/debug/allowance-filtering', async (req, res) => {
     
     const activeUsers = await database.getActiveUsersWithApprovals();
     const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    const provider = getBaseRpcProvider();
+    const ecionBatchAddress = getEcionBatchAddress();
     
     const filteringResults = [];
     
@@ -4868,7 +4915,7 @@ app.post('/api/debug/force-process-batch', async (req, res) => {
 // Check current gas prices on Base
 app.get('/api/debug/gas-prices', async (req, res) => {
   try {
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const provider = getBaseRpcProvider();
     const gasPrice = await provider.getGasPrice();
     const feeData = await provider.getFeeData();
     
@@ -6650,7 +6697,7 @@ app.get('/api/debug/db-status', async (req, res) => {
 app.get('/api/debug/ecionbatch-status', async (req, res) => {
   try {
     const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const provider = getBaseRpcProvider();
     const wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY, provider);
     
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
@@ -6697,6 +6744,42 @@ app.get('/api/debug/ecionbatch-status', async (req, res) => {
     console.error('Error checking EcionBatch status:', error);
     res.status(500).json({ error: 'Failed to check EcionBatch status' });
   }
+});
+
+async function ensureSeedActiveUsers() {
+  try {
+    if (!database || typeof database.getTrackedFids !== 'function') {
+      console.log('ℹ️ Database does not support tracked FID lookup - skipping seed restore');
+      return;
+    }
+
+    const trackedFids = await database.getTrackedFids();
+    const missingFids = SEED_ACTIVE_FIDS.filter(fid => !trackedFids.includes(fid));
+
+    if (missingFids.length === 0) {
+      console.log('✅ All seed active FIDs already tracked');
+    } else {
+      console.log(`🔄 Restoring ${missingFids.length} seed active FIDs into follow.created`);
+      for (const fid of missingFids) {
+        await addFidToWebhook(fid);
+      }
+    }
+
+    if (database.pool) {
+      await database.pool.query(`
+        UPDATE user_profiles 
+        SET is_tracking = true, updated_at = NOW()
+        WHERE fid = ANY($1)
+      `, [SEED_ACTIVE_FIDS]);
+    }
+  } catch (error) {
+    console.log(`⚠️ Failed to ensure seed active users: ${error.message}`);
+  }
+}
+
+
+ensureSeedActiveUsers().catch(error => {
+  console.log(`⚠️ Seed active user restoration failed during startup: ${error.message}`);
 });
 
 
