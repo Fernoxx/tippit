@@ -4811,6 +4811,79 @@ if (process.env.NODE_ENV === 'production') {
       }
     });
 
+    // Check active users' configs by FID (diagnostic endpoint)
+    app.get('/api/check-active-users-configs', async (req, res) => {
+      try {
+        console.log('🔍 Checking active users and their configs by FID...');
+        
+        // Get tracked FIDs from webhook_config (active users)
+        const trackedFids = await database.getTrackedFids();
+        console.log(`📋 Found ${trackedFids.length} FIDs in follow.created (active users)`);
+        
+        if (trackedFids.length === 0) {
+          return res.json({ success: true, message: 'No active users', activeUsers: [] });
+        }
+        
+        // Get user profiles and configs for these FIDs
+        const usersResult = await database.pool.query(`
+          SELECT 
+            up.fid,
+            up.user_address,
+            up.username,
+            up.display_name,
+            uc.config
+          FROM user_profiles up
+          LEFT JOIN user_configs uc ON LOWER(up.user_address) = LOWER(uc.user_address)
+          WHERE up.fid = ANY($1)
+          ORDER BY up.fid
+        `, [trackedFids]);
+        
+        const results = usersResult.rows.map(user => {
+          const configExists = !!user.config;
+          const isActive = user.config?.isActive || false;
+          const configByAddressCheck = configExists;
+          
+          return {
+            fid: user.fid,
+            userAddress: user.user_address,
+            username: user.username,
+            displayName: user.display_name,
+            hasConfig: configExists,
+            isActive: isActive,
+            config: configExists ? {
+              tokenAddress: user.config.tokenAddress,
+              likeAmount: user.config.likeAmount,
+              recastAmount: user.config.recastAmount,
+              replyAmount: user.config.replyAmount,
+              likeEnabled: user.config.likeEnabled,
+              recastEnabled: user.config.recastEnabled,
+              replyEnabled: user.config.replyEnabled,
+              followEnabled: user.config.followEnabled
+            } : null
+          };
+        });
+        
+        const withConfig = results.filter(r => r.hasConfig).length;
+        const withoutConfig = results.filter(r => !r.hasConfig).length;
+        const activeConfigs = results.filter(r => r.isActive).length;
+        
+        res.json({
+          success: true,
+          summary: {
+            totalActiveUsers: trackedFids.length,
+            usersInDatabase: results.length,
+            withConfig: withConfig,
+            withoutConfig: withoutConfig,
+            activeConfigs: activeConfigs
+          },
+          activeUsers: results
+        });
+      } catch (error) {
+        console.error('❌ Error checking active users configs:', error);
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
     // Simple fallback for frontend routes (LAST ROUTE) - but NOT for API routes
     app.get('*', (req, res) => {
       // Skip API routes - they should be handled by specific endpoints
