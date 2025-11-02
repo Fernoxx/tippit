@@ -1855,8 +1855,8 @@ function startApiPolling() {
     clearInterval(pollingInterval);
   }
   
-  // Poll every 2 minutes
-  pollingInterval = setInterval(pollLatestCasts, 2 * 60 * 1000);
+  // Poll every 15 minutes
+  pollingInterval = setInterval(pollLatestCasts, 15 * 60 * 1000);
   
   // Check for balance restoration every 1 HOUR (only for users with allowance but no balance)
   setInterval(checkRemovedUsersForBalanceRestoration, 60 * 60 * 1000);
@@ -1865,7 +1865,7 @@ function startApiPolling() {
   setTimeout(pollLatestCasts, 5000); // Start after 5 seconds
   setTimeout(checkRemovedUsersForBalanceRestoration, 60000); // Check after 1 minute
   
-  console.log(`⏰ API polling started - checking every 2 minutes`);
+  console.log(`⏰ API polling started - checking every 15 minutes`);
   console.log(`⏰ Balance restoration check started - checking every 1 hour`);
 }
 

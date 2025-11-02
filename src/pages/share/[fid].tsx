@@ -2,6 +2,7 @@ import { GetServerSideProps } from 'next';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
+import type { Metadata } from 'next';
 
 interface UserStats {
   fid: number;
@@ -64,10 +65,11 @@ export default function SharePage({ fid, time, type, userStats, userProfile }: S
     setTimeLabel(calculatedTimeLabel);
   }, [time, type, userStats]);
 
-  // Generate embed image URL (3:2 aspect ratio - 600x400px)
-  const embedImageUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/embed-image/${fid}?time=${time}&type=${type}`;
+  // Generate embed image URL - use Next.js API route for dynamic image generation
+  // This route will render as a custom image when embedded (like generateMetadata pattern)
+  const embedImageUrl = `https://ecion.vercel.app/api/og/${fid}?time=${time}&type=${type}`;
 
-  // Generate Farcaster Mini App embed JSON
+  // Generate Farcaster Mini App embed JSON  
   const miniappEmbed = {
     version: "1",
     imageUrl: embedImageUrl,
