@@ -45,30 +45,16 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
     // Get user config to check min tip amount
     let userConfig = await database.getUserConfig(userAddress);
     if (!userConfig) {
-      // Create default config for new user (first time approving USDC)
-      console.log(`🆕 Creating default config for new user ${userAddress}`);
-      userConfig = {
-        tokenAddress: tokenAddress,
-        likeAmount: '0.005',
-        recastAmount: '0.025', 
-        replyAmount: '0.025',
-        followAmount: '0',
-        likeEnabled: true,
-        recastEnabled: true,
-        replyEnabled: true,
-        followEnabled: false,
-        isActive: true,
-        totalSpent: '0',
-        lastActivity: Date.now(),
-        lastAllowance: 0,
-        lastAllowanceCheck: 0
-      };
-      await database.setUserConfig(userAddress, userConfig);
-      console.log(`✅ Default config created for ${userAddress}`);
-    } else {
-      // User has existing config - keep their settings
-      console.log(`📖 Using existing config for ${userAddress}`);
+      // Don't auto-create config - user must save config manually via frontend
+      console.log(`⚠️ No config found for ${userAddress} - user needs to save config manually via frontend`);
+      return res.json({
+        success: false,
+        error: 'No tipping configuration found. Please configure your tipping settings in the frontend first.',
+        needsConfig: true
+      });
     }
+    
+    console.log(`📖 Using existing config for ${userAddress}`);
     
     // Calculate total tip amount (like + recast + reply)
     const likeAmount = parseFloat(userConfig.likeAmount || '0');

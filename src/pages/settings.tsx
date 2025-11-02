@@ -76,9 +76,9 @@ export default function Settings() {
     follow: '0',
   });
   const [tippingToggles, setTippingToggles] = useState({
-    like: true,
-    reply: true,
-    recast: true,
+    like: false,
+    reply: false,
+    recast: false,
     follow: false,
   });
   const [criteria, setCriteria] = useState({
@@ -97,9 +97,9 @@ export default function Settings() {
         follow: userConfig.followAmount?.toString() || '0',
       });
       setTippingToggles({
-        like: userConfig.likeEnabled ?? true,
-        reply: userConfig.replyEnabled ?? true,
-        recast: userConfig.recastEnabled ?? true,
+        like: userConfig.likeEnabled ?? false,
+        reply: userConfig.replyEnabled ?? false,
+        recast: userConfig.recastEnabled ?? false,
         follow: userConfig.followEnabled ?? false,
       });
       setCriteria({

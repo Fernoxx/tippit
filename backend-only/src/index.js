@@ -920,9 +920,9 @@ app.get('/api/config/:userAddress', async (req, res) => {
         audience: 0, // Following only
         minFollowerCount: 25,
         minNeynarScore: 0.5,
-        likeEnabled: true,
-        replyEnabled: true,
-        recastEnabled: true,
+        likeEnabled: false,
+        replyEnabled: false,
+        recastEnabled: false,
         followEnabled: false,
         isActive: false, // Not active until user saves
         totalSpent: '0'

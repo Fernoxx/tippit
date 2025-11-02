@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { useFarcasterWallet } from '@/hooks/useFarcasterWallet';
 import { useFarcasterSDK } from '@/hooks/useFarcasterSDK';
+import { useFarcasterEmbed } from '@/hooks/useFarcasterEmbed';
 
 export default function Leaderboard() {
   const [timeFilter, setTimeFilter] = useState<'24h' | '7d' | '30d'>('24h');
@@ -14,7 +15,7 @@ export default function Leaderboard() {
   const [activeTab, setActiveTab] = useState<'tipped' | 'earned'>('tipped');
   const { currentUser: walletUser } = useFarcasterWallet();
   const { currentUser: sdkUser, isLoading: sdkLoading } = useFarcasterSDK();
-  const [shareCopied, setShareCopied] = useState(false);
+  const { handleShare } = useFarcasterEmbed();
   
   // Use SDK user if available, otherwise fall back to wallet user
   const currentUser = sdkUser || walletUser;
@@ -177,31 +178,22 @@ export default function Leaderboard() {
                     
                     const shareUrl = `https://ecion.vercel.app/share/${currentUser.fid}?time=${timeFilter}&type=${activeTab === 'tipped' ? 'tippings' : 'earnings'}`;
                     
-                    try {
-                      // Copy to clipboard
-                      await navigator.clipboard.writeText(shareUrl);
-                      setShareCopied(true);
-                      
-                      // Navigate to share page in new tab
-                      window.open(shareUrl, '_blank');
-                      
-                      // Reset copied state after 2 seconds
-                      setTimeout(() => setShareCopied(false), 2000);
-                    } catch (error) {
-                      console.error('Failed to copy or open share URL:', error);
-                      // Fallback: just navigate
-                      window.open(shareUrl, '_blank');
-                    }
+                    // Get the amount for the share text
+                    const amount = activeTab === 'tipped' 
+                      ? (timeFilter === '24h' ? userStats?.tippings24h :
+                         timeFilter === '7d' ? userStats?.tippings7d : userStats?.tippings30d)
+                      : (timeFilter === '24h' ? userStats?.earnings24h :
+                         timeFilter === '7d' ? userStats?.earnings7d : userStats?.earnings30d);
+                    
+                    const shareText = `I ${activeTab === 'tipped' ? 'tipped' : 'earned'} ${amount?.toFixed(2) || '0'} USDC in ${timeFilter} on Ecion! ??\n\nCheck out my stats:`;
+                    
+                    // Use composeCast to share with embed preview
+                    await handleShare(shareText, shareUrl);
                   }}
-                  className="relative p-2 text-gray-600 hover:text-yellow-600 hover:bg-yellow-200 rounded-lg transition-colors"
-                  title={shareCopied ? "Copied! Opening share page..." : "Share your stats"}
+                  className="p-2 text-gray-600 hover:text-yellow-600 hover:bg-yellow-200 rounded-lg transition-colors"
+                  title="Share your stats"
                 >
                   <Share2 size={16} />
-                  {shareCopied && (
-                    <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded whitespace-nowrap">
-                      Copied!
-                    </span>
-                  )}
                 </button>
               </div>
             </div>
