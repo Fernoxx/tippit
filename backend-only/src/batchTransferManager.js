@@ -435,6 +435,14 @@ class BatchTransferManager {
                   await removeFidFromWebhook(userFid);
                   console.log(`🚫 Removed FID ${userFid} from webhook follow.created - ${reason} after tip`);
                   
+                  // Update isActive to false in user config
+                  const userConfig = await database.getUserConfig(tip.interaction.authorAddress);
+                  if (userConfig) {
+                    userConfig.isActive = false;
+                    await database.setUserConfig(tip.interaction.authorAddress, userConfig);
+                    console.log(`✅ Set isActive=false for ${tip.interaction.authorAddress} (insufficient funds after tip)`);
+                  }
+                  
                   // Send notification if balance is insufficient (user needs to add tokens)
                   if (!finalCheck.hasSufficientBalance) {
                     try {

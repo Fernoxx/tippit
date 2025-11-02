@@ -2314,6 +2314,14 @@ async function removeUserFromTracking(userAddress, fid) {
       WHERE user_address = $1
     `, [userAddress.toLowerCase()]);
     
+    // Update isActive to false in user config
+    const userConfig = await database.getUserConfig(userAddress);
+    if (userConfig) {
+      userConfig.isActive = false;
+      await database.setUserConfig(userAddress, userConfig);
+      console.log(`✅ Set isActive=false for ${userAddress} (removed from tracking)`);
+    }
+    
     // Remove FID from webhook filter
     if (fid) {
       await removeFidFromWebhook(fid);
@@ -4812,7 +4820,104 @@ if (process.env.NODE_ENV === 'production') {
     });
 
     // Check active users' configs by FID (diagnostic endpoint)
-    app.get('/api/check-active-users-configs', async (req, res) => {
+    // Fix isActive for users in webhook who should be active
+app.get('/api/fix-active-users-isactive', async (req, res) => {
+  try {
+    console.log('🔧 Fixing isActive status for active users in webhook...');
+    
+    // Get all FIDs currently in webhook follow.created
+    const trackedFids = await database.getTrackedFids();
+    console.log(`📋 Found ${trackedFids.length} FIDs in webhook follow.created`);
+    
+    if (trackedFids.length === 0) {
+      return res.json({ success: true, message: 'No active users in webhook', fixed: 0 });
+    }
+    
+    // Get user profiles and configs for these FIDs
+    const result = await database.pool.query(`
+      SELECT up.fid, up.user_address, uc.config
+      FROM user_profiles up 
+      LEFT JOIN user_configs uc ON up.user_address = uc.user_address
+      WHERE up.fid = ANY($1) AND uc.config IS NOT NULL
+    `, [trackedFids]);
+    
+    const { ethers } = require('ethers');
+    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    
+    let fixedCount = 0;
+    let checkedCount = 0;
+    
+    for (const user of result.rows) {
+      try {
+        const userAddress = user.user_address;
+        const config = user.config;
+        
+        if (!config || !config.tokenAddress) continue;
+        
+        checkedCount++;
+        
+        // Calculate minTip
+        const likeAmount = parseFloat(config.likeAmount || '0');
+        const recastAmount = parseFloat(config.recastAmount || '0');
+        const replyAmount = parseFloat(config.replyAmount || '0');
+        const minTip = likeAmount + recastAmount + replyAmount;
+        
+        if (minTip === 0) {
+          console.log(`⚠️ User ${userAddress} has minTip=0, skipping`);
+          continue;
+        }
+        
+        // Check allowance and balance
+        const tokenContract = new ethers.Contract(config.tokenAddress, [
+          "function allowance(address owner, address spender) view returns (uint256)",
+          "function balanceOf(address owner) view returns (uint256)"
+        ], provider);
+        
+        const tokenDecimals = await getTokenDecimals(config.tokenAddress);
+        const [allowance, balance] = await Promise.all([
+          tokenContract.allowance(userAddress, ecionBatchAddress),
+          tokenContract.balanceOf(userAddress)
+        ]);
+        
+        const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
+        const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
+        
+        const hasSufficientAllowance = allowanceAmount >= minTip;
+        const hasSufficientBalance = balanceAmount >= minTip;
+        const shouldBeActive = hasSufficientAllowance && hasSufficientBalance;
+        
+        // Update isActive if needed
+        if (shouldBeActive && !config.isActive) {
+          config.isActive = true;
+          await database.setUserConfig(userAddress, config);
+          console.log(`✅ Fixed: Set isActive=true for ${userAddress} (FID: ${user.fid}) - Allowance: ${allowanceAmount}, Balance: ${balanceAmount}, MinTip: ${minTip}`);
+          fixedCount++;
+        } else if (!shouldBeActive && config.isActive) {
+          config.isActive = false;
+          await database.setUserConfig(userAddress, config);
+          console.log(`✅ Fixed: Set isActive=false for ${userAddress} (FID: ${user.fid}) - Insufficient funds`);
+          fixedCount++;
+        }
+      } catch (error) {
+        console.error(`❌ Error checking user ${user.user_address}:`, error.message);
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: `Fixed isActive for ${fixedCount} out of ${checkedCount} users`,
+      trackedFids: trackedFids.length,
+      checked: checkedCount,
+      fixed: fixedCount
+    });
+  } catch (error) {
+    console.error('❌ Error fixing isActive:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/check-active-users-configs', async (req, res) => {
       try {
         console.log('🔍 Checking active users and their configs by FID...');
         

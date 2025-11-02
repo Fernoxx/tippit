@@ -111,6 +111,13 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
             const removed = await removeFidFromWebhook(fid);
             webhookResult = { action: removed ? 'removed' : 'failed', reason: webhookReason };
             console.log(`🔗 Webhook removal result for FID ${fid}: ${removed ? 'removed' : 'failed'}`);
+            
+            // Update isActive to false when removed from webhook
+            if (removed) {
+              userConfig.isActive = false;
+              await database.setUserConfig(userAddress, userConfig);
+              console.log(`✅ Set isActive=false for ${userAddress} (removed from webhook)`);
+            }
           }
         } else if (webhookAction === 'add') {
           // Add FID to webhook
@@ -119,6 +126,13 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
             const added = await addFidToWebhook(fid);
             webhookResult = { action: added ? 'added' : 'failed', reason: webhookReason };
             console.log(`🔗 Webhook addition result for FID ${fid}: ${added ? 'added' : 'failed'}`);
+            
+            // Update isActive to true when added to webhook
+            if (added) {
+              userConfig.isActive = true;
+              await database.setUserConfig(userAddress, userConfig);
+              console.log(`✅ Set isActive=true for ${userAddress} (added to webhook)`);
+            }
           }
         }
       } else {
