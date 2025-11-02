@@ -14,6 +14,7 @@ export default function Leaderboard() {
   const [activeTab, setActiveTab] = useState<'tipped' | 'earned'>('tipped');
   const { currentUser: walletUser } = useFarcasterWallet();
   const { currentUser: sdkUser, isLoading: sdkLoading } = useFarcasterSDK();
+  const [shareCopied, setShareCopied] = useState(false);
   
   // Use SDK user if available, otherwise fall back to wallet user
   const currentUser = sdkUser || walletUser;
@@ -171,15 +172,36 @@ export default function Leaderboard() {
                   </p>
                 </div>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
+                    if (!currentUser?.fid) return;
+                    
                     const shareUrl = `https://ecion.vercel.app/share/${currentUser.fid}?time=${timeFilter}&type=${activeTab === 'tipped' ? 'tippings' : 'earnings'}`;
-                    navigator.clipboard.writeText(shareUrl);
-                    // You can add a toast notification here
+                    
+                    try {
+                      // Copy to clipboard
+                      await navigator.clipboard.writeText(shareUrl);
+                      setShareCopied(true);
+                      
+                      // Navigate to share page in new tab
+                      window.open(shareUrl, '_blank');
+                      
+                      // Reset copied state after 2 seconds
+                      setTimeout(() => setShareCopied(false), 2000);
+                    } catch (error) {
+                      console.error('Failed to copy or open share URL:', error);
+                      // Fallback: just navigate
+                      window.open(shareUrl, '_blank');
+                    }
                   }}
-                  className="p-2 text-gray-600 hover:text-yellow-600 hover:bg-yellow-200 rounded-lg transition-colors"
-                  title="Share your stats"
+                  className="relative p-2 text-gray-600 hover:text-yellow-600 hover:bg-yellow-200 rounded-lg transition-colors"
+                  title={shareCopied ? "Copied! Opening share page..." : "Share your stats"}
                 >
                   <Share2 size={16} />
+                  {shareCopied && (
+                    <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded whitespace-nowrap">
+                      Copied!
+                    </span>
+                  )}
                 </button>
               </div>
             </div>
