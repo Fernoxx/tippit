@@ -2,7 +2,6 @@ import { GetServerSideProps } from 'next';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
-import type { Metadata } from 'next';
 
 interface UserStats {
   fid: number;
