@@ -4069,40 +4069,34 @@ app.get('/api/leaderboard', async (req, res) => {
           const totalTippings = userAsTipper ? userAsTipper.totalAmount : 0;
           const totalEarnings = userAsEarner ? userAsEarner.totalAmount : 0;
           
-          // For time-specific data, we need to recalculate with the current timeFilter
-          const timeMs = timeFilter === '24h' ? '24 hours' :
-                         timeFilter === '7d' ? '7 days' : '30 days';
-          
-          // Get time-specific data directly from tip_history
-          const tippingsResult = await database.pool.query(`
-            SELECT SUM(CAST(amount AS DECIMAL)) as total_amount
+          // Calculate ALL time periods (not just current filter) for accurate leaderboard display
+          // Get all time periods directly from tip_history
+          const allTimeStatsResult = await database.pool.query(`
+            SELECT 
+              SUM(CASE WHEN LOWER(from_address) = LOWER($1) THEN CAST(amount AS DECIMAL) ELSE 0 END) as total_tippings,
+              SUM(CASE WHEN LOWER(to_address) = LOWER($1) THEN CAST(amount AS DECIMAL) ELSE 0 END) as total_earnings,
+              SUM(CASE WHEN LOWER(from_address) = LOWER($1) AND processed_at >= NOW() - INTERVAL '24 hours' THEN CAST(amount AS DECIMAL) ELSE 0 END) as tippings_24h,
+              SUM(CASE WHEN LOWER(to_address) = LOWER($1) AND processed_at >= NOW() - INTERVAL '24 hours' THEN CAST(amount AS DECIMAL) ELSE 0 END) as earnings_24h,
+              SUM(CASE WHEN LOWER(from_address) = LOWER($1) AND processed_at >= NOW() - INTERVAL '7 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as tippings_7d,
+              SUM(CASE WHEN LOWER(to_address) = LOWER($1) AND processed_at >= NOW() - INTERVAL '7 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as earnings_7d,
+              SUM(CASE WHEN LOWER(from_address) = LOWER($1) AND processed_at >= NOW() - INTERVAL '30 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as tippings_30d,
+              SUM(CASE WHEN LOWER(to_address) = LOWER($1) AND processed_at >= NOW() - INTERVAL '30 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as earnings_30d
             FROM tip_history 
-            WHERE from_address = $1 
-            AND processed_at > NOW() - INTERVAL '${timeMs}'
-            AND LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+            WHERE LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
           `, [userAddress]);
           
-          const earningsResult = await database.pool.query(`
-            SELECT SUM(CAST(amount AS DECIMAL)) as total_amount
-            FROM tip_history 
-            WHERE to_address = $1 
-            AND processed_at > NOW() - INTERVAL '${timeMs}'
-            AND LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
-          `, [userAddress]);
-          
-          const tippingsForPeriod = parseFloat(tippingsResult.rows[0].total_amount || 0);
-          const earningsForPeriod = parseFloat(earningsResult.rows[0].total_amount || 0);
+          const stats = allTimeStatsResult.rows[0];
           
           userStats = {
             fid: userFid.toString(),
-            totalEarnings: totalEarnings,
-            earnings24h: timeFilter === '24h' ? earningsForPeriod : 0,
-            earnings7d: timeFilter === '7d' ? earningsForPeriod : 0,
-            earnings30d: timeFilter === '30d' ? earningsForPeriod : 0,
-            totalTippings: totalTippings,
-            tippings24h: timeFilter === '24h' ? tippingsForPeriod : 0,
-            tippings7d: timeFilter === '7d' ? tippingsForPeriod : 0,
-            tippings30d: timeFilter === '30d' ? tippingsForPeriod : 0
+            totalEarnings: parseFloat(stats.total_earnings || 0),
+            earnings24h: parseFloat(stats.earnings_24h || 0),
+            earnings7d: parseFloat(stats.earnings_7d || 0),
+            earnings30d: parseFloat(stats.earnings_30d || 0),
+            totalTippings: parseFloat(stats.total_tippings || 0),
+            tippings24h: parseFloat(stats.tippings_24h || 0),
+            tippings7d: parseFloat(stats.tippings_7d || 0),
+            tippings30d: parseFloat(stats.tippings_30d || 0)
           };
           
           console.log('📊 User stats result:', userStats);
@@ -4821,6 +4815,74 @@ if (process.env.NODE_ENV === 'production') {
 
     // Check active users' configs by FID (diagnostic endpoint)
     // Fix isActive for users in webhook who should be active
+// Diagnostic endpoint to check for duplicate tips
+app.get('/api/debug/check-duplicate-tips', async (req, res) => {
+  try {
+    const { userAddress } = req.query;
+    
+    if (!userAddress) {
+      return res.status(400).json({ error: 'userAddress query parameter required' });
+    }
+    
+    // Check for duplicate tips (same from_address, to_address, cast_hash, action_type, amount)
+    const duplicateCheck = await database.pool.query(`
+      SELECT 
+        from_address,
+        to_address,
+        cast_hash,
+        action_type,
+        amount,
+        COUNT(*) as duplicate_count,
+        ARRAY_AGG(id ORDER BY processed_at) as tip_ids,
+        ARRAY_AGG(processed_at ORDER BY processed_at) as processed_times
+      FROM tip_history 
+      WHERE LOWER(from_address) = LOWER($1)
+        AND LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+      GROUP BY from_address, to_address, cast_hash, action_type, amount
+      HAVING COUNT(*) > 1
+      ORDER BY duplicate_count DESC
+    `, [userAddress]);
+    
+    // Get total tips for this user
+    const totalTips = await database.pool.query(`
+      SELECT COUNT(*) as total_count, SUM(CAST(amount AS DECIMAL)) as total_amount
+      FROM tip_history 
+      WHERE LOWER(from_address) = LOWER($1)
+        AND LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+    `, [userAddress]);
+    
+    // Get unique tips count (if we deduplicate)
+    const uniqueTips = await database.pool.query(`
+      SELECT COUNT(DISTINCT (from_address, to_address, cast_hash, action_type, amount)) as unique_count
+      FROM tip_history 
+      WHERE LOWER(from_address) = LOWER($1)
+        AND LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+    `, [userAddress]);
+    
+    res.json({
+      success: true,
+      userAddress,
+      totalTips: parseInt(totalTips.rows[0].total_count || 0),
+      totalAmount: parseFloat(totalTips.rows[0].total_amount || 0),
+      uniqueTips: parseInt(uniqueTips.rows[0].unique_count || 0),
+      duplicates: duplicateCheck.rows.map(row => ({
+        fromAddress: row.from_address,
+        toAddress: row.to_address,
+        castHash: row.cast_hash,
+        actionType: row.action_type,
+        amount: row.amount,
+        duplicateCount: parseInt(row.duplicate_count),
+        tipIds: row.tip_ids,
+        processedTimes: row.processed_times
+      })),
+      hasDuplicates: duplicateCheck.rows.length > 0
+    });
+  } catch (error) {
+    console.error('Error checking duplicate tips:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/fix-active-users-isactive', async (req, res) => {
   try {
     console.log('🔧 Fixing isActive status for active users in webhook...');

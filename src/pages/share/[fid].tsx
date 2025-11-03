@@ -87,29 +87,29 @@ export default function SharePage({ fid, time, type, userStats, userProfile }: S
   return (
     <>
       <Head>
-        <title key="title">Ecion - {userProfile.username} {type === 'earnings' ? 'Earnings' : 'Tippings'} {timeLabel}</title>
+        <title>Ecion - {userProfile.username} {type === 'earnings' ? 'Earnings' : 'Tippings'} {timeLabel}</title>
         
-        {/* Override default OG tags with dynamic content - using key to ensure override */}
-        <meta key="og:title" property="og:title" content={`${userProfile.username} ${type === 'earnings' ? 'Earned' : 'Tipped'} ${amount.toFixed(2)} USDC in ${timeLabel}`} />
-        <meta key="og:description" property="og:description" content={`${userProfile.username} ${type === 'earnings' ? 'earned' : 'tipped'} ${amount.toFixed(2)} USDC in ${timeLabel} on Ecion`} />
-        <meta key="og:image" property="og:image" content={embedImageUrl} />
-        <meta key="og:image:width" property="og:image:width" content="1200" />
-        <meta key="og:image:height" property="og:image:height" content="630" />
-        <meta key="og:url" property="og:url" content={`https://ecion.vercel.app/share/${fid}?time=${time}&type=${type}`} />
-        <meta key="og:type" property="og:type" content="website" />
+        {/* Override default OG tags with dynamic content - ensure these come after _document defaults */}
+        <meta property="og:title" content={`${userProfile.username} ${type === 'earnings' ? 'Earned' : 'Tipped'} ${amount.toFixed(2)} USDC in ${timeLabel}`} />
+        <meta property="og:description" content={`${userProfile.username} ${type === 'earnings' ? 'earned' : 'tipped'} ${amount.toFixed(2)} USDC in ${timeLabel} on Ecion`} />
+        <meta property="og:image" content={embedImageUrl} />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:url" content={`https://ecion.vercel.app/share/${fid}?time=${time}&type=${type}`} />
+        <meta property="og:type" content="website" />
         
         {/* Override Twitter Card Tags */}
-        <meta key="twitter:card" name="twitter:card" content="summary_large_image" />
-        <meta key="twitter:title" name="twitter:title" content={`${userProfile.username} ${type === 'earnings' ? 'Earned' : 'Tipped'} ${amount.toFixed(2)} USDC`} />
-        <meta key="twitter:description" name="twitter:description" content={`${userProfile.username} ${type === 'earnings' ? 'earned' : 'tipped'} ${amount.toFixed(2)} USDC in ${timeLabel} on Ecion`} />
-        <meta key="twitter:image" name="twitter:image" content={embedImageUrl} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={`${userProfile.username} ${type === 'earnings' ? 'Earned' : 'Tipped'} ${amount.toFixed(2)} USDC`} />
+        <meta name="twitter:description" content={`${userProfile.username} ${type === 'earnings' ? 'earned' : 'tipped'} ${amount.toFixed(2)} USDC in ${timeLabel} on Ecion`} />
+        <meta name="twitter:image" content={embedImageUrl} />
         
-        {/* Farcaster Mini App Embed - key ensures override */}
-        <meta key="fc:miniapp" name="fc:miniapp" content={JSON.stringify(miniappEmbed)} />
-        <meta key="fc:frame" name="fc:frame" content={JSON.stringify(miniappEmbed)} />
+        {/* Farcaster Mini App Embed - this should override _document defaults */}
+        <meta name="fc:miniapp" content={JSON.stringify(miniappEmbed)} />
+        <meta name="fc:frame" content={JSON.stringify(miniappEmbed)} />
         
         {/* Additional Meta Tags */}
-        <meta key="description" name="description" content={`${userProfile.username} ${type === 'earnings' ? 'earned' : 'tipped'} ${amount.toFixed(2)} USDC in ${timeLabel} on Ecion`} />
+        <meta name="description" content={`${userProfile.username} ${type === 'earnings' ? 'earned' : 'tipped'} ${amount.toFixed(2)} USDC in ${timeLabel} on Ecion`} />
       </Head>
 
       <div className="min-h-screen bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center p-4">

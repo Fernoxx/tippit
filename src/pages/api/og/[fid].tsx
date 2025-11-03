@@ -13,11 +13,22 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   const { time = 'total', type = 'earnings' } = context.query as { time?: string; type?: 'earnings' | 'tippings' };
   
   try {
-    // Fetch user stats and profile from backend
+    // Fetch user stats and profile from backend with timeout
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://tippit-production.up.railway.app';
+    
+    // Use Promise.race to add timeout (10 seconds)
+    const fetchWithTimeout = (url, timeout = 10000) => {
+      return Promise.race([
+        fetch(url),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), timeout)
+        )
+      ]);
+    };
+    
     const [statsResponse, profileResponse] = await Promise.all([
-      fetch(`${backendUrl}/api/user-earnings/${fid}`),
-      fetch(`${backendUrl}/api/user-profile/${fid}`)
+      fetchWithTimeout(`${backendUrl}/api/user-earnings/${fid}`),
+      fetchWithTimeout(`${backendUrl}/api/user-profile/${fid}`)
     ]);
 
     if (!statsResponse.ok || !profileResponse.ok) {

@@ -9,7 +9,7 @@ export default function Document() {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#fef3c7" />
         
-        {/* Essential Open Graph Meta Tags */}
+        {/* Essential Open Graph Meta Tags - Default for homepage only */}
         <meta property="og:type" content="website" />
         <meta property="og:title" content="Ecion – Tip Your Audience" />
         <meta property="og:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
@@ -21,13 +21,13 @@ export default function Document() {
         <meta property="og:site_name" content="Ecion" />
         <meta property="og:locale" content="en_US" />
         
-        {/* Essential Twitter Card Meta Tags */}
+        {/* Essential Twitter Card Meta Tags - Default for homepage only */}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Ecion – Tip Your Audience" />
         <meta name="twitter:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
         <meta name="twitter:image" content="https://ecion.vercel.app/og-image.png" />
         
-        {/* Farcaster Mini App Embed - Proper JSON Format */}
+        {/* Farcaster Mini App Embed - Default for homepage only (overridden by share pages) */}
         <meta name="fc:miniapp" content='{"version":"1","imageUrl":"https://ecion.vercel.app/og-image.png","button":{"title":"Start Tipping","action":{"type":"launch_frame","name":"Ecion","url":"https://ecion.vercel.app","splashImageUrl":"https://ecion.vercel.app/splash.png","splashBackgroundColor":"#fef3c7"}}}' />
         {/* For backward compatibility */}
         <meta name="fc:frame" content='{"version":"1","imageUrl":"https://ecion.vercel.app/og-image.png","button":{"title":"Start Tipping","action":{"type":"launch_frame","name":"Ecion","url":"https://ecion.vercel.app","splashImageUrl":"https://ecion.vercel.app/splash.png","splashBackgroundColor":"#fef3c7"}}}' />

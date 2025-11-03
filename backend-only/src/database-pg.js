@@ -825,15 +825,9 @@ class PostgresDatabase {
         return; // Already cleaned up today
       }
       
-      // Delete tips older than 30 days
-      const result = await this.pool.query(`
-        DELETE FROM tip_history 
-        WHERE processed_at < NOW() - INTERVAL '30 days'
-      `);
-      
-      if (result.rowCount > 0) {
-        console.log(`🧹 Cleaned up ${result.rowCount} old tips (older than 30 days)`);
-      }
+      // DO NOT DELETE tip history - we need all data for accurate calculations
+      // Removed deletion to preserve all tip history data
+      console.log(`ℹ️ Tip history cleanup skipped - preserving all data for accurate leaderboard`);
       
       // Update last cleanup date
       await this.pool.query(`
