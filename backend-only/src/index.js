@@ -263,45 +263,22 @@ app.post('/api/add-user-to-webhook', async (req, res) => {
     
     console.log('📝 Adding FID:', fid, 'to tracked FIDs:', updatedFids);
     
-    // Update webhook with new FID filter
-    const webhookUrl = `https://${req.get('host')}/webhook/neynar`;
-    const response = await fetch(`https://api.neynar.com/v2/webhooks/${webhookId}`, {
-      method: 'PUT',
-      headers: {
-        'x-api-key': process.env.NEYNAR_API_KEY,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        target_url: webhookUrl,
-        event_types: ['cast.created', 'reaction.created', 'follow.created'],
-        filters: {
-          cast_authors: updatedFids
-        }
-      })
-    });
+    // Use the correct addFidToWebhook function (which adds FIDs only to follow.created)
+    // This endpoint is deprecated - use addFidToWebhook function instead
+    console.log(`⚠️ Using deprecated endpoint - redirecting to addFidToWebhook function`);
+    const success = await addFidToWebhook(fidInt);
     
-    const result = await response.text();
-    console.log('🔗 Webhook update response:', response.status, result);
-    
-    if (response.ok) {
-      // Save updated FIDs to database
-      await database.setTrackedFids(updatedFids);
-      
-      const webhookData = JSON.parse(result);
-      console.log("✅ User added to webhook filter:", webhookData);
-      
+    if (success) {
+      const trackedFids = await database.getTrackedFids();
       res.json({
         success: true,
-        message: `FID ${fid} added to webhook filter`,
-        trackedFids: updatedFids,
-        webhook: webhookData
+        message: `FID ${fid} added to webhook follow.created (active users)`,
+        trackedFids: trackedFids
       });
     } else {
-      res.status(response.status).json({
+      res.status(500).json({
         success: false,
-        error: 'Failed to update webhook',
-        status: response.status,
-        response: result
+        error: 'Failed to add FID to webhook'
       });
     }
     
