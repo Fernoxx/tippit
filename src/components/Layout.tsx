@@ -99,14 +99,14 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Main Content with Swipe Support */}
       <main 
-        className="flex-1 overflow-y-auto pb-20"
-        style={{ touchAction: 'pan-y' }}
+        className="flex-1 overflow-y-auto"
+        style={{ touchAction: 'pan-y', paddingBottom: '80px' }}
       >
         {children}
       </main>
 
       {/* Bottom Navigation - Fixed at bottom with 50% transparency and icons only */}
-      <nav className="fixed bottom-0 left-0 right-0 border-t border-gray-100 bg-white/50 backdrop-blur-sm z-50">
+      <nav className="fixed bottom-0 left-0 right-0 border-t border-gray-100 bg-white/50 backdrop-blur-sm z-50" style={{ position: 'fixed', bottom: 0 }}>
         <div className="max-w-4xl mx-auto px-4">
           <div className="flex items-center justify-around h-16">
             {pages.map((page, index) => {

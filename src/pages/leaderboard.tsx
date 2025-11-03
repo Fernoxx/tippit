@@ -126,8 +126,8 @@ export default function Leaderboard() {
         </div>
 
         
-        {/* You Section - Only show if user is logged in and has stats */}
-        {currentUser && userStats && (
+        {/* You Section - Show if user is logged in (will show stats when loaded) */}
+        {currentUser && (
           <div className="mb-6 p-4 bg-gradient-to-r from-yellow-50 to-yellow-100 rounded-xl border border-yellow-200">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
@@ -161,12 +161,15 @@ export default function Leaderboard() {
               <div className="flex items-center space-x-3">
                 <div className="text-right">
                   <p className="text-sm font-semibold text-gray-900">
-                    {activeTab === 'tipped' 
-                      ? (timeFilter === '24h' ? userStats.tippings24h :
-                         timeFilter === '7d' ? userStats.tippings7d : userStats.tippings30d).toFixed(2)
-                      : (timeFilter === '24h' ? userStats.earnings24h :
-                         timeFilter === '7d' ? userStats.earnings7d : userStats.earnings30d).toFixed(2)
-                    } USDC
+                    {userStats ? (
+                      activeTab === 'tipped' 
+                        ? (timeFilter === '24h' ? userStats.tippings24h :
+                           timeFilter === '7d' ? userStats.tippings7d : userStats.tippings30d).toFixed(2)
+                        : (timeFilter === '24h' ? userStats.earnings24h :
+                           timeFilter === '7d' ? userStats.earnings7d : userStats.earnings30d).toFixed(2)
+                    ) : (
+                      '0.00'
+                    )} USDC
                   </p>
                   <p className="text-xs text-gray-500">
                     {activeTab === 'tipped' ? 'tipped' : 'earned'}

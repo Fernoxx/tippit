@@ -87,28 +87,29 @@ export default function SharePage({ fid, time, type, userStats, userProfile }: S
   return (
     <>
       <Head>
-        <title>Ecion - {userProfile.username} {type === 'earnings' ? 'Earnings' : 'Tippings'} {timeLabel}</title>
+        <title key="title">Ecion - {userProfile.username} {type === 'earnings' ? 'Earnings' : 'Tippings'} {timeLabel}</title>
         
-        {/* Override default OG tags with dynamic content */}
-        <meta property="og:title" content={`${userProfile.username} ${type === 'earnings' ? 'Earned' : 'Tipped'} ${amount.toFixed(2)} USDC in ${timeLabel}`} />
-        <meta property="og:description" content={`Check out ${userProfile.username}'s ${type} on Ecion - the tipping platform for Farcaster`} />
-        <meta property="og:image" content={embedImageUrl} />
-        <meta property="og:url" content={`https://ecion.vercel.app/share/${fid}?time=${time}&type=${type}`} />
-        <meta property="og:type" content="website" />
+        {/* Override default OG tags with dynamic content - using key to ensure override */}
+        <meta key="og:title" property="og:title" content={`${userProfile.username} ${type === 'earnings' ? 'Earned' : 'Tipped'} ${amount.toFixed(2)} USDC in ${timeLabel}`} />
+        <meta key="og:description" property="og:description" content={`${userProfile.username} ${type === 'earnings' ? 'earned' : 'tipped'} ${amount.toFixed(2)} USDC in ${timeLabel} on Ecion`} />
+        <meta key="og:image" property="og:image" content={embedImageUrl} />
+        <meta key="og:image:width" property="og:image:width" content="1200" />
+        <meta key="og:image:height" property="og:image:height" content="630" />
+        <meta key="og:url" property="og:url" content={`https://ecion.vercel.app/share/${fid}?time=${time}&type=${type}`} />
+        <meta key="og:type" property="og:type" content="website" />
         
         {/* Override Twitter Card Tags */}
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={`${userProfile.username} ${type === 'earnings' ? 'Earned' : 'Tipped'} ${amount.toFixed(2)} USDC`} />
-        <meta name="twitter:description" content={`Check out ${userProfile.username}'s ${type} on Ecion`} />
-        <meta name="twitter:image" content={embedImageUrl} />
+        <meta key="twitter:card" name="twitter:card" content="summary_large_image" />
+        <meta key="twitter:title" name="twitter:title" content={`${userProfile.username} ${type === 'earnings' ? 'Earned' : 'Tipped'} ${amount.toFixed(2)} USDC`} />
+        <meta key="twitter:description" name="twitter:description" content={`${userProfile.username} ${type === 'earnings' ? 'earned' : 'tipped'} ${amount.toFixed(2)} USDC in ${timeLabel} on Ecion`} />
+        <meta key="twitter:image" name="twitter:image" content={embedImageUrl} />
         
-        {/* Farcaster Mini App Embed */}
-        <meta name="fc:miniapp" content={JSON.stringify(miniappEmbed)} />
-        <meta name="fc:frame" content={JSON.stringify(miniappEmbed)} />
+        {/* Farcaster Mini App Embed - key ensures override */}
+        <meta key="fc:miniapp" name="fc:miniapp" content={JSON.stringify(miniappEmbed)} />
+        <meta key="fc:frame" name="fc:frame" content={JSON.stringify(miniappEmbed)} />
         
         {/* Additional Meta Tags */}
-        <meta name="description" content={`${userProfile.username} ${type === 'earnings' ? 'earned' : 'tipped'} ${amount.toFixed(2)} USDC in ${timeLabel} on Ecion`} />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta key="description" name="description" content={`${userProfile.username} ${type === 'earnings' ? 'earned' : 'tipped'} ${amount.toFixed(2)} USDC in ${timeLabel} on Ecion`} />
       </Head>
 
       <div className="min-h-screen bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center p-4">
