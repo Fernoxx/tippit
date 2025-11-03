@@ -1096,7 +1096,22 @@ app.post('/api/approve', async (req, res) => {
     
     console.log(`User ${userAddress} approved ${amount} of token ${tokenAddress}`);
     
-    // Wait 8 seconds for blockchain to update, then check allowance and update webhook
+    // IMMEDIATELY add user to webhook if they have config (for new users - prevents race condition)
+    try {
+      const userConfig = await database.getUserConfig(userAddress);
+      if (userConfig) {
+        const fid = await getUserFid(userAddress);
+        if (fid) {
+          console.log(`🔗 Immediately adding new user FID ${fid} to webhook after approval`);
+          await addFidToWebhook(fid);
+          console.log(`✅ FID ${fid} added to webhook immediately`);
+        }
+      }
+    } catch (error) {
+      console.error(`⚠️ Error immediately adding user to webhook: ${error.message}`);
+    }
+    
+    // Also verify allowance/balance after blockchain update (async, non-blocking)
     setTimeout(async () => {
       try {
         console.log(`⏳ Waiting 8 seconds for blockchain to update after approval...`);
