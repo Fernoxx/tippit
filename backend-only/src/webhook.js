@@ -210,16 +210,40 @@ async function webhookHandler(req, res) {
       });
     }
     
-    // Check if author has active tipping config
+    // Check if author has tipping config
     const authorConfig = await database.getUserConfig(interaction.authorAddress);
     
-    if (!authorConfig || !authorConfig.isActive) {
-      console.log(`❌ Author ${interaction.authorAddress} has no active tipping config`);
+    if (!authorConfig) {
+      console.log(`❌ Author ${interaction.authorAddress} has no tipping config`);
       return res.status(200).json({
         success: true,
         processed: false,
-        reason: 'Author has no active tipping config'
+        reason: 'Author has no tipping config - please configure settings first'
       });
+    }
+    
+    // If user is in webhook (follow.created), they're active - allow tips even if isActive is not explicitly set
+    // For new users who just approved but haven't saved config yet, they won't have config, so this check will fail above
+    // But if they have config, we should allow tips if they're in webhook (active users)
+    const trackedFids = await database.getTrackedFids();
+    const authorFid = interaction.authorFid;
+    const isInWebhook = trackedFids.includes(authorFid);
+    
+    if (!isInWebhook) {
+      console.log(`❌ Author ${interaction.authorAddress} (FID: ${authorFid}) is not in webhook follow.created (not an active user)`);
+      return res.status(200).json({
+        success: true,
+        processed: false,
+        reason: 'Author is not an active user (not in webhook)'
+      });
+    }
+    
+    // If user has config but isActive is false, set it to true (they're in webhook, so they should be active)
+    if (!authorConfig.isActive) {
+      console.log(`⚠️ Author ${interaction.authorAddress} has config but isActive=false - setting to true (user is in webhook)`);
+      authorConfig.isActive = true;
+      await database.setUserConfig(interaction.authorAddress, authorConfig);
+      console.log(`✅ Set isActive=true for ${interaction.authorAddress}`);
     }
     
     // Check if action type is enabled

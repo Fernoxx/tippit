@@ -233,9 +233,27 @@ class BatchTransferManager {
         return { valid: false, reason: 'Interactor has no verified address' };
       }
 
-      // Check if author has active config
-      if (!authorConfig || !authorConfig.isActive) {
-        return { valid: false, reason: 'No active configuration' };
+      // Check if author has config
+      if (!authorConfig) {
+        return { valid: false, reason: 'No tipping configuration' };
+      }
+      
+      // If user is in webhook (follow.created), they're active - allow tips
+      // isActive might be false for new users, but being in webhook means they're active
+      const trackedFids = await database.getTrackedFids();
+      const { getUserFid } = require('./index');
+      const authorFid = await getUserFid(interaction.authorAddress);
+      const isInWebhook = authorFid ? trackedFids.includes(authorFid) : false;
+      
+      if (!isInWebhook) {
+        return { valid: false, reason: 'Author is not an active user (not in webhook)' };
+      }
+      
+      // Auto-set isActive if user is in webhook but isActive is false
+      if (!authorConfig.isActive && isInWebhook) {
+        console.log(`⚠️ Author ${interaction.authorAddress} is in webhook but isActive=false - setting to true`);
+        authorConfig.isActive = true;
+        await database.setUserConfig(interaction.authorAddress, authorConfig);
       }
 
       // Get user data for validation
