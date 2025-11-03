@@ -257,11 +257,7 @@ app.post('/api/add-user-to-webhook', async (req, res) => {
       });
     }
     
-    // Get current tracked FIDs
-    const trackedFids = await database.getTrackedFids();
-    const updatedFids = [...new Set([...trackedFids, parseInt(fid)])]; // Remove duplicates
-    
-    console.log('📝 Adding FID:', fid, 'to tracked FIDs:', updatedFids);
+    const fidInt = parseInt(fid);
     
     // Use the correct addFidToWebhook function (which adds FIDs only to follow.created)
     // This endpoint is deprecated - use addFidToWebhook function instead
