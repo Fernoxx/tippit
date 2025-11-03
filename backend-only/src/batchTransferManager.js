@@ -346,17 +346,47 @@ class BatchTransferManager {
       const tipsToProcess = [...this.pendingTips];
       
       // Process ALL tips in ONE transaction (even with different tokens)
-      const result = await this.executeBatchTransfer(tipsToProcess);
+      // Add retry logic for transient RPC errors (503, network issues)
+      let retryCount = 0;
+      const maxRetries = 3;
+      let result = null;
       
-      // Clear processed tips
-      this.pendingTips = [];
-      
-      console.log(`✅ Batch processing complete: ${result.processed} processed, ${result.failed} failed`);
+      while (retryCount < maxRetries) {
+        try {
+          result = await this.executeBatchTransfer(tipsToProcess);
+          
+          // Clear processed tips only on success
+          this.pendingTips = [];
+          
+          console.log(`✅ Batch processing complete: ${result.processed} processed, ${result.failed} failed`);
+          break; // Success, exit retry loop
+          
+        } catch (error) {
+          retryCount++;
+          const isTransientError = error.message.includes('503') || 
+                                   error.message.includes('Service Unavailable') ||
+                                   error.message?.includes('network') ||
+                                   error.message.includes('SERVER_ERROR');
+          
+          if (isTransientError && retryCount < maxRetries) {
+            console.log(`⚠️ Transient RPC error on attempt ${retryCount}/${maxRetries}: ${error.message}`);
+            console.log(`⏳ Waiting ${retryCount * 2} seconds before retry...`);
+            await new Promise(resolve => setTimeout(resolve, 2000 * retryCount));
+            // Tips remain in queue for retry
+          } else {
+            // Non-transient error or max retries reached
+            console.error(`❌ Batch processing error after ${retryCount} attempts:`, error);
+            // Keep tips in queue for next batch cycle (don't clear pendingTips)
+            throw error;
+          }
+        }
+      }
       
       // Webhook status updates are handled automatically when users approve/revoke allowances
 
     } catch (error) {
-      console.error('❌ Batch processing error:', error);
+      console.error('❌ Batch processing error (tips remain in queue for next cycle):', error);
+      // Don't clear pendingTips - they'll be retried in the next batch cycle
     } finally {
       this.isProcessing = false;
     }

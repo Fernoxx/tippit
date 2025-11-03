@@ -166,41 +166,101 @@ class EcionBatchManager {
         this.wallet
       );
       
-      // Verify provider is working
-      try {
-        const network = await this.provider.getNetwork();
-        console.log(`✅ Provider connected to network: ${network.name} (chainId: ${network.chainId})`);
-      } catch (error) {
-        console.log(`❌ Provider connection failed: ${error.message}`);
-        throw new Error('Provider not accessible: ' + error.message);
-      }
+      // Verify provider is working with retry logic (for 503 errors)
+      let providerRetryCount = 0;
+      const maxProviderRetries = 3;
+      let network = null;
       
-      // Verify contract is deployed and accessible
-      try {
-        const code = await this.provider.getCode(this.contractAddress);
-        if (code === '0x') {
-          throw new Error('Contract not deployed at address: ' + this.contractAddress);
+      while (providerRetryCount < maxProviderRetries) {
+        try {
+          network = await this.provider.getNetwork();
+          console.log(`✅ Provider connected to network: ${network.name} (chainId: ${network.chainId})`);
+          break;
+        } catch (error) {
+          providerRetryCount++;
+          console.log(`❌ Provider connection attempt ${providerRetryCount} failed: ${error.message}`);
+          
+          if (providerRetryCount >= maxProviderRetries) {
+            throw new Error('Provider not accessible after ' + maxProviderRetries + ' attempts: ' + error.message);
+          }
+          
+          // Wait before retry (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * providerRetryCount));
         }
-        console.log(`✅ Contract verified at address: ${this.contractAddress}`);
-      } catch (error) {
-        console.log(`❌ Contract verification failed: ${error.message}`);
-        throw new Error('Contract not accessible: ' + error.message);
       }
       
-      // Check if we're an executor
-      const isExecutor = await contract.isExecutor(this.wallet.address);
-      if (!isExecutor) {
-        throw new Error('Backend wallet is not an executor on EcionBatch contract');
-      }
-      console.log(`✅ Backend wallet is verified as executor: ${this.wallet.address}`);
+      // Verify contract is deployed and accessible with retry logic
+      let contractRetryCount = 0;
+      const maxContractRetries = 3;
+      let contractCode = null;
       
-      // Test contract function accessibility
-      try {
-        const owner = await contract.owner();
-        console.log(`✅ Contract owner: ${owner}`);
-      } catch (error) {
-        console.log(`❌ Contract function test failed: ${error.message}`);
-        throw new Error('Contract functions not accessible: ' + error.message);
+      while (contractRetryCount < maxContractRetries) {
+        try {
+          contractCode = await this.provider.getCode(this.contractAddress);
+          if (contractCode === '0x') {
+            throw new Error('Contract not deployed at address: ' + this.contractAddress);
+          }
+          console.log(`✅ Contract verified at address: ${this.contractAddress}`);
+          break;
+        } catch (error) {
+          contractRetryCount++;
+          console.log(`❌ Contract verification attempt ${contractRetryCount} failed: ${error.message}`);
+          
+          if (contractRetryCount >= maxContractRetries) {
+            throw new Error('Contract not accessible after ' + maxContractRetries + ' attempts: ' + error.message);
+          }
+          
+          // Wait before retry (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * contractRetryCount));
+        }
+      }
+      
+      // Check if we're an executor with retry logic
+      let executorRetryCount = 0;
+      const maxExecutorRetries = 3;
+      let isExecutor = false;
+      
+      while (executorRetryCount < maxExecutorRetries) {
+        try {
+          isExecutor = await contract.isExecutor(this.wallet.address);
+          if (!isExecutor) {
+            throw new Error('Backend wallet is not an executor on EcionBatch contract');
+          }
+          console.log(`✅ Backend wallet is verified as executor: ${this.wallet.address}`);
+          break;
+        } catch (error) {
+          executorRetryCount++;
+          console.log(`❌ Executor check attempt ${executorRetryCount} failed: ${error.message}`);
+          
+          if (executorRetryCount >= maxExecutorRetries) {
+            throw new Error('Executor check failed after ' + maxExecutorRetries + ' attempts: ' + error.message);
+          }
+          
+          // Wait before retry (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * executorRetryCount));
+        }
+      }
+      
+      // Test contract function accessibility with retry logic
+      let functionTestRetryCount = 0;
+      const maxFunctionTestRetries = 3;
+      
+      while (functionTestRetryCount < maxFunctionTestRetries) {
+        try {
+          const owner = await contract.owner();
+          console.log(`✅ Contract owner: ${owner}`);
+          break;
+        } catch (error) {
+          functionTestRetryCount++;
+          console.log(`❌ Contract function test attempt ${functionTestRetryCount} failed: ${error.message}`);
+          
+          if (functionTestRetryCount >= maxFunctionTestRetries) {
+            throw new Error('Contract functions not accessible after ' + maxFunctionTestRetries + ' attempts: ' + error.message);
+          }
+          
+          // Wait before retry (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * functionTestRetryCount));
+        }
       }
       
       // Prepare batch data (only 4 parameters needed)
