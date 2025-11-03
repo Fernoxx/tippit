@@ -57,16 +57,18 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
     let webhookReason = '';
     let minTipAmount = 0;
     
+    let newUserFid = null; // Store FID for new users to avoid fetching twice
+    
     if (!isExistingUser) {
       // NEW USER: Add to webhook immediately (they'll set config after)
       // BUT FIRST: Get FID and ensure they're in database
       console.log(`🆕 New user ${userAddress} approved allowance - getting FID first`);
       
       const { getUserFid } = require('./index');
-      const fid = await getUserFid(userAddress);
+      newUserFid = await getUserFid(userAddress);
       
-      if (fid) {
-        console.log(`✅ Found FID ${fid} for new user ${userAddress} - adding to webhook immediately`);
+      if (newUserFid) {
+        console.log(`✅ Found FID ${newUserFid} for new user ${userAddress} - adding to webhook immediately`);
         webhookAction = 'add';
         webhookReason = 'new_user_approval';
       } else {
@@ -105,16 +107,13 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
     
     try {
       // Get user's FID using the proper FID lookup function from index.js
-      const { getUserFid } = require('./index');
-      console.log(`🔍 Looking up FID for ${userAddress}...`);
+      // For new users, FID was already fetched above, so reuse it
+      let fid = newUserFid;
       
-      // For new users, FID was already fetched above
-      let fid = null;
-      if (webhookAction === 'add' && webhookReason === 'new_user_approval') {
-        // FID was already fetched above for new users
-        fid = await getUserFid(userAddress);
-      } else {
-        // For existing users or other cases, fetch FID now
+      if (!fid) {
+        // For existing users or if new user FID fetch failed, fetch FID now
+        const { getUserFid } = require('./index');
+        console.log(`🔍 Looking up FID for ${userAddress}...`);
         fid = await getUserFid(userAddress);
       }
       
