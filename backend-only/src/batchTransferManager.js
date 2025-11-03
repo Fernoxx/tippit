@@ -448,8 +448,9 @@ class BatchTransferManager {
                 console.log(`🚫 User ${tip.interaction.authorAddress} ${reason} after tip - removing from webhook`);
                 
                 // Remove FID from webhook follow.created (active users) to prevent future tip processing
-                const { removeFidFromWebhook, getUserFid, sendNeynarNotification } = require('./index');
-                const userFid = await getUserFid(tip.interaction.authorAddress);
+                // Use interaction.authorFid directly (already from webhook) - no need to look up from database
+                const { removeFidFromWebhook, sendNeynarNotification } = require('./index');
+                const userFid = tip.interaction.authorFid; // Already available from webhook event
                 if (userFid) {
                   await removeFidFromWebhook(userFid);
                   console.log(`🚫 Removed FID ${userFid} from webhook follow.created - ${reason} after tip`);

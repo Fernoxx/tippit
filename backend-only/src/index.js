@@ -1383,23 +1383,8 @@ async function getUserFid(userAddress) {
     return userFidMap.get(userAddress.toLowerCase());
   }
   
-  // Check database for stored FID first
-  try {
-    const result = await database.pool.query(
-      'SELECT fid FROM user_profiles WHERE user_address = $1',
-      [userAddress.toLowerCase()]
-    );
-    
-    if (result.rows.length > 0) {
-      const fid = result.rows[0].fid;
-      console.log(`✅ Found stored FID ${fid} for ${userAddress} in database`);
-      userFidMap.set(userAddress.toLowerCase(), fid);
-      return fid;
-    }
-  } catch (error) {
-    console.log(`⚠️ Error checking database for FID: ${error.message}`);
-  }
-  
+  // Skip user_profiles database check - it's not reliably updated
+  // Always use Neynar API for accurate FID lookup
   try {
     // Use direct Neynar API to get FID from wallet address
     console.log(`🔍 Fetching FID for ${userAddress} using Neynar API`);
