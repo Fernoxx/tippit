@@ -17,10 +17,10 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://tippit-production.up.railway.app';
     
     // Use Promise.race to add timeout (10 seconds)
-    const fetchWithTimeout = (url, timeout = 10000) => {
+    const fetchWithTimeout = (url: string, timeout: number = 10000): Promise<Response> => {
       return Promise.race([
         fetch(url),
-        new Promise((_, reject) => 
+        new Promise<Response>((_, reject) => 
           setTimeout(() => reject(new Error('Timeout')), timeout)
         )
       ]);
