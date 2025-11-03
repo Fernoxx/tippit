@@ -140,14 +140,18 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
       webhookResult = { action: 'error', reason: error.message };
     }
     
-    // Check if balance is too low (only for existing users with config)
-    let allowanceRevoked = false;
-    if (isExistingUser && minTipAmount > 0 && balanceAmount < minTipAmount && allowanceAmount > 0) {
-      console.log(`💰 User ${userAddress} balance ${balanceAmount} < min tip ${minTipAmount} - low balance warning`);
-      // Note: We cannot auto-revoke without user's wallet access
-      console.log(`⚠️ Allowance should be revoked for ${userAddress} - balance too low (user must revoke manually)`);
-      allowanceRevoked = true;
+    // Check balance for ALL users (both new and existing)
+    // Note: Frontend already checks minimum 1 USDC balance before allowing approval
+    let balanceWarning = false;
+    const minBalanceThreshold = isExistingUser && minTipAmount > 0 ? minTipAmount : 1.0; // 1 USDC for new users, minTip for existing
+    
+    if (balanceAmount < minBalanceThreshold && allowanceAmount > 0) {
+      console.log(`⚠️ User ${userAddress} balance ${balanceAmount} < ${minBalanceThreshold} - low balance warning`);
+      balanceWarning = true;
     }
+    
+    // Log balance/allowance status for all users
+    console.log(`💰 Balance check: ${balanceAmount} USDC, Allowance: ${allowanceAmount} USDC${balanceWarning ? ' - LOW BALANCE WARNING' : ''}`);
     
     // Webhook management is already handled above
     console.log(`📊 Webhook action executed: ${webhookResult.action} - ${webhookResult.reason}`);
@@ -158,12 +162,12 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
       balance: balanceAmount,
       minTipAmount: minTipAmount || 0,
       isExistingUser,
+      balanceWarning,
       webhookAction: webhookResult.action,
       webhookReason: webhookResult.reason,
-      allowanceRevoked: allowanceRevoked,
       message: isExistingUser 
-        ? `Webhook updated - user ${webhookResult.action === 'removed' ? 'removed from webhook' : 'ensured in webhook'}${allowanceRevoked ? ' - allowance should be revoked (low balance)' : ''}`
-        : `New user added to webhook - please configure tipping settings in frontend`
+        ? `Webhook updated - user ${webhookResult.action === 'removed' ? 'removed from webhook' : 'ensured in webhook'}${balanceWarning ? ' - low balance warning' : ''}`
+        : `New user added to webhook - please configure tipping settings in frontend${balanceWarning ? ' - low balance warning' : ''}`
     });
     
   } catch (error) {
