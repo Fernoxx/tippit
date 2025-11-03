@@ -5,6 +5,7 @@ require('dotenv').config();
 
 const webhookHandler = require('./webhook');
 const batchTransferManager = require('./batchTransferManager');
+const { getProvider } = require('./rpcProvider');
 // Use PostgreSQL database if available, fallback to file storage
 let database;
 try {
@@ -919,7 +920,7 @@ async function getTokenDecimals(tokenAddress) {
     
     // Query contract for decimals
     const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const provider = await getProvider(); // Use fallback provider
     const tokenContract = new ethers.Contract(tokenAddress, [
       "function decimals() view returns (uint8)"
     ], provider);
@@ -942,7 +943,7 @@ app.get('/api/check-allowance', async (req, res) => {
     }
     
     const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const provider = await getProvider(); // Use fallback provider
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     
     const tokenContract = new ethers.Contract(tokenAddress, [
@@ -993,7 +994,7 @@ app.get('/api/allowance-balance/:userAddress/:tokenAddress', async (req, res) =>
     const { userAddress, tokenAddress } = req.params;
     const { ethers } = require('ethers');
     
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const provider = await getProvider(); // Use fallback provider
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     
     const tokenContract = new ethers.Contract(tokenAddress, [
@@ -1031,7 +1032,7 @@ app.get('/api/allowance/:userAddress/:tokenAddress', async (req, res) => {
     const { userAddress, tokenAddress } = req.params;
     const { ethers } = require('ethers');
     
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const provider = await getProvider(); // Use fallback provider
     
     // Check allowance for ECION BATCH CONTRACT, not backend wallet!
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
@@ -1063,7 +1064,7 @@ app.get('/api/token-info/:tokenAddress', async (req, res) => {
     const { tokenAddress } = req.params;
     const { ethers } = require('ethers');
     
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const provider = await getProvider(); // Use fallback provider
     
     const tokenContract = new ethers.Contract(tokenAddress, [
       "function name() view returns (string)",
@@ -1103,7 +1104,7 @@ app.post('/api/approve', async (req, res) => {
         
         // Check current allowance and balance from blockchain
         const { ethers } = require('ethers');
-        const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+        const provider = await getProvider(); // Use fallback provider
         const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
         
         const tokenContract = new ethers.Contract(tokenAddress, [
@@ -1194,7 +1195,7 @@ app.post('/api/revoke', async (req, res) => {
         
         // Check current allowance and balance from blockchain
         const { ethers } = require('ethers');
-        const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+        const provider = await getProvider(); // Use fallback provider
         const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
         
         const tokenContract = new ethers.Contract(tokenAddress, [
@@ -1501,7 +1502,7 @@ async function updateLatestCastHash(userAddress, castHash, castTimestamp) {
 async function checkTokenAllowance(userAddress, tokenAddress) {
   try {
     const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const provider = await getProvider(); // Use fallback provider
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     
     const tokenContract = new ethers.Contract(tokenAddress, [
@@ -1525,7 +1526,7 @@ async function checkTokenAllowance(userAddress, tokenAddress) {
 async function checkTokenBalance(userAddress, tokenAddress) {
   try {
     const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const provider = await getProvider(); // Use fallback provider
     
     const tokenContract = new ethers.Contract(tokenAddress, [
       "function balanceOf(address owner) view returns (uint256)"
@@ -1899,7 +1900,7 @@ async function checkUserAllowanceForWebhook(userAddress) {
     }
     
     const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const provider = await getProvider(); // Use fallback provider
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
     
@@ -2174,7 +2175,7 @@ async function updateUserWebhookStatus(userAddress) {
     
     // Check current allowance and balance from blockchain
     const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const provider = await getProvider(); // Use fallback provider
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     
     const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
@@ -2587,7 +2588,7 @@ async function updateDatabaseAllowance(userAddress, allowanceAmount) {
 async function getTokenSymbol(tokenAddress) {
   try {
     const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const provider = await getProvider(); // Use fallback provider
     
     const tokenContract = new ethers.Contract(tokenAddress, [
       "function symbol() view returns (string)"
@@ -2873,7 +2874,7 @@ async function syncAllUsersAllowancesFromBlockchain() {
     console.log(`📊 Found ${activeUsers.length} active users to sync`);
     
     const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const provider = await getProvider(); // Use fallback provider
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     
     let syncedCount = 0;
@@ -3098,7 +3099,7 @@ app.post('/api/sync-all-users-allowance', async (req, res) => {
     console.log('🔄 Starting comprehensive user allowance sync...');
     
     const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const provider = await getProvider(); // Use fallback provider
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     
     // Get all users with active configurations
@@ -3646,7 +3647,7 @@ app.get('/api/homepage', async (req, res) => {
     console.log(`🏠 Homepage: ${activeUsers.length} users with verified addresses out of ${trackedFids.length} FIDs`);
     
     const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const provider = await getProvider(); // Use fallback provider
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     
     // Get allowance and cast for each user
@@ -3886,7 +3887,7 @@ app.get('/api/leaderboard', async (req, res) => {
         if (tipper.tokenAddress) {
           try {
             const { ethers } = require('ethers');
-            const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+            const provider = await getProvider(); // Use fallback provider
             const tokenContract = new ethers.Contract(tipper.tokenAddress, [
               "function name() view returns (string)",
               "function symbol() view returns (string)",
@@ -3953,7 +3954,7 @@ app.get('/api/leaderboard', async (req, res) => {
         if (earner.tokenAddress) {
           try {
             const { ethers } = require('ethers');
-            const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+            const provider = await getProvider(); // Use fallback provider
             const tokenContract = new ethers.Contract(earner.tokenAddress, [
               "function name() view returns (string)",
               "function symbol() view returns (string)",
@@ -4355,7 +4356,7 @@ app.get('/api/debug/allowance-filtering', async (req, res) => {
     
     const activeUsers = await database.getActiveUsersWithApprovals();
     const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const provider = await getProvider(); // Use fallback provider
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     
     const filteringResults = [];
@@ -4794,7 +4795,7 @@ app.get('/api/fix-active-users-isactive', async (req, res) => {
     `, [trackedFids]);
     
     const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const provider = await getProvider(); // Use fallback provider
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     
     let fixedCount = 0;
@@ -4955,7 +4956,7 @@ app.get('/api/debug/user-config-allowance', async (req, res) => {
     
     // Check allowance
     const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const provider = await getProvider(); // Use fallback provider
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     
     let allowance = 0;
@@ -5092,7 +5093,7 @@ app.post('/api/debug/force-process-batch', async (req, res) => {
 // Check current gas prices on Base
 app.get('/api/debug/gas-prices', async (req, res) => {
   try {
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const provider = await getProvider(); // Use fallback provider
     const gasPrice = await provider.getGasPrice();
     const feeData = await provider.getFeeData();
     
@@ -6941,7 +6942,7 @@ app.get('/api/debug/db-status', async (req, res) => {
 app.get('/api/debug/ecionbatch-status', async (req, res) => {
   try {
     const { ethers } = require('ethers');
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const provider = await getProvider(); // Use fallback provider
     const wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY, provider);
     
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
