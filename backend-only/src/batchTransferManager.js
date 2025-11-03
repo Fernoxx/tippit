@@ -1,6 +1,7 @@
 const { ethers } = require('ethers');
 const BatchTipManager = require('./batchTipManager');
 const EcionBatchManager = require('./ecionBatchManager');
+const { getProvider, executeWithFallback } = require('./rpcProvider');
 
 // Token decimals mapping (to avoid circular dependency) - all lowercase keys
 const TOKEN_DECIMALS = {
@@ -28,16 +29,14 @@ try {
 
 class BatchTransferManager {
   constructor() {
-    this.provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-    if (process.env.NODE_ENV === 'debug') {
-      this.wallet = null;
-    } else {
-      this.wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY, this.provider);
-    }
+    // Initialize provider with fallback support (will be set async)
+    this.provider = null;
+    this.wallet = null;
+    this.batchTipManager = null;
+    this.ecionBatchManager = null;
     
-    // Initialize batch managers
-    this.batchTipManager = new BatchTipManager(this.provider, this.wallet);
-    this.ecionBatchManager = new EcionBatchManager(this.provider, this.wallet);
+    // Initialize provider asynchronously
+    this.initializeProviders();
     
     // Batch configuration
     this.batchIntervalMs = 60000; // 1 minute batches like Noice
@@ -48,9 +47,32 @@ class BatchTransferManager {
     this.pendingTips = [];
     
     this.isProcessing = false;
-    
-    // Start batch processing timer
-    this.startBatchTimer();
+  }
+  
+  async initializeProviders() {
+    try {
+      // Get provider with fallback support
+      this.provider = await getProvider();
+      
+      if (process.env.NODE_ENV === 'debug') {
+        this.wallet = null;
+      } else {
+        this.wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY, this.provider);
+      }
+      
+      // Initialize batch managers with provider
+      this.batchTipManager = new BatchTipManager(this.provider, this.wallet);
+      this.ecionBatchManager = new EcionBatchManager(this.provider, this.wallet);
+      
+      // Start batch processing timer after providers are ready
+      this.startBatchTimer();
+      
+      console.log('✅ BatchTransferManager providers initialized');
+    } catch (error) {
+      console.error('❌ Failed to initialize providers:', error);
+      // Retry after 5 seconds
+      setTimeout(() => this.initializeProviders(), 5000);
+    }
   }
 
   // Start the batch processing timer
@@ -76,9 +98,9 @@ class BatchTransferManager {
         return { canAfford: false, allowanceAmount: 0, minTipAmount: 0 };
       }
       
-      // Get REAL blockchain allowance (most accurate)
+      // Get REAL blockchain allowance (most accurate) with fallback provider
       const { ethers } = require('ethers');
-      const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+      const provider = await getProvider(); // Use provider with fallback
       const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
       
       // Force USDC token address for now to fix decimal issue
@@ -120,7 +142,7 @@ class BatchTransferManager {
       
       // Get allowance directly from blockchain
       const { ethers } = require('ethers');
-      const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+      const provider = await getProvider(); // Use provider with fallback
       const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
       
       // Force USDC token address for now to fix decimal issue
@@ -178,7 +200,7 @@ class BatchTransferManager {
       console.log(`🔍 Checking allowance and balance for ${userAddress} - token: ${tokenAddress}, required: ${requiredAmount}`);
       
       const { ethers } = require('ethers');
-      const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+      const provider = await getProvider(); // Use provider with fallback
       const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
       
       const tokenContract = new ethers.Contract(tokenAddress, [
@@ -440,9 +462,9 @@ class BatchTransferManager {
             if (userConfig) {
               userConfig.lastActivity = Date.now();
               
-              // Get current blockchain allowance and update database with it
+              // Get current blockchain allowance and update database with it (using fallback provider)
               const { ethers } = require('ethers');
-              const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+              const provider = await getProvider(); // Use provider with fallback
               const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
               
               const tokenContract = new ethers.Contract(tip.tokenAddress, [
@@ -765,9 +787,11 @@ class BatchTransferManager {
 
   async getUserTokenAllowance(userAddress, tokenAddress) {
     try {
+      // Use provider with fallback
+      const provider = await getProvider();
       const tokenContract = new ethers.Contract(tokenAddress, [
         "function allowance(address owner, address spender) view returns (uint256)"
-      ], this.provider);
+      ], provider);
       
       // Check allowance for ECION BATCH CONTRACT, not backend wallet!
       const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
@@ -802,7 +826,7 @@ class BatchTransferManager {
       console.log(`🔄 Auto-revoking allowance for ${userAddress} - token: ${tokenAddress}`);
       
       const { ethers } = require('ethers');
-      const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+      const provider = await getProvider(); // Use provider with fallback
       const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
       
       const tokenContract = new ethers.Contract(tokenAddress, [
