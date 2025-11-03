@@ -22,7 +22,9 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
     await new Promise(resolve => setTimeout(resolve, 8000)); // Wait 8 seconds
     
     // Get current allowance and balance from blockchain - single call for both
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    // Use fallback provider to handle RPC errors
+    const { getProvider } = require('./rpcProvider');
+    const provider = await getProvider();
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     
     const tokenContract = new ethers.Contract(tokenAddress, [
@@ -91,11 +93,13 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
     let webhookResult = { action: 'no_change', reason: 'no_change_needed' };
     
     try {
-      // Get user's FID using the proper FID lookup function
+      // Get user's FID using the proper FID lookup function from index.js
       const { getUserFid } = require('./index');
+      console.log(`🔍 Looking up FID for ${userAddress}...`);
       const fid = await getUserFid(userAddress);
       
       if (fid) {
+        console.log(`✅ Found FID ${fid} for ${userAddress}`);
         
         if (webhookAction === 'remove') {
           // Remove FID from webhook
