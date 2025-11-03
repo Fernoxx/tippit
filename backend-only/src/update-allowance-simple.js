@@ -140,9 +140,9 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
       webhookResult = { action: 'error', reason: error.message };
     }
     
-    // Check if balance is too low and revoke allowance if needed
+    // Check if balance is too low (only for existing users with config)
     let allowanceRevoked = false;
-    if (balanceAmount < minTipAmount && allowanceAmount > 0) {
+    if (isExistingUser && minTipAmount > 0 && balanceAmount < minTipAmount && allowanceAmount > 0) {
       console.log(`💰 User ${userAddress} balance ${balanceAmount} < min tip ${minTipAmount} - revoking allowance`);
       
       try {
