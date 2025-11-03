@@ -1562,8 +1562,9 @@ async function checkTokenBalance(userAddress, tokenAddress) {
 
 // Get all active users by reading from webhook's follow.created.target_fids
 // THIS IS THE SOURCE OF TRUTH - webhook follow.created determines who is active
-// Active Users = FIDs in follow.created (NO blockchain checking here - that's done only when tips are processed)
+// Active Users = FIDs in follow.created (source of truth)
 // This function is used for polling - NO blockchain calls allowed
+// If user is in follow.created, they ARE active - poll them regardless of database
 async function getActiveUsers() {
   try {
     // Get active user FIDs from webhook follow.created (source of truth)
@@ -1575,7 +1576,8 @@ async function getActiveUsers() {
       return [];
     }
     
-    // Get user data for these FIDs (NO blockchain checking - just return users from webhook)
+    // Get user data for these FIDs from database (if they exist)
+    // But also create entries for FIDs that aren't in database yet
     const result = await database.pool.query(`
       SELECT up.fid, up.user_address, up.latest_cast_hash, up.is_tracking, uc.config
       FROM user_profiles up
@@ -1583,10 +1585,66 @@ async function getActiveUsers() {
       WHERE up.fid = ANY($1)
     `, [trackedFids]);
     
-    console.log(`📋 Found ${result.rows.length} users in database for ${trackedFids.length} FIDs`);
+    const existingFids = new Set(result.rows.map(r => r.fid));
+    const missingFids = trackedFids.filter(fid => !existingFids.has(fid));
     
-    // Return all users from webhook - blockchain checking happens only during tip processing
-    return result.rows.filter(user => user.config); // Only return users with config
+    // For FIDs not in database, fetch their address and create entry
+    if (missingFids.length > 0) {
+      console.log(`📝 Found ${missingFids.length} FIDs in webhook but not in database - will fetch their data`);
+      for (const fid of missingFids) {
+        try {
+          const { getUserByFid } = require('./neynar');
+          const user = await getUserByFid(fid);
+          if (user?.verified_addresses?.primary?.eth_address) {
+            const address = user.verified_addresses.primary.eth_address.toLowerCase();
+            // Create database entry for this FID
+            await database.pool.query(`
+              INSERT INTO user_profiles (fid, user_address, username, display_name, pfp_url, updated_at)
+              VALUES ($1, $2, $3, $4, $5, NOW())
+              ON CONFLICT (fid) DO UPDATE SET
+                user_address = $2,
+                username = $3,
+                display_name = $4,
+                pfp_url = $5,
+                updated_at = NOW()
+            `, [fid, address, user.username || user.display_name, user.display_name, user.pfp?.url]);
+            
+            // Get config for this user
+            const config = await database.getUserConfig(address);
+            if (config) {
+              result.rows.push({
+                fid,
+                user_address: address,
+                latest_cast_hash: null,
+                is_tracking: true,
+                config
+              });
+            }
+          }
+        } catch (error) {
+          console.log(`⚠️ Could not fetch data for FID ${fid}: ${error.message}`);
+        }
+      }
+    }
+    
+    // Return ALL FIDs from webhook - they're active users
+    // If they don't have config, we'll still poll them (they might have config in database but not loaded)
+    const usersWithData = result.rows;
+    const fidsWithoutData = trackedFids.filter(fid => !usersWithData.find(u => u.fid === fid));
+    
+    // For FIDs without database data, create minimal entries
+    for (const fid of fidsWithoutData) {
+      usersWithData.push({
+        fid,
+        user_address: null, // Will be fetched when we poll
+        latest_cast_hash: null,
+        is_tracking: true,
+        config: null
+      });
+    }
+    
+    console.log(`👥 Polling ${usersWithData.length} active users (${trackedFids.length} from webhook)`);
+    return usersWithData;
   } catch (error) {
     console.log(`❌ Error getting active users: ${error.message}`);
     return [];
