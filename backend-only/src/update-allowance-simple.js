@@ -42,42 +42,49 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
     
     console.log(`📊 Blockchain check: Allowance: ${allowanceAmount}, Balance: ${balanceAmount}`);
     
-    // Get user config to check min tip amount
+    // Get user config (if exists)
     let userConfig = await database.getUserConfig(userAddress);
-    if (!userConfig) {
-      // Don't auto-create config - user must save config manually via frontend
-      console.log(`⚠️ No config found for ${userAddress} - user needs to save config manually via frontend`);
-      return res.json({
-        success: false,
-        error: 'No tipping configuration found. Please configure your tipping settings in the frontend first.',
-        needsConfig: true
-      });
-    }
+    const isExistingUser = !!userConfig;
     
-    console.log(`📖 Using existing config for ${userAddress}`);
+    // LOGIC: 
+    // - NEW users: Add to webhook immediately when they approve (no config check)
+    // - OLD users: Check config and allowance, add/keep in webhook if sufficient
+    // - Config/criteria checks happen ONLY when processing tips
     
-    // Calculate total tip amount (like + recast + reply)
-    const likeAmount = parseFloat(userConfig.likeAmount || '0');
-    const recastAmount = parseFloat(userConfig.recastAmount || '0');
-    const replyAmount = parseFloat(userConfig.replyAmount || '0');
-    const minTipAmount = likeAmount + recastAmount + replyAmount;
-    
-    console.log(`💰 Total tip amount: ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount}), Current allowance: ${allowanceAmount}`);
-    
-    // Determine webhook action based on allowance vs min tip
     let webhookAction = 'no_change';
     let webhookReason = '';
+    let minTipAmount = 0;
     
-    if (allowanceAmount < minTipAmount) {
-      // User has insufficient allowance - should be removed from webhook
-      webhookAction = 'remove';
-      webhookReason = 'insufficient_allowance';
-      console.log(`🚫 User ${userAddress} allowance ${allowanceAmount} < min tip ${minTipAmount} - removing from webhook`);
-    } else {
-      // User has sufficient allowance - should be in webhook
+    if (!isExistingUser) {
+      // NEW USER: Add to webhook immediately (they'll set config after)
+      console.log(`🆕 New user ${userAddress} approved allowance - adding to webhook immediately`);
       webhookAction = 'add';
-      webhookReason = 'sufficient_allowance';
-      console.log(`✅ User ${userAddress} allowance ${allowanceAmount} >= min tip ${minTipAmount} - ensuring in webhook`);
+      webhookReason = 'new_user_approval';
+      console.log(`✅ Adding new user ${userAddress} to webhook (will set config later)`);
+    } else {
+      // EXISTING USER: Check config and allowance
+      console.log(`📖 Existing user ${userAddress} - checking config and allowance`);
+      
+      // Calculate total tip amount (like + recast + reply)
+      const likeAmount = parseFloat(userConfig.likeAmount || '0');
+      const recastAmount = parseFloat(userConfig.recastAmount || '0');
+      const replyAmount = parseFloat(userConfig.replyAmount || '0');
+      minTipAmount = likeAmount + recastAmount + replyAmount;
+      
+      console.log(`💰 Total tip amount: ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount}), Current allowance: ${allowanceAmount}`);
+      
+      // Determine webhook action based on allowance vs min tip
+      if (allowanceAmount < minTipAmount) {
+        // User has insufficient allowance - should be removed from webhook
+        webhookAction = 'remove';
+        webhookReason = 'insufficient_allowance';
+        console.log(`🚫 User ${userAddress} allowance ${allowanceAmount} < min tip ${minTipAmount} - removing from webhook`);
+      } else {
+        // User has sufficient allowance - should be in webhook
+        webhookAction = 'add';
+        webhookReason = 'sufficient_allowance';
+        console.log(`✅ User ${userAddress} allowance ${allowanceAmount} >= min tip ${minTipAmount} - ensuring in webhook`);
+      }
     }
     
     // Execute the webhook action
@@ -113,11 +120,14 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
             webhookResult = { action: added ? 'added' : 'failed', reason: webhookReason };
             console.log(`🔗 Webhook addition result for FID ${fid}: ${added ? 'added' : 'failed'}`);
             
-            // Update isActive to true when added to webhook
-            if (added) {
+            // Update isActive to true when added to webhook (only if user has config)
+            if (added && userConfig) {
               userConfig.isActive = true;
               await database.setUserConfig(userAddress, userConfig);
               console.log(`✅ Set isActive=true for ${userAddress} (added to webhook)`);
+            } else if (added && !userConfig) {
+              // New user - they'll set isActive when they save config
+              console.log(`✅ New user ${userAddress} added to webhook - config will be set when they save settings`);
             }
           }
         }

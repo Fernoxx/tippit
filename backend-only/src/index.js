@@ -4815,6 +4815,72 @@ if (process.env.NODE_ENV === 'production') {
 
     // Check active users' configs by FID (diagnostic endpoint)
     // Fix isActive for users in webhook who should be active
+// Diagnostic endpoint to check user config and allowance
+app.get('/api/debug/user-config-allowance', async (req, res) => {
+  try {
+    const { userAddress } = req.query;
+    
+    if (!userAddress) {
+      return res.status(400).json({ error: 'userAddress query parameter required' });
+    }
+    
+    const userConfig = await database.getUserConfig(userAddress);
+    const fid = await getUserFid(userAddress);
+    
+    // Check allowance
+    const { ethers } = require('ethers');
+    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
+    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    
+    let allowance = 0;
+    let balance = 0;
+    let tokenAddress = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
+    
+    if (userConfig?.tokenAddress) {
+      tokenAddress = userConfig.tokenAddress;
+    }
+    
+    try {
+      const tokenContract = new ethers.Contract(tokenAddress, [
+        "function allowance(address owner, address spender) view returns (uint256)",
+        "function balanceOf(address owner) view returns (uint256)"
+      ], provider);
+      
+      const tokenDecimals = await getTokenDecimals(tokenAddress);
+      const [allowanceRaw, balanceRaw] = await Promise.all([
+        tokenContract.allowance(userAddress, ecionBatchAddress),
+        tokenContract.balanceOf(userAddress)
+      ]);
+      
+      allowance = parseFloat(ethers.formatUnits(allowanceRaw, tokenDecimals));
+      balance = parseFloat(ethers.formatUnits(balanceRaw, tokenDecimals));
+    } catch (error) {
+      console.error('Error checking allowance:', error);
+    }
+    
+    // Check if in webhook
+    const trackedFids = await database.getTrackedFids();
+    const isInWebhook = fid ? trackedFids.includes(fid) : false;
+    
+    res.json({
+      success: true,
+      userAddress,
+      fid: fid || null,
+      hasConfig: !!userConfig,
+      config: userConfig,
+      tokenAddress,
+      allowance,
+      balance,
+      isInWebhook,
+      trackedFids: trackedFids.length,
+      shouldBeInWebhook: allowance > 0
+    });
+  } catch (error) {
+    console.error('Error checking user config/allowance:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/fix-active-users-isactive', async (req, res) => {
   try {
     console.log('🔧 Fixing isActive status for active users in webhook...');
