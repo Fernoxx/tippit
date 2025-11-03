@@ -240,12 +240,13 @@ class BatchTransferManager {
       
       // If user is in webhook (follow.created), they're active - allow tips
       // isActive might be false for new users, but being in webhook means they're active
+      // Use interaction.authorFid directly (from webhook event) instead of looking it up
       const trackedFids = await database.getTrackedFids();
-      const { getUserFid } = require('./index');
-      const authorFid = await getUserFid(interaction.authorAddress);
+      const authorFid = interaction.authorFid; // Already available from webhook parsing
       const isInWebhook = authorFid ? trackedFids.includes(authorFid) : false;
       
       if (!isInWebhook) {
+        console.log(`❌ Author FID ${authorFid} (address: ${interaction.authorAddress}) is not in trackedFids. Tracked FIDs: ${trackedFids.slice(0, 10).join(', ')}${trackedFids.length > 10 ? '...' : ''}`);
         return { valid: false, reason: 'Author is not an active user (not in webhook)' };
       }
       
