@@ -227,7 +227,22 @@ async function webhookHandler(req, res) {
     // But if they have config, we should allow tips if they're in webhook (active users)
     const trackedFids = await database.getTrackedFids();
     const authorFid = interaction.authorFid;
-    const isInWebhook = trackedFids.includes(authorFid);
+    let isInWebhook = trackedFids.includes(authorFid);
+    
+    // If user has config but not in webhook, try adding them (might be a new user who just approved)
+    if (!isInWebhook && authorConfig) {
+      console.log(`⚠️ Author ${interaction.authorAddress} (FID: ${authorFid}) has config but not in webhook - checking if they should be added`);
+      const { addFidToWebhook } = require('./index');
+      try {
+        const added = await addFidToWebhook(authorFid);
+        if (added) {
+          isInWebhook = true;
+          console.log(`✅ Added FID ${authorFid} to webhook during webhook processing`);
+        }
+      } catch (error) {
+        console.log(`⚠️ Could not add FID ${authorFid} to webhook: ${error.message}`);
+      }
+    }
     
     if (!isInWebhook) {
       console.log(`❌ Author ${interaction.authorAddress} (FID: ${authorFid}) is not in webhook follow.created (not an active user)`);
