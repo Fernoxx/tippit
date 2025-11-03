@@ -171,11 +171,14 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
       success: true,
       allowance: allowanceAmount,
       balance: balanceAmount,
-      minTipAmount: minTipAmount,
+      minTipAmount: minTipAmount || 0,
+      isExistingUser,
       webhookAction: webhookResult.action,
       webhookReason: webhookResult.reason,
       allowanceRevoked: allowanceRevoked,
-      message: `Webhook updated - user ${webhookResult.action === 'removed' ? 'removed from webhook' : 'ensured in webhook'}${allowanceRevoked ? ' - allowance should be revoked (low balance)' : ''}`
+      message: isExistingUser 
+        ? `Webhook updated - user ${webhookResult.action === 'removed' ? 'removed from webhook' : 'ensured in webhook'}${allowanceRevoked ? ' - allowance should be revoked (low balance)' : ''}`
+        : `New user added to webhook - please configure tipping settings in frontend`
     });
     
   } catch (error) {
