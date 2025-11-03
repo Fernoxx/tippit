@@ -263,21 +263,40 @@ async function webhookHandler(req, res) {
         console.log(`✅ Follow cast ${interaction.castHash} is always eligible for tips`);
       } else {
         // Check if this cast is one of the latest casts we're tracking
+        // For reactions: check if cast hash is in latest_cast_hash OR in webhook target_cast_hashes
         const isLatestCast = await database.pool.query(`
-          SELECT 1 FROM user_profiles 
-          WHERE latest_cast_hash = $1 AND is_tracking = true
+          SELECT fid, user_address, is_tracking FROM user_profiles 
+          WHERE latest_cast_hash = $1
         `, [interaction.castHash]);
         
         if (isLatestCast.rows.length === 0) {
-          console.log(`🚫 Cast ${interaction.castHash} not eligible for tips (not a latest tracked cast)`);
-          return res.status(200).json({
-            success: true,
-            processed: false,
-            reason: "Cast not eligible for tips (not a latest tracked cast)"
-          });
+          console.log(`🚫 Cast ${interaction.castHash} not eligible for tips (not found in latest_cast_hash)`);
+          console.log(`🔍 Checking webhook target_cast_hashes as fallback...`);
+          
+          // Fallback: Check if this cast is in webhook target_cast_hashes (for reactions)
+          // This handles cases where cast was added to webhook but not yet in database
+          const trackedFids = await database.getTrackedFids();
+          if (trackedFids.includes(interaction.authorFid)) {
+            console.log(`✅ Author FID ${interaction.authorFid} is in webhook - allowing tip (cast will be tracked)`);
+            // Allow the tip - the cast will be tracked when user's latest cast is updated
+          } else {
+            console.log(`🚫 Cast ${interaction.castHash} not eligible - author not in webhook`);
+            return res.status(200).json({
+              success: true,
+              processed: false,
+              reason: "Cast not eligible for tips (not a latest tracked cast and author not in webhook)"
+            });
+          }
+        } else {
+          const castRow = isLatestCast.rows[0];
+          if (!castRow.is_tracking) {
+            console.log(`⚠️ Cast ${interaction.castHash} found but is_tracking=false - setting to true`);
+            await database.pool.query(`
+              UPDATE user_profiles SET is_tracking = true WHERE fid = $1
+            `, [castRow.fid]);
+          }
+          console.log(`✅ Cast ${interaction.castHash} is eligible for tips (latest tracked cast for FID ${castRow.fid})`);
         }
-        
-        console.log(`✅ Cast ${interaction.castHash} is eligible for tips (latest tracked cast)`);
       }
     }
     
