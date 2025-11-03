@@ -4,6 +4,8 @@ import { formatAmount } from '@/utils/contracts';
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import { Info, X } from 'lucide-react';
+import { useRouter } from 'next/router';
 
 interface CastEmbed {
   url?: string;
@@ -53,6 +55,8 @@ export default function Home() {
   const { users: tipsGivenUsers, amounts: tipsGivenAmounts } = useLeaderboardData(timeFilter);
   const { connectWallet, isLoading: walletLoading, isConnected, currentUser } = useFarcasterWallet();
   const [mounted, setMounted] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     setMounted(true);
@@ -91,7 +95,47 @@ export default function Home() {
       </Head>
       <div className="max-w-4xl mx-auto px-4 py-8 bg-yellow-50 min-h-full">
         {/* Hero Section */}
-        <div className="text-center py-6">
+        <div className="text-center py-6 relative">
+          <button
+            onClick={() => setShowInstructions(!showInstructions)}
+            className="absolute top-0 right-0 w-8 h-8 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded-full transition-colors"
+            title="How Ecion works"
+          >
+            <Info size={18} className="text-gray-700" />
+          </button>
+          
+          {showInstructions && (
+            <div className="absolute top-12 right-0 w-80 bg-white border border-gray-200 rounded-lg shadow-xl p-4 z-50 text-left">
+              <div className="flex justify-between items-start mb-2">
+                <h3 className="font-semibold text-gray-900">How Ecion Works</h3>
+                <button
+                  onClick={() => setShowInstructions(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="text-xs text-gray-700 space-y-2 max-h-96 overflow-y-auto">
+                <p>
+                  <strong>Ecion</strong> lets you tip your engagers and boost your casts by setting up your boost config. Control who receives tips with customizable criteria like minimum follower count, limiting to followers or mutuals, or using Neynar Score filters to avoid inactive users.
+                </p>
+                <p>
+                  Only your <strong>latest cast</strong> can receive tips to ensure quality engagement. Tip amounts can scale with Neynar Scores, making Ecion a smart tool for Farcaster users to gain attention and appreciate their daily audience.
+                </p>
+                <p className="font-semibold">You can:</p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li>Set follower-based limits (e.g., only users with certain following can receive tips)</li>
+                  <li>Restrict tips to followers or mutuals</li>
+                  <li>Use Neynar Score filtering to exclude inactive or low-quality users</li>
+                  <li>Ensure only the latest cast is eligible for tips to avoid spam</li>
+                </ul>
+                <p>
+                  Ecion is a smarter way to grow visibility, reward real participation, and keep the Farcaster experience clean and meaningful.
+                </p>
+              </div>
+            </div>
+          )}
+          
           <h2 className="text-3xl font-bold text-gray-900 mb-4">
             Tip Your Audience
           </h2>

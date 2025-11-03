@@ -21,7 +21,8 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     ]);
 
     if (!statsResponse.ok || !profileResponse.ok) {
-      context.res.status(404).send('User not found');
+      context.res.statusCode = 404;
+      context.res.end('User not found');
       return { props: {} };
     }
 
@@ -79,7 +80,8 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     return { props: {} };
   } catch (error) {
     console.error('Error generating dynamic OG image:', error);
-    context.res.status(500).send('Error generating image');
+    context.res.statusCode = 500;
+    context.res.end('Error generating image');
     return { props: {} };
   }
 };

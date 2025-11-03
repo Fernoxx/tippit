@@ -418,6 +418,8 @@ export const useEcion = () => {
     isAddingMiniApp: isAddingMiniApp,
     isUpdatingLimit: false,
     isRevoking: false,
+    isTxSuccess,
+    isTxConfirming,
   };
 };
 

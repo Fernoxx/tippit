@@ -4,6 +4,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import { useEcion } from '@/hooks/usePIT';
 import { formatAmount } from '@/utils/contracts';
 import toast from 'react-hot-toast';
+import { useRouter } from 'next/router';
 import {
   DollarSign,
   Shield,
@@ -37,10 +38,14 @@ export default function Settings() {
     isAddingMiniApp,
     isUpdatingLimit,
     isRevoking,
+    isTxSuccess,
+    isTxConfirming,
   } = useEcion();
 
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<'amounts' | 'criteria' | 'allowance'>('allowance');
+  const [pendingConfigSave, setPendingConfigSave] = useState(false);
   
   // Form states
   const [allowanceAmount, setAllowanceAmount] = useState('');
@@ -86,6 +91,34 @@ export default function Settings() {
     minFollowerCount: 25,
     minNeynarScore: 0.5,
   });
+
+  // Handle transaction success - redirect to amounts tab
+  useEffect(() => {
+    if (isTxSuccess && !isTxConfirming && activeTab === 'allowance') {
+      // Wait a bit then smoothly switch to amounts tab
+      setTimeout(() => {
+        setActiveTab('amounts');
+      }, 1500);
+    }
+  }, [isTxSuccess, isTxConfirming, activeTab]);
+
+  // Handle config save success - redirect to criteria tab
+  useEffect(() => {
+    if (pendingConfigSave && !isSettingConfig) {
+      // Config was saved successfully, move to criteria tab
+      setTimeout(() => {
+        setActiveTab('criteria');
+        setPendingConfigSave(false);
+      }, 1500);
+    }
+  }, [pendingConfigSave, isSettingConfig]);
+
+  // Check if user came from homepage after approval (via query param)
+  useEffect(() => {
+    if (router.query.from === 'approval') {
+      setActiveTab('amounts');
+    }
+  }, [router.query]);
 
   useEffect(() => {
     setMounted(true);
@@ -219,6 +252,7 @@ export default function Settings() {
     }
 
     try {
+      setPendingConfigSave(true);
       await setTippingConfig({
         tokenAddress: selectedToken,
         likeAmount: tippingAmounts.like,
@@ -236,7 +270,7 @@ export default function Settings() {
         isActive: true,
         totalSpent: userConfig?.totalSpent || '0'
       });
-      toast.success('Tipping configuration saved!', { duration: 2000 });
+      toast.success('Tipping configuration saved! Moving to criteria...', { duration: 2000 });
     } catch (error: any) {
       toast.error('Failed to save configuration: ' + error.message, { duration: 2000 });
     }
@@ -256,6 +290,7 @@ export default function Settings() {
     try {
       setIsApprovingLocal(true);
       await approveToken(selectedToken, allowanceAmount);
+      toast.success('Approval successful! Moving to config...', { duration: 2000 });
     } catch (error: any) {
       toast.error('Failed to approve allowance: ' + error.message, { duration: 2000 });
     } finally {
