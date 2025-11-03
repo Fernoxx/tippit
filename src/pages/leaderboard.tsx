@@ -185,7 +185,7 @@ export default function Leaderboard() {
                       : (timeFilter === '24h' ? userStats?.earnings24h :
                          timeFilter === '7d' ? userStats?.earnings7d : userStats?.earnings30d);
                     
-                    const shareText = `I ${activeTab === 'tipped' ? 'tipped' : 'earned'} ${amount?.toFixed(2) || '0'} USDC in ${timeFilter} on Ecion! ??\n\nCheck out my stats:`;
+                    const shareText = `I ${activeTab === 'tipped' ? 'tipped' : 'earned'} ${amount?.toFixed(2) || '0'} USDC in ${timeFilter} on Ecion`;
                     
                     // Use composeCast to share with embed preview
                     await handleShare(shareText, shareUrl);
