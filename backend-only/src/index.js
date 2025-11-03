@@ -5105,7 +5105,7 @@ app.get('/api/admin/recent-tips', async (req, res) => {
   }
 });
 
-// Diagnostic endpoint to check user config and allowance
+// Diagnostic endpoint to check user config, allowance, and webhook status
 app.get('/api/debug/user-config-allowance', async (req, res) => {
   try {
     const { userAddress } = req.query;
