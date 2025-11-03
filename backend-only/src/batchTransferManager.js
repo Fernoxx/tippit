@@ -352,6 +352,22 @@ class BatchTransferManager {
       console.log(`⏭️ Batch processing skipped: isProcessing=${this.isProcessing}, pendingTips=${this.pendingTips.length}`);
       return;
     }
+    
+    // Ensure provider is initialized
+    if (!this.provider || !this.ecionBatchManager) {
+      console.log(`⏳ Waiting for provider initialization...`);
+      await this.initializeProviders();
+      // Wait a bit for provider to be ready
+      let retries = 0;
+      while ((!this.provider || !this.ecionBatchManager) && retries < 10) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        retries++;
+      }
+      if (!this.provider || !this.ecionBatchManager) {
+        console.log(`❌ Provider not initialized - skipping batch`);
+        return;
+      }
+    }
 
     this.isProcessing = true;
     console.log(`🔄 Processing batch of ${this.pendingTips.length} tips in ONE transaction...`);
@@ -910,6 +926,21 @@ class BatchTransferManager {
   // Add tip to batch queue
   async addTipToBatch(interaction, authorConfig) {
     try {
+      // Ensure provider is initialized
+      if (!this.provider) {
+        await this.initializeProviders();
+        // Wait a bit for provider to be ready
+        let retries = 0;
+        while (!this.provider && retries < 5) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          retries++;
+        }
+        if (!this.provider) {
+          console.log(`❌ Provider not initialized after retries`);
+          return { success: false, reason: 'Provider not ready' };
+        }
+      }
+      
       // Validate tip
       const validation = await this.validateTip(interaction, authorConfig);
       if (!validation.valid) {
