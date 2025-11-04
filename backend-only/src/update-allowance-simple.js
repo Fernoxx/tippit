@@ -46,10 +46,37 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
     
     // Get user config (if exists)
     let userConfig = await database.getUserConfig(userAddress);
-    const isExistingUser = !!userConfig;
+    let isExistingUser = !!userConfig;
+    
+    // Create default config for new users when they approve USDC
+    if (!userConfig) {
+      console.log(`🆕 Creating default config for new user ${userAddress} on approval`);
+      userConfig = {
+        tokenAddress: tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // USDC on Base
+        likeAmount: '0.01',
+        replyAmount: '0.01',
+        recastAmount: '0.01',
+        followAmount: '0.01',
+        spendingLimit: '999999',
+        audience: 2, // Anyone (most permissive default)
+        minFollowerCount: 0,
+        minNeynarScore: 0,
+        likeEnabled: true,    // Enable all by default
+        replyEnabled: true,   // Enable all by default
+        recastEnabled: true,  // Enable all by default
+        followEnabled: true,  // Enable all by default
+        isActive: false,      // Will be set to true when added to webhook
+        totalSpent: '0'
+      };
+      
+      // Save default config to database
+      await database.setUserConfig(userAddress, userConfig);
+      console.log(`✅ Created and saved default config for new user ${userAddress}`);
+      isExistingUser = false; // Still treat as new user for webhook logic
+    }
     
     // LOGIC: 
-    // - NEW users: Add to webhook immediately when they approve (no config check)
+    // - NEW users: Add to webhook immediately when they approve (with default config)
     // - OLD users: Check config and allowance, add/keep in webhook if sufficient
     // - Config/criteria checks happen ONLY when processing tips
     

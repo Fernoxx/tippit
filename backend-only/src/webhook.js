@@ -453,13 +453,26 @@ async function webhookHandler(req, res) {
 }
 
 function getActionEnabled(config, actionType) {
+  // Handle boolean strings from database (PostgreSQL JSONB might store as strings)
+  let enabled = false;
   switch (actionType) {
-    case 'like': return config.likeEnabled;
-    case 'reply': return config.replyEnabled;
-    case 'recast': return config.recastEnabled;
-    case 'follow': return config.followEnabled;
-    default: return false;
+    case 'like': 
+      enabled = config.likeEnabled === true || config.likeEnabled === 'true' || config.likeEnabled === 1;
+      break;
+    case 'reply': 
+      enabled = config.replyEnabled === true || config.replyEnabled === 'true' || config.replyEnabled === 1;
+      break;
+    case 'recast': 
+      enabled = config.recastEnabled === true || config.recastEnabled === 'true' || config.recastEnabled === 1;
+      break;
+    case 'follow': 
+      enabled = config.followEnabled === true || config.followEnabled === 'true' || config.followEnabled === 1;
+      break;
+    default: 
+      enabled = false;
   }
+  console.log(`🔍 getActionEnabled(${actionType}): raw=${config[actionType + 'Enabled']}, parsed=${enabled}`);
+  return enabled;
 }
 
 module.exports = webhookHandler;

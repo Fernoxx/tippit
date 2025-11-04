@@ -719,14 +719,29 @@ app.post('/api/config', async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
     
-    await database.setUserConfig(userAddress, {
+    // Ensure all config fields are properly set (handle boolean strings from frontend)
+    const savedConfig = {
       ...config,
+      // Ensure boolean fields are actual booleans (frontend might send strings)
+      likeEnabled: config.likeEnabled === true || config.likeEnabled === 'true' || config.likeEnabled === 1,
+      replyEnabled: config.replyEnabled === true || config.replyEnabled === 'true' || config.replyEnabled === 1,
+      recastEnabled: config.recastEnabled === true || config.recastEnabled === 'true' || config.recastEnabled === 1,
+      followEnabled: config.followEnabled === true || config.followEnabled === 'true' || config.followEnabled === 1,
       isActive: true,
-      totalSpent: '0',
+      totalSpent: config.totalSpent || '0',
       lastActivity: Date.now(),
-      lastAllowance: 0, // Initialize allowance tracking
-      lastAllowanceCheck: 0
+      lastAllowance: config.lastAllowance || 0,
+      lastAllowanceCheck: config.lastAllowanceCheck || 0
+    };
+    
+    console.log(`💾 Saving config for ${userAddress}:`, {
+      likeEnabled: savedConfig.likeEnabled,
+      replyEnabled: savedConfig.replyEnabled,
+      recastEnabled: savedConfig.recastEnabled,
+      followEnabled: savedConfig.followEnabled
     });
+    
+    await database.setUserConfig(userAddress, savedConfig);
     
     // Automatically add user's FID to webhook filter
     try {
