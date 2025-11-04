@@ -64,10 +64,41 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
       // BUT FIRST: Get FID and ensure they're in database
       console.log(`🆕 New user ${userAddress} approved allowance - getting FID first`);
       
-      const { getUserFid } = require('./index');
+      // Get FID and store user data in database when they approve USDC
+      const { getUserFid, getUserByFid } = require('./index');
       newUserFid = await getUserFid(userAddress);
       
       if (newUserFid) {
+        console.log(`✅ Found FID ${newUserFid} for new user ${userAddress} - storing in database`);
+        
+        // Ensure full user profile is stored in database (FID + address + details)
+        try {
+          const { getUserByFid } = require('./neynar');
+          const userData = await getUserByFid(newUserFid);
+          if (userData) {
+            await database.pool.query(`
+              INSERT INTO user_profiles (fid, username, display_name, pfp_url, user_address, updated_at)
+              VALUES ($1, $2, $3, $4, $5, NOW())
+              ON CONFLICT (fid) 
+              DO UPDATE SET 
+                username = COALESCE($2, user_profiles.username),
+                display_name = COALESCE($3, user_profiles.display_name),
+                pfp_url = COALESCE($4, user_profiles.pfp_url),
+                user_address = COALESCE($5, user_profiles.user_address),
+                updated_at = NOW()
+            `, [
+              newUserFid,
+              userData.username || userData.display_name,
+              userData.display_name,
+              userData.pfp?.url,
+              userAddress.toLowerCase()
+            ]);
+            console.log(`💾 Stored user profile in database: FID ${newUserFid}, Address ${userAddress}`);
+          }
+        } catch (dbError) {
+          console.log(`⚠️ Error storing user profile in database: ${dbError.message}`);
+        }
+        
         console.log(`✅ Found FID ${newUserFid} for new user ${userAddress} - adding to webhook immediately`);
         webhookAction = 'add';
         webhookReason = 'new_user_approval';

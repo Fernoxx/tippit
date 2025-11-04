@@ -1096,19 +1096,28 @@ app.post('/api/approve', async (req, res) => {
     
     console.log(`User ${userAddress} approved ${amount} of token ${tokenAddress}`);
     
-    // IMMEDIATELY add user to webhook if they have config (for new users - prevents race condition)
+    // IMMEDIATELY get FID and store user data in database when they approve USDC
+    // This ensures FID + address + details are stored for future lookups
     try {
-      const userConfig = await database.getUserConfig(userAddress);
-      if (userConfig) {
-        const fid = await getUserFid(userAddress);
-        if (fid) {
-          console.log(`🔗 Immediately adding new user FID ${fid} to webhook after approval`);
+      const fid = await getUserFid(userAddress);
+      if (fid) {
+        console.log(`✅ Found FID ${fid} for ${userAddress} - user data stored in database`);
+        
+        // getUserFid already stores user data, but ensure it's complete
+        // Check if user has config, if yes add to webhook immediately
+        const userConfig = await database.getUserConfig(userAddress);
+        if (userConfig) {
+          console.log(`🔗 User has config - immediately adding FID ${fid} to webhook after approval`);
           await addFidToWebhook(fid);
           console.log(`✅ FID ${fid} added to webhook immediately`);
+        } else {
+          console.log(`ℹ️ User ${userAddress} (FID: ${fid}) approved but no config yet - will be added when config is saved`);
         }
+      } else {
+        console.log(`⚠️ No FID found for ${userAddress} - user needs to verify address on Farcaster`);
       }
     } catch (error) {
-      console.error(`⚠️ Error immediately adding user to webhook: ${error.message}`);
+      console.error(`⚠️ Error processing approval for ${userAddress}: ${error.message}`);
     }
     
     // Also verify allowance/balance after blockchain update (async, non-blocking)
@@ -1373,15 +1382,16 @@ async function getUserFid(userAddress) {
   }
   
   // Check database for stored FID first (like old commit)
+  // This is the primary source - if user approved USDC before, their FID should be here
   try {
     const result = await database.pool.query(
-      'SELECT fid FROM user_profiles WHERE user_address = $1',
+      'SELECT fid, username, display_name, pfp_url FROM user_profiles WHERE user_address = $1',
       [userAddress.toLowerCase()]
     );
     
     if (result.rows.length > 0) {
       const fid = result.rows[0].fid;
-      console.log(`✅ Found stored FID ${fid} for ${userAddress} in database`);
+      console.log(`✅ Found stored FID ${fid} for ${userAddress} in database (from previous approval)`);
       userFidMap.set(userAddress.toLowerCase(), fid);
       return fid;
     }
