@@ -471,7 +471,22 @@ class PostgresDatabase {
         'SELECT config FROM user_configs WHERE user_address = $1',
         [userAddress.toLowerCase()]
       );
-      const config = result.rows[0]?.config || null;
+      let config = result.rows[0]?.config || null;
+      
+      // If config is a string (PostgreSQL JSONB), parse it
+      if (typeof config === 'string') {
+        config = JSON.parse(config);
+      }
+      
+      // Ensure boolean fields are actual booleans (PostgreSQL might return strings)
+      if (config) {
+        config.likeEnabled = config.likeEnabled === true || config.likeEnabled === 'true' || config.likeEnabled === 1;
+        config.replyEnabled = config.replyEnabled === true || config.replyEnabled === 'true' || config.replyEnabled === 1;
+        config.recastEnabled = config.recastEnabled === true || config.recastEnabled === 'true' || config.recastEnabled === 1;
+        config.followEnabled = config.followEnabled === true || config.followEnabled === 'true' || config.followEnabled === 1;
+        config.isActive = config.isActive === true || config.isActive === 'true' || config.isActive === 1;
+      }
+      
       console.log(`📖 Retrieved config for ${userAddress}:`, !!config);
       return config;
     } catch (error) {
