@@ -211,6 +211,7 @@ async function webhookHandler(req, res) {
     }
     
     // Check if author has tipping config
+    console.log(`🔍 Checking config for author ${interaction.authorAddress} (FID: ${interaction.authorFid})...`);
     const authorConfig = await database.getUserConfig(interaction.authorAddress);
     
     if (!authorConfig) {
@@ -222,36 +223,52 @@ async function webhookHandler(req, res) {
       });
     }
     
+    console.log(`✅ Author has config: ${JSON.stringify({
+      likeEnabled: authorConfig.likeEnabled,
+      recastEnabled: authorConfig.recastEnabled,
+      replyEnabled: authorConfig.replyEnabled,
+      isActive: authorConfig.isActive
+    })}`);
+    
     // If user is in webhook (follow.created), they're active - allow tips even if isActive is not explicitly set
     // For new users who just approved but haven't saved config yet, they won't have config, so this check will fail above
     // But if they have config, we should allow tips if they're in webhook (active users)
+    console.log(`🔍 Checking if FID ${interaction.authorFid} is in webhook follow.created...`);
     const trackedFids = await database.getTrackedFids();
     const authorFid = interaction.authorFid;
     let isInWebhook = trackedFids.includes(authorFid);
+    console.log(`📋 Tracked FIDs count: ${trackedFids.length}, Author FID ${authorFid} in webhook: ${isInWebhook}`);
     
     // If user has config but not in webhook, try adding them (might be a new user who just approved)
     if (!isInWebhook && authorConfig) {
-      console.log(`⚠️ Author ${interaction.authorAddress} (FID: ${authorFid}) has config but not in webhook - checking if they should be added`);
+      console.log(`⚠️ Author ${interaction.authorAddress} (FID: ${authorFid}) has config but not in webhook - trying to add them`);
       const { addFidToWebhook } = require('./index');
       try {
         const added = await addFidToWebhook(authorFid);
+        console.log(`🔗 addFidToWebhook result for FID ${authorFid}: ${added}`);
         if (added) {
           isInWebhook = true;
           console.log(`✅ Added FID ${authorFid} to webhook during webhook processing`);
+        } else {
+          console.log(`❌ Failed to add FID ${authorFid} to webhook - addFidToWebhook returned false`);
         }
       } catch (error) {
-        console.log(`⚠️ Could not add FID ${authorFid} to webhook: ${error.message}`);
+        console.log(`❌ Error adding FID ${authorFid} to webhook: ${error.message}`);
+        console.log(`❌ Error stack: ${error.stack}`);
       }
     }
     
     if (!isInWebhook) {
       console.log(`❌ Author ${interaction.authorAddress} (FID: ${authorFid}) is not in webhook follow.created (not an active user)`);
+      console.log(`📋 Current tracked FIDs: ${trackedFids.slice(0, 20).join(', ')}${trackedFids.length > 20 ? '...' : ''}`);
       return res.status(200).json({
         success: true,
         processed: false,
         reason: 'Author is not an active user (not in webhook)'
       });
     }
+    
+    console.log(`✅ Author FID ${authorFid} is in webhook - continuing tip processing`);
     
     // If user has config but isActive is false, set it to true (they're in webhook, so they should be active)
     if (!authorConfig.isActive) {
@@ -262,8 +279,11 @@ async function webhookHandler(req, res) {
     }
     
     // Check if action type is enabled
+    console.log(`🔍 Checking if ${interaction.interactionType} is enabled for author...`);
     const isEnabled = getActionEnabled(authorConfig, interaction.interactionType);
+    console.log(`📊 Action ${interaction.interactionType} enabled: ${isEnabled}`);
     if (!isEnabled) {
+      console.log(`❌ ${interaction.interactionType} is not enabled for author ${interaction.authorAddress}`);
       return res.status(200).json({
         success: true,
         processed: false,
@@ -388,7 +408,19 @@ async function webhookHandler(req, res) {
     // Webhook filtering handles allowance/balance checks automatically
 
     // Process tip through batch system (like Noice - 1 minute batches for gas efficiency)
+    console.log(`🚀 Adding tip to batch: ${interaction.interactionType} | ${interaction.interactorFid}→${interaction.authorFid}`);
+    console.log(`📊 Interaction details:`, {
+      type: interaction.interactionType,
+      authorFid: interaction.authorFid,
+      interactorFid: interaction.interactorFid,
+      castHash: interaction.castHash,
+      authorAddress: interaction.authorAddress,
+      interactorAddress: interaction.interactorAddress
+    });
+    
     const result = await batchTransferManager.addTipToBatch(interaction, authorConfig);
+    
+    console.log(`📊 Batch result:`, result);
     
     if (result.success) {
       console.log(`✅ BATCHED: ${interaction.interactionType} | ${interaction.interactorFid}→${interaction.authorFid} | Queue: ${result.batchSize}`);
