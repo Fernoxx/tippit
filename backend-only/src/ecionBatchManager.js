@@ -159,8 +159,8 @@ class EcionBatchManager {
     try {
       console.log(`🎯 Executing batch tips with EcionBatch: ${tips.length} tips`);
       
-      // Create contract instance
-      const contract = new ethers.Contract(
+      // Create contract instance (will be recreated if provider switches)
+      let contract = new ethers.Contract(
         this.contractAddress, 
         this.contractABI, 
         this.wallet
@@ -374,6 +374,25 @@ class EcionBatchManager {
       let gasRetryCount = 0;
       const maxGasRetries = 3;
       
+      // Calculate complexity multiplier BEFORE gas pricing loop (so it's accessible in retry)
+      let baseGasLimit = 5500000; // Base gas limit increased to 5.5M
+      let complexityMultiplier = 1;
+      
+      // Calculate complexity multiplier based on batch
+      const uniquePairs = new Set(tips.map(tip => `${tip.from}-${tip.to}`));
+      const uniqueTokens = new Set(tips.map(tip => tip.token));
+      
+      if (uniquePairs.size === tips.length) {
+        complexityMultiplier = 1.2; // 20% more gas for all unique pairs
+        console.log(`🔧 Complex pattern detected: Using 1.2x gas multiplier`);
+      } else if (uniqueTokens.size > 2) {
+        complexityMultiplier = 1.1; // 10% more gas for multiple tokens
+        console.log(`🔧 Multiple tokens detected: Using 1.1x gas multiplier`);
+      } else if (tips.length > 10) {
+        complexityMultiplier = 1.05; // 5% more gas for large batches
+        console.log(`🔧 Large batch detected: Using 1.05x gas multiplier`);
+      }
+      
       while (gasRetryCount < maxGasRetries) {
         try {
           // Always use EIP-1559 for Base network (more reliable)
@@ -387,20 +406,6 @@ class EcionBatchManager {
           
           // Use EIP-1559 with higher gas limits for large batches
           // Calculate dynamic gas limit based on batch complexity
-          let baseGasLimit = 5500000; // Base gas limit increased to 5.5M
-          let complexityMultiplier = 1;
-          
-          // Increase gas for complex patterns (reduced multipliers for lower fees)
-          if (uniquePairs.size === tips.length) {
-            complexityMultiplier = 1.2; // 20% more gas for all unique pairs (reduced from 1.5x)
-            console.log(`🔧 Complex pattern detected: Using 1.2x gas multiplier`);
-          } else if (uniqueTokens.size > 2) {
-            complexityMultiplier = 1.1; // 10% more gas for multiple tokens (reduced from 1.3x)
-            console.log(`🔧 Multiple tokens detected: Using 1.1x gas multiplier`);
-          } else if (tips.length > 10) {
-            complexityMultiplier = 1.05; // 5% more gas for large batches (reduced from 1.2x)
-            console.log(`🔧 Large batch detected: Using 1.05x gas multiplier`);
-          }
           
           const dynamicGasLimit = Math.floor(baseGasLimit * Number(complexityMultiplier));
           
@@ -478,18 +483,92 @@ class EcionBatchManager {
       gasOptions.nonce = finalNonce;
       console.log(`🔢 Using nonce: ${finalNonce}`);
       
-      // Add transaction retry logic
+      // Add transaction retry logic with RPC fallback and insufficient funds handling
       let tx = null;
       let txRetryCount = 0;
       const maxTxRetries = 3;
       
       while (txRetryCount < maxTxRetries) {
         try {
+          // Check backend wallet balance before attempting transaction
+          const walletBalance = await this.provider.getBalance(this.wallet.address);
+          const estimatedGasCost = gasOptions.maxFeePerGas ? gasOptions.maxFeePerGas * BigInt(gasOptions.gasLimit) : 
+                                   gasOptions.gasPrice ? gasOptions.gasPrice * BigInt(gasOptions.gasLimit) : 0n;
+          
+          if (walletBalance < estimatedGasCost) {
+            const balanceEth = ethers.formatEther(walletBalance);
+            const requiredEth = ethers.formatEther(estimatedGasCost);
+            console.log(`❌ Backend wallet insufficient funds: ${balanceEth} ETH available, ${requiredEth} ETH required for gas`);
+            throw new Error(`Backend wallet insufficient funds: ${balanceEth} ETH < ${requiredEth} ETH required for gas`);
+          }
+          
           tx = await contract.batchTip(froms, tos, tokens, amounts, gasOptions);
           console.log(`✅ Transaction submitted successfully on attempt ${txRetryCount + 1}`);
           break;
         } catch (txError) {
           txRetryCount++;
+          
+          // Check if it's an insufficient funds error - don't retry, fail immediately
+          if (txError.code === 'INSUFFICIENT_FUNDS' || txError.message?.includes('insufficient funds')) {
+            try {
+              const walletBalance = await this.provider.getBalance(this.wallet.address);
+              const balanceEth = ethers.formatEther(walletBalance);
+              console.log(`❌ Backend wallet insufficient funds for gas - cannot retry. Balance: ${balanceEth} ETH`);
+              throw new Error(`Backend wallet insufficient funds for gas. Balance: ${balanceEth} ETH. Please fund the backend wallet with ETH.`);
+            } catch (balanceError) {
+              throw new Error(`Backend wallet insufficient funds for gas. Please fund the backend wallet with ETH.`);
+            }
+          }
+          
+          // Check if it's an RPC error (503, network issues) - try fallback provider
+          const isRpcError = txError.code === 'SERVER_ERROR' || 
+                            txError.message?.includes('503') ||
+                            txError.message?.includes('Service Unavailable') ||
+                            txError.message?.includes('network') ||
+                            txError.message?.includes('TIMEOUT');
+          
+          if (isRpcError && txRetryCount < maxTxRetries) {
+            console.log(`⚠️ RPC error on attempt ${txRetryCount}/${maxTxRetries}: ${txError.message}`);
+            console.log(`🔄 Trying fallback RPC provider...`);
+            
+            // Try to get fallback provider
+            try {
+              const { getProvider } = require('./rpcProvider');
+              const fallbackProvider = await getProvider();
+              this.provider = fallbackProvider;
+              
+              // Recreate wallet and contract with new provider
+              this.wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY, fallbackProvider);
+              contract = new ethers.Contract(
+                this.contractAddress, 
+                this.contractABI, 
+                this.wallet
+              );
+              
+              // Refresh gas pricing with fallback provider
+              const feeData = await fallbackProvider.getFeeData();
+              const retryGasLimit = Math.floor(baseGasLimit * Number(complexityMultiplier));
+              const retryNonce = await fallbackProvider.getTransactionCount(this.wallet.address, 'pending');
+              
+              gasOptions = {
+                gasLimit: retryGasLimit,
+                maxFeePerGas: feeData.maxFeePerGas ? feeData.maxFeePerGas * 110n / 100n : undefined,
+                maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ? feeData.maxPriorityFeePerGas * 110n / 100n : undefined,
+                nonce: retryNonce
+              };
+              
+              if (gasOptions.maxFeePerGas && gasOptions.maxPriorityFeePerGas) {
+                delete gasOptions.gasPrice;
+              }
+              
+              console.log(`✅ Switched to fallback provider, retrying with new gas pricing...`);
+              await new Promise(resolve => setTimeout(resolve, 2000 * txRetryCount));
+              continue; // Retry with fallback provider
+            } catch (fallbackError) {
+              console.log(`❌ Fallback provider also failed: ${fallbackError.message}`);
+            }
+          }
+          
           console.log(`❌ Transaction attempt ${txRetryCount} failed: ${txError.message}`);
           
           if (txRetryCount >= maxTxRetries) {
@@ -504,11 +583,11 @@ class EcionBatchManager {
           // Refresh gas pricing and nonce for retry
           try {
             const feeData = await this.provider.getFeeData();
-            const retryGasLimit = Math.floor(3500000 * Number(complexityMultiplier));
+            const retryGasLimit = Math.floor(baseGasLimit * Number(complexityMultiplier));
             const retryNonce = await this.provider.getTransactionCount(this.wallet.address, 'pending');
             gasOptions = {
               gasLimit: retryGasLimit,
-              maxFeePerGas: feeData.maxFeePerGas ? feeData.maxFeePerGas * 110n / 100n : undefined, // 10% higher for retry (reduced from 30%)
+              maxFeePerGas: feeData.maxFeePerGas ? feeData.maxFeePerGas * 110n / 100n : undefined,
               maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ? feeData.maxPriorityFeePerGas * 110n / 100n : undefined,
               nonce: retryNonce
             };
