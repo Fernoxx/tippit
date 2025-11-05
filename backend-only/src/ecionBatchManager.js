@@ -381,10 +381,11 @@ class EcionBatchManager {
       let complexityMultiplier = 1;
       
       // Calculate complexity multiplier based on batch
-      const uniquePairs = new Set(tips.map(tip => `${tip.from}-${tip.to}`));
-      const uniqueTokens = new Set(tips.map(tip => tip.token));
+      // Reuse uniquePairs and uniqueTokens calculated earlier for analysis
+      const uniquePairsForGas = new Set(tips.map(tip => `${tip.from}-${tip.to}`));
+      // uniqueTokens is already calculated above from tokens array, so we can use it directly
       
-      if (uniquePairs.size === tips.length) {
+      if (uniquePairsForGas.size === tips.length) {
         complexityMultiplier = 1.2; // 20% more gas for all unique pairs
         console.log(`🔧 Complex pattern detected: Using 1.2x gas multiplier`);
       } else if (uniqueTokens.size > 2) {
