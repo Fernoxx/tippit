@@ -332,10 +332,10 @@ class EcionBatchManager {
       const addressPatterns = tips.map(tip => 
         `${tip.from.slice(0,6)}...${tip.from.slice(-4)} → ${tip.to.slice(0,6)}...${tip.to.slice(-4)}`
       );
-      const uniquePairs = new Set(addressPatterns);
+      const uniquePatterns = new Set(addressPatterns);
       console.log('📍 Address patterns in batch:', addressPatterns);
-      console.log(`📍 Unique address pairs: ${uniquePairs.size}/${tips.length}`);
-      console.log(`📍 Pattern complexity: ${uniquePairs.size === tips.length ? 'HIGH (all unique)' : uniquePairs.size === 1 ? 'LOW (all same)' : 'MEDIUM'}`);
+      console.log(`📍 Unique address pairs: ${uniquePatterns.size}/${tips.length}`);
+      console.log(`📍 Pattern complexity: ${uniquePatterns.size === tips.length ? 'HIGH (all unique)' : uniquePatterns.size === 1 ? 'LOW (all same)' : 'MEDIUM'}`);
       
       // DETAILED BATCH ANALYSIS
       const uniqueFroms = new Set(froms);
@@ -361,7 +361,9 @@ class EcionBatchManager {
       if (uniqueTokens.size > 3) {
         console.log('⚠️ WARNING: Multiple tokens in batch may increase gas usage');
       }
-      if (uniquePairs.size === tips.length && tips.length > 5) {
+      // Calculate unique pairs for complexity check (will be recalculated later for gas multiplier)
+      const uniquePairsForWarning = new Set(tips.map(tip => `${tip.from}-${tip.to}`));
+      if (uniquePairsForWarning.size === tips.length && tips.length > 5) {
         console.log('⚠️ WARNING: All unique address pairs - high gas usage expected');
       }
       

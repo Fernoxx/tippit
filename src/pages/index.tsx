@@ -98,10 +98,10 @@ export default function Home() {
         <div className="text-center py-6 relative">
           <button
             onClick={() => setShowInstructions(!showInstructions)}
-            className="absolute top-0 right-0 w-8 h-8 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded-full transition-colors"
+            className="absolute -top-2 right-0 w-7 h-7 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
             title="How Ecion works"
           >
-            <Info size={18} className="text-gray-700" />
+            <Info size={16} className="text-gray-600" />
           </button>
           
           {showInstructions && (
