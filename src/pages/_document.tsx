@@ -6,7 +6,7 @@ export default function Document() {
       <Head>
         {/* Basic Meta Tags */}
         <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
         <meta name="theme-color" content="#fef3c7" />
         
         {/* Essential Open Graph Meta Tags - Default for homepage only */}

@@ -546,34 +546,24 @@ export default function Settings() {
                 </div>
               </div>
 
-              {/* Spam Label Filter - Only Level 2 Users */}
-              <div className="border border-gray-200 rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Only Level 2 Verified Users
-                    </label>
-                    <p className="text-xs text-gray-500">
-                      Only tip users verified by Farcaster (Level 2 spam label). Reduces spam and improves tip quality.
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setCriteria(prev => ({ 
-                      ...prev, 
-                      minSpamLabel: prev.minSpamLabel === 2 ? 0 : 2 
-                    }))}
-                    className={`relative w-11 h-6 rounded-full transition-colors ${
-                      criteria.minSpamLabel === 2
-                        ? 'bg-yellow-400'
-                        : 'bg-gray-300'
-                    }`}
-                  >
-                    <span
-                      className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform ${
-                        criteria.minSpamLabel === 2 ? 'left-5' : 'left-0.5'
-                      }`}
-                    />
-                  </button>
+              {/* Minimum Spam Label */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Spam Label: {criteria.minSpamLabel}
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="2"
+                  step="1"
+                  value={criteria.minSpamLabel}
+                  onChange={(e) => setCriteria(prev => ({ ...prev, minSpamLabel: parseInt(e.target.value) }))}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>0 (No filter)</span>
+                  <span>1 (Level 1+)</span>
+                  <span>2 (Level 2 only)</span>
                 </div>
               </div>
             </div>

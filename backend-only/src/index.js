@@ -1121,14 +1121,42 @@ app.post('/api/approve', async (req, res) => {
         console.log(`✅ Found FID ${fid} for ${userAddress} - user data stored in database`);
         
         // getUserFid already stores user data, but ensure it's complete
-        // Check if user has config, if yes add to webhook immediately
+        // For new users, update-allowance-simple.js will create default config and add to webhook
+        // For existing users, check if they have config and add to webhook if sufficient allowance
         const userConfig = await database.getUserConfig(userAddress);
         if (userConfig) {
-          console.log(`🔗 User has config - immediately adding FID ${fid} to webhook after approval`);
-          await addFidToWebhook(fid);
-          console.log(`✅ FID ${fid} added to webhook immediately`);
+          // Check if user has sufficient allowance/balance before adding to webhook
+          const { ethers } = require('ethers');
+          const provider = await getProvider();
+          const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+          const tokenContract = new ethers.Contract(tokenAddress, [
+            "function allowance(address owner, address spender) view returns (uint256)",
+            "function balanceOf(address owner) view returns (uint256)"
+          ], provider);
+          
+          const [allowance, balance] = await Promise.all([
+            tokenContract.allowance(userAddress, ecionBatchAddress),
+            tokenContract.balanceOf(userAddress)
+          ]);
+          
+          const tokenDecimals = tokenAddress === '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' ? 6 : 18;
+          const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
+          const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
+          
+          const likeAmount = parseFloat(userConfig.likeAmount || '0');
+          const recastAmount = parseFloat(userConfig.recastAmount || '0');
+          const replyAmount = parseFloat(userConfig.replyAmount || '0');
+          const minTipAmount = likeAmount + recastAmount + replyAmount;
+          
+          if (allowanceAmount >= minTipAmount && balanceAmount >= minTipAmount) {
+            console.log(`🔗 User has config and sufficient funds - immediately adding FID ${fid} to webhook after approval`);
+            await addFidToWebhook(fid);
+            console.log(`✅ FID ${fid} added to webhook immediately`);
+          } else {
+            console.log(`ℹ️ User ${userAddress} (FID: ${fid}) approved but insufficient funds - not adding to webhook yet`);
+          }
         } else {
-          console.log(`ℹ️ User ${userAddress} (FID: ${fid}) approved but no config yet - will be added when config is saved`);
+          console.log(`ℹ️ User ${userAddress} (FID: ${fid}) approved but no config yet - update-allowance-simple.js will create default config and add to webhook`);
         }
       } else {
         console.log(`⚠️ No FID found for ${userAddress} - user needs to verify address on Farcaster`);
