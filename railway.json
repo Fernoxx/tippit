@@ -21,5 +21,12 @@
       "backend-only/package-lock.json",
       "backend-only/package.json"
     ]
-  }
+  },
+  "ignore": [
+    "backend-only-backup-*/**",
+    "backend-only/backend-only-backup-*/**",
+    "**/backend-only-backup-*/**",
+    "*.backup",
+    "*.sql"
+  ]
 }

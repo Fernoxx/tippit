@@ -44,3 +44,8 @@ typechain-types
 .vscode
 .idea*.core
 core
+
+# Backup directories (large, not needed for deployment)
+backend-only-backup-*/
+backend-only/backend-only-backup-*/
+**/backend-only-backup-*/
