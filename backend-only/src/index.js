@@ -5140,10 +5140,93 @@ app.get('/api/debug/user-config-allowance', async (req, res) => {
   }
 });
 
+// Check allowance and balance by FID
+app.get('/api/fid-allowance/:fid', async (req, res) => {
+  try {
+    const fid = parseInt(req.params.fid);
+    if (!fid || isNaN(fid)) {
+      return res.status(400).json({ error: 'Invalid FID' });
+    }
+    
+    // Get user address from FID
+    const result = await database.pool.query(
+      'SELECT user_address FROM user_profiles WHERE fid = $1',
+      [fid]
+    );
+    
+    if (result.rows.length === 0 || !result.rows[0].user_address) {
+      return res.status(404).json({ error: `No user found with FID ${fid}` });
+    }
+    
+    const userAddress = result.rows[0].user_address;
+    
+    // Get user config
+    const userConfig = await database.getUserConfig(userAddress);
+    const tokenAddress = userConfig?.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC on Base
+    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    
+    // Check allowance and balance
+    const { ethers } = require('ethers');
+    const provider = await getProvider();
+    const tokenContract = new ethers.Contract(tokenAddress, [
+      "function allowance(address owner, address spender) view returns (uint256)",
+      "function balanceOf(address owner) view returns (uint256)"
+    ], provider);
+    
+    const [allowance, balance] = await Promise.all([
+      tokenContract.allowance(userAddress, ecionBatchAddress),
+      tokenContract.balanceOf(userAddress)
+    ]);
+    
+    const tokenDecimals = tokenAddress === '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' ? 6 : 18;
+    const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
+    const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
+    
+    // Calculate min tip amount
+    let minTipAmount = 0;
+    if (userConfig) {
+      const likeAmount = parseFloat(userConfig.likeAmount || '0');
+      const recastAmount = parseFloat(userConfig.recastAmount || '0');
+      const replyAmount = parseFloat(userConfig.replyAmount || '0');
+      minTipAmount = likeAmount + recastAmount + replyAmount;
+    }
+    
+    // Check if in webhook
+    const trackedFids = await database.getTrackedFids();
+    const isInWebhook = trackedFids.includes(fid);
+    
+    res.json({
+      success: true,
+      fid,
+      userAddress,
+      tokenAddress,
+      allowance: allowanceAmount,
+      balance: balanceAmount,
+      minTipAmount: minTipAmount,
+      hasSufficientAllowance: allowanceAmount >= minTipAmount,
+      hasSufficientBalance: balanceAmount >= minTipAmount,
+      canAfford: (allowanceAmount >= minTipAmount) && (balanceAmount >= minTipAmount),
+      isActive: userConfig?.isActive || false,
+      isInWebhook,
+      config: userConfig ? {
+        likeAmount: parseFloat(userConfig.likeAmount || '0'),
+        recastAmount: parseFloat(userConfig.recastAmount || '0'),
+        replyAmount: parseFloat(userConfig.replyAmount || '0'),
+        followAmount: parseFloat(userConfig.followAmount || '0')
+      } : null
+    });
+  } catch (error) {
+    console.error('Error checking FID allowance:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
     // Simple fallback for frontend routes (LAST ROUTE) - but NOT for API routes
+    // NOTE: All API routes must be defined BEFORE this catch-all route
     app.get('*', (req, res) => {
       // Skip API routes - they should be handled by specific endpoints
       if (req.path.startsWith('/api/')) {
+        console.log(`⚠️ API endpoint not found: ${req.path} - check if route is defined before catch-all`);
         return res.status(404).json({ error: 'API endpoint not found', path: req.path });
       }
       
@@ -5685,87 +5768,6 @@ app.post('/api/user-profile', async (req, res) => {
   } catch (error) {
     console.error('Error saving user profile:', error);
     res.status(500).json({ error: 'Failed to save user profile' });
-  }
-});
-
-// Check allowance and balance by FID
-app.get('/api/fid-allowance/:fid', async (req, res) => {
-  try {
-    const fid = parseInt(req.params.fid);
-    if (!fid || isNaN(fid)) {
-      return res.status(400).json({ error: 'Invalid FID' });
-    }
-    
-    // Get user address from FID
-    const result = await database.pool.query(
-      'SELECT user_address FROM user_profiles WHERE fid = $1',
-      [fid]
-    );
-    
-    if (result.rows.length === 0 || !result.rows[0].user_address) {
-      return res.status(404).json({ error: `No user found with FID ${fid}` });
-    }
-    
-    const userAddress = result.rows[0].user_address;
-    
-    // Get user config
-    const userConfig = await database.getUserConfig(userAddress);
-    const tokenAddress = userConfig?.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // USDC on Base
-    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
-    
-    // Check allowance and balance
-    const { ethers } = require('ethers');
-    const provider = await getProvider();
-    const tokenContract = new ethers.Contract(tokenAddress, [
-      "function allowance(address owner, address spender) view returns (uint256)",
-      "function balanceOf(address owner) view returns (uint256)"
-    ], provider);
-    
-    const [allowance, balance] = await Promise.all([
-      tokenContract.allowance(userAddress, ecionBatchAddress),
-      tokenContract.balanceOf(userAddress)
-    ]);
-    
-    const tokenDecimals = tokenAddress === '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' ? 6 : 18;
-    const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
-    const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
-    
-    // Calculate min tip amount
-    let minTipAmount = 0;
-    if (userConfig) {
-      const likeAmount = parseFloat(userConfig.likeAmount || '0');
-      const recastAmount = parseFloat(userConfig.recastAmount || '0');
-      const replyAmount = parseFloat(userConfig.replyAmount || '0');
-      minTipAmount = likeAmount + recastAmount + replyAmount;
-    }
-    
-    // Check if in webhook
-    const trackedFids = await database.getTrackedFids();
-    const isInWebhook = trackedFids.includes(fid);
-    
-    res.json({
-      success: true,
-      fid,
-      userAddress,
-      tokenAddress,
-      allowance: allowanceAmount,
-      balance: balanceAmount,
-      minTipAmount: minTipAmount,
-      hasSufficientAllowance: allowanceAmount >= minTipAmount,
-      hasSufficientBalance: balanceAmount >= minTipAmount,
-      canAfford: (allowanceAmount >= minTipAmount) && (balanceAmount >= minTipAmount),
-      isActive: userConfig?.isActive || false,
-      isInWebhook,
-      config: userConfig ? {
-        likeAmount: parseFloat(userConfig.likeAmount || '0'),
-        recastAmount: parseFloat(userConfig.recastAmount || '0'),
-        replyAmount: parseFloat(userConfig.replyAmount || '0'),
-        followAmount: parseFloat(userConfig.followAmount || '0')
-      } : null
-    });
-  } catch (error) {
-    console.error('Error checking FID allowance:', error);
-    res.status(500).json({ error: error.message });
   }
 });
 
