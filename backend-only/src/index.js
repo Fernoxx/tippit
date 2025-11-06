@@ -2352,16 +2352,26 @@ async function updateUserWebhookStatus(userAddress) {
         await database.setUserConfig(userAddress, userConfig);
       }
     } else {
-      // Only add back to webhook if user is actually active (not just removed)
-      // This prevents re-adding users who were just removed due to insufficient funds
-      if (!userConfig.isActive) {
-        console.log(`⚠️ User ${userAddress} has sufficient funds but isActive=false - not adding back to webhook yet (user may have been recently removed)`);
-        // Don't add back immediately - let them manually re-enable or wait for next allowance update
+      // Only add back to webhook if:
+      // 1. User is active, OR
+      // 2. User has BOTH sufficient allowance AND balance (they topped up)
+      // This prevents re-adding users who were just removed due to insufficient balance but still have allowance
+      if (!userConfig.isActive && !hasSufficientBalance) {
+        console.log(`⚠️ User ${userAddress} has sufficient allowance (${allowanceAmount}) but insufficient balance (${balanceAmount}) and isActive=false - not adding back to webhook (user was recently removed due to insufficient balance)`);
+        // Don't add back - user needs to top up balance first
         return false;
       }
       
-      console.log(`✅ User ${userAddress} has sufficient funds - ensuring in webhook`);
+      // User has sufficient funds (both allowance and balance) - add them back
+      console.log(`✅ User ${userAddress} has sufficient funds (allowance: ${allowanceAmount}, balance: ${balanceAmount}) - ensuring in webhook`);
       await addFidToWebhook(fid);
+      
+      // If user was inactive but now has sufficient funds, mark them as active again
+      if (!userConfig.isActive) {
+        userConfig.isActive = true;
+        await database.setUserConfig(userAddress, userConfig);
+        console.log(`✅ Re-activated user ${userAddress} (sufficient funds restored)`);
+      }
       
       // Reset notification flag if they have sufficient funds again
       if (userConfig.allowanceEmptyNotificationSent) {

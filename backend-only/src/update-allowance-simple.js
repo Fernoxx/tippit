@@ -194,14 +194,28 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
             }
           }
         } else if (webhookAction === 'add') {
-          // Only add to webhook if user is not currently marked as inactive
-          // This prevents re-adding users who were just removed due to insufficient funds after a tip
-          if (userConfig.isActive === false) {
-            console.log(`⚠️ User ${userAddress} has sufficient allowance but isActive=false - not adding back to webhook (user may have been recently removed due to insufficient balance)`);
-            webhookResult = { action: 'skipped', reason: 'user_inactive_despite_sufficient_allowance' };
-            // Don't add back - user needs to manually re-enable or wait for balance to be sufficient
+          // Check if user also has sufficient balance (not just allowance)
+          // This prevents re-adding users who have allowance but insufficient balance
+          const { ethers } = require('ethers');
+          const { getProvider } = require('./rpcProvider');
+          const provider = await getProvider();
+          const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+          const tokenContract = new ethers.Contract(tokenAddress, [
+            "function balanceOf(address owner) view returns (uint256)"
+          ], provider);
+          const balance = await tokenContract.balanceOf(userAddress);
+          const tokenDecimals = tokenAddress === '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' ? 6 : 18;
+          const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
+          const hasSufficientBalance = balanceAmount >= minTipAmount;
+          
+          // Only add to webhook if user has BOTH sufficient allowance AND balance
+          // This prevents the remove/add cycle when user has allowance but low balance
+          if (!hasSufficientBalance) {
+            console.log(`⚠️ User ${userAddress} has sufficient allowance (${allowanceAmount}) but insufficient balance (${balanceAmount}) - not adding back to webhook (user needs to top up balance)`);
+            webhookResult = { action: 'skipped', reason: 'insufficient_balance_despite_sufficient_allowance' };
+            // Don't add back - user needs to top up balance first
           } else {
-            // Add FID to webhook
+            // Add FID to webhook (user has both sufficient allowance and balance)
             const addFidToWebhook = require('./index').addFidToWebhook;
             if (addFidToWebhook) {
               const added = await addFidToWebhook(fid);
@@ -209,13 +223,14 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
               console.log(`🔗 Webhook addition result for FID ${fid}: ${added ? 'added' : 'failed'}`);
               
               // Update isActive to true when added to webhook (only if user has config)
-            if (added && userConfig) {
-              userConfig.isActive = true;
-              await database.setUserConfig(userAddress, userConfig);
-              console.log(`✅ Set isActive=true for ${userAddress} (added to webhook)`);
-            } else if (added && !userConfig) {
-              // New user - they'll set isActive when they save config
-              console.log(`✅ New user ${userAddress} added to webhook - config will be set when they save settings`);
+              if (added && userConfig) {
+                userConfig.isActive = true;
+                await database.setUserConfig(userAddress, userConfig);
+                console.log(`✅ Set isActive=true for ${userAddress} (added to webhook with sufficient allowance and balance)`);
+              } else if (added && !userConfig) {
+                // New user - they'll set isActive when they save config
+                console.log(`✅ New user ${userAddress} added to webhook - config will be set when they save settings`);
+              }
             }
           }
         }
