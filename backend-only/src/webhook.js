@@ -405,6 +405,30 @@ async function webhookHandler(req, res) {
       }
     }
 
+    // Check spam label requirement (Level 2 check)
+    if (interaction.interactorFid) {
+      const { meetsSpamLabelRequirement } = require('./spamLabelChecker');
+      const minSpamLabel = authorConfig.minSpamLabel !== undefined ? authorConfig.minSpamLabel : null;
+      
+      // If user has set a spam label requirement, check it
+      if (minSpamLabel !== null && minSpamLabel > 0) {
+        const meetsRequirement = await meetsSpamLabelRequirement(interaction.interactorFid, minSpamLabel);
+        
+        if (!meetsRequirement) {
+          console.log(`⏭️ Skipping tip - interactor FID ${interaction.interactorFid} does not meet spam label requirement (min: ${minSpamLabel})`);
+          return res.status(200).json({
+            success: true,
+            processed: false,
+            instant: true,
+            interactionType: interaction.interactionType,
+            reason: `Interactor does not meet spam label requirement (minimum Level ${minSpamLabel})`
+          });
+        }
+        
+        console.log(`✅ Interactor FID ${interaction.interactorFid} meets spam label requirement (min: ${minSpamLabel})`);
+      }
+    }
+
     // Webhook filtering handles allowance/balance checks automatically
 
     // Process tip through batch system (like Noice - 1 minute batches for gas efficiency)

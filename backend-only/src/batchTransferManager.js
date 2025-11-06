@@ -295,6 +295,16 @@ class BatchTransferManager {
         return { valid: false, reason: 'Insufficient Neynar score' };
       }
 
+      // Check spam label requirement (Level 2 check)
+      if (interaction.interactorFid && authorConfig.minSpamLabel !== undefined && authorConfig.minSpamLabel > 0) {
+        const { meetsSpamLabelRequirement } = require('./spamLabelChecker');
+        const meetsRequirement = await meetsSpamLabelRequirement(interaction.interactorFid, authorConfig.minSpamLabel);
+        
+        if (!meetsRequirement) {
+          return { valid: false, reason: `Interactor does not meet spam label requirement (minimum Level ${authorConfig.minSpamLabel})` };
+        }
+      }
+
       // Check audience criteria (skip for follow events)
       if (interaction.interactionType !== 'follow') {
         const meetsAudience = await this.checkAudienceCriteria(interaction.authorFid, interaction.interactorFid, authorConfig.audience);

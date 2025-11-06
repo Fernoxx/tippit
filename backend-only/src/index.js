@@ -731,7 +731,9 @@ app.post('/api/config', async (req, res) => {
       totalSpent: config.totalSpent || '0',
       lastActivity: Date.now(),
       lastAllowance: config.lastAllowance || 0,
-      lastAllowanceCheck: config.lastAllowanceCheck || 0
+      lastAllowanceCheck: config.lastAllowanceCheck || 0,
+      // Spam label filter: 0 = no filter, 1 = Level 1+, 2 = Level 2 only
+      minSpamLabel: config.minSpamLabel !== undefined ? parseInt(config.minSpamLabel) : 0
     };
     
     console.log(`💾 Saving config for ${userAddress}:`, {

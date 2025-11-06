@@ -90,6 +90,7 @@ export default function Settings() {
     audience: 0, // 0: Following, 1: Followers, 2: Anyone
     minFollowerCount: 25,
     minNeynarScore: 0.5,
+    minSpamLabel: 0, // 0: No filter, 1: Level 1+, 2: Level 2 only
   });
 
   // Handle transaction success - redirect to amounts tab
@@ -139,6 +140,7 @@ export default function Settings() {
         audience: userConfig.audience || 0,
         minFollowerCount: userConfig.minFollowerCount || 25,
         minNeynarScore: userConfig.minNeynarScore || 0.5,
+        minSpamLabel: userConfig.minSpamLabel !== undefined ? userConfig.minSpamLabel : 0,
       });
       
       // CRITICAL FIX: Always load user's saved token, don't default to USDC
@@ -263,6 +265,7 @@ export default function Settings() {
         audience: criteria.audience,
         minFollowerCount: criteria.minFollowerCount,
         minNeynarScore: criteria.minNeynarScore,
+        minSpamLabel: criteria.minSpamLabel,
         likeEnabled: tippingToggles.like,
         replyEnabled: tippingToggles.reply,
         recastEnabled: tippingToggles.recast,
@@ -540,6 +543,37 @@ export default function Settings() {
                 <div className="flex justify-between text-xs text-gray-500 mt-1">
                   <span>0.0</span>
                   <span>1.0</span>
+                </div>
+              </div>
+
+              {/* Spam Label Filter - Only Level 2 Users */}
+              <div className="border border-gray-200 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Only Level 2 Verified Users
+                    </label>
+                    <p className="text-xs text-gray-500">
+                      Only tip users verified by Farcaster (Level 2 spam label). Reduces spam and improves tip quality.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setCriteria(prev => ({ 
+                      ...prev, 
+                      minSpamLabel: prev.minSpamLabel === 2 ? 0 : 2 
+                    }))}
+                    className={`relative w-11 h-6 rounded-full transition-colors ${
+                      criteria.minSpamLabel === 2
+                        ? 'bg-yellow-400'
+                        : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform ${
+                        criteria.minSpamLabel === 2 ? 'left-5' : 'left-0.5'
+                      }`}
+                    />
+                  </button>
                 </div>
               </div>
             </div>
