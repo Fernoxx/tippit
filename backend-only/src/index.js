@@ -1620,15 +1620,29 @@ async function getActiveUsers() {
     }
     
     // Get user data for these FIDs from database (if they exist)
-    // But also create entries for FIDs that aren't in database yet
+    // Use DISTINCT to avoid duplicates if there are multiple configs per FID
     const result = await database.pool.query(`
-      SELECT up.fid, up.user_address, up.latest_cast_hash, up.is_tracking, uc.config
+      SELECT DISTINCT ON (up.fid) 
+        up.fid, 
+        up.user_address, 
+        up.latest_cast_hash, 
+        up.is_tracking, 
+        uc.config
       FROM user_profiles up
       LEFT JOIN user_configs uc ON up.user_address = uc.user_address
       WHERE up.fid = ANY($1)
+      ORDER BY up.fid, uc.updated_at DESC NULLS LAST
     `, [trackedFids]);
     
-    const existingFids = new Set(result.rows.map(r => r.fid));
+    // Create a map to avoid duplicates (keyed by FID)
+    const usersMap = new Map();
+    result.rows.forEach(row => {
+      if (!usersMap.has(row.fid)) {
+        usersMap.set(row.fid, row);
+      }
+    });
+    
+    const existingFids = new Set(Array.from(usersMap.keys()));
     const missingFids = trackedFids.filter(fid => !existingFids.has(fid));
     
     // For FIDs not in database, fetch their address and create entry
@@ -1654,40 +1668,64 @@ async function getActiveUsers() {
             
             // Get config for this user
             const config = await database.getUserConfig(address);
-            if (config) {
-              result.rows.push({
-                fid,
-                user_address: address,
-                latest_cast_hash: null,
-                is_tracking: true,
-                config
-              });
-            }
+            usersMap.set(fid, {
+              fid,
+              user_address: address,
+              latest_cast_hash: null,
+              is_tracking: true,
+              config
+            });
+          } else {
+            // FID exists but no verified address - create minimal entry
+            usersMap.set(fid, {
+              fid,
+              user_address: null,
+              latest_cast_hash: null,
+              is_tracking: true,
+              config: null
+            });
           }
         } catch (error) {
           console.log(`⚠️ Could not fetch data for FID ${fid}: ${error.message}`);
+          // Create minimal entry even if fetch fails
+          usersMap.set(fid, {
+            fid,
+            user_address: null,
+            latest_cast_hash: null,
+            is_tracking: true,
+            config: null
+          });
         }
       }
     }
     
-    // Return ALL FIDs from webhook - they're active users
-    // If they don't have config, we'll still poll them (they might have config in database but not loaded)
-    const usersWithData = result.rows;
-    const fidsWithoutData = trackedFids.filter(fid => !usersWithData.find(u => u.fid === fid));
+    // Convert map to array - this ensures no duplicates
+    const usersWithData = Array.from(usersMap.values());
     
-    // For FIDs without database data, create minimal entries
-    for (const fid of fidsWithoutData) {
-      usersWithData.push({
-        fid,
-        user_address: null, // Will be fetched when we poll
-        latest_cast_hash: null,
-        is_tracking: true,
-        config: null
-      });
+    // Ensure we have exactly one entry per FID from webhook
+    const finalUsers = [];
+    const processedFids = new Set();
+    for (const fid of trackedFids) {
+      if (!processedFids.has(fid)) {
+        const user = usersWithData.find(u => u.fid === fid);
+        if (user) {
+          finalUsers.push(user);
+        } else {
+          // Fallback: create minimal entry
+          finalUsers.push({
+            fid,
+            user_address: null,
+            latest_cast_hash: null,
+            is_tracking: true,
+            config: null
+          });
+        }
+        processedFids.add(fid);
+      }
     }
     
-    console.log(`👥 Polling ${usersWithData.length} active users (${trackedFids.length} from webhook)`);
-    return usersWithData;
+    console.log(`👥 Polling ${finalUsers.length} active users (${trackedFids.length} FIDs from webhook)`);
+    return finalUsers;
   } catch (error) {
     console.log(`❌ Error getting active users: ${error.message}`);
     return [];

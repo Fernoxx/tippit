@@ -37,6 +37,7 @@ interface UserConfig {
   audience: number;
   minFollowerCount: number;
   minNeynarScore: number;
+  minSpamLabel?: number; // 0 = no filter, 1 = Level 1+, 2 = Level 2 only
   likeEnabled: boolean;
   replyEnabled: boolean;
   recastEnabled: boolean;
