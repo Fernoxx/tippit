@@ -2352,6 +2352,14 @@ async function updateUserWebhookStatus(userAddress) {
         await database.setUserConfig(userAddress, userConfig);
       }
     } else {
+      // Only add back to webhook if user is actually active (not just removed)
+      // This prevents re-adding users who were just removed due to insufficient funds
+      if (!userConfig.isActive) {
+        console.log(`⚠️ User ${userAddress} has sufficient funds but isActive=false - not adding back to webhook yet (user may have been recently removed)`);
+        // Don't add back immediately - let them manually re-enable or wait for next allowance update
+        return false;
+      }
+      
       console.log(`✅ User ${userAddress} has sufficient funds - ensuring in webhook`);
       await addFidToWebhook(fid);
       

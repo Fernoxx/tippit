@@ -194,14 +194,21 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
             }
           }
         } else if (webhookAction === 'add') {
-          // Add FID to webhook
-          const addFidToWebhook = require('./index').addFidToWebhook;
-          if (addFidToWebhook) {
-            const added = await addFidToWebhook(fid);
-            webhookResult = { action: added ? 'added' : 'failed', reason: webhookReason };
-            console.log(`🔗 Webhook addition result for FID ${fid}: ${added ? 'added' : 'failed'}`);
-            
-            // Update isActive to true when added to webhook (only if user has config)
+          // Only add to webhook if user is not currently marked as inactive
+          // This prevents re-adding users who were just removed due to insufficient funds after a tip
+          if (userConfig.isActive === false) {
+            console.log(`⚠️ User ${userAddress} has sufficient allowance but isActive=false - not adding back to webhook (user may have been recently removed due to insufficient balance)`);
+            webhookResult = { action: 'skipped', reason: 'user_inactive_despite_sufficient_allowance' };
+            // Don't add back - user needs to manually re-enable or wait for balance to be sufficient
+          } else {
+            // Add FID to webhook
+            const addFidToWebhook = require('./index').addFidToWebhook;
+            if (addFidToWebhook) {
+              const added = await addFidToWebhook(fid);
+              webhookResult = { action: added ? 'added' : 'failed', reason: webhookReason };
+              console.log(`🔗 Webhook addition result for FID ${fid}: ${added ? 'added' : 'failed'}`);
+              
+              // Update isActive to true when added to webhook (only if user has config)
             if (added && userConfig) {
               userConfig.isActive = true;
               await database.setUserConfig(userAddress, userConfig);
