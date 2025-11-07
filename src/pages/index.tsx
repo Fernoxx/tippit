@@ -93,7 +93,7 @@ export default function Home() {
         <meta name="twitter:description" content="With Ecion you can boost your casts by tipping engagers for their interactions easily." />
         <meta name="twitter:image" content="https://ecion.vercel.app/og-image.png" />
       </Head>
-      <div className="max-w-4xl mx-auto px-4 py-8 bg-yellow-50 min-h-full">
+      <div className="max-w-4xl mx-auto px-4 py-8 bg-yellow-50 min-h-screen">
         {/* Hero Section */}
         <div className="text-center py-6 relative">
           <button

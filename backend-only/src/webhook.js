@@ -239,22 +239,62 @@ async function webhookHandler(req, res) {
     let isInWebhook = trackedFids.includes(authorFid);
     console.log(`📋 Tracked FIDs count: ${trackedFids.length}, Author FID ${authorFid} in webhook: ${isInWebhook}`);
     
-    // If user has config but not in webhook, try adding them (might be a new user who just approved)
+    // If user has config but not in webhook, check allowance/balance BEFORE adding
+    // This prevents adding users who don't have sufficient funds (which causes remove/add loop)
     if (!isInWebhook && authorConfig) {
-      console.log(`⚠️ Author ${interaction.authorAddress} (FID: ${authorFid}) has config but not in webhook - trying to add them`);
-      const { addFidToWebhook } = require('./index');
+      console.log(`⚠️ Author ${interaction.authorAddress} (FID: ${authorFid}) has config but not in webhook - checking allowance/balance before adding`);
+      
+      // Check if user has sufficient allowance and balance before adding to webhook
+      const { ethers } = require('ethers');
+      const { getProvider } = require('./rpcProvider');
+      const provider = await getProvider();
+      const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+      const tokenAddress = authorConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+      
       try {
-        const added = await addFidToWebhook(authorFid);
-        console.log(`🔗 addFidToWebhook result for FID ${authorFid}: ${added}`);
-        if (added) {
-          isInWebhook = true;
-          console.log(`✅ Added FID ${authorFid} to webhook during webhook processing`);
+        const tokenContract = new ethers.Contract(tokenAddress, [
+          "function allowance(address owner, address spender) view returns (uint256)",
+          "function balanceOf(address owner) view returns (uint256)"
+        ], provider);
+        
+        const [allowance, balance] = await Promise.all([
+          tokenContract.allowance(interaction.authorAddress, ecionBatchAddress),
+          tokenContract.balanceOf(interaction.authorAddress)
+        ]);
+        
+        const tokenDecimals = tokenAddress === '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' ? 6 : 18;
+        const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
+        const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
+        
+        const likeAmount = parseFloat(authorConfig.likeAmount || '0');
+        const recastAmount = parseFloat(authorConfig.recastAmount || '0');
+        const replyAmount = parseFloat(authorConfig.replyAmount || '0');
+        const minTipAmount = likeAmount + recastAmount + replyAmount;
+        
+        const hasSufficientAllowance = allowanceAmount >= minTipAmount;
+        const hasSufficientBalance = balanceAmount >= minTipAmount;
+        
+        console.log(`💰 Allowance check for ${interaction.authorAddress}: allowance=${allowanceAmount}, balance=${balanceAmount}, minTip=${minTipAmount}`);
+        
+        // Only add to webhook if user has BOTH sufficient allowance AND balance
+        if (hasSufficientAllowance && hasSufficientBalance) {
+          console.log(`✅ User has sufficient funds - adding FID ${authorFid} to webhook`);
+          const { addFidToWebhook } = require('./index');
+          const added = await addFidToWebhook(authorFid);
+          console.log(`🔗 addFidToWebhook result for FID ${authorFid}: ${added}`);
+          if (added) {
+            isInWebhook = true;
+            console.log(`✅ Added FID ${authorFid} to webhook during webhook processing`);
+          } else {
+            console.log(`❌ Failed to add FID ${authorFid} to webhook - addFidToWebhook returned false`);
+          }
         } else {
-          console.log(`❌ Failed to add FID ${authorFid} to webhook - addFidToWebhook returned false`);
+          console.log(`❌ User ${interaction.authorAddress} has insufficient funds (allowance: ${allowanceAmount}, balance: ${balanceAmount}, required: ${minTipAmount}) - NOT adding to webhook to prevent loop`);
+          // Don't add to webhook - user needs to top up allowance/balance first
         }
       } catch (error) {
-        console.log(`❌ Error adding FID ${authorFid} to webhook: ${error.message}`);
-        console.log(`❌ Error stack: ${error.stack}`);
+        console.log(`❌ Error checking allowance/balance for ${interaction.authorAddress}: ${error.message}`);
+        // On error, don't add to webhook to prevent issues
       }
     }
     
