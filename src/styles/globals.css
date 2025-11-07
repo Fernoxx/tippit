@@ -26,6 +26,18 @@
     @apply bg-background text-foreground font-mono;
     font-feature-settings: "rlig" 1, "calt" 1;
     touch-action: pan-y; /* Disable horizontal swiping */
+    overflow-x: hidden; /* Prevent horizontal scroll */
+    position: relative; /* Prevent blank screen on scroll */
+  }
+  
+  html {
+    overflow-x: hidden; /* Prevent horizontal scroll */
+    height: 100%; /* Ensure full height */
+  }
+  
+  #__next {
+    min-height: 100vh; /* Ensure Next.js root has full height */
+    position: relative; /* Prevent blank screen on scroll */
   }
 }
 
