@@ -1,14 +1,27 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001').replace(/\/$/, '');
 
+interface PeriodStats {
+  tips: number;
+  usdc: number;
+}
+
 interface AdminStats {
-  totalTips: number;
-  totalAmountTipped: number;
-  totalUsers: number;
-  totalTransactions: number;
-  timestamp: string;
+  allTime: {
+    totalTips: number;
+    totalUsdcTipped: number;
+    totalTransactions: number;
+    uniqueTippers: number;
+    uniqueEarners: number;
+    firstTipDate: string | null;
+    lastTipDate: string | null;
+  };
+  last24h: PeriodStats;
+  last7d: PeriodStats;
+  last30d: PeriodStats;
+  timestamp?: string;
 }
 
 interface RecentTip {
@@ -16,212 +29,134 @@ interface RecentTip {
   toAddress: string;
   amount: number;
   tokenAddress: string;
-  txHash: string;
+  txHash: string | null;
   processedAt: string;
   interactionType: string;
 }
+
+interface MetricCardConfig {
+  key: string;
+  label: string;
+  bgClass: string;
+  textClass: string;
+  icon: JSX.Element;
+  getValue: (stats: AdminStats) => string;
+}
+
+interface TimeframeCardConfig {
+  label: string;
+  getTips: (stats: AdminStats) => string;
+  getUsdc: (stats: AdminStats) => string;
+}
+
+const metricCards: MetricCardConfig[] = [
+  {
+    key: 'totalTips',
+    label: 'Total Tips',
+    bgClass: 'bg-blue-100',
+    textClass: 'text-blue-600',
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+      </svg>
+    ),
+    getValue: (stats) => stats.allTime.totalTips.toLocaleString(),
+  },
+  {
+    key: 'totalUsdcTipped',
+    label: 'Total USDC Tipped',
+    bgClass: 'bg-green-100',
+    textClass: 'text-green-600',
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+      </svg>
+    ),
+    getValue: (stats) => `${stats.allTime.totalUsdcTipped.toFixed(2)} USDC`,
+  },
+  {
+    key: 'totalTransactions',
+    label: 'Total Transactions',
+    bgClass: 'bg-orange-100',
+    textClass: 'text-orange-600',
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    ),
+    getValue: (stats) => stats.allTime.totalTransactions.toLocaleString(),
+  },
+  {
+    key: 'uniqueTippers',
+    label: 'Unique Tippers',
+    bgClass: 'bg-purple-100',
+    textClass: 'text-purple-600',
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+      </svg>
+    ),
+    getValue: (stats) => stats.allTime.uniqueTippers.toLocaleString(),
+  },
+];
+
+const timeframeCards: TimeframeCardConfig[] = [
+  {
+    label: 'Last 24h',
+    getTips: (stats) => stats.last24h.tips.toLocaleString(),
+    getUsdc: (stats) => stats.last24h.usdc.toFixed(2),
+  },
+  {
+    label: 'Last 7d',
+    getTips: (stats) => stats.last7d.tips.toLocaleString(),
+    getUsdc: (stats) => stats.last7d.usdc.toFixed(2),
+  },
+  {
+    label: 'Last 30d',
+    getTips: (stats) => stats.last30d.tips.toLocaleString(),
+    getUsdc: (stats) => stats.last30d.usdc.toFixed(2),
+  },
+];
 
 export default function Admin() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [recentTips, setRecentTips] = useState<RecentTip[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isMigrating, setIsMigrating] = useState(false);
-  const [migrationResult, setMigrationResult] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAdminData();
-    // Auto-refresh every 30 seconds
     const interval = setInterval(fetchAdminData, 30000);
     return () => clearInterval(interval);
   }, []);
-
-  const runMigration = async () => {
-    try {
-      setIsMigrating(true);
-      setMigrationResult(null);
-      
-      const response = await fetch(`${BACKEND_URL}/api/migrate-all-user-earnings`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        setMigrationResult(`Migration completed! Migrated ${result.migratedCount} users.`);
-        // Refresh admin data after migration
-        fetchAdminData();
-      } else {
-        const error = await response.json();
-        setMigrationResult(`Migration failed: ${error.error || 'Unknown error'}`);
-      }
-    } catch (error) {
-      setMigrationResult(`Migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsMigrating(false);
-    }
-  };
-
-  const runProfileMigration = async () => {
-    try {
-      setIsMigrating(true);
-      setMigrationResult(null);
-      
-      const response = await fetch(`${BACKEND_URL}/api/migrate-user-profiles`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        setMigrationResult(`Profile migration completed! Migrated ${result.migrated} profiles.`);
-        // Refresh admin data after migration
-        fetchAdminData();
-      } else {
-        const error = await response.json();
-        setMigrationResult(`Profile migration failed: ${error.error || 'Unknown error'}`);
-      }
-    } catch (error) {
-      setMigrationResult(`Profile migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsMigrating(false);
-    }
-  };
-
-  const runEarningsMigration = async () => {
-    try {
-      setIsMigrating(true);
-      setMigrationResult(null);
-      
-      const response = await fetch(`${BACKEND_URL}/api/migrate-user-earnings`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        setMigrationResult(`Earnings migration completed! Updated ${result.updated} users.`);
-        // Refresh admin data after migration
-        fetchAdminData();
-      } else {
-        const error = await response.json();
-        setMigrationResult(`Earnings migration failed: ${error.error || 'Unknown error'}`);
-      }
-    } catch (error) {
-      setMigrationResult(`Earnings migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsMigrating(false);
-    }
-  };
-
-  const runCompleteMigration = async () => {
-    try {
-      setIsMigrating(true);
-      setMigrationResult(null);
-      
-      const response = await fetch(`${BACKEND_URL}/api/migrate-complete`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        setMigrationResult(`Complete migration finished! Profiles: ${result.profiles}, Earnings: ${result.earnings}, Errors: ${result.errors}`);
-        // Refresh admin data after migration
-        fetchAdminData();
-      } else {
-        const error = await response.json();
-        setMigrationResult(`Complete migration failed: ${error.error || 'Unknown error'}`);
-      }
-    } catch (error) {
-      setMigrationResult(`Complete migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsMigrating(false);
-    }
-  };
-
-  const runMissingMigration = async () => {
-    try {
-      setIsMigrating(true);
-      setMigrationResult(null);
-      
-      const response = await fetch(`${BACKEND_URL}/api/migrate-missing`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        setMigrationResult(`Missing migration finished! Total: ${result.total}, Existing: ${result.existing}, Missing: ${result.missing}, Profiles: ${result.profiles}, Earnings: ${result.earnings}, Errors: ${result.errors}`);
-        // Refresh admin data after migration
-        fetchAdminData();
-      } else {
-        const error = await response.json();
-        setMigrationResult(`Missing migration failed: ${error.error || 'Unknown error'}`);
-      }
-    } catch (error) {
-      setMigrationResult(`Missing migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsMigrating(false);
-    }
-  };
-
-  const runRecalculateEarnings = async () => {
-    try {
-      setIsMigrating(true);
-      setMigrationResult(null);
-      
-      const response = await fetch(`${BACKEND_URL}/api/recalculate-earnings`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        setMigrationResult(`Earnings recalculation finished! Success: ${result.successCount}, Errors: ${result.errorCount}, Total Users: ${result.totalUsers}`);
-        // Refresh admin data after migration
-        fetchAdminData();
-      } else {
-        const error = await response.json();
-        setMigrationResult(`Earnings recalculation failed: ${error.error || 'Unknown error'}`);
-      }
-    } catch (error) {
-      setMigrationResult(`Earnings recalculation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsMigrating(false);
-    }
-  };
 
   const fetchAdminData = async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      // Fetch total stats
       const statsResponse = await fetch(`${BACKEND_URL}/api/admin/total-stats`);
-      if (statsResponse.ok) {
-        const statsData = await statsResponse.json();
-        setStats(statsData.stats);
+      if (!statsResponse.ok) {
+        throw new Error(`Stats request failed with status ${statsResponse.status}`);
+      }
+      const statsData = await statsResponse.json();
+      const payload = (statsData.stats as AdminStats | undefined) ?? (statsData.data as AdminStats | undefined);
+
+      if (payload) {
+        setStats({
+          ...payload,
+          timestamp: statsData.timestamp ?? payload.timestamp,
+        });
+      } else {
+        setStats(null);
       }
 
-      // Fetch recent tips
       const tipsResponse = await fetch(`${BACKEND_URL}/api/admin/recent-tips?limit=20`);
-      if (tipsResponse.ok) {
-        const tipsData = await tipsResponse.json();
-        setRecentTips(tipsData.tips);
+      if (!tipsResponse.ok) {
+        throw new Error(`Recent tips request failed with status ${tipsResponse.status}`);
       }
+      const tipsData = await tipsResponse.json();
+      setRecentTips(Array.isArray(tipsData.tips) ? tipsData.tips : []);
     } catch (err) {
       console.error('Error fetching admin data:', err);
       setError('Failed to fetch admin data');
@@ -230,7 +165,13 @@ export default function Admin() {
     }
   };
 
+  const lastUpdated = useMemo(() => {
+    if (!stats?.timestamp) return null;
+    return new Date(stats.timestamp).toLocaleString();
+  }, [stats?.timestamp]);
+
   const formatAddress = (address: string) => {
+    if (!address) return 'N/A';
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
@@ -239,7 +180,11 @@ export default function Admin() {
   };
 
   const formatDate = (timestamp: string) => {
-    return new Date(timestamp).toLocaleString();
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) {
+      return 'Unknown';
+    }
+    return date.toLocaleString();
   };
 
   if (isLoading && !stats) {
@@ -256,238 +201,82 @@ export default function Admin() {
   return (
     <div className="min-h-screen bg-yellow-50 py-8">
       <div className="max-w-6xl mx-auto px-4">
-        {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
-          <p className="text-gray-600">Ecion App Statistics & Monitoring</p>
-          {stats && (
-            <p className="text-sm text-gray-500 mt-2">
-              Last updated: {formatDate(stats.timestamp)}
-            </p>
+          <p className="text-gray-600">Live tipping statistics for Ecion</p>
+          {lastUpdated && (
+            <p className="text-sm text-gray-500 mt-2">Last updated: {lastUpdated}</p>
           )}
         </div>
 
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6 text-center">
             {error}
           </div>
         )}
 
-        {/* Migration Section */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Data Migration</h2>
-          <p className="text-gray-600 mb-4">
-            Migrate all user earnings data from tip_history to user_earnings table.
-          </p>
-          <button
-            onClick={runMigration}
-            disabled={isMigrating}
-            className={`px-6 py-3 rounded-lg font-medium ${
-              isMigrating
-                ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                : 'bg-blue-600 text-white hover:bg-blue-700'
-            }`}
-          >
-            {isMigrating ? 'Migrating...' : 'Run Migration'}
-          </button>
-          {migrationResult && (
-            <div className={`mt-4 p-4 rounded ${
-              migrationResult.includes('failed') 
-                ? 'bg-red-100 text-red-700' 
-                : 'bg-green-100 text-green-700'
-            }`}>
-              {migrationResult}
+        {stats ? (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              {metricCards.map((card, index) => (
+                <motion.div
+                  key={card.key}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="bg-white rounded-lg p-6 shadow-sm border border-gray-200"
+                >
+                  <div className="flex items-center">
+                    <div className={`p-2 rounded-lg ${card.bgClass}`}>
+                      <span className={card.textClass}>{card.icon}</span>
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-gray-600">{card.label}</p>
+                      <p className="text-2xl font-bold text-gray-900">{card.getValue(stats)}</p>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
             </div>
-          )}
-        </div>
-
-        {/* Profile Migration Section */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">User Profiles Migration</h2>
-          <p className="text-gray-600 mb-4">
-            Fetch and save all user profiles from tip_history to user_profiles table.
-          </p>
-          <button
-            onClick={runProfileMigration}
-            disabled={isMigrating}
-            className={`px-6 py-3 rounded-lg font-medium ${
-              isMigrating
-                ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                : 'bg-green-600 text-white hover:bg-green-700'
-            }`}
-          >
-            {isMigrating ? 'Migrating Profiles...' : 'Run Profile Migration'}
-          </button>
-        </div>
-
-        {/* Earnings Migration Section */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">User Earnings Migration</h2>
-          <p className="text-gray-600 mb-4">
-            Calculate and save all earnings/tippings data from tip_history to user_profiles table.
-          </p>
-          <button
-            onClick={runEarningsMigration}
-            disabled={isMigrating}
-            className={`px-6 py-3 rounded-lg font-medium ${
-              isMigrating
-                ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                : 'bg-blue-600 text-white hover:bg-blue-700'
-            }`}
-          >
-            {isMigrating ? 'Migrating Earnings...' : 'Run Earnings Migration'}
-          </button>
-        </div>
-
-        {/* Complete Migration Section */}
-        <div className="bg-white p-6 rounded-lg shadow border-2 border-purple-200">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">🚀 Complete Migration (Recommended)</h2>
-          <p className="text-gray-600 mb-4">
-            Get all addresses from tip_history → Fetch user data from Neynar → Calculate earnings/tippings → Save everything to user_profiles in one go.
-          </p>
-          <button
-            onClick={runCompleteMigration}
-            disabled={isMigrating}
-            className={`px-6 py-3 rounded-lg font-medium ${
-              isMigrating
-                ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                : 'bg-purple-600 text-white hover:bg-purple-700'
-            }`}
-          >
-            {isMigrating ? 'Running Complete Migration...' : 'Run Complete Migration'}
-          </button>
-        </div>
-
-        {/* Missing Addresses Migration Section */}
-        <div className="bg-white p-6 rounded-lg shadow border-2 border-orange-200">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">🔍 Migrate Missing Addresses</h2>
-          <p className="text-gray-600 mb-4">
-            Find addresses that are in tip_history but NOT in user_profiles and migrate only those missing ones.
-          </p>
-          <button
-            onClick={runMissingMigration}
-            disabled={isMigrating}
-            className={`px-6 py-3 rounded-lg font-medium ${
-              isMigrating
-                ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                : 'bg-orange-600 text-white hover:bg-orange-700'
-            }`}
-          >
-            {isMigrating ? 'Finding Missing Addresses...' : 'Migrate Missing Addresses'}
-          </button>
-        </div>
-
-        {/* Recalculate Earnings Section */}
-        <div className="bg-white p-6 rounded-lg shadow border-2 border-green-200">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">🔄 Recalculate Earnings (USDC Only)</h2>
-          <p className="text-gray-600 mb-4">
-            Recalculate USDC earnings and tippings for all users in user_profiles from tip_history data.
-          </p>
-          <button
-            onClick={runRecalculateEarnings}
-            disabled={isMigrating}
-            className={`px-6 py-3 rounded-lg font-medium ${
-              isMigrating
-                ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                : 'bg-green-600 text-white hover:bg-green-700'
-            }`}
-          >
-            {isMigrating ? 'Recalculating...' : 'Recalculate Earnings'}
-          </button>
-        </div>
-
-        {/* Stats Cards */}
-        {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-lg p-6 shadow-sm border border-gray-200"
-            >
-              <div className="flex items-center">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                  </svg>
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Total Tips</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.totalTips.toLocaleString()}</p>
-                </div>
-              </div>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="bg-white rounded-lg p-6 shadow-sm border border-gray-200"
-            >
-              <div className="flex items-center">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                  </svg>
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Total Amount Tipped</p>
-                  <p className="text-2xl font-bold text-gray-900">{formatAmount(stats.totalAmountTipped)} USDC</p>
-                </div>
-              </div>
-            </motion.div>
 
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="bg-white rounded-lg p-6 shadow-sm border border-gray-200"
+              className="bg-white rounded-lg shadow-sm border border-gray-200 mb-8"
             >
-              <div className="flex items-center">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                  <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                  </svg>
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Total Users</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.totalUsers.toLocaleString()}</p>
-                </div>
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h2 className="text-xl font-semibold text-gray-900">Recent Activity Snapshot</h2>
+                <p className="text-sm text-gray-600 mt-1">Rolling totals for key timeframes</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x">
+                {timeframeCards.map((card) => (
+                  <div key={card.label} className="p-6 text-center">
+                    <p className="text-sm font-medium text-gray-500">{card.label}</p>
+                    <p className="text-2xl font-semibold text-gray-900 mt-2">{card.getTips(stats)} tips</p>
+                    <p className="text-sm text-gray-600 mt-1">{card.getUsdc(stats)} USDC</p>
+                  </div>
+                ))}
               </div>
             </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="bg-white rounded-lg p-6 shadow-sm border border-gray-200"
-            >
-              <div className="flex items-center">
-                <div className="p-2 bg-orange-100 rounded-lg">
-                  <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Total Transactions</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.totalTransactions.toLocaleString()}</p>
-                </div>
-              </div>
-            </motion.div>
+          </>
+        ) : (
+          <div className="bg-white border border-yellow-200 text-yellow-800 px-4 py-3 rounded mb-8 text-center">
+            No statistics available yet. Tips will appear here once activity is tracked.
           </div>
         )}
 
-        {/* Recent Tips Table */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
+          transition={{ delay: 0.3 }}
           className="bg-white rounded-lg shadow-sm border border-gray-200"
         >
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-xl font-semibold text-gray-900">Recent Tips</h2>
             <p className="text-sm text-gray-600 mt-1">Latest 20 tips processed</p>
           </div>
-          
+
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -514,7 +303,7 @@ export default function Admin() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {recentTips.map((tip, index) => (
-                  <tr key={index} className="hover:bg-gray-50">
+                  <tr key={`${tip.txHash ?? 'tx'}-${index}`} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
                       {formatAddress(tip.fromAddress)}
                     </td>
@@ -537,12 +326,18 @@ export default function Admin() {
                     </td>
                   </tr>
                 ))}
+                {recentTips.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-500">
+                      No recent tips recorded yet.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
         </motion.div>
 
-        {/* Refresh Button */}
         <div className="mt-6 text-center">
           <button
             onClick={fetchAdminData}
