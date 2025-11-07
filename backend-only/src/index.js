@@ -23,6 +23,8 @@ try {
 
 // Using webhook filtering based on allowance and balance checks
 
+const BASE_USDC_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
+
 // Initialize batchTransferManager
 console.log('🔄 Initializing batchTransferManager...');
 console.log(`📊 batchTransferManager status: ${batchTransferManager ? 'ACTIVE' : 'INACTIVE'}`);
@@ -7295,84 +7297,104 @@ app.listen(PORT, () => {
 });
 
 // Admin panel - Get total tips statistics
-app.get('/api/admin/total-stats', async (req, res) => {
+  app.get('/api/admin/total-stats', async (req, res) => {
   try {
     console.log('📊 Admin: Fetching total tips statistics...');
-    
-    // Get total USDC tipped (all time)
-    const totalStatsResult = await database.pool.query(`
-      SELECT 
-        COUNT(*) as total_tips,
-        SUM(amount::NUMERIC) as total_usdc_tipped,
-        COUNT(DISTINCT from_address) as unique_tippers,
-        COUNT(DISTINCT to_address) as unique_earners,
-        MIN(processed_at) as first_tip_date,
-        MAX(processed_at) as last_tip_date
-      FROM tip_history 
-      WHERE LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bd'
-    `);
-    
-    // Get 24h stats
-    const stats24hResult = await database.pool.query(`
-      SELECT 
-        COUNT(*) as tips_24h,
-        SUM(amount::NUMERIC) as usdc_24h
-      FROM tip_history 
-      WHERE LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
-      AND processed_at >= NOW() - INTERVAL '24 hours'
-    `);
-    
-    // Get 7d stats
-    const stats7dResult = await database.pool.query(`
-      SELECT 
-        COUNT(*) as tips_7d,
-        SUM(amount::NUMERIC) as usdc_7d
-      FROM tip_history 
-      WHERE LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
-      AND processed_at >= NOW() - INTERVAL '7 days'
-    `);
-    
-    // Get 30d stats
-    const stats30dResult = await database.pool.query(`
-      SELECT 
-        COUNT(*) as tips_30d,
-        SUM(amount::NUMERIC) as usdc_30d
-      FROM tip_history 
-      WHERE LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
-      AND processed_at >= NOW() - INTERVAL '30 days'
-    `);
-    
-    const totalStats = totalStatsResult.rows[0];
-    const stats24h = stats24hResult.rows[0];
-    const stats7d = stats7dResult.rows[0];
-    const stats30d = stats30dResult.rows[0];
-    
-    res.json({
-      success: true,
-      data: {
+      if (!database?.pool) {
+        return res.status(500).json({
+          success: false,
+          error: 'Database pool not available for total stats'
+        });
+      }
+
+      const lowercaseToken = BASE_USDC_ADDRESS.toLowerCase();
+
+      const [allTimeResult, last24hResult, last7dResult, last30dResult] = await Promise.all([
+        database.pool.query(
+          `
+            SELECT 
+              COUNT(*)::INTEGER AS total_tips,
+              SUM(amount::NUMERIC) AS total_usdc_tipped,
+              COUNT(DISTINCT transaction_hash)::INTEGER AS total_transactions,
+              COUNT(DISTINCT from_address)::INTEGER AS unique_tippers,
+              COUNT(DISTINCT to_address)::INTEGER AS unique_earners,
+              MIN(processed_at) AS first_tip_date,
+              MAX(processed_at) AS last_tip_date
+            FROM tip_history 
+            WHERE LOWER(token_address) = $1
+          `,
+          [lowercaseToken]
+        ),
+        database.pool.query(
+          `
+            SELECT 
+              COUNT(*)::INTEGER AS tips,
+              SUM(amount::NUMERIC) AS usdc
+            FROM tip_history 
+            WHERE LOWER(token_address) = $1
+              AND processed_at >= NOW() - INTERVAL '24 hours'
+          `,
+          [lowercaseToken]
+        ),
+        database.pool.query(
+          `
+            SELECT 
+              COUNT(*)::INTEGER AS tips,
+              SUM(amount::NUMERIC) AS usdc
+            FROM tip_history 
+            WHERE LOWER(token_address) = $1
+              AND processed_at >= NOW() - INTERVAL '7 days'
+          `,
+          [lowercaseToken]
+        ),
+        database.pool.query(
+          `
+            SELECT 
+              COUNT(*)::INTEGER AS tips,
+              SUM(amount::NUMERIC) AS usdc
+            FROM tip_history 
+            WHERE LOWER(token_address) = $1
+              AND processed_at >= NOW() - INTERVAL '30 days'
+          `,
+          [lowercaseToken]
+        )
+      ]);
+
+      const allTime = allTimeResult.rows[0] || {};
+      const last24h = last24hResult.rows[0] || {};
+      const last7d = last7dResult.rows[0] || {};
+      const last30d = last30dResult.rows[0] || {};
+
+      const stats = {
         allTime: {
-          totalTips: parseInt(totalStats.total_tips) || 0,
-          totalUsdcTipped: parseFloat(totalStats.total_usdc_tipped) || 0,
-          uniqueTippers: parseInt(totalStats.unique_tippers) || 0,
-          uniqueEarners: parseInt(totalStats.unique_earners) || 0,
-          firstTipDate: totalStats.first_tip_date,
-          lastTipDate: totalStats.last_tip_date
+          totalTips: allTime.total_tips || 0,
+          totalUsdcTipped: parseFloat(allTime.total_usdc_tipped || 0),
+          totalTransactions: allTime.total_transactions || 0,
+          uniqueTippers: allTime.unique_tippers || 0,
+          uniqueEarners: allTime.unique_earners || 0,
+          firstTipDate: allTime.first_tip_date,
+          lastTipDate: allTime.last_tip_date
         },
         last24h: {
-          tips: parseInt(stats24h.tips_24h) || 0,
-          usdc: parseFloat(stats24h.usdc_24h) || 0
+          tips: last24h.tips || 0,
+          usdc: parseFloat(last24h.usdc || 0)
         },
         last7d: {
-          tips: parseInt(stats7d.tips_7d) || 0,
-          usdc: parseFloat(stats7d.usdc_7d) || 0
+          tips: last7d.tips || 0,
+          usdc: parseFloat(last7d.usdc || 0)
         },
         last30d: {
-          tips: parseInt(stats30d.tips_30d) || 0,
-          usdc: parseFloat(stats30d.usdc_30d) || 0
+          tips: last30d.tips || 0,
+          usdc: parseFloat(last30d.usdc || 0)
         }
-      },
-      timestamp: new Date().toISOString()
-    });
+      };
+
+      res.json({
+        success: true,
+        stats,
+        data: stats, // backwards compatibility
+        timestamp: new Date().toISOString()
+      });
   } catch (error) {
     console.error('❌ Error fetching admin stats:', error);
     res.status(500).json({ error: 'Failed to fetch admin statistics' });
