@@ -5210,8 +5210,8 @@ app.get('/api/debug/user-config-allowance', async (req, res) => {
   }
 });
 
-// Check allowance and balance by FID
-app.get('/api/fid-allowance/:fid', async (req, res) => {
+  // Check allowance and balance by FID
+  app.get('/api/fid-allowance/:fid', async (req, res) => {
   try {
     const fid = parseInt(req.params.fid);
     if (!fid || isNaN(fid)) {
@@ -5289,9 +5289,114 @@ app.get('/api/fid-allowance/:fid', async (req, res) => {
     console.error('Error checking FID allowance:', error);
     res.status(500).json({ error: error.message });
   }
-});
+  });
 
-    // Simple fallback for frontend routes (LAST ROUTE) - but NOT for API routes
+  // Admin panel - Get total tips statistics
+  app.get('/api/admin/total-stats', async (req, res) => {
+    try {
+      console.log('📊 Admin: Fetching total tips statistics...', { path: req.originalUrl, time: new Date().toISOString() });
+      if (!database?.pool) {
+        return res.status(500).json({
+          success: false,
+          error: 'Database pool not available for total stats'
+        });
+      }
+
+      const lowercaseToken = BASE_USDC_ADDRESS.toLowerCase();
+
+      const [allTimeResult, last24hResult, last7dResult, last30dResult] = await Promise.all([
+        database.pool.query(
+          `
+            SELECT 
+              COUNT(*)::INTEGER AS total_tips,
+              SUM(amount::NUMERIC) AS total_usdc_tipped,
+              COUNT(DISTINCT transaction_hash)::INTEGER AS total_transactions,
+              COUNT(DISTINCT from_address)::INTEGER AS unique_tippers,
+              COUNT(DISTINCT to_address)::INTEGER AS unique_earners,
+              MIN(processed_at) AS first_tip_date,
+              MAX(processed_at) AS last_tip_date
+            FROM tip_history 
+            WHERE LOWER(token_address) = $1
+          `,
+          [lowercaseToken]
+        ),
+        database.pool.query(
+          `
+            SELECT 
+              COUNT(*)::INTEGER AS tips,
+              SUM(amount::NUMERIC) AS usdc
+            FROM tip_history 
+            WHERE LOWER(token_address) = $1
+              AND processed_at >= NOW() - INTERVAL '24 hours'
+          `,
+          [lowercaseToken]
+        ),
+        database.pool.query(
+          `
+            SELECT 
+              COUNT(*)::INTEGER AS tips,
+              SUM(amount::NUMERIC) AS usdc
+            FROM tip_history 
+            WHERE LOWER(token_address) = $1
+              AND processed_at >= NOW() - INTERVAL '7 days'
+          `,
+          [lowercaseToken]
+        ),
+        database.pool.query(
+          `
+            SELECT 
+              COUNT(*)::INTEGER AS tips,
+              SUM(amount::NUMERIC) AS usdc
+            FROM tip_history 
+            WHERE LOWER(token_address) = $1
+              AND processed_at >= NOW() - INTERVAL '30 days'
+          `,
+          [lowercaseToken]
+        )
+      ]);
+
+      const allTime = allTimeResult.rows[0] || {};
+      const last24h = last24hResult.rows[0] || {};
+      const last7d = last7dResult.rows[0] || {};
+      const last30d = last30dResult.rows[0] || {};
+
+      const stats = {
+        allTime: {
+          totalTips: allTime.total_tips || 0,
+          totalUsdcTipped: parseFloat(allTime.total_usdc_tipped || 0),
+          totalTransactions: allTime.total_transactions || 0,
+          uniqueTippers: allTime.unique_tippers || 0,
+          uniqueEarners: allTime.unique_earners || 0,
+          firstTipDate: allTime.first_tip_date,
+          lastTipDate: allTime.last_tip_date
+        },
+        last24h: {
+          tips: last24h.tips || 0,
+          usdc: parseFloat(last24h.usdc || 0)
+        },
+        last7d: {
+          tips: last7d.tips || 0,
+          usdc: parseFloat(last7d.usdc || 0)
+        },
+        last30d: {
+          tips: last30d.tips || 0,
+          usdc: parseFloat(last30d.usdc || 0)
+        }
+      };
+
+      res.json({
+        success: true,
+        stats,
+        data: stats, // backwards compatibility
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('❌ Error fetching admin stats:', error);
+      res.status(500).json({ error: 'Failed to fetch admin statistics' });
+    }
+  });
+
+      // Simple fallback for frontend routes (LAST ROUTE) - but NOT for API routes
     // NOTE: All API routes must be defined BEFORE this catch-all route
     app.get('*', (req, res) => {
       // Skip API routes - they should be handled by specific endpoints
@@ -7295,112 +7400,6 @@ app.listen(PORT, () => {
     database.cleanupOldTips().catch(err => console.log('Cleanup failed:', err.message));
   }, 30000); // Wait 30 seconds after startup
 });
-
-// Admin panel - Get total tips statistics
-  app.get('/api/admin/total-stats', async (req, res) => {
-  try {
-      console.log('📊 Admin: Fetching total tips statistics...', { path: req.originalUrl, time: new Date().toISOString() });
-      if (!database?.pool) {
-        return res.status(500).json({
-          success: false,
-          error: 'Database pool not available for total stats'
-        });
-      }
-
-      const lowercaseToken = BASE_USDC_ADDRESS.toLowerCase();
-
-      const [allTimeResult, last24hResult, last7dResult, last30dResult] = await Promise.all([
-        database.pool.query(
-          `
-            SELECT 
-              COUNT(*)::INTEGER AS total_tips,
-              SUM(amount::NUMERIC) AS total_usdc_tipped,
-              COUNT(DISTINCT transaction_hash)::INTEGER AS total_transactions,
-              COUNT(DISTINCT from_address)::INTEGER AS unique_tippers,
-              COUNT(DISTINCT to_address)::INTEGER AS unique_earners,
-              MIN(processed_at) AS first_tip_date,
-              MAX(processed_at) AS last_tip_date
-            FROM tip_history 
-            WHERE LOWER(token_address) = $1
-          `,
-          [lowercaseToken]
-        ),
-        database.pool.query(
-          `
-            SELECT 
-              COUNT(*)::INTEGER AS tips,
-              SUM(amount::NUMERIC) AS usdc
-            FROM tip_history 
-            WHERE LOWER(token_address) = $1
-              AND processed_at >= NOW() - INTERVAL '24 hours'
-          `,
-          [lowercaseToken]
-        ),
-        database.pool.query(
-          `
-            SELECT 
-              COUNT(*)::INTEGER AS tips,
-              SUM(amount::NUMERIC) AS usdc
-            FROM tip_history 
-            WHERE LOWER(token_address) = $1
-              AND processed_at >= NOW() - INTERVAL '7 days'
-          `,
-          [lowercaseToken]
-        ),
-        database.pool.query(
-          `
-            SELECT 
-              COUNT(*)::INTEGER AS tips,
-              SUM(amount::NUMERIC) AS usdc
-            FROM tip_history 
-            WHERE LOWER(token_address) = $1
-              AND processed_at >= NOW() - INTERVAL '30 days'
-          `,
-          [lowercaseToken]
-        )
-      ]);
-
-      const allTime = allTimeResult.rows[0] || {};
-      const last24h = last24hResult.rows[0] || {};
-      const last7d = last7dResult.rows[0] || {};
-      const last30d = last30dResult.rows[0] || {};
-
-      const stats = {
-        allTime: {
-          totalTips: allTime.total_tips || 0,
-          totalUsdcTipped: parseFloat(allTime.total_usdc_tipped || 0),
-          totalTransactions: allTime.total_transactions || 0,
-          uniqueTippers: allTime.unique_tippers || 0,
-          uniqueEarners: allTime.unique_earners || 0,
-          firstTipDate: allTime.first_tip_date,
-          lastTipDate: allTime.last_tip_date
-        },
-        last24h: {
-          tips: last24h.tips || 0,
-          usdc: parseFloat(last24h.usdc || 0)
-        },
-        last7d: {
-          tips: last7d.tips || 0,
-          usdc: parseFloat(last7d.usdc || 0)
-        },
-        last30d: {
-          tips: last30d.tips || 0,
-          usdc: parseFloat(last30d.usdc || 0)
-        }
-      };
-
-      res.json({
-        success: true,
-        stats,
-        data: stats, // backwards compatibility
-        timestamp: new Date().toISOString()
-      });
-  } catch (error) {
-    console.error('❌ Error fetching admin stats:', error);
-    res.status(500).json({ error: 'Failed to fetch admin statistics' });
-  }
-});
-
 
 // Force process current batch
 app.post('/api/force-process-batch', async (req, res) => {
