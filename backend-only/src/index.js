@@ -7299,7 +7299,7 @@ app.listen(PORT, () => {
 // Admin panel - Get total tips statistics
   app.get('/api/admin/total-stats', async (req, res) => {
   try {
-    console.log('📊 Admin: Fetching total tips statistics...');
+      console.log('📊 Admin: Fetching total tips statistics...', { path: req.originalUrl, time: new Date().toISOString() });
       if (!database?.pool) {
         return res.status(500).json({
           success: false,
