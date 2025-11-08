@@ -33,6 +33,7 @@ export default function Settings() {
     userConfig,
     tokenBalance,
     tokenAllowance,
+    isAllowanceLoading,
     setTippingConfig,
     approveToken,
     revokeTokenAllowance,
@@ -62,12 +63,14 @@ export default function Settings() {
     const [tokenLabels, setTokenLabels] = useState<Record<string, string>>({
       [BASE_USDC_ADDRESS]: 'USDC',
     });
-    const [tokenHistory, setTokenHistory] = useState<string[]>([]);
+  const [tokenHistory, setTokenHistory] = useState<string[]>([]);
   const [showTokenDropdown, setShowTokenDropdown] = useState(false);
   const [isValidToken, setIsValidToken] = useState(true);
   const [amountErrors, setAmountErrors] = useState<{[key: string]: string}>({});
   const [isApprovingLocal, setIsApprovingLocal] = useState(false);
   const [isRevokingLocal, setIsRevokingLocal] = useState(false);
+const [displayAllowance, setDisplayAllowance] = useState<string>('0');
+const [allowanceCache, setAllowanceCache] = useState<Record<string, string>>({});
   
   // Validate tip amount (minimum $0.005)
   const validateAmount = (value: string, key: string) => {
@@ -97,12 +100,15 @@ export default function Settings() {
     recast: false,
     follow: false,
   });
-  const [criteria, setCriteria] = useState({
+const [criteria, setCriteria] = useState({
     audience: 0, // 0: Following, 1: Followers, 2: Anyone
     minFollowerCount: 25,
     minNeynarScore: 0.5,
     minSpamLabel: 0, // 0: No filter, 1: Level 1+, 2: Level 2 only
   });
+  
+  const allowanceValue = Number(displayAllowance ?? '0');
+  const hasAllowanceValue = !Number.isNaN(allowanceValue);
 
   // Handle transaction success - redirect to amounts tab
   useEffect(() => {
@@ -134,7 +140,7 @@ export default function Settings() {
 
     useEffect(() => {
       setMounted(true);
-      if (userConfig) {
+    if (userConfig) {
         setTippingAmounts({
           like: userConfig.likeEnabled ? userConfig.likeAmount?.toString() || DEFAULT_TIP_AMOUNTS.like : '0',
           reply: userConfig.replyEnabled ? userConfig.replyAmount?.toString() || DEFAULT_TIP_AMOUNTS.reply : '0',
@@ -159,6 +165,9 @@ export default function Settings() {
         setSelectedToken(userTokenAddress);
         setCustomTokenAddress(userTokenAddress);
         lookupTokenName(userTokenAddress, { updateSelected: true });
+      const lastAllowanceValue = (userConfig.lastAllowance ?? '0').toString();
+      setAllowanceCache(prev => ({ ...prev, [userTokenAddress]: lastAllowanceValue }));
+      setDisplayAllowance(lastAllowanceValue);
         
         const historySet = new Set<string>();
         historySet.add(userTokenAddress);
@@ -182,95 +191,112 @@ export default function Settings() {
         setIsValidToken(true);
         setTokenLabels(prev => ({ ...prev, [BASE_USDC_ADDRESS]: 'USDC' }));
         setTokenHistory([BASE_USDC_ADDRESS]);
+        setAllowanceCache(prev => ({ ...prev, [BASE_USDC_ADDRESS]: '0' }));
+        setDisplayAllowance('0');
         console.log('🔍 No user config, setting default USDC token');
       }
     }, [userConfig]);
 
-    const lookupTokenName = async (
-      tokenAddress: string,
-      options: { updateSelected?: boolean } = { updateSelected: true }
-    ) => {
-      const { updateSelected = true } = options;
-      const normalized = tokenAddress.toLowerCase();
-      try {
-        let resolvedName = 'Invalid Token';
+  useEffect(() => {
+    if (selectedToken && tokenAllowance !== null) {
+      setDisplayAllowance(tokenAllowance);
+      setAllowanceCache(prev => ({ ...prev, [selectedToken]: tokenAllowance }));
+    }
+  }, [tokenAllowance, selectedToken]);
+
+  const lookupTokenName = async (
+    tokenAddress: string,
+    options: { updateSelected?: boolean } = { updateSelected: true }
+  ): Promise<{ label: string; isValid: boolean }> => {
+    const { updateSelected = true } = options;
+    const normalized = tokenAddress.toLowerCase();
+    try {
+      let resolvedName = 'Invalid Token';
+      
+      // Check if it's USDC on Base
+      if (normalized === BASE_USDC_ADDRESS) {
+        resolvedName = 'USDC';
+      } else {
+        // Use a free token lookup service (CoinGecko)
+        try {
+          const response = await fetch(`https://api.coingecko.com/api/v3/coins/base/contract/${tokenAddress}`);
+          if (response.ok) {
+            const data = await response.json();
+            resolvedName = data.symbol?.toUpperCase() || 'Unknown Token';
+          }
+        } catch (cgError) {
+          console.log('CoinGecko lookup failed, trying fallback...');
+        }
         
-        // Check if it's USDC on Base
-        if (normalized === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913') {
-          resolvedName = 'USDC';
-        } else {
-          // Use a free token lookup service (CoinGecko)
+        if (resolvedName === 'Unknown Token' || resolvedName === 'Invalid Token') {
+          // Fallback: Try backend token info endpoint
           try {
-            const response = await fetch(`https://api.coingecko.com/api/v3/coins/base/contract/${tokenAddress}`);
+            const response = await fetch(`${BACKEND_URL}/api/token-info/${tokenAddress}`);
             if (response.ok) {
               const data = await response.json();
-              resolvedName = data.symbol?.toUpperCase() || 'Unknown Token';
+              resolvedName = data.symbol || 'Unknown Token';
             }
-          } catch (cgError) {
-            console.log('CoinGecko lookup failed, trying fallback...');
-          }
-          
-          if (resolvedName === 'Unknown Token' || resolvedName === 'Invalid Token') {
-            // Fallback: Try backend token info endpoint
-            try {
-              const response = await fetch(`${BACKEND_URL}/api/token-info/${tokenAddress}`);
-              if (response.ok) {
-                const data = await response.json();
-                resolvedName = data.symbol || 'Unknown Token';
-              }
-            } catch (backendError) {
-              console.log('Backend token lookup failed');
-            }
+          } catch (backendError) {
+            console.log('Backend token lookup failed');
           }
         }
-        
-        setTokenLabels(prev => ({ ...prev, [normalized]: resolvedName }));
-        
-        if (updateSelected) {
-          setSelectedTokenLabel(resolvedName);
-          setIsValidToken(resolvedName !== 'Invalid Token' && resolvedName !== 'Unknown Token');
-        }
-        
-        return resolvedName;
-      } catch (error) {
-        console.error('Token lookup failed:', error);
-        if (updateSelected) {
-          setSelectedTokenLabel('Invalid Token');
-          setIsValidToken(false);
-        }
-        setTokenLabels(prev => ({ ...prev, [normalized]: 'Invalid Token' }));
-        return 'Invalid Token';
-      }
-    };
-
-    const handleTokenAddressChange = async (newAddress: string) => {
-      setCustomTokenAddress(newAddress);
-      if (!newAddress) {
-        setIsValidToken(false);
-        return;
       }
       
-      if (newAddress.length === 42 && newAddress.startsWith('0x')) {
-        setSelectedToken(newAddress);
-        const name = await lookupTokenName(newAddress, { updateSelected: true });
-        const isValid = name !== 'Invalid Token' && name !== 'Unknown Token';
-        setIsValidToken(isValid);
-        if (isValid) {
-          const normalized = newAddress.toLowerCase();
-          setTokenHistory(prev => {
-            const next = [normalized, ...prev.filter(addr => addr !== normalized)];
-            return next;
-          });
-          // Fetch allowance for display (no webhook updates)
-          if (address) {
-            console.log('🔍 Fetching allowance for new token selection');
-            fetchTokenAllowance(newAddress);
-          }
+      const isKnownSymbol = resolvedName !== 'Invalid Token' && resolvedName !== 'Unknown Token';
+      const label = isKnownSymbol ? resolvedName : `${normalized.slice(0, 6)}...${normalized.slice(-4)}`;
+      
+      setTokenLabels(prev => ({ ...prev, [normalized]: label }));
+      
+      if (updateSelected) {
+        setSelectedTokenLabel(label);
+        setIsValidToken(isKnownSymbol);
+      }
+      
+      return { label, isValid: isKnownSymbol };
+    } catch (error) {
+      console.error('Token lookup failed:', error);
+      const fallbackLabel = `${normalized.slice(0, 6)}...${normalized.slice(-4)}`;
+      if (updateSelected) {
+        setSelectedTokenLabel(fallbackLabel);
+        setIsValidToken(false);
+      }
+      setTokenLabels(prev => ({ ...prev, [normalized]: fallbackLabel }));
+      return { label: fallbackLabel, isValid: false };
+    }
+  };
+
+  const handleTokenAddressChange = async (newAddress: string) => {
+    setCustomTokenAddress(newAddress);
+    if (!newAddress) {
+      setIsValidToken(false);
+      setDisplayAllowance('0');
+      return;
+    }
+    
+    if (newAddress.length === 42 && newAddress.startsWith('0x')) {
+      const normalized = newAddress.toLowerCase();
+      setSelectedToken(normalized);
+      setDisplayAllowance('0');
+      const { isValid } = await lookupTokenName(normalized, { updateSelected: true });
+      if (isValid) {
+        setTokenHistory(prev => {
+          const next = [normalized, ...prev.filter(addr => addr !== normalized)];
+          return next;
+        });
+        // Fetch allowance for display (no webhook updates)
+        if (address) {
+          console.log('🔍 Fetching allowance for new token selection');
+          fetchTokenAllowance(normalized);
         }
       } else {
         setIsValidToken(false);
+        setDisplayAllowance('0');
       }
-    };
+    } else {
+      setIsValidToken(false);
+      setDisplayAllowance('0');
+    }
+  };
     
     const handleTokenSelect = async (tokenAddress: string) => {
       await handleTokenAddressChange(tokenAddress);
@@ -692,14 +718,15 @@ export default function Settings() {
                     }`}
                   />
                     <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowTokenDropdown(!showTokenDropdown);
-                    }}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 px-2 py-1 text-sm text-gray-600 hover:text-gray-900 flex items-center"
-                  >
-                      {selectedTokenLabel} <ChevronDown className="w-3 h-3 ml-1" />
-                  </button>
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowTokenDropdown(!showTokenDropdown);
+                      }}
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 px-2 py-1 text-sm text-gray-600 hover:text-gray-900 flex items-center space-x-1 max-w-[60%]"
+                    >
+                      <span className="truncate">{selectedTokenLabel}</span>
+                      <ChevronDown className="w-3 h-3 flex-shrink-0" />
+                    </button>
                   
                   {showTokenDropdown && (
                     <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg">
@@ -728,9 +755,11 @@ export default function Settings() {
                     </div>
                   )}
                 </div>
-                  <p className={`text-sm mt-2 ${isValidToken ? 'text-gray-600' : 'text-red-600'}`}>
-                    {isValidToken ? `${selectedTokenLabel} on Base` : 'Invalid token address'}
-                </p>
+                  {customTokenAddress && isValidToken && (
+                    <p className="text-sm mt-2 text-gray-600">
+                      {selectedTokenLabel} on Base
+                    </p>
+                  )}
               </div>
 
 
@@ -749,16 +778,18 @@ export default function Settings() {
               </div>
 
               {/* Current Allowance */}
-              {tokenAllowance && (
+                {hasAllowanceValue && (
                 <div className="p-4 bg-gray-50 rounded-lg">
                   <p className="text-sm text-gray-600">Current Allowance</p>
-                    <p className="text-lg font-semibold">{formatAmount(tokenAllowance)} {selectedTokenLabel}</p>
+                    <p className="text-lg font-semibold">
+                      {formatAmount(displayAllowance)} {selectedTokenLabel}
+                    </p>
                 </div>
               )}
 
               {/* Action Buttons */}
               <div className="flex space-x-3">
-                <button
+                  <button
                   onClick={handleApproveAllowance}
                   disabled={isApprovingLocal || isApproving || !allowanceAmount || !isValidToken}
                   className="flex-1 border-2 border-green-600 text-green-600 py-3 px-4 rounded-lg font-medium hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
@@ -769,9 +800,9 @@ export default function Settings() {
                     'Approve'
                   )}
                 </button>
-                <button
+                  <button
                   onClick={handleRevokeAllowance}
-                  disabled={isRevokingLocal || isRevokingAllowance || !tokenAllowance || tokenAllowance === '0'}
+                    disabled={isRevokingLocal || isRevokingAllowance || !hasAllowanceValue || allowanceValue === 0}
                   className="flex-1 border-2 border-red-600 text-red-600 py-3 px-4 rounded-lg font-medium hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                 >
                   {isRevokingLocal || isRevokingAllowance ? (

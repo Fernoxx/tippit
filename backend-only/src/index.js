@@ -5,7 +5,7 @@ require('dotenv').config();
 
 const webhookHandler = require('./webhook');
 const batchTransferManager = require('./batchTransferManager');
-const { getProvider } = require('./rpcProvider');
+const { getProvider, executeWithFallback } = require('./rpcProvider');
 // Use PostgreSQL database if available, fallback to file storage
 let database;
 try {
@@ -950,12 +950,12 @@ async function getTokenDecimals(tokenAddress) {
     
     // Query contract for decimals
     const { ethers } = require('ethers');
-    const provider = await getProvider(); // Use fallback provider
-    const tokenContract = new ethers.Contract(tokenAddress, [
-      "function decimals() view returns (uint8)"
-    ], provider);
-    
-    const decimals = await tokenContract.decimals();
+    const decimals = await executeWithFallback(async (provider) => {
+      const tokenContract = new ethers.Contract(tokenAddress, [
+        "function decimals() view returns (uint8)"
+      ], provider);
+      return await tokenContract.decimals();
+    });
     return Number(decimals);
   } catch (error) {
     console.log(`Could not get decimals for token ${tokenAddress}, defaulting to 18`);
@@ -972,8 +972,7 @@ app.get('/api/check-allowance', async (req, res) => {
       return res.status(400).json({ error: 'userAddress and tokenAddress are required' });
     }
     
-    const { ethers } = require('ethers');
-    const provider = await getProvider(); // Use fallback provider
+  const { ethers } = require('ethers');
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     
     const tokenContract = new ethers.Contract(tokenAddress, [
@@ -3874,18 +3873,32 @@ app.get('/api/homepage', async (req, res) => {
         const tokenAddress = userConfig?.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // Default to USDC
         const tokenDecimals = await getTokenDecimals(tokenAddress);
         
-        const tokenContract = new ethers.Contract(tokenAddress, [
-          "function allowance(address owner, address spender) view returns (uint256)"
-        ], provider);
+        let allowanceAmount = 0;
+        let allowanceSource = 'blockchain';
+        try {
+          const allowance = await executeWithFallback(async (provider) => {
+            const tokenContract = new ethers.Contract(tokenAddress, [
+              "function allowance(address owner, address spender) view returns (uint256)"
+            ], provider);
+            return await tokenContract.allowance(userAddress, ecionBatchAddress);
+          });
+          allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
+        } catch (error) {
+          allowanceSource = 'cached';
+          const cachedAllowance = userConfig?.lastAllowance ?? 0;
+          allowanceAmount = parseFloat(cachedAllowance);
+          console.log(`⚠️ Allowance fetch failed for ${userAddress}: ${error?.message || error}. Using cached value ${allowanceAmount}.`);
+        }
         
-        // Get REAL blockchain allowance (most accurate)
-        const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
-        const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
-        console.log(`🔗 Using REAL blockchain allowance for ${userAddress}: ${allowanceAmount}`);
+        if (!Number.isFinite(allowanceAmount)) {
+          allowanceAmount = 0;
+        }
+        
+        console.log(`🔗 Using ${allowanceSource} allowance for ${userAddress}: ${allowanceAmount}`);
         
         // Skip users with EXACTLY 0 allowance (not 0.1 or 0.2, must be 0.000000)
         if (allowanceAmount === 0) {
-          console.log(`⏭️ Skipping ${userAddress} - blockchain allowance is exactly 0`);
+          console.log(`⏭️ Skipping ${userAddress} - ${allowanceSource} allowance is exactly 0`);
           continue;
         }
         
@@ -3911,11 +3924,11 @@ app.get('/api/homepage', async (req, res) => {
         
         // Skip if REAL blockchain allowance is less than total tip amount
         if (allowanceAmount < minTipAmount) {
-          console.log(`⏭️ Skipping ${userAddress} - REAL blockchain allowance ${allowanceAmount} < total tip ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount})`);
+          console.log(`⏭️ Skipping ${userAddress} - ${allowanceSource === 'blockchain' ? 'Blockchain' : 'Cached'} allowance ${allowanceAmount} < total tip ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount})`);
           continue;
         }
         
-        console.log(`✅ User ${userAddress} - REAL blockchain allowance ${allowanceAmount} >= total tip ${minTipAmount} - keeping cast`);
+        console.log(`✅ User ${userAddress} - ${allowanceSource === 'blockchain' ? 'Blockchain' : 'Cached'} allowance ${allowanceAmount} >= total tip ${minTipAmount} - keeping cast`);
         
         // Get user's Farcaster profile
         const userResponse = await fetch(

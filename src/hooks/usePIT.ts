@@ -45,6 +45,8 @@ interface UserConfig {
   isActive: boolean;
   totalSpent: string;
   tokenHistory?: string[];
+  lastAllowance?: number | string;
+  lastAllowanceCheck?: number;
 }
 
 export const useEcion = () => {
@@ -52,6 +54,7 @@ export const useEcion = () => {
   const [userConfig, setUserConfig] = useState<UserConfig | null>(null);
   const [tokenBalance, setTokenBalance] = useState<any>(null);
   const [tokenAllowance, setTokenAllowance] = useState<string | null>(null);
+  const [isAllowanceLoading, setIsAllowanceLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
   const [isRevokingAllowance, setIsRevokingAllowance] = useState(false);
@@ -311,18 +314,40 @@ export const useEcion = () => {
     
     try {
       console.log('🔍 Fetching allowance for token:', tokenAddress);
+      setIsAllowanceLoading(true);
+      setTokenAllowance(null);
       const response = await fetch(`${BACKEND_URL}/api/allowance/${address}/${tokenAddress}`);
       if (response.ok) {
         const data = await response.json();
         console.log('✅ Allowance response:', data);
         setTokenAllowance(data.allowance);
+      } else if (response.status === 429 || response.status === 500) {
+        console.warn(`⚠️ Allowance fetch rate-limited (${response.status}) - falling back to cached value`);
+        if (userConfig?.tokenAddress?.toLowerCase() === tokenAddress.toLowerCase()) {
+          const cachedAllowance = userConfig.lastAllowance ?? '0';
+          setTokenAllowance(cachedAllowance.toString());
+        } else {
+          setTokenAllowance('0');
+        }
       } else {
         console.error('❌ Failed to fetch allowance:', response.status);
         setTokenAllowance('0');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching token allowance:', error);
-      setTokenAllowance('0');
+      const message = error?.message || '';
+      if (message.includes('rate limit')) {
+        if (userConfig?.tokenAddress?.toLowerCase() === tokenAddress.toLowerCase()) {
+          const cachedAllowance = userConfig.lastAllowance ?? '0';
+          setTokenAllowance(cachedAllowance.toString());
+        } else {
+          setTokenAllowance('0');
+        }
+      } else {
+        setTokenAllowance('0');
+      }
+    } finally {
+      setIsAllowanceLoading(false);
     }
   };
 
@@ -349,6 +374,7 @@ export const useEcion = () => {
         const data = await response.json();
         console.log('✅ Allowance and webhooks updated:', data);
         setTokenAllowance(data.allowance);
+          await fetchUserConfig();
         
         // Success message will be shown by transaction confirmation
       } else {
@@ -420,6 +446,7 @@ export const useEcion = () => {
     isSettingConfig: isLoading,
     isApproving: isApproving || isTxPending || isTxConfirming,
     isRevokingAllowance: isRevokingAllowance || isTxPending || isTxConfirming,
+    isAllowanceLoading,
     isAddingMiniApp: isAddingMiniApp,
     isUpdatingLimit: false,
     isRevoking: false,
