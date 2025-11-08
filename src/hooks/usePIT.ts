@@ -44,6 +44,7 @@ interface UserConfig {
   followEnabled: boolean;
   isActive: boolean;
   totalSpent: string;
+  tokenHistory?: string[];
 }
 
 export const useEcion = () => {
@@ -111,6 +112,9 @@ export const useEcion = () => {
     try {
       const response = await fetch(`${BACKEND_URL}/api/config/${address}`);
       const data = await response.json();
+        if (data.config && !Array.isArray(data.config.tokenHistory)) {
+          data.config.tokenHistory = [];
+        }
       setUserConfig(data.config);
     } catch (error) {
       console.error('Error fetching user config:', error);

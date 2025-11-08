@@ -31,6 +31,9 @@ interface CastTipper {
   likeAmount?: number;
   recastAmount?: number;
   replyAmount?: number;
+  likeEnabled?: boolean;
+  recastEnabled?: boolean;
+  replyEnabled?: boolean;
   criteria?: {
     audience: number;
     minFollowerCount: number;
@@ -267,7 +270,7 @@ export default function Home() {
                     {/* Like */}
                     <span className="flex items-center space-x-1">
                       <span>❤️</span>
-                      {typeof cast.tipper?.likeAmount === 'number' && cast.tipper.likeAmount > 0 ? (
+                        {cast.tipper?.likeEnabled && typeof cast.tipper.likeAmount === 'number' && cast.tipper.likeAmount > 0 ? (
                         <span className="font-semibold text-green-600">
                           ${cast.tipper.likeAmount >= 0.01 
                             ? cast.tipper.likeAmount.toString() 
@@ -281,7 +284,7 @@ export default function Home() {
                     {/* Recast */}
                     <span className="flex items-center space-x-1">
                       <span>🔄</span>
-                      {typeof cast.tipper?.recastAmount === 'number' && cast.tipper.recastAmount > 0 ? (
+                        {cast.tipper?.recastEnabled && typeof cast.tipper.recastAmount === 'number' && cast.tipper.recastAmount > 0 ? (
                         <span className="font-semibold text-green-600">
                           ${cast.tipper.recastAmount >= 0.01 
                             ? cast.tipper.recastAmount.toString() 
@@ -295,7 +298,7 @@ export default function Home() {
                     {/* Reply */}
                     <span className="flex items-center space-x-1">
                       <span>💬</span>
-                      {typeof cast.tipper?.replyAmount === 'number' && cast.tipper.replyAmount > 0 ? (
+                        {cast.tipper?.replyEnabled && typeof cast.tipper.replyAmount === 'number' && cast.tipper.replyAmount > 0 ? (
                         <span className="font-semibold text-green-600">
                           ${cast.tipper.replyAmount >= 0.01 
                             ? cast.tipper.replyAmount.toString() 

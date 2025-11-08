@@ -19,6 +19,13 @@ import {
 } from 'lucide-react';
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001').replace(/\/$/, '');
+const BASE_USDC_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
+const DEFAULT_TIP_AMOUNTS: Record<'like' | 'reply' | 'recast' | 'follow', string> = {
+  like: '0.005',
+  reply: '0.025',
+  recast: '0.025',
+  follow: '0',
+};
 
 export default function Settings() {
   const {
@@ -47,11 +54,15 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState<'amounts' | 'criteria' | 'allowance'>('allowance');
   const [pendingConfigSave, setPendingConfigSave] = useState(false);
   
-  // Form states
-  const [allowanceAmount, setAllowanceAmount] = useState('');
-  const [selectedToken, setSelectedToken] = useState(''); // Will be set from userConfig
-  const [customTokenAddress, setCustomTokenAddress] = useState('');
-  const [tokenName, setTokenName] = useState('');
+    // Form states
+    const [allowanceAmount, setAllowanceAmount] = useState('');
+    const [selectedToken, setSelectedToken] = useState(''); // Will be set from userConfig
+    const [customTokenAddress, setCustomTokenAddress] = useState('');
+    const [selectedTokenLabel, setSelectedTokenLabel] = useState('USDC');
+    const [tokenLabels, setTokenLabels] = useState<Record<string, string>>({
+      [BASE_USDC_ADDRESS]: 'USDC',
+    });
+    const [tokenHistory, setTokenHistory] = useState<string[]>([]);
   const [showTokenDropdown, setShowTokenDropdown] = useState(false);
   const [isValidToken, setIsValidToken] = useState(true);
   const [amountErrors, setAmountErrors] = useState<{[key: string]: string}>({});
@@ -74,12 +85,12 @@ export default function Settings() {
     }
   };
   
-  const [tippingAmounts, setTippingAmounts] = useState({
-    like: '0.005',
-    reply: '0.025',
-    recast: '0.025',
-    follow: '0',
-  });
+    const [tippingAmounts, setTippingAmounts] = useState({
+      like: DEFAULT_TIP_AMOUNTS.like,
+      reply: DEFAULT_TIP_AMOUNTS.reply,
+      recast: DEFAULT_TIP_AMOUNTS.recast,
+      follow: DEFAULT_TIP_AMOUNTS.follow,
+    });
   const [tippingToggles, setTippingToggles] = useState({
     like: false,
     reply: false,
@@ -121,107 +132,150 @@ export default function Settings() {
     }
   }, [router.query]);
 
-  useEffect(() => {
-    setMounted(true);
-    if (userConfig) {
-      setTippingAmounts({
-        like: userConfig.likeAmount?.toString() || '0.005',
-        reply: userConfig.replyAmount?.toString() || '0.025',
-        recast: userConfig.recastAmount?.toString() || '0.025',
-        follow: userConfig.followAmount?.toString() || '0',
-      });
-      setTippingToggles({
-        like: userConfig.likeEnabled ?? false,
-        reply: userConfig.replyEnabled ?? false,
-        recast: userConfig.recastEnabled ?? false,
-        follow: userConfig.followEnabled ?? false,
-      });
-      setCriteria({
-        audience: userConfig.audience || 0,
-        minFollowerCount: userConfig.minFollowerCount || 25,
-        minNeynarScore: userConfig.minNeynarScore || 0.5,
-        minSpamLabel: userConfig.minSpamLabel !== undefined ? userConfig.minSpamLabel : 0,
-      });
-      
-      // CRITICAL FIX: Always load user's saved token, don't default to USDC
-      const userTokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
-      console.log('🔍 Loading user token from config:', userTokenAddress);
-      setSelectedToken(userTokenAddress);
-      setCustomTokenAddress(userTokenAddress);
-      
-      // Lookup token name for the user's saved token
-      lookupTokenName(userTokenAddress);
-    } else {
-      // Only set USDC as default if no user config exists yet
-      const defaultToken = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
-      setSelectedToken(defaultToken);
-      setCustomTokenAddress(defaultToken);
-      setTokenName('USDC');
-      console.log('🔍 No user config, setting default USDC token');
-    }
-  }, [userConfig]);
-
-  const lookupTokenName = async (tokenAddress: string) => {
-    try {
-      // Check if it's USDC on Base
-      if (tokenAddress.toLowerCase() === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913') {
-        setTokenName('USDC');
+    useEffect(() => {
+      setMounted(true);
+      if (userConfig) {
+        setTippingAmounts({
+          like: userConfig.likeEnabled ? userConfig.likeAmount?.toString() || DEFAULT_TIP_AMOUNTS.like : '0',
+          reply: userConfig.replyEnabled ? userConfig.replyAmount?.toString() || DEFAULT_TIP_AMOUNTS.reply : '0',
+          recast: userConfig.recastEnabled ? userConfig.recastAmount?.toString() || DEFAULT_TIP_AMOUNTS.recast : '0',
+          follow: userConfig.followEnabled ? userConfig.followAmount?.toString() || DEFAULT_TIP_AMOUNTS.follow : '0',
+        });
+        setTippingToggles({
+          like: userConfig.likeEnabled ?? false,
+          reply: userConfig.replyEnabled ?? false,
+          recast: userConfig.recastEnabled ?? false,
+          follow: userConfig.followEnabled ?? false,
+        });
+        setCriteria({
+          audience: userConfig.audience || 0,
+          minFollowerCount: userConfig.minFollowerCount || 25,
+          minNeynarScore: userConfig.minNeynarScore || 0.5,
+          minSpamLabel: userConfig.minSpamLabel !== undefined ? userConfig.minSpamLabel : 0,
+        });
+        
+        const userTokenAddress = (userConfig.tokenAddress || BASE_USDC_ADDRESS).toLowerCase();
+        console.log('🔍 Loading user token from config:', userTokenAddress);
+        setSelectedToken(userTokenAddress);
+        setCustomTokenAddress(userTokenAddress);
+        lookupTokenName(userTokenAddress, { updateSelected: true });
+        
+        const historySet = new Set<string>();
+        historySet.add(userTokenAddress);
+        if (Array.isArray(userConfig.tokenHistory)) {
+          userConfig.tokenHistory
+            .map((address: string) => address?.toLowerCase())
+            .filter(Boolean)
+            .forEach(address => historySet.add(address as string));
+        }
+        const historyArray = Array.from(historySet);
+        setTokenHistory(historyArray);
+        
+        historyArray
+          .filter(address => address !== userTokenAddress)
+          .forEach(address => lookupTokenName(address, { updateSelected: false }));
+      } else {
+        // Only set USDC as default if no user config exists yet
+        setSelectedToken(BASE_USDC_ADDRESS);
+        setCustomTokenAddress(BASE_USDC_ADDRESS);
+        setSelectedTokenLabel('USDC');
         setIsValidToken(true);
-        return 'USDC';
+        setTokenLabels(prev => ({ ...prev, [BASE_USDC_ADDRESS]: 'USDC' }));
+        setTokenHistory([BASE_USDC_ADDRESS]);
+        console.log('🔍 No user config, setting default USDC token');
       }
-      
-      // Use a free token lookup service
-      try {
-        // Try CoinGecko for Base network tokens
-        const response = await fetch(`https://api.coingecko.com/api/v3/coins/base/contract/${tokenAddress}`);
-        if (response.ok) {
-          const data = await response.json();
-          const name = data.symbol?.toUpperCase() || 'Unknown Token';
-          setTokenName(name);
-          setIsValidToken(true);
-          return name;
-        }
-      } catch (cgError) {
-        console.log('CoinGecko lookup failed, trying fallback...');
-      }
-      
-      // Fallback: Try to get token info from contract directly using our backend
-      try {
-        const response = await fetch(`${BACKEND_URL}/api/token-info/${tokenAddress}`);
-        if (response.ok) {
-          const data = await response.json();
-          const name = data.symbol || 'Unknown Token';
-          setTokenName(name);
-          setIsValidToken(name !== 'Unknown Token');
-          return name;
-        }
-      } catch (backendError) {
-        console.log('Backend token lookup failed');
-      }
-      
-      setTokenName('Invalid Token');
-      setIsValidToken(false);
-      return 'Invalid Token';
-    } catch (error) {
-      console.error('Token lookup failed:', error);
-      setTokenName('Invalid Token');
-      setIsValidToken(false);
-      return 'Invalid Token';
-    }
-  };
+    }, [userConfig]);
 
-  const handleTokenAddressChange = async (newAddress: string) => {
-    setCustomTokenAddress(newAddress);
-    if (newAddress && newAddress.length === 42 && newAddress.startsWith('0x')) {
-      setSelectedToken(newAddress);
-      await lookupTokenName(newAddress);
-      // Fetch allowance for display (no webhook updates)
-      if (address) {
-        console.log('🔍 Fetching allowance for new token selection');
-        fetchTokenAllowance(newAddress);
+    const lookupTokenName = async (
+      tokenAddress: string,
+      options: { updateSelected?: boolean } = { updateSelected: true }
+    ) => {
+      const { updateSelected = true } = options;
+      const normalized = tokenAddress.toLowerCase();
+      try {
+        let resolvedName = 'Invalid Token';
+        
+        // Check if it's USDC on Base
+        if (normalized === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913') {
+          resolvedName = 'USDC';
+        } else {
+          // Use a free token lookup service (CoinGecko)
+          try {
+            const response = await fetch(`https://api.coingecko.com/api/v3/coins/base/contract/${tokenAddress}`);
+            if (response.ok) {
+              const data = await response.json();
+              resolvedName = data.symbol?.toUpperCase() || 'Unknown Token';
+            }
+          } catch (cgError) {
+            console.log('CoinGecko lookup failed, trying fallback...');
+          }
+          
+          if (resolvedName === 'Unknown Token' || resolvedName === 'Invalid Token') {
+            // Fallback: Try backend token info endpoint
+            try {
+              const response = await fetch(`${BACKEND_URL}/api/token-info/${tokenAddress}`);
+              if (response.ok) {
+                const data = await response.json();
+                resolvedName = data.symbol || 'Unknown Token';
+              }
+            } catch (backendError) {
+              console.log('Backend token lookup failed');
+            }
+          }
+        }
+        
+        setTokenLabels(prev => ({ ...prev, [normalized]: resolvedName }));
+        
+        if (updateSelected) {
+          setSelectedTokenLabel(resolvedName);
+          setIsValidToken(resolvedName !== 'Invalid Token' && resolvedName !== 'Unknown Token');
+        }
+        
+        return resolvedName;
+      } catch (error) {
+        console.error('Token lookup failed:', error);
+        if (updateSelected) {
+          setSelectedTokenLabel('Invalid Token');
+          setIsValidToken(false);
+        }
+        setTokenLabels(prev => ({ ...prev, [normalized]: 'Invalid Token' }));
+        return 'Invalid Token';
       }
-    }
-  };
+    };
+
+    const handleTokenAddressChange = async (newAddress: string) => {
+      setCustomTokenAddress(newAddress);
+      if (!newAddress) {
+        setIsValidToken(false);
+        return;
+      }
+      
+      if (newAddress.length === 42 && newAddress.startsWith('0x')) {
+        setSelectedToken(newAddress);
+        const name = await lookupTokenName(newAddress, { updateSelected: true });
+        const isValid = name !== 'Invalid Token' && name !== 'Unknown Token';
+        setIsValidToken(isValid);
+        if (isValid) {
+          const normalized = newAddress.toLowerCase();
+          setTokenHistory(prev => {
+            const next = [normalized, ...prev.filter(addr => addr !== normalized)];
+            return next;
+          });
+          // Fetch allowance for display (no webhook updates)
+          if (address) {
+            console.log('🔍 Fetching allowance for new token selection');
+            fetchTokenAllowance(newAddress);
+          }
+        }
+      } else {
+        setIsValidToken(false);
+      }
+    };
+    
+    const handleTokenSelect = async (tokenAddress: string) => {
+      await handleTokenAddressChange(tokenAddress);
+      setShowTokenDropdown(false);
+    };
 
   // Fetch allowance when user config loads (for display only - no webhook updates)
   useEffect(() => {
@@ -255,12 +309,23 @@ export default function Settings() {
 
     try {
       setPendingConfigSave(true);
+        const normalizedSelectedToken = selectedToken.toLowerCase();
+        const historyToPersist = Array.from(new Set([normalizedSelectedToken, ...tokenHistory]));
+        setTokenHistory(historyToPersist);
+        
+        const sanitizedAmounts = {
+          like: tippingToggles.like ? (parseFloat(tippingAmounts.like) >= 0.005 ? tippingAmounts.like : DEFAULT_TIP_AMOUNTS.like) : '0',
+          reply: tippingToggles.reply ? tippingAmounts.reply : '0',
+          recast: tippingToggles.recast ? tippingAmounts.recast : '0',
+          follow: tippingToggles.follow ? tippingAmounts.follow : '0',
+        };
+        
       await setTippingConfig({
-        tokenAddress: selectedToken,
-        likeAmount: tippingAmounts.like,
-        replyAmount: tippingAmounts.reply,
-        recastAmount: tippingAmounts.recast,
-        followAmount: tippingAmounts.follow,
+          tokenAddress: normalizedSelectedToken,
+          likeAmount: sanitizedAmounts.like,
+          replyAmount: sanitizedAmounts.reply,
+          recastAmount: sanitizedAmounts.recast,
+          followAmount: sanitizedAmounts.follow,
         spendingLimit: '999999', // No limit - controlled by token approvals
         audience: criteria.audience,
         minFollowerCount: criteria.minFollowerCount,
@@ -271,7 +336,8 @@ export default function Settings() {
         recastEnabled: tippingToggles.recast,
         followEnabled: tippingToggles.follow,
         isActive: true,
-        totalSpent: userConfig?.totalSpent || '0'
+          totalSpent: userConfig?.totalSpent || '0',
+          tokenHistory: historyToPersist,
       });
       toast.success('Tipping configuration saved! Moving to criteria...', { duration: 2000 });
     } catch (error: any) {
@@ -411,57 +477,85 @@ export default function Settings() {
             <h2 className="text-xl font-bold text-gray-900 mb-6">Set Tipping Amounts</h2>
             
             <div className="space-y-6">
-              {[
-                { key: 'like', label: 'Like', icon: Heart, default: '0.005' },
-                { key: 'reply', label: 'Reply', icon: MessageCircle, default: '0.025' },
-                { key: 'recast', label: 'Recast', icon: Repeat, default: '0.025' },
-                { key: 'follow', label: 'Follow', icon: UserPlus, default: '0' },
-              ].map(({ key, label, icon: Icon, default: defaultAmount }) => (
-                <div key={key} className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <Icon className="w-5 h-5 text-gray-600" />
-                      <span className="font-medium">{label}</span>
+                {[
+                  { key: 'like', label: 'Like', icon: Heart, default: DEFAULT_TIP_AMOUNTS.like },
+                  { key: 'reply', label: 'Reply', icon: MessageCircle, default: DEFAULT_TIP_AMOUNTS.reply },
+                  { key: 'recast', label: 'Recast', icon: Repeat, default: DEFAULT_TIP_AMOUNTS.recast },
+                  { key: 'follow', label: 'Follow', icon: UserPlus, default: DEFAULT_TIP_AMOUNTS.follow },
+                ].map(({ key, label, icon: Icon, default: defaultAmount }) => {
+                  const toggleKey = key as keyof typeof tippingToggles;
+                  const amountKey = key as keyof typeof tippingAmounts;
+                  const isEnabled = tippingToggles[toggleKey];
+                  return (
+                    <div key={key} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <Icon className="w-5 h-5 text-gray-600" />
+                          <span className="font-medium">{label}</span>
+                        </div>
+                        <button
+                          onClick={() =>
+                            setTippingToggles(prev => {
+                              const isEnabling = !prev[toggleKey];
+                              setTippingAmounts(prevAmounts => {
+                                if (isEnabling) {
+                                  const currentValue = prevAmounts[amountKey];
+                                  const nextValue =
+                                    !currentValue || currentValue === '0'
+                                      ? defaultAmount
+                                      : currentValue;
+                                  return { ...prevAmounts, [amountKey]: nextValue };
+                                }
+                                return { ...prevAmounts, [amountKey]: '0' };
+                              });
+                              setAmountErrors(prevErrors => {
+                                const newErrors = { ...prevErrors };
+                                delete newErrors[key];
+                                return newErrors;
+                              });
+                              return { ...prev, [toggleKey]: isEnabling };
+                            })
+                          }
+                          className={`relative w-11 h-6 rounded-full transition-colors ${
+                            isEnabled ? 'bg-yellow-400' : 'bg-gray-300'
+                          }`}
+                        >
+                          <span
+                            className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform ${
+                              isEnabled ? 'left-5' : 'left-0.5'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                      <div className="flex items-center space-x-2 mt-2">
+                        <input
+                          type="number"
+                          step="0.001"
+                          min="0.005"
+                          value={tippingAmounts[amountKey]}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setTippingAmounts(prev => ({ ...prev, [amountKey]: value }));
+                            if (tippingToggles[toggleKey]) {
+                              validateAmount(value, key);
+                            }
+                          }}
+                          disabled={!isEnabled}
+                          className={`w-20 px-2 py-1 border rounded text-sm ${
+                            amountErrors[key] ? 'border-red-500' : 'border-gray-300'
+                          } ${!isEnabled ? 'bg-gray-100 cursor-not-allowed opacity-70' : ''}`}
+                          placeholder={defaultAmount}
+                        />
+                        <span className="text-sm text-gray-600">{selectedTokenLabel}</span>
+                      </div>
+                      {amountErrors[key] && (
+                        <div className="text-red-500 text-xs mt-1">
+                          {amountErrors[key]}
+                        </div>
+                      )}
                     </div>
-                    <button
-                      onClick={() => setTippingToggles(prev => ({ ...prev, [key]: !prev[key as keyof typeof tippingToggles] }))}
-                      className={`relative w-11 h-6 rounded-full transition-colors ${
-                        tippingToggles[key as keyof typeof tippingToggles]
-                          ? 'bg-yellow-400'
-                          : 'bg-gray-300'
-                      }`}
-                    >
-                      <span
-                        className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-transform ${
-                          tippingToggles[key as keyof typeof tippingToggles] ? 'left-5' : 'left-0.5'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                  <div className="flex items-center space-x-2 mt-2">
-                    <input
-                      type="number"
-                      step="0.001"
-                      min="0.005"
-                      value={tippingAmounts[key as keyof typeof tippingAmounts]}
-                      onChange={(e) => {
-                        setTippingAmounts(prev => ({ ...prev, [key]: e.target.value }));
-                        validateAmount(e.target.value, key);
-                      }}
-                      className={`w-20 px-2 py-1 border rounded text-sm ${
-                        amountErrors[key] ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                      placeholder={defaultAmount}
-                    />
-                    <span className="text-sm text-gray-600">{tokenName}</span>
-                  </div>
-                  {amountErrors[key] && (
-                    <div className="text-red-500 text-xs mt-1">
-                      {amountErrors[key]}
-                    </div>
-                  )}
-                </div>
-              ))}
+                  );
+                })}
             </div>
 
 
@@ -597,40 +691,52 @@ export default function Settings() {
                       isValidToken ? 'border-gray-300' : 'border-red-300 bg-red-50'
                     }`}
                   />
-                  <button
+                    <button
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowTokenDropdown(!showTokenDropdown);
                     }}
                     className="absolute right-2 top-1/2 transform -translate-y-1/2 px-2 py-1 text-sm text-gray-600 hover:text-gray-900 flex items-center"
                   >
-                    {tokenName} <ChevronDown className="w-3 h-3 ml-1" />
+                      {selectedTokenLabel} <ChevronDown className="w-3 h-3 ml-1" />
                   </button>
                   
                   {showTokenDropdown && (
                     <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg">
-                      <button
-                        onClick={() => {
-                          handleTokenAddressChange('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913');
-                          setShowTokenDropdown(false);
-                        }}
-                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex justify-between items-center"
-                      >
-                        <span>USDC (Base)</span>
-                        <span className="text-xs text-gray-500">0x833...913</span>
-                      </button>
+                        {Array.from(new Set([BASE_USDC_ADDRESS, ...tokenHistory])).map(address => {
+                          const normalized = address.toLowerCase();
+                          const label =
+                            tokenLabels[normalized] && tokenLabels[normalized] !== 'Unknown Token'
+                              ? tokenLabels[normalized]
+                              : normalized === BASE_USDC_ADDRESS
+                                ? 'USDC'
+                                : `${normalized.slice(0, 6)}...${normalized.slice(-4)}`;
+                          return (
+                            <button
+                              key={normalized}
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => handleTokenSelect(normalized)}
+                              className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex justify-between items-center"
+                            >
+                              <span>{label}</span>
+                              <span className="text-xs text-gray-500">
+                                {normalized.slice(0, 6)}...{normalized.slice(-4)}
+                              </span>
+                            </button>
+                          );
+                        })}
                     </div>
                   )}
                 </div>
-                <p className={`text-sm mt-2 ${isValidToken ? 'text-gray-600' : 'text-red-600'}`}>
-                  {isValidToken ? `${tokenName} on Base` : 'Invalid token address'}
+                  <p className={`text-sm mt-2 ${isValidToken ? 'text-gray-600' : 'text-red-600'}`}>
+                    {isValidToken ? `${selectedTokenLabel} on Base` : 'Invalid token address'}
                 </p>
               </div>
 
 
               {/* Allowance Amount */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Allowance Amount ({tokenName})</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Allowance Amount ({selectedTokenLabel})</label>
                 <input
                   type="number"
                   step="0.1"
@@ -646,7 +752,7 @@ export default function Settings() {
               {tokenAllowance && (
                 <div className="p-4 bg-gray-50 rounded-lg">
                   <p className="text-sm text-gray-600">Current Allowance</p>
-                  <p className="text-lg font-semibold">{formatAmount(tokenAllowance)} {tokenName}</p>
+                    <p className="text-lg font-semibold">{formatAmount(tokenAllowance)} {selectedTokenLabel}</p>
                 </div>
               )}
 

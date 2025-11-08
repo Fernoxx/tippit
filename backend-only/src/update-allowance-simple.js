@@ -2,6 +2,8 @@
 const express = require('express');
 const { ethers } = require('ethers');
 
+const BASE_USDC_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
+
 async function updateAllowanceSimple(req, res, database, batchTransferManager) {
   try {
     const { userAddress, tokenAddress, transactionType, isRealTransaction = false } = req.body;
@@ -48,25 +50,28 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
     let userConfig = await database.getUserConfig(userAddress);
     let isExistingUser = !!userConfig;
     
-    // Create default config for new users when they approve USDC
-    if (!userConfig) {
+      // Create default config for new users when they approve allowance
+      if (!userConfig) {
       console.log(`🆕 Creating default config for new user ${userAddress} on approval`);
       userConfig = {
-        tokenAddress: tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // USDC on Base
-        likeAmount: '0.01',
-        replyAmount: '0.01',
-        recastAmount: '0.01',
-        followAmount: '0.01',
+          tokenAddress: tokenAddress || BASE_USDC_ADDRESS, // USDC on Base
+          likeAmount: '0.005',
+          replyAmount: '0',
+          recastAmount: '0',
+          followAmount: '0',
         spendingLimit: '999999',
         audience: 2, // Anyone (most permissive default)
         minFollowerCount: 0,
         minNeynarScore: 0,
-        likeEnabled: true,    // Enable all by default
-        replyEnabled: true,   // Enable all by default
-        recastEnabled: true,  // Enable all by default
-        followEnabled: true,  // Enable all by default
+          likeEnabled: true,    // Likes enabled by default
+          replyEnabled: false,
+          recastEnabled: false,
+          followEnabled: false,
         isActive: false,      // Will be set to true when added to webhook
-        totalSpent: '0'
+          totalSpent: '0',
+          tokenHistory: [
+            (tokenAddress || BASE_USDC_ADDRESS).toLowerCase()
+          ]
       };
       
       // Save default config to database
@@ -74,7 +79,31 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
       console.log(`✅ Created and saved default config for new user ${userAddress}`);
       isExistingUser = false; // Still treat as new user for webhook logic
     }
-    
+      
+      const normalizedTokenAddress = (tokenAddress || userConfig?.tokenAddress || BASE_USDC_ADDRESS).toLowerCase();
+      if (userConfig) {
+        const existingHistory = Array.isArray(userConfig.tokenHistory)
+          ? userConfig.tokenHistory
+              .map(address => (typeof address === 'string' ? address.toLowerCase() : null))
+              .filter(Boolean)
+          : [];
+        const historyUpdated = existingHistory.includes(normalizedTokenAddress)
+          ? existingHistory
+          : [normalizedTokenAddress, ...existingHistory];
+        const tokenChanged =
+          (userConfig.tokenAddress || '').toLowerCase() !== normalizedTokenAddress;
+        
+        if (historyUpdated !== existingHistory || tokenChanged) {
+          userConfig.tokenHistory = historyUpdated;
+          userConfig.tokenAddress = normalizedTokenAddress;
+          await database.setUserConfig(userAddress, userConfig);
+          console.log(`📝 Updated token settings for ${userAddress}:`, {
+            tokenAddress: normalizedTokenAddress,
+            tokenHistory: historyUpdated,
+          });
+        }
+      }
+      
     // LOGIC: 
     // - NEW users: Add to webhook immediately when they approve (with default config)
     // - OLD users: Check config and allowance, add/keep in webhook if sufficient
@@ -139,12 +168,18 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
       console.log(`📖 Existing user ${userAddress} - checking config and allowance`);
       
       // Calculate total tip amount (like + recast + reply)
-      const likeAmount = parseFloat(userConfig.likeAmount || '0');
-      const recastAmount = parseFloat(userConfig.recastAmount || '0');
-      const replyAmount = parseFloat(userConfig.replyAmount || '0');
-      minTipAmount = likeAmount + recastAmount + replyAmount;
-      
-      console.log(`💰 Total tip amount: ${minTipAmount} (like: ${likeAmount}, recast: ${recastAmount}, reply: ${replyAmount}), Current allowance: ${allowanceAmount}`);
+        const likeAmount = parseFloat(userConfig.likeAmount || '0');
+        const recastAmount = parseFloat(userConfig.recastAmount || '0');
+        const replyAmount = parseFloat(userConfig.replyAmount || '0');
+        const likeEnabled = userConfig.likeEnabled === true || userConfig.likeEnabled === 'true' || userConfig.likeEnabled === 1;
+        const recastEnabled = userConfig.recastEnabled === true || userConfig.recastEnabled === 'true' || userConfig.recastEnabled === 1;
+        const replyEnabled = userConfig.replyEnabled === true || userConfig.replyEnabled === 'true' || userConfig.replyEnabled === 1;
+        minTipAmount =
+          (likeEnabled ? likeAmount : 0) +
+          (recastEnabled ? recastAmount : 0) +
+          (replyEnabled ? replyAmount : 0);
+        
+        console.log(`💰 Total enabled tip amount: ${minTipAmount} (like: ${likeEnabled ? likeAmount : 0}, recast: ${recastEnabled ? recastAmount : 0}, reply: ${replyEnabled ? replyAmount : 0}), Current allowance: ${allowanceAmount}`);
       
       // Determine webhook action based on allowance vs min tip
       if (allowanceAmount < minTipAmount) {

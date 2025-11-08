@@ -720,23 +720,34 @@ app.post('/api/config', async (req, res) => {
     if (!config.tokenAddress || !config.spendingLimit) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
-    
-    // Ensure all config fields are properly set (handle boolean strings from frontend)
-    const savedConfig = {
-      ...config,
-      // Ensure boolean fields are actual booleans (frontend might send strings)
-      likeEnabled: config.likeEnabled === true || config.likeEnabled === 'true' || config.likeEnabled === 1,
-      replyEnabled: config.replyEnabled === true || config.replyEnabled === 'true' || config.replyEnabled === 1,
-      recastEnabled: config.recastEnabled === true || config.recastEnabled === 'true' || config.recastEnabled === 1,
-      followEnabled: config.followEnabled === true || config.followEnabled === 'true' || config.followEnabled === 1,
-      isActive: true,
-      totalSpent: config.totalSpent || '0',
-      lastActivity: Date.now(),
-      lastAllowance: config.lastAllowance || 0,
-      lastAllowanceCheck: config.lastAllowanceCheck || 0,
-      // Spam label filter: 0 = no filter, 1 = Level 1+, 2 = Level 2 only
-      minSpamLabel: config.minSpamLabel !== undefined ? parseInt(config.minSpamLabel) : 0
-    };
+      const existingConfig = await database.getUserConfig(userAddress);
+      const normalizedTokenAddress = (config.tokenAddress || '').toLowerCase();
+      const incomingHistory = Array.isArray(config.tokenHistory)
+        ? config.tokenHistory
+            .map(address => (typeof address === 'string' ? address.toLowerCase() : null))
+            .filter(Boolean)
+        : [];
+      let tokenHistory = Array.isArray(existingConfig?.tokenHistory) ? [...existingConfig.tokenHistory] : [];
+      tokenHistory = [...new Set([normalizedTokenAddress, ...incomingHistory, ...tokenHistory].filter(Boolean))];
+      
+      // Ensure all config fields are properly set (handle boolean strings from frontend)
+      const savedConfig = {
+        ...config,
+        tokenAddress: normalizedTokenAddress,
+        // Ensure boolean fields are actual booleans (frontend might send strings)
+        likeEnabled: config.likeEnabled === true || config.likeEnabled === 'true' || config.likeEnabled === 1,
+        replyEnabled: config.replyEnabled === true || config.replyEnabled === 'true' || config.replyEnabled === 1,
+        recastEnabled: config.recastEnabled === true || config.recastEnabled === 'true' || config.recastEnabled === 1,
+        followEnabled: config.followEnabled === true || config.followEnabled === 'true' || config.followEnabled === 1,
+        isActive: true,
+        totalSpent: config.totalSpent || '0',
+        lastActivity: Date.now(),
+        lastAllowance: config.lastAllowance || 0,
+        lastAllowanceCheck: config.lastAllowanceCheck || 0,
+        tokenHistory,
+        // Spam label filter: 0 = no filter, 1 = Level 1+, 2 = Level 2 only
+        minSpamLabel: config.minSpamLabel !== undefined ? parseInt(config.minSpamLabel) : 0
+      };
     
     console.log(`💾 Saving config for ${userAddress}:`, {
       likeEnabled: savedConfig.likeEnabled,
@@ -3885,12 +3896,18 @@ app.get('/api/homepage', async (req, res) => {
         }
         
         // Calculate minimum tip amount (smallest of like, recast, reply)
-        const likeAmount = parseFloat(userConfig.likeAmount || '0');
-        const recastAmount = parseFloat(userConfig.recastAmount || '0');
-        const replyAmount = parseFloat(userConfig.replyAmount || '0');
+          const likeAmount = parseFloat(userConfig.likeAmount || '0');
+          const recastAmount = parseFloat(userConfig.recastAmount || '0');
+          const replyAmount = parseFloat(userConfig.replyAmount || '0');
+          const likeEnabled = userConfig.likeEnabled === true;
+          const recastEnabled = userConfig.recastEnabled === true;
+          const replyEnabled = userConfig.replyEnabled === true;
         
         // Calculate total tip amount (like + recast + reply)
-        const minTipAmount = likeAmount + recastAmount + replyAmount;
+          const minTipAmount =
+            (likeEnabled ? likeAmount : 0) +
+            (recastEnabled ? recastAmount : 0) +
+            (replyEnabled ? replyAmount : 0);
         
         // Skip if REAL blockchain allowance is less than total tip amount
         if (allowanceAmount < minTipAmount) {
@@ -3945,15 +3962,15 @@ app.get('/api/homepage', async (req, res) => {
                 let totalEngagementValue = 0;
                 
                 if (isUSDC && userConfig) {
-                  const likeAmount = parseFloat(userConfig.likeAmount || '0');
-                  const recastAmount = parseFloat(userConfig.recastAmount || '0');
-                  const replyAmount = parseFloat(userConfig.replyAmount || '0');
-                  totalEngagementValue = likeAmount + recastAmount + replyAmount;
+                    const likeEngagement = userConfig.likeEnabled ? parseFloat(userConfig.likeAmount || '0') : 0;
+                    const recastEngagement = userConfig.recastEnabled ? parseFloat(userConfig.recastAmount || '0') : 0;
+                    const replyEngagement = userConfig.replyEnabled ? parseFloat(userConfig.replyAmount || '0') : 0;
+                    totalEngagementValue = likeEngagement + recastEngagement + replyEngagement;
                   
                   console.log(`💰 User ${userAddress} amounts:`, {
-                    likeAmount,
-                    recastAmount,
-                    replyAmount,
+                      likeAmount: likeEngagement,
+                      recastAmount: recastEngagement,
+                      replyAmount: replyEngagement,
                     totalEngagementValue,
                     rawConfig: {
                       like: userConfig.likeAmount,
@@ -3974,9 +3991,12 @@ app.get('/api/homepage', async (req, res) => {
                       pfpUrl: farcasterUser.pfp_url,
                       fid: farcasterUser.fid,
                       totalEngagementValue: isUSDC ? totalEngagementValue : null, // Only for USDC users
-                      likeAmount: isUSDC ? parseFloat(userConfig?.likeAmount || '0') : undefined,
-                      recastAmount: isUSDC ? parseFloat(userConfig?.recastAmount || '0') : undefined,
-                      replyAmount: isUSDC ? parseFloat(userConfig?.replyAmount || '0') : undefined,
+                        likeAmount: isUSDC ? (userConfig?.likeEnabled ? parseFloat(userConfig?.likeAmount || '0') : 0) : undefined,
+                        recastAmount: isUSDC ? (userConfig?.recastEnabled ? parseFloat(userConfig?.recastAmount || '0') : 0) : undefined,
+                        replyAmount: isUSDC ? (userConfig?.replyEnabled ? parseFloat(userConfig?.replyAmount || '0') : 0) : undefined,
+                        likeEnabled: userConfig?.likeEnabled === true,
+                        recastEnabled: userConfig?.recastEnabled === true,
+                        replyEnabled: userConfig?.replyEnabled === true,
                       criteria: userConfig ? {
                         audience: userConfig.audience,
                         minFollowerCount: userConfig.minFollowerCount,
