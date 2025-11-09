@@ -1,6 +1,7 @@
 // Simple update allowance endpoint
 const express = require('express');
 const { ethers } = require('ethers');
+const { getProvider, executeWithFallback } = require('./rpcProvider');
 
 const BASE_USDC_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
 
@@ -25,26 +26,34 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
     
     // Get current allowance and balance from blockchain - single call for both
     // Use fallback provider to handle RPC errors
-    const { getProvider } = require('./rpcProvider');
-    const provider = await getProvider();
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
-    
-    const tokenContract = new ethers.Contract(tokenAddress, [
-      "function allowance(address owner, address spender) view returns (uint256)",
-      "function balanceOf(address owner) view returns (uint256)"
-    ], provider);
-    
-    // Get both allowance and balance in parallel - single blockchain call
-    const [allowance, balance] = await Promise.all([
-      tokenContract.allowance(userAddress, ecionBatchAddress),
-      tokenContract.balanceOf(userAddress)
-    ]);
-    
     const tokenDecimals = await getTokenDecimals(tokenAddress);
-    const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
-    const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
+    let allowanceAmount = 0;
+    let balanceAmount = 0;
+    let allowanceSource = 'blockchain';
+    try {
+      const [allowance, balance] = await executeWithFallback(async (provider) => {
+        const tokenContract = new ethers.Contract(tokenAddress, [
+          "function allowance(address owner, address spender) view returns (uint256)",
+          "function balanceOf(address owner) view returns (uint256)"
+        ], provider);
+        return await Promise.all([
+          tokenContract.allowance(userAddress, ecionBatchAddress),
+          tokenContract.balanceOf(userAddress)
+        ]);
+      });
+      allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
+      balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
+    } catch (error) {
+      allowanceSource = 'cached';
+      const userConfigSnapshot = await database.getUserConfig(userAddress);
+      const cachedAllowance = userConfigSnapshot?.lastAllowance ?? 0;
+      allowanceAmount = parseFloat(cachedAllowance.toString());
+      balanceAmount = allowanceAmount;
+      console.log(`⚠️ Allowance/balance check failed for ${userAddress}: ${error?.message || error}. Using cached allowance ${allowanceAmount}.`);
+    }
     
-    console.log(`📊 Blockchain check: Allowance: ${allowanceAmount}, Balance: ${balanceAmount}`);
+    console.log(`📊 ${allowanceSource === 'blockchain' ? 'Blockchain' : 'Cached'} check: Allowance: ${allowanceAmount}, Balance: ${balanceAmount}`);
     
     // Get user config (if exists)
     let userConfig = await database.getUserConfig(userAddress);
