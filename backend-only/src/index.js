@@ -4289,12 +4289,12 @@ app.get('/api/homepage', async (req, res) => {
     });
 
     formatted.sort((a, b) => {
-      // Primary sort: USDC tokens first (they have totalEngagementValue > 0), then other tokens (totalEngagementValue = 0)
-      // This ensures USDC users always appear before non-USDC users
+      // Primary sort: Total engagement value (like + recast + reply combined)
+      // USDC users have totalEngagementValue > 0, non-USDC users have 0
+      // This naturally puts USDC users first, then non-USDC users
       if (Math.abs(a.totalEngagementValue - b.totalEngagementValue) > 0.0001) {
         return b.totalEngagementValue - a.totalEngagementValue;
       }
-      
       // Secondary sort: Newest casts first (if same total value)
       return b.timestamp - a.timestamp;
     });
