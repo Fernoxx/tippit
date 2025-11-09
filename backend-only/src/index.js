@@ -1137,16 +1137,14 @@ app.get('/api/allowance/:userAddress/:tokenAddress', async (req, res) => {
 
   try {
     const { ethers } = require('ethers');
+    const provider = await getProvider();
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     const tokenDecimals = await getTokenDecimals(tokenAddress);
 
-    const allowance = await executeWithFallback(async (provider) => {
-      const tokenContract = new ethers.Contract(tokenAddress, [
-        "function allowance(address owner, address spender) view returns (uint256)"
-      ], provider);
-      return tokenContract.allowance(userAddress, ecionBatchAddress);
-    }, 4);
-
+    const tokenContract = new ethers.Contract(tokenAddress, [
+      "function allowance(address owner, address spender) view returns (uint256)"
+    ], provider);
+    const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
     const formattedAllowance = ethers.formatUnits(allowance, tokenDecimals);
 
     const entry = {
