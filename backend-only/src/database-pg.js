@@ -1343,6 +1343,8 @@ class PostgresDatabase {
   async getActiveCasts(limit = 50, offset = 0) {
     try {
       const totalResult = await this.pool.query(`SELECT COUNT(*)::INTEGER AS count FROM active_casts`);
+      // Order by cast_timestamp DESC to get latest casts first
+      // The homepage endpoint will then sort by totalEngagementValue and token type
       const result = await this.pool.query(`
         SELECT 
           ac.*,

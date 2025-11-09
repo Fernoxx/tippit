@@ -4261,9 +4261,23 @@ app.get('/api/homepage', async (req, res) => {
     });
 
     formatted.sort((a, b) => {
+      // Primary sort: USDC tokens first, then other tokens
+      // USDC users have likeAmount/recastAmount/replyAmount defined, other tokens don't
+      const aIsUSDC = a.cast?.tipper?.likeAmount !== undefined && a.cast?.tipper?.likeAmount !== null;
+      const bIsUSDC = b.cast?.tipper?.likeAmount !== undefined && b.cast?.tipper?.likeAmount !== null;
+      
+      if (aIsUSDC !== bIsUSDC) {
+        // USDC comes first (return -1 means a comes before b)
+        return aIsUSDC ? -1 : 1;
+      }
+      
+      // Secondary sort: Total engagement value (highest total tips first)
+      // This is like + recast + reply combined for USDC users
       if (Math.abs(a.totalEngagementValue - b.totalEngagementValue) > 0.0001) {
         return b.totalEngagementValue - a.totalEngagementValue;
       }
+      
+      // Tertiary sort: Latest cast first (if same total value)
       return b.timestamp - a.timestamp;
     });
 
