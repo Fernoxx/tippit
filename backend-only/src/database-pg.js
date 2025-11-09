@@ -147,6 +147,30 @@ class PostgresDatabase {
         )
       `);
       
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS active_casts (
+          fid BIGINT PRIMARY KEY,
+          user_address TEXT NOT NULL,
+          cast_hash TEXT,
+          cast JSONB,
+          cast_timestamp TIMESTAMP,
+          like_count INTEGER DEFAULT 0,
+          recast_count INTEGER DEFAULT 0,
+          reply_count INTEGER DEFAULT 0,
+          token_address TEXT,
+          allowance NUMERIC DEFAULT 0,
+          balance NUMERIC DEFAULT 0,
+          min_tip NUMERIC DEFAULT 0,
+          config JSONB,
+          last_refreshed TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      
+      await this.pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_active_casts_timestamp
+        ON active_casts (cast_timestamp DESC NULLS LAST)
+      `);
+      
       // Using webhook filtering based on allowance and balance checks
 
       // Create notification tokens table
@@ -1186,6 +1210,137 @@ class PostgresDatabase {
     } catch (error) {
       console.error('Error deactivating notification token:', error.message);
       return false;
+    }
+  }
+
+  // Active casts cache management
+  async upsertActiveCast({
+    fid,
+    userAddress,
+    castHash = null,
+    cast = null,
+    castText = null,
+    castTimestamp = null,
+    likeCount = 0,
+    recastCount = 0,
+    replyCount = 0,
+    tokenAddress = null,
+    allowance = 0,
+    balance = 0,
+    minTip = 0,
+    config = null
+  }) {
+    try {
+      const normalizedAddress = userAddress ? userAddress.toLowerCase() : null;
+      const normalizedToken = tokenAddress ? tokenAddress.toLowerCase() : null;
+      await this.pool.query(`
+        INSERT INTO active_casts (
+          fid,
+          user_address,
+          cast_hash,
+          cast,
+          cast_text,
+          cast_timestamp,
+          like_count,
+          recast_count,
+          reply_count,
+          token_address,
+          allowance,
+          balance,
+          min_tip,
+          config,
+          last_refreshed
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9,
+          $10, $11, $12, $13, $14, NOW()
+        )
+        ON CONFLICT (fid) DO UPDATE SET
+          user_address = EXCLUDED.user_address,
+          cast_hash = EXCLUDED.cast_hash,
+          cast = EXCLUDED.cast,
+          cast_text = EXCLUDED.cast_text,
+          cast_timestamp = EXCLUDED.cast_timestamp,
+          like_count = EXCLUDED.like_count,
+          recast_count = EXCLUDED.recast_count,
+          reply_count = EXCLUDED.reply_count,
+          token_address = EXCLUDED.token_address,
+          allowance = EXCLUDED.allowance,
+          balance = EXCLUDED.balance,
+          min_tip = EXCLUDED.min_tip,
+          config = EXCLUDED.config,
+          last_refreshed = NOW()
+      `, [
+        fid,
+        normalizedAddress,
+        castHash,
+        cast ? JSON.stringify(cast) : null,
+        castText,
+        castTimestamp ? new Date(castTimestamp) : null,
+        likeCount || 0,
+        recastCount || 0,
+        replyCount || 0,
+        normalizedToken,
+        allowance ?? 0,
+        balance ?? 0,
+        minTip ?? 0,
+        config ? JSON.stringify(config) : null
+      ]);
+      console.log(`💾 Upserted active cast for fid ${fid}`);
+      return true;
+    } catch (error) {
+      console.error(`❌ Error upserting active cast for fid ${fid}:`, error.message);
+      return false;
+    }
+  }
+
+  async removeActiveCast(fid) {
+    try {
+      await this.pool.query(`DELETE FROM active_casts WHERE fid = $1`, [fid]);
+      console.log(`🗑️ Removed active cast entry for fid ${fid}`);
+      return true;
+    } catch (error) {
+      console.error(`❌ Error removing active cast for fid ${fid}:`, error.message);
+      return false;
+    }
+  }
+
+  async pruneActiveCasts(validFids = []) {
+    try {
+      if (!Array.isArray(validFids) || validFids.length === 0) {
+        await this.pool.query(`DELETE FROM active_casts`);
+        console.log('🧹 Cleared all active cast entries (no active FIDs provided)');
+        return true;
+      }
+      await this.pool.query(`DELETE FROM active_casts WHERE fid <> ALL($1::bigint[])`, [validFids]);
+      console.log(`🧹 Pruned inactive casts, retained ${validFids.length} active FIDs`);
+      return true;
+    } catch (error) {
+      console.error('❌ Error pruning active casts:', error.message);
+      return false;
+    }
+  }
+
+  async getActiveCasts(limit = 50, offset = 0) {
+    try {
+      const totalResult = await this.pool.query(`SELECT COUNT(*)::INTEGER AS count FROM active_casts`);
+      const result = await this.pool.query(`
+        SELECT 
+          ac.*,
+          up.username,
+          up.display_name,
+          up.pfp_url
+        FROM active_casts ac
+        LEFT JOIN user_profiles up ON ac.fid = up.fid
+        ORDER BY ac.cast_timestamp DESC NULLS LAST, ac.last_refreshed DESC
+        LIMIT $1 OFFSET $2
+      `, [limit, offset]);
+      return {
+        rows: result.rows,
+        total: totalResult.rows[0]?.count || 0
+      };
+    } catch (error) {
+      console.error('❌ Error fetching active casts:', error.message);
+      return { rows: [], total: 0 };
     }
   }
 }

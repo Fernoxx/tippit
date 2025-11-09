@@ -764,6 +764,26 @@ app.post('/api/config', async (req, res) => {
     
     await database.setUserConfig(userAddress, savedConfig);
     
+    try {
+      const fid = await getUserFid(userAddress);
+      if (fid) {
+        const trackedFids = await database.getTrackedFids();
+        if (trackedFids.includes(parseInt(fid))) {
+          await refreshActiveCastEntry({
+            fid: parseInt(fid),
+            userAddress,
+            config: savedConfig,
+            tokenAddress: savedConfig.tokenAddress,
+            allowance: Number(savedConfig.lastAllowance) || 0,
+            balance: Number(savedConfig.lastAllowance) || 0,
+            minTip: computeMinTipFromConfig(savedConfig)
+          });
+        }
+      }
+    } catch (cacheError) {
+      console.log(`⚠️ Unable to refresh active cast cache after config update for ${userAddress}: ${cacheError.message}`);
+    }
+    
     // Automatically add user's FID to webhook filter
     try {
       console.log('🔍 Getting user FID for webhook filter...');
@@ -1664,6 +1684,121 @@ async function getLatestCast(fid) {
 }
 
 // Update user's latest cast in database
+async function fetchCastDetails(hash) {
+  if (!hash) {
+    return null;
+  }
+  try {
+    const response = await fetch(`https://api.neynar.com/v2/farcaster/cast?identifier=${hash}&type=hash`, {
+      headers: {
+        'x-api-key': process.env.NEYNAR_API_KEY
+      }
+    });
+    if (response.ok) {
+      const data = await response.json();
+      return data.cast || null;
+    }
+    const errorText = await response.text();
+    console.log(`❌ Error fetching cast details for ${hash}: ${response.status} - ${errorText}`);
+  } catch (error) {
+    console.log(`❌ Error fetching cast details for ${hash}: ${error.message}`);
+  }
+  return null;
+}
+
+function computeMinTipFromConfig(config) {
+  if (!config) {
+    return 0;
+  }
+  const normalizeBool = (value) => value === true || value === 'true' || value === 1;
+  const parseAmount = (value) => {
+    const parsed = parseFloat(value || '0');
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  let total = 0;
+  if (normalizeBool(config.likeEnabled)) {
+    total += parseAmount(config.likeAmount);
+  }
+  if (normalizeBool(config.recastEnabled)) {
+    total += parseAmount(config.recastAmount);
+  }
+  if (normalizeBool(config.replyEnabled)) {
+    total += parseAmount(config.replyAmount);
+  }
+  return total;
+}
+
+async function refreshActiveCastEntry({
+  fid,
+  userAddress,
+  config,
+  tokenAddress,
+  allowance = 0,
+  balance = 0,
+  minTip = null,
+  castData = null
+}) {
+  try {
+    if (!fid || !userAddress) {
+      console.log(`⚠️ Missing fid or user address for active cast refresh`);
+      return false;
+    }
+    
+    const normalizedAddress = userAddress.toLowerCase();
+    const parsedConfig = typeof config === 'string' ? JSON.parse(config) : (config || null);
+    const effectiveMinTip = minTip !== null ? minTip : computeMinTipFromConfig(parsedConfig);
+    const normalizedToken = (tokenAddress || parsedConfig?.tokenAddress || BASE_USDC_ADDRESS || '').toLowerCase();
+    
+    let latestCast = castData;
+    if (!latestCast) {
+      latestCast = await getLatestCast(fid);
+    }
+    
+    if (latestCast?.hash) {
+      const detailedCast = await fetchCastDetails(latestCast.hash);
+      if (detailedCast) {
+        latestCast = detailedCast;
+      }
+    }
+    
+    if (!latestCast || !latestCast.hash) {
+      console.log(`ℹ️ No latest cast available for fid ${fid}, removing from active casts`);
+      await database.removeActiveCast(fid);
+      return false;
+    }
+    
+    const likeCount = latestCast.reactions?.likes_count ?? latestCast.reactions?.likes ?? latestCast.reactions_count ?? 0;
+    const recastCount = latestCast.reactions?.recasts_count ?? latestCast.reactions?.recasts ?? 0;
+    const replyCount = latestCast.replies?.count ?? latestCast.replies_count ?? 0;
+    const allowanceValue = Number(allowance) || Number(parsedConfig?.lastAllowance) || 0;
+    const balanceValue = Number(balance) || allowanceValue;
+    const timestamp = latestCast.timestamp ? new Date(latestCast.timestamp) : new Date();
+    const castText = latestCast.text || null;
+    
+    await database.upsertActiveCast({
+      fid,
+      userAddress: normalizedAddress,
+      castHash: latestCast.hash,
+      cast: latestCast,
+      castText,
+      castTimestamp: timestamp,
+      likeCount,
+      recastCount,
+      replyCount,
+      tokenAddress: normalizedToken || null,
+      allowance: allowanceValue,
+      balance: balanceValue,
+      minTip: effectiveMinTip,
+      config: parsedConfig
+    });
+    
+    return true;
+  } catch (error) {
+    console.log(`❌ Error refreshing active cast for fid ${fid}: ${error.message}`);
+    return false;
+  }
+}
+
 async function updateLatestCastHash(userAddress, castHash, castTimestamp) {
   try {
     await database.pool.query(`
@@ -1885,6 +2020,10 @@ async function pollLatestCasts() {
     let updatedCount = 0;
     for (const user of activeUsers) {
       const latestCast = await getLatestCast(user.fid);
+      const userConfig = typeof user.config === 'string' ? JSON.parse(user.config) : user.config || null;
+      const allowanceValue = Number(userConfig?.lastAllowance) || 0;
+      const minTipValue = computeMinTipFromConfig(userConfig);
+      const tokenAddress = (userConfig?.tokenAddress || BASE_USDC_ADDRESS || '').toLowerCase();
       
       if (latestCast) {
         // Check if this is a new cast
@@ -1895,12 +2034,28 @@ async function pollLatestCasts() {
         } else {
           console.log(`✅ Latest cast for ${user.user_address} is still ${latestCast.hash}`);
         }
-      } else {
-        console.log(`ℹ️ No main cast found for ${user.user_address} (FID: ${user.fid})`);
+        if (user.user_address) {
+          await refreshActiveCastEntry({
+            fid: user.fid,
+            userAddress: user.user_address,
+            config: userConfig,
+            tokenAddress,
+            allowance: allowanceValue,
+            balance: allowanceValue,
+            minTip: minTipValue,
+            castData: latestCast
+          });
+        }
+      } else if (user.user_address) {
+        await database.removeActiveCast(user.fid);
+        console.log(`ℹ️ No main cast found for ${user.user_address} (FID: ${user.fid}) - removed from active cache`);
       }
     }
     
     console.log(`📊 Polling complete: ${updatedCount} new casts found out of ${activeUsers.length} users`);
+    
+    const activeFids = activeUsers.map(user => user.fid).filter(Boolean);
+    await database.pruneActiveCasts(activeFids);
     
     // Update webhook filters with all latest cast hashes
     await updateWebhookFiltersForLatestCasts();
@@ -2290,8 +2445,25 @@ async function addFidToWebhook(fid) {
         `, [fidInt]);
         
         if (userAddressResult.rows.length > 0 && userAddressResult.rows[0].user_address) {
-          await updateLatestCastHash(userAddressResult.rows[0].user_address, newUserLatestCast.hash, newUserLatestCast.timestamp);
+          const userAddress = userAddressResult.rows[0].user_address;
+          await updateLatestCastHash(userAddress, newUserLatestCast.hash, newUserLatestCast.timestamp);
           console.log(`💾 Updated database with latest cast hash for FID ${fid}`);
+          try {
+            const userConfig = await database.getUserConfig(userAddress);
+            const allowanceValue = Number(userConfig?.lastAllowance) || 0;
+            await refreshActiveCastEntry({
+              fid: fidInt,
+              userAddress,
+              config: userConfig,
+              tokenAddress: userConfig?.tokenAddress || BASE_USDC_ADDRESS,
+              allowance: allowanceValue,
+              balance: allowanceValue,
+              minTip: computeMinTipFromConfig(userConfig),
+              castData: newUserLatestCast
+            });
+          } catch (cacheError) {
+            console.log(`⚠️ Unable to refresh active cast cache for fid ${fid}: ${cacheError.message}`);
+          }
         }
       } else {
         console.log(`ℹ️ Cast ${newUserLatestCast.hash} already in tracking`);
@@ -2404,6 +2576,7 @@ async function removeFidFromWebhook(fid) {
     if (webhookResponse.ok) {
       await database.setTrackedFids(updatedFids);
       console.log(`✅ Removed FID ${fid} from follow.created (active users)${userCastHash ? ' and removed cast hash' : ''}`);
+      await database.removeActiveCast(fidInt);
       return true;
     } else {
       console.error('❌ Failed to remove FID from webhook:', await webhookResponse.text());
@@ -3791,8 +3964,10 @@ async function removeUserFromHomepageCache(userAddress) {
     // This ensures user's cast won't appear in homepage
     console.log(`🗑️ Clearing homepage cache for ${userAddress}`);
     
-    // The homepage already filters by database allowance, so this is mainly for logging
-    // In the future, you could implement actual cache clearing here
+    const fid = await getUserFid(userAddress);
+    if (fid) {
+      await database.removeActiveCast(parseInt(fid));
+    }
     return true;
   } catch (error) {
     console.error('❌ Error clearing homepage cache:', error);
@@ -3910,60 +4085,142 @@ app.get('/api/notification-status/:userAddress', async (req, res) => {
 });
 app.get('/api/homepage', async (req, res) => {
   try {
-    const { timeFilter = '24h', page = 1, limit = 50 } = req.query;
-    const pageNum = parseInt(page);
-    const limitNum = parseInt(limit);
-    
-    // Get active users from WEBHOOK (source of truth)
-    const trackedFids = await database.getTrackedFids();
-    console.log(`🏠 Homepage: ${trackedFids.length} FIDs in webhook follow.created (active users)`);
-    
-    if (trackedFids.length === 0) {
+    const pageNum = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limitNum = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 100);
+    const offset = (pageNum - 1) * limitNum;
+
+    const { rows, total } = await database.getActiveCasts(limitNum, offset);
+    console.log(`🏠 Homepage cache: ${rows.length} rows returned (total ${total})`);
+
+    if (!rows.length) {
       return res.json({
         success: true,
         users: [],
         amounts: [],
         casts: [],
-        pagination: { page: pageNum, limit: limitNum, hasMore: false }
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          totalUsers: 0,
+          totalPages: 0,
+          hasMore: false
+        }
       });
     }
-    
-    // Get user addresses for these FIDs (only users with verified addresses)
-    const userProfiles = await database.pool.query(`
-      SELECT fid, user_address 
-      FROM user_profiles 
-      WHERE fid = ANY($1)
-      AND user_address IS NOT NULL
-      AND user_address != ''
-    `, [trackedFids]);
-    
-    const activeUsers = userProfiles.rows.map(row => row.user_address);
-    console.log(`🏠 Homepage: ${activeUsers.length} users with verified addresses out of ${trackedFids.length} FIDs`);
-    
-    const { ethers } = require('ethers');
-    const provider = await getProvider(); // Use fallback provider
-    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
-    
-    // Get allowance and cast for each user
-    const usersWithAllowance = [];
-    
-    for (const userAddress of activeUsers) {
-      try {
-        
-        // Get user's configured token address
-        const userConfig = await database.getUserConfig(userAddress);
-        const tokenAddress = userConfig?.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'; // Default to USDC
-        const tokenDecimals = await getTokenDecimals(tokenAddress);
-        
-        let allowanceAmount = 0;
-        let allowanceSource = 'blockchain';
+
+    const normalizeAmount = (value) => {
+      const num = parseFloat(value || '0');
+      return Number.isFinite(num) ? num : 0;
+    };
+    const normalizeBool = (value) => value === true || value === 'true' || value === 1;
+
+    const formatted = rows.map((row) => {
+      const config = typeof row.config === 'string' ? JSON.parse(row.config) : (row.config || {});
+      const allowanceValue = Number(row.allowance) || 0;
+      const minTipValue = computeMinTipFromConfig(config);
+      const tokenAddress = (row.token_address || config.tokenAddress || BASE_USDC_ADDRESS || '').toLowerCase();
+      const isUSDC = tokenAddress === BASE_USDC_ADDRESS;
+
+      const likeAmount = normalizeBool(config.likeEnabled) ? normalizeAmount(config.likeAmount) : 0;
+      const recastAmount = normalizeBool(config.recastEnabled) ? normalizeAmount(config.recastAmount) : 0;
+      const replyAmount = normalizeBool(config.replyEnabled) ? normalizeAmount(config.replyAmount) : 0;
+      const totalEngagementValue = isUSDC ? likeAmount + recastAmount + replyAmount : minTipValue;
+
+      let cast = row.cast;
+      if (typeof cast === 'string') {
         try {
-          const allowance = await executeWithFallback(async (provider) => {
-            const tokenContract = new ethers.Contract(tokenAddress, [
-              "function allowance(address owner, address spender) view returns (uint256)"
-            ], provider);
-            return await tokenContract.allowance(userAddress, ecionBatchAddress);
-          });
+          cast = JSON.parse(cast);
+        } catch (parseError) {
+          cast = null;
+        }
+      }
+
+      if (!cast && row.cast_hash) {
+        cast = {
+          hash: row.cast_hash,
+          text: row.cast_text,
+          timestamp: row.cast_timestamp,
+          reactions: {
+            likes_count: row.like_count || 0,
+            recasts_count: row.recast_count || 0
+          },
+          replies: {
+            count: row.reply_count || 0
+          }
+        };
+      }
+
+      const castTimestamp = cast?.timestamp || row.cast_timestamp;
+      const farcasterUsername = row.username || cast?.author?.username || null;
+      const farcasterUrl = cast?.farcasterUrl || (cast?.hash && farcasterUsername
+        ? `https://farcaster.xyz/${farcasterUsername}/${cast.hash}`
+        : cast?.hash
+          ? `https://warpcast.com/~/cast/${cast.hash}`
+          : undefined);
+
+      const castPayload = {
+        ...(cast || {}),
+        hash: cast?.hash || row.cast_hash,
+        text: cast?.text || row.cast_text,
+        timestamp: castTimestamp,
+        farcasterUrl,
+        tipper: {
+          userAddress: row.user_address,
+          username: row.username || cast?.author?.username || null,
+          displayName: row.display_name || cast?.author?.display_name || null,
+          pfpUrl: row.pfp_url || cast?.author?.pfp_url || null,
+          fid: row.fid,
+          totalEngagementValue,
+          likeAmount: isUSDC ? likeAmount : undefined,
+          recastAmount: isUSDC ? recastAmount : undefined,
+          replyAmount: isUSDC ? replyAmount : undefined,
+          likeEnabled: normalizeBool(config.likeEnabled),
+          recastEnabled: normalizeBool(config.recastEnabled),
+          replyEnabled: normalizeBool(config.replyEnabled),
+          criteria: config ? {
+            audience: config.audience,
+            minFollowerCount: config.minFollowerCount,
+            minNeynarScore: config.minNeynarScore
+          } : null
+        }
+      };
+
+      return {
+        cast: castPayload,
+        allowance: allowanceValue,
+        totalEngagementValue,
+        timestamp: castTimestamp ? new Date(castTimestamp).getTime() : 0,
+        userAddress: row.user_address
+      };
+    });
+
+    formatted.sort((a, b) => {
+      if (Math.abs(a.totalEngagementValue - b.totalEngagementValue) > 0.0001) {
+        return b.totalEngagementValue - a.totalEngagementValue;
+      }
+      return b.timestamp - a.timestamp;
+    });
+
+    res.json({
+      success: true,
+      casts: formatted.map((item) => item.cast),
+      users: formatted.map((item) => item.userAddress),
+      amounts: formatted.map((item) => item.allowance.toString()),
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        totalUsers: total,
+        totalPages: Math.ceil(total / limitNum),
+        hasMore: offset + formatted.length < total
+      }
+    });
+  } catch (error) {
+    console.error('Homepage fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch homepage data' });
+  }
+});
+    }
+    
           allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
         } catch (error) {
           allowanceSource = 'cached';
@@ -8129,5 +8386,8 @@ module.exports = {
   addFidToWebhook,
   removeFidFromWebhook,
   updateUserWebhookStatus,
-  autoRevokeAllowance
+  autoRevokeAllowance,
+  getLatestCast,
+  refreshActiveCastEntry,
+  computeMinTipFromConfig
 };

@@ -7,8 +7,6 @@ class RPCProviderManager {
   constructor() {
     // List of RPC providers in priority order
     this.providers = [];
-    this.cooldownMs = Math.max(3000, parseInt(process.env.RPC_COOLDOWN_MS || '5000', 10) || 5000);
-    this.lastGlobalFailure = 0;
     this.lastErrorSignature = null;
     this.lastErrorLoggedAt = 0;
     
@@ -70,11 +68,6 @@ class RPCProviderManager {
    * Get the current provider (with automatic fallback on failure)
    */
   async getProvider() {
-    const now = Date.now();
-    if (now - this.lastGlobalFailure < this.cooldownMs) {
-      throw new Error(`RPC cooling down for ${Math.ceil((this.cooldownMs - (now - this.lastGlobalFailure)) / 1000)}s after previous failures`);
-    }
-    
     // Try current provider first
     if (this.currentProvider) {
       try {
@@ -151,7 +144,6 @@ class RPCProviderManager {
                           error.message?.includes('Service Unavailable') ||
                           error.message?.includes('SERVER_ERROR') ||
                           error.message?.includes('network') ||
-                          error.message?.includes('cooling down') ||
                           error.code === 'SERVER_ERROR' ||
                           error.code === 'NETWORK_ERROR';
         
@@ -169,14 +161,12 @@ class RPCProviderManager {
             continue;
           }
         } else {
-          this.lastGlobalFailure = Date.now();
           // Non-RPC error or max retries reached
           throw error;
         }
       }
     }
     
-    this.lastGlobalFailure = Date.now();
     throw lastError || new Error('All retries exhausted');
   }
   

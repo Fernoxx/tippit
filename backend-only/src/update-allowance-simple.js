@@ -108,6 +108,11 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
       isExistingUser = false; // Still treat as new user for webhook logic
     }
       
+      if (allowanceSource === 'blockchain' && userConfig) {
+        userConfig.lastAllowance = allowanceFormatted;
+        userConfig.lastAllowanceCheck = Date.now();
+      }
+      
       const cacheKey = `${userAddress.toLowerCase()}-${normalizedTokenAddress}`;
       allowanceCache.set(cacheKey, {
         allowance: allowanceFormatted,
@@ -128,7 +133,7 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
         const tokenChanged =
           (userConfig.tokenAddress || '').toLowerCase() !== normalizedTokenAddress;
         
-        if (historyUpdated !== existingHistory || tokenChanged) {
+        if (historyUpdated !== existingHistory || tokenChanged || allowanceSource === 'blockchain') {
           userConfig.tokenHistory = historyUpdated;
           userConfig.tokenAddress = normalizedTokenAddress;
           await database.setUserConfig(userAddress, userConfig);
@@ -251,6 +256,7 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
       
       if (fid) {
         console.log(`✅ Found FID ${fid} for ${userAddress}`);
+        let homepageCacheUpdated = false;
         
         if (webhookAction === 'remove') {
           // Remove FID from webhook
@@ -265,7 +271,10 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
               userConfig.isActive = false;
               await database.setUserConfig(userAddress, userConfig);
               console.log(`✅ Set isActive=false for ${userAddress} (removed from webhook)`);
+              await database.removeActiveCast(fid);
             }
+          } else {
+            await database.removeActiveCast(fid);
           }
         } else if (webhookAction === 'add') {
           // Re-use previously fetched balance so decimals stay consistent (USDC = 6)
@@ -290,11 +299,58 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
                 userConfig.isActive = true;
                 await database.setUserConfig(userAddress, userConfig);
                 console.log(`✅ Set isActive=true for ${userAddress} (added to webhook with sufficient allowance and balance)`);
+                try {
+                  const { refreshActiveCastEntry } = require('./index');
+                  await refreshActiveCastEntry({
+                    fid,
+                    userAddress,
+                    config: userConfig,
+                    allowance: allowanceAmount,
+                    balance: balanceAmount,
+                    minTip: minTipAmount,
+                    tokenAddress: normalizedTokenAddress
+                  });
+                  homepageCacheUpdated = true;
+                } catch (cacheError) {
+                  console.log(`⚠️ Unable to refresh active cast cache for ${userAddress}: ${cacheError.message}`);
+                }
               } else if (added && !userConfig) {
                 // New user - they'll set isActive when they save config
                 console.log(`✅ New user ${userAddress} added to webhook - config will be set when they save settings`);
+                try {
+                  const { refreshActiveCastEntry } = require('./index');
+                  await refreshActiveCastEntry({
+                    fid,
+                    userAddress,
+                    config: userConfig,
+                    allowance: allowanceAmount,
+                    balance: balanceAmount,
+                    minTip: minTipAmount,
+                    tokenAddress: normalizedTokenAddress
+                  });
+                  homepageCacheUpdated = true;
+                } catch (cacheError) {
+                  console.log(`⚠️ Unable to refresh active cast cache for ${userAddress}: ${cacheError.message}`);
+                }
               }
             }
+          }
+        }
+        
+        if (!homepageCacheUpdated && allowanceSource === 'blockchain' && userConfig?.isActive) {
+          try {
+            const { refreshActiveCastEntry } = require('./index');
+            await refreshActiveCastEntry({
+              fid,
+              userAddress,
+              config: userConfig,
+              allowance: allowanceAmount,
+              balance: balanceAmount,
+              minTip: minTipAmount,
+              tokenAddress: normalizedTokenAddress
+            });
+          } catch (cacheError) {
+            console.log(`⚠️ Unable to refresh active cast cache for ${userAddress}: ${cacheError.message}`);
           }
         }
       } else {
