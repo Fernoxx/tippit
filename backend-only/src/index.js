@@ -4262,6 +4262,7 @@ app.get('/api/homepage', async (req, res) => {
           displayName: row.display_name || cast?.author?.display_name || null,
           pfpUrl: row.pfp_url || cast?.author?.pfp_url || null,
           fid: row.fid,
+          tokenAddress: tokenAddress, // Add token address for sorting
           totalEngagementValue,
           likeAmount: isUSDC ? likeAmount : undefined,
           recastAmount: isUSDC ? recastAmount : undefined,
@@ -4288,15 +4289,18 @@ app.get('/api/homepage', async (req, res) => {
 
     formatted.sort((a, b) => {
       // Primary sort: USDC tokens first, then other tokens
-      const aIsUSDC = a.cast?.tipper?.likeAmount !== undefined && a.cast?.tipper?.likeAmount !== null;
-      const bIsUSDC = b.cast?.tipper?.likeAmount !== undefined && b.cast?.tipper?.likeAmount !== null;
+      // Check token address directly from the tipper object
+      const aTokenAddress = (a.cast?.tipper?.tokenAddress || '').toLowerCase();
+      const bTokenAddress = (b.cast?.tipper?.tokenAddress || '').toLowerCase();
+      const aIsUSDC = aTokenAddress === BASE_USDC_ADDRESS || (!aTokenAddress && a.cast?.tipper?.likeAmount !== undefined);
+      const bIsUSDC = bTokenAddress === BASE_USDC_ADDRESS || (!bTokenAddress && b.cast?.tipper?.likeAmount !== undefined);
       
       if (aIsUSDC !== bIsUSDC) {
         // USDC comes first (return -1 means a comes before b)
         return aIsUSDC ? -1 : 1;
       }
       
-      // For USDC users: Sort by allowance amount (highest first), then latest cast
+      // For USDC users: Sort by allowance amount (highest first), then latest cast timestamp
       if (aIsUSDC && bIsUSDC) {
         // Primary: Allowance amount (highest first)
         if (Math.abs(a.allowance - b.allowance) > 0.0001) {
@@ -8315,5 +8319,7 @@ module.exports = {
   autoRevokeAllowance,
   getLatestCast,
   refreshActiveCastEntry,
+  updateLatestCastHash,
+  BASE_USDC_ADDRESS,
   computeMinTipFromConfig
 };

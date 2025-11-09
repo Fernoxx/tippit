@@ -195,6 +195,49 @@ async function webhookHandler(req, res) {
             console.log(`📝 Tracked user FID ${authorFid} posted new main cast: ${castHash}`);
             // Update this as their latest earnable cast
             await database.addUserCast(authorFid, castHash, true);
+            
+            // Update homepage cache immediately
+            try {
+              const { refreshActiveCastEntry, updateLatestCastHash, BASE_USDC_ADDRESS } = require('./index');
+              
+              // Get user address from FID
+              const userResult = await database.pool.query(`
+                SELECT user_address FROM user_profiles WHERE fid = $1
+              `, [authorFid]);
+              
+              if (userResult.rows.length > 0 && userResult.rows[0].user_address) {
+                const userAddress = userResult.rows[0].user_address;
+                
+                // Get user config
+                const userConfig = await database.getUserConfig(userAddress);
+                if (userConfig) {
+                  // Fetch full cast details
+                  const { getCastByHash } = require('./neynar');
+                  const fullCast = await getCastByHash(castHash);
+                  
+                  if (fullCast) {
+                    // Update latest cast hash in database
+                    await updateLatestCastHash(userAddress, castHash, fullCast.timestamp);
+                    
+                    // Refresh homepage cache
+                    await refreshActiveCastEntry({
+                      fid: authorFid,
+                      userAddress,
+                      config: userConfig,
+                      tokenAddress: userConfig.tokenAddress || BASE_USDC_ADDRESS,
+                      allowance: Number(userConfig.lastAllowance) || 0,
+                      balance: Number(userConfig.lastAllowance) || 0,
+                      minTip: null, // Will be computed inside refreshActiveCastEntry
+                      castData: fullCast
+                    });
+                    
+                    console.log(`✅ Updated homepage cache for FID ${authorFid} with new cast ${castHash}`);
+                  }
+                }
+              }
+            } catch (cacheError) {
+              console.log(`⚠️ Error updating homepage cache for cast.created: ${cacheError.message}`);
+            }
           }
         }
       }
