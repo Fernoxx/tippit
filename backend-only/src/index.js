@@ -2615,9 +2615,6 @@ async function removeFidFromWebhook(fid, reason = 'insufficient_funds') {
       return true;
     }
     
-    // Remove FID from follow.created (active users)
-    const updatedFids = trackedFids.filter(f => f !== fidInt);
-    
     // Get user address before removing (for notifications)
     const userResult = await database.pool.query(`
       SELECT user_address, latest_cast_hash 
@@ -2667,6 +2664,31 @@ async function removeFidFromWebhook(fid, reason = 'insufficient_funds') {
       await database.setTrackedFids(updatedFids);
       console.log(`✅ Removed FID ${fid} from follow.created (active users)${userCastHash ? ' and removed cast hash' : ''}`);
       await database.removeActiveCast(fidInt);
+      
+      // Send notification if user was removed due to insufficient allowance
+      if ((reason === 'insufficient_allowance' || reason === 'insufficient_funds') && userAddress) {
+        try {
+          const userConfig = await database.getUserConfig(userAddress);
+          if (userConfig && !userConfig.allowanceEmptyNotificationSent) {
+            const notificationSent = await sendNeynarNotification(
+              fidInt,
+              "Approve More Token Allowance",
+              "Your token allowance is too low. Please approve more tokens to continue earning tips!",
+              "https://ecion.vercel.app"
+            );
+            if (notificationSent) {
+              userConfig.allowanceEmptyNotificationSent = true;
+              await database.setUserConfig(userAddress, userConfig);
+              console.log(`📧 Sent allowance empty notification to FID ${fidInt} (${userAddress})`);
+            } else {
+              console.log(`⏭️ Could not send notification to FID ${fidInt} - user may not have added mini app`);
+            }
+          }
+        } catch (notifError) {
+          console.log(`⚠️ Error sending notification to FID ${fidInt}: ${notifError.message}`);
+        }
+      }
+      
       return true;
     } else {
       console.error('❌ Failed to remove FID from webhook:', await webhookResponse.text());
