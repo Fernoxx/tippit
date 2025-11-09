@@ -21,41 +21,68 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
       });
     }
     
+    // Get user config (if exists) before blockchain calls for fallback usage
+    let userConfig = await database.getUserConfig(userAddress);
+    let isExistingUser = !!userConfig;
+    const normalizedTokenAddress = (tokenAddress || userConfig?.tokenAddress || BASE_USDC_ADDRESS).toLowerCase();
+    
     // Wait for blockchain to update - only 1 attempt after 8-10 seconds
     console.log(`⏳ Waiting 8 seconds for blockchain to update...`);
     await new Promise(resolve => setTimeout(resolve, 8000)); // Wait 8 seconds
     
     // Get current allowance and balance from blockchain - single call for both
-    const provider = await getProvider();
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    let tokenDecimals = normalizedTokenAddress === BASE_USDC_ADDRESS ? 6 : 18;
+    try {
+      tokenDecimals = await getTokenDecimals(normalizedTokenAddress);
+    } catch (decimalsError) {
+      console.log(`⚠️ Failed to fetch token decimals for ${normalizedTokenAddress}: ${decimalsError?.message || decimalsError}. Using default ${tokenDecimals}.`);
+    }
+    let allowanceFormatted = '0';
+    let balanceFormatted = '0';
+    let allowanceAmount = 0;
+    let balanceAmount = 0;
+    let allowanceSource = 'blockchain';
     
-    const tokenContract = new ethers.Contract(tokenAddress, [
-      "function allowance(address owner, address spender) view returns (uint256)",
-      "function balanceOf(address owner) view returns (uint256)"
-    ], provider);
-    
-    const [allowance, balance] = await Promise.all([
-      tokenContract.allowance(userAddress, ecionBatchAddress),
-      tokenContract.balanceOf(userAddress)
-    ]);
-    
-    const tokenDecimals = await getTokenDecimals(tokenAddress);
-    const allowanceFormatted = ethers.formatUnits(allowance, tokenDecimals);
-    const balanceFormatted = ethers.formatUnits(balance, tokenDecimals);
-    const allowanceAmount = parseFloat(allowanceFormatted);
-    const balanceAmount = parseFloat(balanceFormatted);
-    
-    console.log(`📊 Blockchain check: Allowance: ${allowanceAmount}, Balance: ${balanceAmount}`);
+    try {
+      const provider = await getProvider();
+      const tokenContract = new ethers.Contract(normalizedTokenAddress, [
+        "function allowance(address owner, address spender) view returns (uint256)",
+        "function balanceOf(address owner) view returns (uint256)"
+      ], provider);
+      
+      const [allowance, balance] = await Promise.all([
+        tokenContract.allowance(userAddress, ecionBatchAddress),
+        tokenContract.balanceOf(userAddress)
+      ]);
+      
+      allowanceFormatted = ethers.formatUnits(allowance, tokenDecimals);
+      balanceFormatted = ethers.formatUnits(balance, tokenDecimals);
+      allowanceAmount = parseFloat(allowanceFormatted);
+      balanceAmount = parseFloat(balanceFormatted);
+      
+      console.log(`📊 Blockchain check: Allowance: ${allowanceAmount}, Balance: ${balanceAmount}`);
+    } catch (error) {
+      allowanceSource = 'cached';
+      const fallbackAllowance = userConfig?.lastAllowance ?? 0;
+      allowanceFormatted = fallbackAllowance.toString();
+      allowanceAmount = parseFloat(allowanceFormatted) || 0;
+      balanceFormatted = allowanceFormatted;
+      balanceAmount = allowanceAmount;
+      console.log(`⚠️ Allowance/balance check failed for ${userAddress}: ${error?.message || error}. Using cached allowance ${allowanceAmount}.`);
+    }
     
     // Get user config (if exists)
-    let userConfig = await database.getUserConfig(userAddress);
-    let isExistingUser = !!userConfig;
+    if (!userConfig) {
+      userConfig = await database.getUserConfig(userAddress);
+      isExistingUser = !!userConfig;
+    }
     
       // Create default config for new users when they approve allowance
       if (!userConfig) {
       console.log(`🆕 Creating default config for new user ${userAddress} on approval`);
       userConfig = {
-          tokenAddress: tokenAddress || BASE_USDC_ADDRESS, // USDC on Base
+          tokenAddress: normalizedTokenAddress || BASE_USDC_ADDRESS, // USDC on Base
           likeAmount: '0.005',
           replyAmount: '0',
           recastAmount: '0',
@@ -71,7 +98,7 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
         isActive: false,      // Will be set to true when added to webhook
           totalSpent: '0',
           tokenHistory: [
-            (tokenAddress || BASE_USDC_ADDRESS).toLowerCase()
+            (normalizedTokenAddress || BASE_USDC_ADDRESS)
           ]
       };
       
@@ -81,7 +108,6 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
       isExistingUser = false; // Still treat as new user for webhook logic
     }
       
-      const normalizedTokenAddress = (tokenAddress || userConfig?.tokenAddress || BASE_USDC_ADDRESS).toLowerCase();
       const cacheKey = `${userAddress.toLowerCase()}-${normalizedTokenAddress}`;
       allowanceCache.set(cacheKey, {
         allowance: allowanceFormatted,
@@ -191,7 +217,11 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
         console.log(`💰 Total enabled tip amount: ${minTipAmount} (like: ${likeEnabled ? likeAmount : 0}, recast: ${recastEnabled ? recastAmount : 0}, reply: ${replyEnabled ? replyAmount : 0}), Current allowance: ${allowanceAmount}`);
       
       // Determine webhook action based on allowance vs min tip
-      if (allowanceAmount < minTipAmount) {
+      if (allowanceSource !== 'blockchain') {
+        webhookAction = 'no_change';
+        webhookReason = 'allowance_unverified';
+        console.log(`⚠️ Allowance could not be verified on-chain for ${userAddress}. Skipping webhook updates to avoid false removals.`);
+      } else if (allowanceAmount < minTipAmount) {
         // User has insufficient allowance - should be removed from webhook
         webhookAction = 'remove';
         webhookReason = 'insufficient_allowance';
