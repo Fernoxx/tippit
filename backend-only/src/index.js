@@ -7414,25 +7414,27 @@ app.get('/api/debug/ecionbatch-status', async (req, res) => {
   }
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Ecion Backend running on port ${PORT}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV}`);
-  console.log(`⏰ Batch interval: ${process.env.BATCH_INTERVAL_MINUTES || 1} minutes`);
-  if (process.env.NODE_ENV === 'production') {
-    console.log(`🌐 Frontend also served from this Railway service`);
-  }
-  
-  // Start API polling for latest casts
-  startApiPolling();
-  
-  // Webhook filtering persists - only updates on approve/revoke transactions
-  
-  // Run cleanup once on startup (non-blocking)
-  setTimeout(() => {
-    database.cleanupOldTips().catch(err => console.log('Cleanup failed:', err.message));
-  }, 30000); // Wait 30 seconds after startup
-});
+// Start server when executed directly
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Ecion Backend running on port ${PORT}`);
+    console.log(`📊 Environment: ${process.env.NODE_ENV}`);
+    console.log(`⏰ Batch interval: ${process.env.BATCH_INTERVAL_MINUTES || 1} minutes`);
+    if (process.env.NODE_ENV === 'production') {
+      console.log(`🌐 Frontend also served from this Railway service`);
+    }
+    
+    // Start API polling for latest casts
+    startApiPolling();
+    
+    // Webhook filtering persists - only updates on approve/revoke transactions
+    
+    // Run cleanup once on startup (non-blocking)
+    setTimeout(() => {
+      database.cleanupOldTips().catch(err => console.log('Cleanup failed:', err.message));
+    }, 30000); // Wait 30 seconds after startup
+  });
+}
 
 // Force process current batch
 app.post('/api/force-process-batch', async (req, res) => {
