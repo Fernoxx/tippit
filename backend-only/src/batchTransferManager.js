@@ -515,6 +515,27 @@ class BatchTransferManager {
               
               // Check if user still has sufficient allowance + balance after tip
               const finalCheck = await this.checkAllowanceAndBalance(tip.interaction.authorAddress, tip.tokenAddress, minTipAmount);
+              
+              // Update homepage cache with new allowance after tip
+              try {
+                const { refreshActiveCastEntry, computeMinTipFromConfig } = require('./index');
+                const userFid = tip.interaction.authorFid;
+                if (userFid) {
+                  await refreshActiveCastEntry({
+                    fid: userFid,
+                    userAddress: tip.interaction.authorAddress,
+                    config: userConfig,
+                    tokenAddress: tip.tokenAddress,
+                    allowance: currentBlockchainAllowance,
+                    balance: finalCheck.balanceAmount || currentBlockchainAllowance,
+                    minTip: computeMinTipFromConfig(userConfig)
+                  });
+                  console.log(`✅ Updated homepage cache for ${tip.interaction.authorAddress} with new allowance: ${currentBlockchainAllowance}`);
+                }
+              } catch (cacheError) {
+                console.log(`⚠️ Error updating homepage cache after tip: ${cacheError.message}`);
+              }
+              
               if (!finalCheck.canAfford) {
                 let reason = 'Insufficient funds';
                 if (!finalCheck.hasSufficientAllowance) {
