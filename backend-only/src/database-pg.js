@@ -147,12 +147,13 @@ class PostgresDatabase {
         )
       `);
       
+      // Create active_casts table with quoted "cast" column (cast is a reserved keyword)
       await this.pool.query(`
         CREATE TABLE IF NOT EXISTS active_casts (
           fid BIGINT PRIMARY KEY,
           user_address TEXT NOT NULL,
           cast_hash TEXT,
-          cast JSONB,
+          "cast" JSONB,
           cast_timestamp TIMESTAMP,
           like_count INTEGER DEFAULT 0,
           recast_count INTEGER DEFAULT 0,
@@ -165,6 +166,28 @@ class PostgresDatabase {
           last_refreshed TIMESTAMP DEFAULT NOW()
         )
       `);
+      
+      // Migration: If table exists with unquoted cast column, we need to handle it
+      // PostgreSQL allows referencing reserved keywords if quoted, so we'll ensure
+      // all queries use quotes. If the column was created without quotes, it still
+      // works but must be referenced with quotes in queries.
+      try {
+        // Check if column exists and try to add it if missing (with proper quoting)
+        await this.pool.query(`
+          DO $$
+          BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns 
+              WHERE table_name = 'active_casts' AND column_name = 'cast'
+            ) THEN
+              ALTER TABLE active_casts ADD COLUMN "cast" JSONB;
+            END IF;
+          END $$;
+        `);
+      } catch (error) {
+        // Column might already exist, which is fine
+        console.log('ℹ️ Cast column migration check completed');
+      }
       
       await this.pool.query(`
         CREATE INDEX IF NOT EXISTS idx_active_casts_timestamp
@@ -1238,8 +1261,7 @@ class PostgresDatabase {
           fid,
           user_address,
           cast_hash,
-          cast,
-          cast_text,
+          "cast",
           cast_timestamp,
           like_count,
           recast_count,
@@ -1251,14 +1273,13 @@ class PostgresDatabase {
           config,
           last_refreshed
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9,
-          $10, $11, $12, $13, $14, NOW()
+          $1, $2, $3, $4, $5, $6, $7, $8,
+          $9, $10, $11, $12, $13, NOW()
         )
         ON CONFLICT (fid) DO UPDATE SET
           user_address = EXCLUDED.user_address,
           cast_hash = EXCLUDED.cast_hash,
-          cast = EXCLUDED.cast,
-          cast_text = EXCLUDED.cast_text,
+          "cast" = EXCLUDED."cast",
           cast_timestamp = EXCLUDED.cast_timestamp,
           like_count = EXCLUDED.like_count,
           recast_count = EXCLUDED.recast_count,
@@ -1274,7 +1295,6 @@ class PostgresDatabase {
         normalizedAddress,
         castHash,
         cast ? JSON.stringify(cast) : null,
-        castText,
         castTimestamp ? new Date(castTimestamp) : null,
         likeCount || 0,
         recastCount || 0,
