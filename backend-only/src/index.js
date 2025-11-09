@@ -1387,31 +1387,14 @@ app.post('/api/revoke', async (req, res) => {
     console.log(`User ${userAddress} revoked token ${tokenAddress}`);
     
     // Wait 8 seconds for blockchain to update, then check allowance and update webhook
+    // Use cached function to avoid excessive RPC calls (will make fresh call after 8 seconds)
     setTimeout(async () => {
       try {
         console.log(`⏳ Waiting 8 seconds for blockchain to update after revocation...`);
         await new Promise(resolve => setTimeout(resolve, 8000));
         
-        // Check current allowance and balance from blockchain
-        const { ethers } = require('ethers');
-        const provider = await getProvider(); // Use fallback provider
-        const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
-        
-        const tokenContract = new ethers.Contract(tokenAddress, [
-          "function allowance(address owner, address spender) view returns (uint256)",
-          "function balanceOf(address owner) view returns (uint256)"
-        ], provider);
-        
-        const [allowance, balance] = await Promise.all([
-          tokenContract.allowance(userAddress, ecionBatchAddress),
-          tokenContract.balanceOf(userAddress)
-        ]);
-        
-        const tokenDecimals = isBaseUsdcAddress(tokenAddress) ? 6 : 18;
-        const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
-        const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
-        
-        console.log(`📊 Blockchain check after revocation: Allowance: ${allowanceAmount}, Balance: ${balanceAmount}`);
+        // Use cached allowance check function (will make fresh call after 8 seconds)
+        const hasSufficientAllowance = await checkUserAllowanceForWebhook(userAddress);
         
         // Get user's FID
         const fid = await getUserFid(userAddress);
@@ -1420,31 +1403,17 @@ app.post('/api/revoke', async (req, res) => {
           return;
         }
         
-        // Check if user has sufficient allowance and balance
-        const userConfig = await database.getUserConfig(userAddress);
-        if (!userConfig) {
-          console.log(`⚠️ No config found for user ${userAddress}`);
-          return;
-        }
-        
-        const likeAmount = parseFloat(userConfig.likeAmount || '0');
-        const recastAmount = parseFloat(userConfig.recastAmount || '0');
-        const replyAmount = parseFloat(userConfig.replyAmount || '0');
-        const minTipAmount = likeAmount + recastAmount + replyAmount;
-        
-        if (allowanceAmount < minTipAmount || balanceAmount < minTipAmount) {
-          console.log(`✅ User ${userAddress} has insufficient allowance (${allowanceAmount}) or balance (${balanceAmount}) - removing from webhook`);
+        if (!hasSufficientAllowance) {
+          console.log(`✅ User ${userAddress} has insufficient allowance - removing from webhook`);
           const removed = await removeFidFromWebhook(fid);
           if (removed) {
-            console.log(`✅ FID ${fid} removed from webhook`);
-          } else {
-            console.log(`ℹ️ FID ${fid} not in webhook or failed to remove`);
+            console.log(`✅ Removed FID ${fid} from webhook after revocation`);
           }
         } else {
-          console.log(`ℹ️ User ${userAddress} still has sufficient allowance and balance - keeping in webhook`);
+          console.log(`✅ User ${userAddress} still has sufficient allowance - keeping in webhook`);
         }
       } catch (error) {
-        console.error(`❌ Error checking allowance and updating webhook for ${userAddress}:`, error);
+        console.error(`❌ Error checking allowance and updating webhook for ${userAddress}:`, error.message);
       }
     }, 0);
     
