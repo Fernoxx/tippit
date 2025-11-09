@@ -26,6 +26,8 @@ try {
 const BASE_USDC_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
 const allowanceCache = global.__allowanceCache || (global.__allowanceCache = new Map());
 const ALLOWANCE_CACHE_TTL_MS = Math.max(10000, parseInt(process.env.ALLOWANCE_CACHE_TTL_MS || '30000', 10) || 30000);
+const SHOULD_LOG_API_REQUESTS = process.env.LOG_API_REQUESTS === 'true' || process.env.NODE_ENV !== 'production';
+const isBaseUsdcAddress = (address) => (address || '').toLowerCase() === BASE_USDC_ADDRESS;
 
 // Initialize batchTransferManager
 console.log('🔄 Initializing batchTransferManager...');
@@ -705,11 +707,13 @@ app.post('/webhook/neynar', (req, res) => {
 
 // API request logging (CORS is handled by cors middleware above)
 app.use('/api/*', (req, res, next) => {
-  console.log('📡 API Request:', {
-    method: req.method,
-    path: req.path,
-    origin: req.headers.origin
-  });
+  if (SHOULD_LOG_API_REQUESTS) {
+    console.log('📡 API Request:', {
+      method: req.method,
+      path: req.path,
+      origin: req.headers.origin
+    });
+  }
   next();
 });
 
@@ -1229,7 +1233,7 @@ app.post('/api/approve', async (req, res) => {
             tokenContract.balanceOf(userAddress)
           ]);
           
-          const tokenDecimals = tokenAddress === '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' ? 6 : 18;
+          const tokenDecimals = isBaseUsdcAddress(tokenAddress) ? 6 : 18;
           const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
           const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
           
@@ -1276,7 +1280,7 @@ app.post('/api/approve', async (req, res) => {
           tokenContract.balanceOf(userAddress)
         ]);
         
-        const tokenDecimals = tokenAddress === '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' ? 6 : 18;
+        const tokenDecimals = isBaseUsdcAddress(tokenAddress) ? 6 : 18;
         const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
         const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
         
@@ -1367,7 +1371,7 @@ app.post('/api/revoke', async (req, res) => {
           tokenContract.balanceOf(userAddress)
         ]);
         
-        const tokenDecimals = tokenAddress === '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' ? 6 : 18;
+        const tokenDecimals = isBaseUsdcAddress(tokenAddress) ? 6 : 18;
         const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
         const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
         
@@ -2186,7 +2190,7 @@ async function checkUserAllowanceForWebhook(userAddress) {
       tokenContract.balanceOf(userAddress)
     ]);
     
-    const tokenDecimals = tokenAddress === '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' ? 6 : 18;
+    const tokenDecimals = isBaseUsdcAddress(tokenAddress) ? 6 : 18;
     const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
     const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
     
@@ -2461,7 +2465,7 @@ async function updateUserWebhookStatus(userAddress) {
       tokenContract.balanceOf(userAddress)
     ]);
     
-    const tokenDecimals = tokenAddress === '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' ? 6 : 18;
+    const tokenDecimals = isBaseUsdcAddress(tokenAddress) ? 6 : 18;
     const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
     const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
     
@@ -5359,7 +5363,7 @@ app.get('/api/debug/user-config-allowance', async (req, res) => {
       tokenContract.balanceOf(userAddress)
     ]);
     
-    const tokenDecimals = tokenAddress === '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' ? 6 : 18;
+    const tokenDecimals = isBaseUsdcAddress(tokenAddress) ? 6 : 18;
     const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
     const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
     

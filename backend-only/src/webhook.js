@@ -15,6 +15,7 @@ const instantTipProcessor = require('./instantTipProcessor');
 const tipQueueManager = require('./tipQueueManager');
 const batchTransferManager = require('./batchTransferManager');
 // Using webhook filtering based on allowance and balance checks
+const BASE_USDC_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
 
 // Verify webhook signature from Neynar
 function verifyWebhookSignature(req) {
@@ -249,7 +250,7 @@ async function webhookHandler(req, res) {
       const { getProvider } = require('./rpcProvider');
       const provider = await getProvider();
       const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
-      const tokenAddress = authorConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+      const tokenAddress = authorConfig.tokenAddress || BASE_USDC_ADDRESS;
       
       try {
         const tokenContract = new ethers.Contract(tokenAddress, [
@@ -262,7 +263,8 @@ async function webhookHandler(req, res) {
           tokenContract.balanceOf(interaction.authorAddress)
         ]);
         
-        const tokenDecimals = tokenAddress === '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' ? 6 : 18;
+        const tokenLower = (tokenAddress || '').toLowerCase();
+        const tokenDecimals = tokenLower === BASE_USDC_ADDRESS ? 6 : 18;
         const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
         const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
         
