@@ -215,6 +215,7 @@ const [criteria, setCriteria] = useState({
     // 1. User clicks approve button
     // 2. User clicks revoke button
     // 3. After transaction confirms (handled in usePIT.ts)
+    // 4. User visits allowance tab (fetch once for display)
     if (selectedToken && userConfig?.lastAllowance !== undefined) {
       const cachedAllowance = normalizeAllowance(userConfig.lastAllowance);
       setDisplayAllowance(cachedAllowance);
@@ -225,6 +226,18 @@ const [criteria, setCriteria] = useState({
       setAllowanceCache(prev => ({ ...prev, [selectedToken]: tokenAllowance }));
     }
   }, [userConfig?.lastAllowance, selectedToken, tokenAllowance]);
+
+  // Fetch allowance when user visits allowance tab (for display only)
+  useEffect(() => {
+    if (activeTab === 'allowance' && selectedToken && address && !isAllowanceLoading) {
+      // Only fetch if we don't have cached value for this token
+      const cacheKey = selectedToken.toLowerCase();
+      if (!allowanceCache[cacheKey] || allowanceCache[cacheKey] === '0') {
+        console.log('🔍 Fetching allowance for display on allowance tab');
+        fetchTokenAllowance(selectedToken);
+      }
+    }
+  }, [activeTab, selectedToken, address]);
 
   const lookupTokenName = async (
     tokenAddress: string,

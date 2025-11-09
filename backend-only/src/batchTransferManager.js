@@ -498,14 +498,16 @@ class BatchTransferManager {
               ], provider);
               
               const allowance = await tokenContract.allowance(tip.interaction.authorAddress, ecionBatchAddress);
-              const tokenDecimals = tip.tokenAddress === '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' ? 6 : 18;
+              // Use correct decimals: USDC = 6, other tokens = 18
+              const isUSDC = tip.tokenAddress.toLowerCase() === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
+              const tokenDecimals = isUSDC ? 6 : 18;
               const currentBlockchainAllowance = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
               
-              userConfig.lastAllowance = currentBlockchainAllowance;
+              userConfig.lastAllowance = currentBlockchainAllowance.toFixed(isUSDC ? 6 : 18);
               userConfig.lastAllowanceCheck = Date.now();
               
               await database.setUserConfig(tip.interaction.authorAddress, userConfig);
-              console.log(`💾 Updated allowance for ${tip.interaction.authorAddress}: ${userConfig.lastAllowance || 0} → ${currentBlockchainAllowance} (from blockchain)`);
+              console.log(`💾 Updated allowance for ${tip.interaction.authorAddress}: ${parseFloat(userConfig.lastAllowance || 0)} → ${currentBlockchainAllowance} (from blockchain, ${tokenDecimals} decimals)`);
               
               // Check if user should be removed from webhook
               const likeAmount = parseFloat(userConfig.likeAmount || '0');

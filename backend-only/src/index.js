@@ -4289,24 +4289,47 @@ app.get('/api/homepage', async (req, res) => {
 
     formatted.sort((a, b) => {
       // Primary sort: USDC tokens first, then other tokens
-      // Check token address directly from the tipper object
       const aTokenAddress = (a.cast?.tipper?.tokenAddress || '').toLowerCase();
       const bTokenAddress = (b.cast?.tipper?.tokenAddress || '').toLowerCase();
-      const aIsUSDC = aTokenAddress === BASE_USDC_ADDRESS || (!aTokenAddress && a.cast?.tipper?.likeAmount !== undefined);
-      const bIsUSDC = bTokenAddress === BASE_USDC_ADDRESS || (!bTokenAddress && b.cast?.tipper?.likeAmount !== undefined);
+      const aIsUSDC = aTokenAddress === BASE_USDC_ADDRESS;
+      const bIsUSDC = bTokenAddress === BASE_USDC_ADDRESS;
       
       if (aIsUSDC !== bIsUSDC) {
-        // USDC comes first (return -1 means a comes before b)
+        // USDC comes first
         return aIsUSDC ? -1 : 1;
       }
       
-      // For USDC users: Sort by allowance amount (highest first), then latest cast timestamp
+      // For USDC users: Sort by number of enabled configs (3 > 2 > 1), then total amount, then timestamp
       if (aIsUSDC && bIsUSDC) {
-        // Primary: Allowance amount (highest first)
-        if (Math.abs(a.allowance - b.allowance) > 0.0001) {
-          return b.allowance - a.allowance;
+        const aConfig = a.cast?.tipper || {};
+        const bConfig = b.cast?.tipper || {};
+        
+        // Count enabled configs
+        const aEnabledCount = (aConfig.likeEnabled ? 1 : 0) + 
+                              (aConfig.recastEnabled ? 1 : 0) + 
+                              (aConfig.replyEnabled ? 1 : 0);
+        const bEnabledCount = (bConfig.likeEnabled ? 1 : 0) + 
+                              (bConfig.recastEnabled ? 1 : 0) + 
+                              (bConfig.replyEnabled ? 1 : 0);
+        
+        // Primary: Number of enabled configs (more enabled = higher priority)
+        if (aEnabledCount !== bEnabledCount) {
+          return bEnabledCount - aEnabledCount;
         }
-        // Secondary: Latest cast timestamp (newest first)
+        
+        // Secondary: Total amount (sum of enabled configs)
+        const aTotalAmount = (aConfig.likeEnabled ? (parseFloat(aConfig.likeAmount) || 0) : 0) +
+                            (aConfig.recastEnabled ? (parseFloat(aConfig.recastAmount) || 0) : 0) +
+                            (aConfig.replyEnabled ? (parseFloat(aConfig.replyAmount) || 0) : 0);
+        const bTotalAmount = (bConfig.likeEnabled ? (parseFloat(bConfig.likeAmount) || 0) : 0) +
+                            (bConfig.recastEnabled ? (parseFloat(bConfig.recastAmount) || 0) : 0) +
+                            (bConfig.replyEnabled ? (parseFloat(bConfig.replyAmount) || 0) : 0);
+        
+        if (Math.abs(aTotalAmount - bTotalAmount) > 0.0001) {
+          return bTotalAmount - aTotalAmount;
+        }
+        
+        // Tertiary: Latest cast timestamp (newest first)
         return b.timestamp - a.timestamp;
       }
       
