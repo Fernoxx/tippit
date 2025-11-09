@@ -624,12 +624,30 @@ export const useLeaderboardData = (timeFilter: '24h' | '7d' | '30d' = '24h') => 
   console.log('🔍 usePIT user data:', { walletUser, sdkUser, currentUser, userFid });
 
   useEffect(() => {
-    fetchLeaderboardData(1, true); // Reset to page 1 when timeFilter or userFid changes
+    // Use AbortController to cancel previous requests when timeFilter changes
+    const abortController = new AbortController();
+    let requestId = Date.now(); // Track this request
+    
+    const fetchData = async () => {
+      fetchLeaderboardData(1, true, abortController.signal, requestId);
+    };
+    
+    fetchData();
+    
+    // Cleanup: abort request if timeFilter changes before it completes
+    return () => {
+      abortController.abort();
+    };
   }, [timeFilter, userFid]);
 
   // No auto-refresh - only refresh when user changes time filter
 
-  const fetchLeaderboardData = async (page: number = 1, reset: boolean = false) => {
+  const fetchLeaderboardData = async (
+    page: number = 1, 
+    reset: boolean = false,
+    signal?: AbortSignal,
+    requestId?: number
+  ) => {
     if (page === 1) {
       setIsLoading(true);
     } else {
@@ -642,13 +660,26 @@ export const useLeaderboardData = (timeFilter: '24h' | '7d' | '30d' = '24h') => 
         ? `${BACKEND_URL}/api/leaderboard?timeFilter=${timeFilter}&page=${page}&limit=10&userFid=${userFid}`
         : `${BACKEND_URL}/api/leaderboard?timeFilter=${timeFilter}&page=${page}&limit=10`;
         
-      console.log('🔍 usePIT API call:', { userFid, url });
+      console.log('🔍 usePIT API call:', { userFid, url, requestId });
         
-      const response = await fetch(url);
+      const response = await fetch(url, { signal });
+      
+      // Check if request was aborted
+      if (signal?.aborted) {
+        console.log('🚫 Request aborted for timeFilter:', timeFilter);
+        return;
+      }
+      
       if (response.ok) {
         const data = await response.json();
-        console.log('🔍 Leaderboard API response:', data);
+        console.log('🔍 Leaderboard API response:', data, 'requestId:', requestId);
         console.log('📊 User stats from API:', data.userStats);
+        
+        // Check again if request was aborted before updating state
+        if (signal?.aborted) {
+          console.log('🚫 Request aborted before state update for timeFilter:', timeFilter);
+          return;
+        }
         
         if (reset || page === 1) {
           // Replace data for first page or reset
@@ -672,7 +703,12 @@ export const useLeaderboardData = (timeFilter: '24h' | '7d' | '30d' = '24h') => 
         setCurrentPage(page);
         setHasMore(data.pagination?.hasMore || false);
       }
-    } catch (error) {
+    } catch (error: any) {
+      // Ignore abort errors
+      if (error.name === 'AbortError') {
+        console.log('🚫 Request aborted:', timeFilter);
+        return;
+      }
       console.error('Error fetching leaderboard data:', error);
       if (reset || page === 1) {
         setLeaderboardData({
@@ -683,10 +719,13 @@ export const useLeaderboardData = (timeFilter: '24h' | '7d' | '30d' = '24h') => 
         });
         setUserStats(null);
       }
+    } finally {
+      // Only update loading state if request wasn't aborted
+      if (!signal?.aborted) {
+        setIsLoading(false);
+        setIsLoadingMore(false);
+      }
     }
-    
-    setIsLoading(false);
-    setIsLoadingMore(false);
   };
 
   const loadMore = () => {
