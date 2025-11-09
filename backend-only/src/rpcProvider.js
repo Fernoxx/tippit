@@ -144,8 +144,11 @@ class RPCProviderManager {
                           error.message?.includes('Service Unavailable') ||
                           error.message?.includes('SERVER_ERROR') ||
                           error.message?.includes('network') ||
+                          error.message?.includes('missing revert data') ||
+                          error.message?.includes('CALL_EXCEPTION') ||
                           error.code === 'SERVER_ERROR' ||
-                          error.code === 'NETWORK_ERROR';
+                          error.code === 'NETWORK_ERROR' ||
+                          error.code === 'CALL_EXCEPTION';
         
         if (isRpcError && retryCount < maxRetries) {
           // Try next provider

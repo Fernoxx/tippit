@@ -998,7 +998,8 @@ app.get('/api/check-allowance', async (req, res) => {
       return res.status(400).json({ error: 'userAddress and tokenAddress are required' });
     }
     
-  const { ethers } = require('ethers');
+    const { ethers } = require('ethers');
+    const provider = await getProvider(); // Use fallback provider
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     
     const tokenContract = new ethers.Contract(tokenAddress, [
