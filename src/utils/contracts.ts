@@ -12,7 +12,29 @@ export const USDC_BASE = {
 };
 
 // Helper function to format amounts (no longer needed with backend-only)
-export const formatAmount = (amount: string | number): string => {
-  if (typeof amount === 'string') return amount;
-  return amount.toString();
+export const formatAmount = (amount: string | number | null | undefined): string => {
+  if (amount === null || amount === undefined) {
+    return '0';
+  }
+
+  const num = typeof amount === 'number' ? amount : Number(amount);
+
+  if (!Number.isFinite(num)) {
+    return typeof amount === 'string' ? amount : '0';
+  }
+
+  if (num === 0) {
+    return '0';
+  }
+
+  const absolute = Math.abs(num);
+
+  if (absolute < 0.000001) {
+    return '<0.000001';
+  }
+
+  return num.toLocaleString('en-US', {
+    minimumFractionDigits: absolute >= 1 ? 0 : 2,
+    maximumFractionDigits: 6
+  });
 };

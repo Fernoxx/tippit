@@ -69,8 +69,19 @@ export default function Settings() {
   const [amountErrors, setAmountErrors] = useState<{[key: string]: string}>({});
   const [isApprovingLocal, setIsApprovingLocal] = useState(false);
   const [isRevokingLocal, setIsRevokingLocal] = useState(false);
-const [displayAllowance, setDisplayAllowance] = useState<string>('0');
-const [allowanceCache, setAllowanceCache] = useState<Record<string, string>>({});
+  const [displayAllowance, setDisplayAllowance] = useState<string>('0');
+  const [allowanceCache, setAllowanceCache] = useState<Record<string, string>>({});
+
+  const normalizeAllowance = (value: string | number | null | undefined): string => {
+    if (value === null || value === undefined) return '0';
+    const num = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(num) || num === 0) return '0';
+    const absolute = Math.abs(num);
+    if (absolute >= 1) return num.toString();
+    const fixed = num.toFixed(6);
+    const trimmed = fixed.replace(/(\.\d*?[1-9])0+$/, '$1').replace(/\.0+$/, '');
+    return trimmed === '-0' ? '0' : trimmed;
+  };
   
   // Validate tip amount (minimum $0.005)
   const validateAmount = (value: string, key: string) => {
@@ -165,9 +176,10 @@ const [criteria, setCriteria] = useState({
         setSelectedToken(userTokenAddress);
         setCustomTokenAddress(userTokenAddress);
         lookupTokenName(userTokenAddress, { updateSelected: true });
-      const lastAllowanceValue = (userConfig.lastAllowance ?? '0').toString();
-      setAllowanceCache(prev => ({ ...prev, [userTokenAddress]: lastAllowanceValue }));
-      setDisplayAllowance(lastAllowanceValue);
+      const lastAllowanceValueRaw = userConfig.lastAllowance ?? '0';
+      const normalizedAllowance = normalizeAllowance(lastAllowanceValueRaw);
+      setAllowanceCache(prev => ({ ...prev, [userTokenAddress]: normalizedAllowance }));
+      setDisplayAllowance(normalizedAllowance);
         
         const historySet = new Set<string>();
         historySet.add(userTokenAddress);
@@ -286,7 +298,7 @@ const [criteria, setCriteria] = useState({
         // Fetch allowance for display (no webhook updates)
         if (address) {
           console.log('🔍 Fetching allowance for new token selection');
-          fetchTokenAllowance(normalized);
+          fetchTokenAllowance(normalized, { force: true });
         }
       } else {
         setIsValidToken(false);
@@ -307,7 +319,7 @@ const [criteria, setCriteria] = useState({
   useEffect(() => {
     if (userConfig?.tokenAddress && address) {
       console.log('🔍 Fetching allowance for display on settings page');
-      fetchTokenAllowance(userConfig.tokenAddress);
+      fetchTokenAllowance(userConfig.tokenAddress, { force: true });
     }
   }, [userConfig?.tokenAddress, address, fetchTokenAllowance]);
 

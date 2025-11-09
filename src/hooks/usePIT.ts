@@ -62,6 +62,27 @@ export const useEcion = () => {
   const [pendingTxHash, setPendingTxHash] = useState<string | null>(null);
   
   const { writeContract, data: txHash, isPending: isTxPending, error: txError } = useWriteContract();
+
+  const normalizeAmountString = (value: string | number | null | undefined): string => {
+    if (value === null || value === undefined) {
+      return '0';
+    }
+
+    const num = typeof value === 'number' ? value : Number(value);
+
+    if (!Number.isFinite(num) || num === 0) {
+      return '0';
+    }
+
+    const absolute = Math.abs(num);
+    if (absolute >= 1) {
+      return num.toString();
+    }
+
+    const fixed = num.toFixed(6);
+    const trimmed = fixed.replace(/(\.\d*?[1-9])0+$/, '$1').replace(/\.0+$/, '');
+    return trimmed === '-0' ? '0' : trimmed;
+  };
   
   // Wait for transaction confirmation
   const { isLoading: isTxConfirming, isSuccess: isTxSuccess, isError: isTxError } = useWaitForTransactionReceipt({
@@ -80,16 +101,15 @@ export const useEcion = () => {
     if (isTxSuccess && pendingTxHash) {
       console.log('✅ Transaction confirmed, updating allowance and webhooks...');
       
-      // Show success message
       toast.success('Transaction confirmed successfully!', { duration: 2000 });
       
-      if (userConfig?.tokenAddress) {
-        // Wait for blockchain to update, then update webhook status
-        setTimeout(async () => {
-          console.log('🔄 Updating webhook status after transaction confirmation...');
-          updateAllowanceAndWebhooks(userConfig.tokenAddress);
-        }, 12000); // Wait 12 seconds for blockchain to update
+      const tokenToRefresh = userConfig?.tokenAddress;
+      if (tokenToRefresh) {
+        console.log('🔄 Refreshing allowance immediately after confirmation');
+        fetchTokenAllowance(tokenToRefresh, { force: true });
+        updateAllowanceAndWebhooks(tokenToRefresh);
       }
+
       setPendingTxHash(null);
     }
     
@@ -309,23 +329,29 @@ export const useEcion = () => {
     setIsRevokingAllowance(false);
   };
 
-  const fetchTokenAllowance = async (tokenAddress: string) => {
+  const fetchTokenAllowance = async (tokenAddress: string, options: { force?: boolean } = {}) => {
     if (!address) return;
+    const { force = false } = options;
     
     try {
       console.log('🔍 Fetching allowance for token:', tokenAddress);
       setIsAllowanceLoading(true);
-      setTokenAllowance(null);
-      const response = await fetch(`${BACKEND_URL}/api/allowance/${address}/${tokenAddress}`);
+      if (force) {
+        setTokenAllowance(null);
+      }
+
+      const query = force ? '?force=true' : '';
+      const response = await fetch(`${BACKEND_URL}/api/allowance/${address}/${tokenAddress}${query}`);
       if (response.ok) {
         const data = await response.json();
         console.log('✅ Allowance response:', data);
-        setTokenAllowance(data.allowance);
+        const normalized = normalizeAmountString(data.allowance);
+        setTokenAllowance(normalized);
       } else if (response.status === 429 || response.status === 500) {
         console.warn(`⚠️ Allowance fetch rate-limited (${response.status}) - falling back to cached value`);
         if (userConfig?.tokenAddress?.toLowerCase() === tokenAddress.toLowerCase()) {
           const cachedAllowance = userConfig.lastAllowance ?? '0';
-          setTokenAllowance(cachedAllowance.toString());
+          setTokenAllowance(normalizeAmountString(cachedAllowance));
         } else {
           setTokenAllowance('0');
         }
@@ -339,7 +365,7 @@ export const useEcion = () => {
       if (message.includes('rate limit')) {
         if (userConfig?.tokenAddress?.toLowerCase() === tokenAddress.toLowerCase()) {
           const cachedAllowance = userConfig.lastAllowance ?? '0';
-          setTokenAllowance(cachedAllowance.toString());
+          setTokenAllowance(normalizeAmountString(cachedAllowance));
         } else {
           setTokenAllowance('0');
         }
@@ -373,19 +399,20 @@ export const useEcion = () => {
       if (response.ok) {
         const data = await response.json();
         console.log('✅ Allowance and webhooks updated:', data);
-        setTokenAllowance(data.allowance);
+        const normalized = normalizeAmountString(data.allowance);
+        setTokenAllowance(normalized);
           await fetchUserConfig();
         
         // Success message will be shown by transaction confirmation
       } else {
         console.error('❌ Failed to update allowance:', response.status);
         // Fallback to regular allowance fetch
-        fetchTokenAllowance(tokenAddress);
+        fetchTokenAllowance(tokenAddress, { force: true });
       }
     } catch (error) {
       console.error('Error updating allowance and webhooks:', error);
       // Fallback to regular allowance fetch
-      fetchTokenAllowance(tokenAddress);
+      fetchTokenAllowance(tokenAddress, { force: true });
     }
   };
 
