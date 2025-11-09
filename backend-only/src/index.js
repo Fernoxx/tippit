@@ -7868,6 +7868,174 @@ app.get('/api/admin/tip-history', async (req, res) => {
   }
 });
 
+// Admin utility: reconcile active users who have allowance but are not tracked
+app.post('/api/admin/reconcile-active-users', async (req, res) => {
+  try {
+    const adminKey = req.headers['x-admin-key'] || req.body?.adminKey;
+    if (process.env.ADMIN_API_KEY && adminKey !== process.env.ADMIN_API_KEY) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const targetFids = Array.isArray(req.body?.fids)
+      ? req.body.fids.map(fid => parseInt(fid, 10)).filter(Number.isFinite)
+      : [];
+
+    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    const trackedFids = await database.getTrackedFids();
+    const trackedSet = new Set(trackedFids.map(Number));
+
+    let query = `
+      SELECT fid, LOWER(user_address) AS user_address
+      FROM user_profiles
+      WHERE user_address IS NOT NULL
+    `;
+    const queryParams = [];
+
+    if (targetFids.length > 0) {
+      queryParams.push(targetFids);
+      query += ` AND fid = ANY($${queryParams.length}::bigint[])`;
+    }
+
+    query += ' ORDER BY fid ASC';
+
+    const profiles = (await database.pool.query(query, queryParams)).rows;
+    const summary = {
+      success: true,
+      totalProfiles: profiles.length,
+      added: [],
+      skipped: [],
+      errors: []
+    };
+
+    const { ethers } = require('ethers');
+
+    for (const profile of profiles) {
+      const fid = Number(profile.fid);
+      const userAddress = profile.user_address;
+
+      if (!fid || !userAddress) {
+        summary.skipped.push({ fid, userAddress, reason: 'missing_fid_or_address' });
+        continue;
+      }
+
+      let userConfig;
+      try {
+        userConfig = await database.getUserConfig(userAddress);
+      } catch (error) {
+        summary.errors.push({ fid, userAddress, reason: 'config_fetch_failed', error: error.message });
+        continue;
+      }
+
+      if (!userConfig) {
+        summary.skipped.push({ fid, userAddress, reason: 'no_config' });
+        continue;
+      }
+
+      const likeEnabled = userConfig.likeEnabled === true || userConfig.likeEnabled === 'true' || userConfig.likeEnabled === 1;
+      const recastEnabled = userConfig.recastEnabled === true || userConfig.recastEnabled === 'true' || userConfig.recastEnabled === 1;
+      const replyEnabled = userConfig.replyEnabled === true || userConfig.replyEnabled === 'true' || userConfig.replyEnabled === 1;
+
+      const likeAmount = parseFloat(userConfig.likeAmount || '0') || 0;
+      const recastAmount = parseFloat(userConfig.recastAmount || '0') || 0;
+      const replyAmount = parseFloat(userConfig.replyAmount || '0') || 0;
+
+      const minTipAmount =
+        (likeEnabled ? likeAmount : 0) +
+        (recastEnabled ? recastAmount : 0) +
+        (replyEnabled ? replyAmount : 0);
+
+      if (minTipAmount <= 0) {
+        summary.skipped.push({ fid, userAddress, reason: 'no_enabled_tips', minTipAmount });
+        continue;
+      }
+
+      const tokenAddress = (userConfig.tokenAddress || BASE_USDC_ADDRESS).toLowerCase();
+      let allowanceAmount = 0;
+      let balanceAmount = 0;
+
+      try {
+        const tokenDecimals = await getTokenDecimals(tokenAddress);
+        const [allowanceRaw, balanceRaw] = await executeWithFallback(async (provider) => {
+          const tokenContract = new ethers.Contract(tokenAddress, [
+            "function allowance(address owner, address spender) view returns (uint256)",
+            "function balanceOf(address owner) view returns (uint256)"
+          ], provider);
+          return Promise.all([
+            tokenContract.allowance(userAddress, ecionBatchAddress),
+            tokenContract.balanceOf(userAddress)
+          ]);
+        }, 4);
+
+        allowanceAmount = parseFloat(ethers.formatUnits(allowanceRaw, tokenDecimals));
+        balanceAmount = parseFloat(ethers.formatUnits(balanceRaw, tokenDecimals));
+      } catch (error) {
+        summary.errors.push({ fid, userAddress, reason: 'rpc_error', error: error.message });
+        continue;
+      }
+
+      if (allowanceAmount < minTipAmount || balanceAmount < minTipAmount) {
+        summary.skipped.push({
+          fid,
+          userAddress,
+          reason: 'insufficient_allowance_or_balance',
+          allowance: allowanceAmount,
+          balance: balanceAmount,
+          minTipAmount
+        });
+        continue;
+      }
+
+      if (trackedSet.has(fid)) {
+        summary.skipped.push({
+          fid,
+          userAddress,
+          reason: 'already_tracked',
+          allowance: allowanceAmount,
+          balance: balanceAmount,
+          minTipAmount
+        });
+        continue;
+      }
+
+      try {
+        const added = await addFidToWebhook(fid);
+        if (added) {
+          summary.added.push({
+            fid,
+            userAddress,
+            allowance: allowanceAmount,
+            balance: balanceAmount,
+            minTipAmount
+          });
+          trackedSet.add(fid);
+
+          userConfig.isActive = true;
+          await database.setUserConfig(userAddress, userConfig);
+
+          await database.pool.query(`
+            UPDATE user_profiles 
+            SET is_tracking = true, updated_at = NOW()
+            WHERE fid = $1
+          `, [fid]);
+        } else {
+          summary.errors.push({ fid, userAddress, reason: 'webhook_add_failed' });
+        }
+      } catch (error) {
+        summary.errors.push({ fid, userAddress, reason: 'webhook_error', error: error.message });
+      }
+    }
+
+    summary.addedCount = summary.added.length;
+    summary.skippedCount = summary.skipped.length;
+    summary.errorCount = summary.errors.length;
+
+    res.json(summary);
+  } catch (error) {
+    console.error('❌ Error reconciling active users:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Export functions for use in other modules
 module.exports = {
   app,
