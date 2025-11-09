@@ -227,18 +227,7 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
             }
           }
         } else if (webhookAction === 'add') {
-          // Check if user also has sufficient balance (not just allowance)
-          // This prevents re-adding users who have allowance but insufficient balance
-          const { ethers } = require('ethers');
-          const { getProvider } = require('./rpcProvider');
-          const provider = await getProvider();
-          const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
-          const tokenContract = new ethers.Contract(tokenAddress, [
-            "function balanceOf(address owner) view returns (uint256)"
-          ], provider);
-          const balance = await tokenContract.balanceOf(userAddress);
-          const tokenDecimals = tokenAddress === '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' ? 6 : 18;
-          const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
+          // Re-use previously fetched balance so decimals stay consistent (USDC = 6)
           const hasSufficientBalance = balanceAmount >= minTipAmount;
           
           // Only add to webhook if user has BOTH sufficient allowance AND balance
