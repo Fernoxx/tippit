@@ -295,10 +295,18 @@ const [criteria, setCriteria] = useState({
           const next = [normalized, ...prev.filter(addr => addr !== normalized)];
           return next;
         });
-        // Fetch allowance for display (no webhook updates)
+        // REMOVED: Automatic allowance fetching when token changes
+        // Allowance will only be fetched when user clicks approve button
+        // or after transaction confirms (handled in usePIT.ts)
+        // Use cached value if available, otherwise show 0
         if (address) {
-          console.log('🔍 Fetching allowance for new token selection');
-          fetchTokenAllowance(normalized, { force: true });
+          const cacheKey = normalized.toLowerCase();
+          const cachedAllowance = allowanceCache[cacheKey];
+          if (cachedAllowance) {
+            setDisplayAllowance(cachedAllowance);
+          } else {
+            setDisplayAllowance('0');
+          }
         }
       } else {
         setIsValidToken(false);
@@ -315,13 +323,12 @@ const [criteria, setCriteria] = useState({
       setShowTokenDropdown(false);
     };
 
-  // Fetch allowance when user config loads (for display only - no webhook updates)
-  useEffect(() => {
-    if (userConfig?.tokenAddress && address) {
-      console.log('🔍 Fetching allowance for display on settings page');
-      fetchTokenAllowance(userConfig.tokenAddress, { force: true });
-    }
-  }, [userConfig?.tokenAddress, address, fetchTokenAllowance]);
+  // REMOVED: Automatic allowance fetching on page load
+  // Allowance will only be fetched when:
+  // 1. User clicks approve button (to check balance before approving)
+  // 2. After approve transaction confirms (handled in usePIT.ts)
+  // 3. When user manually selects a token (handled in handleTokenAddressChange)
+  // This prevents excessive RPC calls
 
   // Close dropdown when clicking outside
   useEffect(() => {
