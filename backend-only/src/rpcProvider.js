@@ -19,13 +19,19 @@ class RPCProviderManager {
       });
     }
     
-    // 2. Infura (fallback)
+    // 2. Infura (fallback) - Skip if pointing to testnet
     if (process.env.INFURA_BASE_RPC_URL) {
-      this.providers.push({
-        name: 'Infura',
-        url: process.env.INFURA_BASE_RPC_URL,
-        priority: 2
-      });
+      const infuraUrl = process.env.INFURA_BASE_RPC_URL;
+      // Skip if pointing to testnet (base-sepolia)
+      if (!infuraUrl.includes('base-sepolia')) {
+        this.providers.push({
+          name: 'Infura',
+          url: infuraUrl,
+          priority: 2
+        });
+      } else {
+        console.log('⚠️ Skipping Infura - URL points to testnet (base-sepolia), should be base-mainnet');
+      }
     }
     
     // 3. QuickNode (optional fallback)
@@ -66,25 +72,24 @@ class RPCProviderManager {
   
   /**
    * Get the current provider (with automatic fallback on failure)
+   * REMOVED: Health check to avoid excessive RPC calls
+   * Provider will be tested only when actually used
    */
   async getProvider() {
-    // Try current provider first
+    // Return current provider without health check to avoid rate limits
+    // Health check happens only when provider actually fails during use
     if (this.currentProvider) {
-      try {
-        // Quick health check
-        await this.currentProvider.getBlockNumber();
-        return this.currentProvider;
-      } catch (error) {
-        console.log(`⚠️ Current provider (${this.providers[this.currentProviderIndex].name}) failed: ${error.message}`);
-        return await this.fallbackToNextProvider();
-      }
+      return this.currentProvider;
     }
     
+    // Initialize if not set
+    this.initializeProvider();
     return this.currentProvider;
   }
   
   /**
    * Fallback to next available provider
+   * REMOVED: Health check to avoid excessive RPC calls
    */
   async fallbackToNextProvider() {
     // Try next providers in order
@@ -95,8 +100,8 @@ class RPCProviderManager {
       try {
         const testProvider = new ethers.JsonRpcProvider(providerConfig.url);
         
-        // Test the provider
-        await testProvider.getBlockNumber();
+        // REMOVED: Health check - provider will be tested when actually used
+        // This prevents excessive getBlockNumber() calls that cause rate limits
         
         // If successful, switch to this provider
         this.currentProvider = testProvider;

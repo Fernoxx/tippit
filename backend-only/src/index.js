@@ -1275,35 +1275,15 @@ app.post('/api/approve', async (req, res) => {
         // For existing users, check if they have config and add to webhook if sufficient allowance
         const userConfig = await database.getUserConfig(userAddress);
         if (userConfig) {
-          // Check if user has sufficient allowance/balance before adding to webhook
-          const { ethers } = require('ethers');
-          const provider = await getProvider();
-          const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
-          const tokenContract = new ethers.Contract(tokenAddress, [
-            "function allowance(address owner, address spender) view returns (uint256)",
-            "function balanceOf(address owner) view returns (uint256)"
-          ], provider);
+          // Use cached allowance check function (has 5-minute cache to avoid excessive RPC calls)
+          const hasSufficientAllowance = await checkUserAllowanceForWebhook(userAddress);
           
-          const [allowance, balance] = await Promise.all([
-            tokenContract.allowance(userAddress, ecionBatchAddress),
-            tokenContract.balanceOf(userAddress)
-          ]);
-          
-          const tokenDecimals = isBaseUsdcAddress(tokenAddress) ? 6 : 18;
-          const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
-          const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
-          
-          const likeAmount = parseFloat(userConfig.likeAmount || '0');
-          const recastAmount = parseFloat(userConfig.recastAmount || '0');
-          const replyAmount = parseFloat(userConfig.replyAmount || '0');
-          const minTipAmount = likeAmount + recastAmount + replyAmount;
-          
-          if (allowanceAmount >= minTipAmount && balanceAmount >= minTipAmount) {
+          if (hasSufficientAllowance) {
             console.log(`🔗 User has config and sufficient funds - immediately adding FID ${fid} to webhook after approval`);
             await addFidToWebhook(fid);
             console.log(`✅ FID ${fid} added to webhook immediately`);
           } else {
-            console.log(`ℹ️ User ${userAddress} (FID: ${fid}) approved but insufficient funds - not adding to webhook yet`);
+            console.log(`⚠️ User has config but insufficient allowance - will be added after 8 second delay check`);
           }
         } else {
           console.log(`ℹ️ User ${userAddress} (FID: ${fid}) approved but no config yet - update-allowance-simple.js will create default config and add to webhook`);
