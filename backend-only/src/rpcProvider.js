@@ -5,56 +5,27 @@ const { ethers } = require('ethers');
 
 class RPCProviderManager {
   constructor() {
-    // List of RPC providers in priority order
+    // ONLY use Alchemy - no fallbacks
     this.providers = [];
     this.lastErrorSignature = null;
     this.lastErrorLoggedAt = 0;
     
-    // 1. Alchemy (primary - from BASE_RPC_URL)
+    // ONLY Alchemy (from BASE_RPC_URL)
     if (process.env.BASE_RPC_URL) {
       this.providers.push({
         name: 'Alchemy',
         url: process.env.BASE_RPC_URL,
         priority: 1
       });
+    } else {
+      throw new Error('BASE_RPC_URL environment variable is required');
     }
-    
-    // 2. Infura (fallback) - Skip if pointing to testnet
-    if (process.env.INFURA_BASE_RPC_URL) {
-      const infuraUrl = process.env.INFURA_BASE_RPC_URL;
-      // Skip if pointing to testnet (base-sepolia)
-      if (!infuraUrl.includes('base-sepolia')) {
-        this.providers.push({
-          name: 'Infura',
-          url: infuraUrl,
-          priority: 2
-        });
-      } else {
-        console.log('⚠️ Skipping Infura - URL points to testnet (base-sepolia), should be base-mainnet');
-      }
-    }
-    
-    // 3. QuickNode (optional fallback)
-    if (process.env.QUICKNODE_BASE_RPC_URL) {
-      this.providers.push({
-        name: 'QuickNode',
-        url: process.env.QUICKNODE_BASE_RPC_URL,
-        priority: 3
-      });
-    }
-    
-    // 4. Public Base RPC (last resort)
-    this.providers.push({
-      name: 'Public Base',
-      url: 'https://mainnet.base.org',
-      priority: 99
-    });
     
     // Current active provider
     this.currentProvider = null;
     this.currentProviderIndex = 0;
     
-    // Initialize with primary provider
+    // Initialize with Alchemy provider
     this.initializeProvider();
   }
   
@@ -89,34 +60,11 @@ class RPCProviderManager {
   
   /**
    * Fallback to next available provider
-   * REMOVED: Health check to avoid excessive RPC calls
+   * DISABLED: Only using Alchemy, no fallbacks
    */
   async fallbackToNextProvider() {
-    // Try next providers in order
-    for (let i = this.currentProviderIndex + 1; i < this.providers.length; i++) {
-      const providerConfig = this.providers[i];
-      console.log(`🔄 Trying fallback provider ${i + 1}/${this.providers.length}: ${providerConfig.name}`);
-      
-      try {
-        const testProvider = new ethers.JsonRpcProvider(providerConfig.url);
-        
-        // REMOVED: Health check - provider will be tested when actually used
-        // This prevents excessive getBlockNumber() calls that cause rate limits
-        
-        // If successful, switch to this provider
-        this.currentProvider = testProvider;
-        this.currentProviderIndex = i;
-        console.log(`✅ Switched to provider: ${providerConfig.name}`);
-        
-        return this.currentProvider;
-      } catch (error) {
-        console.log(`❌ Provider ${providerConfig.name} failed: ${error.message}`);
-        continue;
-      }
-    }
-    
-    // All providers failed
-    throw new Error('All RPC providers failed. Please check your network connection.');
+    // No fallbacks - only Alchemy
+    throw new Error('Only Alchemy provider is configured. No fallbacks available.');
   }
   
   /**
@@ -168,30 +116,15 @@ class RPCProviderManager {
           console.log(`⏳ Rate limit error detected, waiting ${waitTime}ms before retry...`);
           await new Promise(resolve => setTimeout(resolve, waitTime));
           
-          if (retryCount < maxRetries) {
-            try {
-              await this.fallbackToNextProvider();
-              continue;
-            } catch (fallbackError) {
-              console.log(`❌ Fallback failed: ${fallbackError.message}`);
-              continue;
-            }
-          } else {
+          // Don't try fallback - only Alchemy is configured
+          if (retryCount >= maxRetries) {
             throw error; // Max retries reached
           }
+          continue; // Retry with same provider
         } else if (isRpcError && retryCount < maxRetries) {
-          // Try next provider
-          try {
-            await this.fallbackToNextProvider();
-            // Wait before retry
-            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
-            continue;
-          } catch (fallbackError) {
-            console.log(`❌ Fallback failed: ${fallbackError.message}`);
-            // Continue to next retry
-            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
-            continue;
-          }
+          // Wait before retry (no fallback, only Alchemy)
+          await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+          continue;
         } else {
           // Non-RPC error or max retries reached
           throw error;

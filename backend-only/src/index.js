@@ -1765,49 +1765,101 @@ async function updateLatestCastHash(userAddress, castHash, castTimestamp) {
   }
 }
 
-// Helper function to check token allowance
+// Helper function to check token allowance - USES CACHE
 async function checkTokenAllowance(userAddress, tokenAddress) {
   try {
+    // Check cache first
+    const cacheKey = `${userAddress.toLowerCase()}-${tokenAddress.toLowerCase()}`;
+    const cacheEntry = allowanceCache.get(cacheKey);
+    const now = Date.now();
+    
+    // Use cached value if less than 10 minutes old
+    if (cacheEntry && now - cacheEntry.timestamp < 10 * 60 * 1000) {
+      return parseFloat(cacheEntry.allowance);
+    }
+    
+    // Cache miss - make blockchain call
     const { ethers } = require('ethers');
-    const provider = await getProvider(); // Use fallback provider
+    const provider = await getProvider();
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     
     const tokenContract = new ethers.Contract(tokenAddress, [
       "function allowance(address owner, address spender) view returns (uint256)"
     ], provider);
     
-    const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
+    const allowance = await safeContractCall(tokenContract, 'allowance', userAddress, ecionBatchAddress);
     
     // Get token decimals
     const tokenDecimals = tokenAddress.toLowerCase() === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913' ? 6 : 18;
     const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
     
+    // Update cache
+    allowanceCache.set(cacheKey, {
+      allowance: allowanceAmount.toString(),
+      balance: cacheEntry?.balance || '0',
+      tokenAddress,
+      decimals: tokenDecimals,
+      timestamp: now
+    });
+    
     return allowanceAmount;
   } catch (error) {
     console.error(`❌ Error checking allowance for ${userAddress}:`, error.message);
+    // Return cached value if available
+    const cacheKey = `${userAddress.toLowerCase()}-${tokenAddress.toLowerCase()}`;
+    const cacheEntry = allowanceCache.get(cacheKey);
+    if (cacheEntry) {
+      return parseFloat(cacheEntry.allowance);
+    }
     return 0;
   }
 }
 
-// Helper function to check token balance
+// Helper function to check token balance - USES CACHE
 async function checkTokenBalance(userAddress, tokenAddress) {
   try {
+    // Check cache first
+    const cacheKey = `${userAddress.toLowerCase()}-${tokenAddress.toLowerCase()}`;
+    const cacheEntry = allowanceCache.get(cacheKey);
+    const now = Date.now();
+    
+    // Use cached value if less than 10 minutes old
+    if (cacheEntry && cacheEntry.balance && now - cacheEntry.timestamp < 10 * 60 * 1000) {
+      return parseFloat(cacheEntry.balance);
+    }
+    
+    // Cache miss - make blockchain call
     const { ethers } = require('ethers');
-    const provider = await getProvider(); // Use fallback provider
+    const provider = await getProvider();
     
     const tokenContract = new ethers.Contract(tokenAddress, [
       "function balanceOf(address owner) view returns (uint256)"
     ], provider);
     
-    const balance = await tokenContract.balanceOf(userAddress);
+    const balance = await safeContractCall(tokenContract, 'balanceOf', userAddress);
     
     // Get token decimals
     const tokenDecimals = tokenAddress.toLowerCase() === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913' ? 6 : 18;
     const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
     
+    // Update cache
+    allowanceCache.set(cacheKey, {
+      allowance: cacheEntry?.allowance || '0',
+      balance: balanceAmount.toString(),
+      tokenAddress,
+      decimals: tokenDecimals,
+      timestamp: now
+    });
+    
     return balanceAmount;
   } catch (error) {
     console.error(`❌ Error checking balance for ${userAddress}:`, error.message);
+    // Return cached value if available
+    const cacheKey = `${userAddress.toLowerCase()}-${tokenAddress.toLowerCase()}`;
+    const cacheEntry = allowanceCache.get(cacheKey);
+    if (cacheEntry && cacheEntry.balance) {
+      return parseFloat(cacheEntry.balance);
+    }
     return 0;
   }
 }
@@ -2133,7 +2185,10 @@ async function checkRemovedUsersForBalanceRestoration() {
                      parseFloat(userConfig.replyAmount || '0');
       
       try {
-        // Check current balance and allowance
+        // Check current balance and allowance - USE CACHED FUNCTIONS
+        // Add delay between checks to avoid batch limit
+        await new Promise(resolve => setTimeout(resolve, 200)); // 200ms delay between users
+        
         const [allowance, balance] = await Promise.all([
           checkTokenAllowance(user.user_address, tokenAddress),
           checkTokenBalance(user.user_address, tokenAddress)
@@ -2180,8 +2235,8 @@ async function checkRemovedUsersForBalanceRestoration() {
         console.log(`❌ Error checking ${user.user_address}: ${error.message}`);
       }
       
-      // Small delay to avoid rate limits
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Increased delay to avoid batch limit (500ms between users)
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
     
     console.log(`✅ Balance restoration check complete: ${restoredCount} users restored`);
@@ -2201,14 +2256,15 @@ function startApiPolling() {
   pollingInterval = setInterval(pollLatestCasts, 15 * 60 * 1000);
   
   // Check for balance restoration every 1 HOUR (only for users with allowance but no balance)
+  // REMOVED immediate execution - only run on schedule to avoid RPC spam
   setInterval(checkRemovedUsersForBalanceRestoration, 60 * 60 * 1000);
   
   // Initial poll
   setTimeout(pollLatestCasts, 5000); // Start after 5 seconds
-  setTimeout(checkRemovedUsersForBalanceRestoration, 60000); // Check after 1 minute
+  // REMOVED: setTimeout(checkRemovedUsersForBalanceRestoration, 60000); // Don't run immediately
   
   console.log(`⏰ API polling started - checking every 15 minutes`);
-  console.log(`⏰ Balance restoration check started - checking every 1 hour`);
+  console.log(`⏰ Balance restoration check started - checking every 1 hour (no immediate check)`);
 }
 
 // Stop API polling
