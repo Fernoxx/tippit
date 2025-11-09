@@ -1137,14 +1137,16 @@ app.get('/api/allowance/:userAddress/:tokenAddress', async (req, res) => {
 
   try {
     const { ethers } = require('ethers');
-    const provider = await getProvider();
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     const tokenDecimals = await getTokenDecimals(tokenAddress);
 
-    const tokenContract = new ethers.Contract(tokenAddress, [
-      "function allowance(address owner, address spender) view returns (uint256)"
-    ], provider);
-    const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
+    const allowance = await executeWithFallback(async (provider) => {
+      const tokenContract = new ethers.Contract(tokenAddress, [
+        "function allowance(address owner, address spender) view returns (uint256)"
+      ], provider);
+      return tokenContract.allowance(userAddress, ecionBatchAddress);
+    }, 3);
+
     const formattedAllowance = ethers.formatUnits(allowance, tokenDecimals);
 
     const entry = {
@@ -1168,7 +1170,7 @@ app.get('/api/allowance/:userAddress/:tokenAddress', async (req, res) => {
     });
   } catch (error) {
     const message = error?.message || '';
-    const isRateLimit = message.includes('rate limit') || message.includes('compute units') || error?.code === 429 || message.includes('missing revert data');
+    const isRateLimit = message.includes('rate limit') || message.includes('compute units') || error?.code === 429 || message.includes('missing revert data') || message.includes('maximum 10 calls');
 
     if (cacheEntry) {
       console.warn(`⚠️ Allowance fetch failed for ${userAddress} (${tokenAddress}) - serving cached value. Reason: ${message}`);
