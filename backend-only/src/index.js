@@ -989,6 +989,34 @@ async function getTokenDecimals(tokenAddress) {
   }
 }
 
+// Helper function to make contract calls with timeout and better error handling
+async function safeContractCall(contract, methodName, ...args) {
+  const timeout = 10000; // 10 second timeout
+  const callPromise = contract[methodName](...args);
+  const timeoutPromise = new Promise((_, reject) => 
+    setTimeout(() => reject(new Error('Contract call timeout')), timeout)
+  );
+  
+  try {
+    return await Promise.race([callPromise, timeoutPromise]);
+  } catch (error) {
+    // If timeout or error, try staticCall as fallback (ethers v6)
+    if (contract[methodName].staticCall) {
+      try {
+        return await Promise.race([
+          contract[methodName].staticCall(...args),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('StaticCall timeout')), timeout)
+          )
+        ]);
+      } catch (staticError) {
+        throw error; // Throw original error
+      }
+    }
+    throw error;
+  }
+}
+
 // Simple allowance check endpoint (for backward compatibility)
 app.get('/api/check-allowance', async (req, res) => {
   try {
@@ -1009,8 +1037,12 @@ app.get('/api/check-allowance', async (req, res) => {
     
     // Get both allowance and balance in parallel
     const [allowance, balance] = await Promise.all([
-      tokenContract.allowance(userAddress, ecionBatchAddress),
-      tokenContract.balanceOf(userAddress)
+      tokenContract.allowance.staticCall(userAddress, ecionBatchAddress).catch(() => 
+        tokenContract.allowance(userAddress, ecionBatchAddress)
+      ),
+      tokenContract.balanceOf.staticCall(userAddress).catch(() => 
+        tokenContract.balanceOf(userAddress)
+      )
     ]);
     
     const tokenDecimals = await getTokenDecimals(tokenAddress);
@@ -1074,9 +1106,10 @@ app.get('/api/allowance-balance/:userAddress/:tokenAddress', async (req, res) =>
         "function balanceOf(address owner) view returns (uint256)"
       ], provider);
 
+      // Use safe contract calls with timeout protection
       return Promise.all([
-        tokenContract.allowance(userAddress, ecionBatchAddress),
-        tokenContract.balanceOf(userAddress)
+        safeContractCall(tokenContract, 'allowance', userAddress, ecionBatchAddress),
+        safeContractCall(tokenContract, 'balanceOf', userAddress)
       ]);
     }, 4);
 
@@ -1145,7 +1178,9 @@ app.get('/api/allowance/:userAddress/:tokenAddress', async (req, res) => {
       const tokenContract = new ethers.Contract(tokenAddress, [
         "function allowance(address owner, address spender) view returns (uint256)"
       ], provider);
-      return tokenContract.allowance(userAddress, ecionBatchAddress);
+      
+      // Use safe contract call with timeout protection
+      return await safeContractCall(tokenContract, 'allowance', userAddress, ecionBatchAddress);
     }, 3);
 
     const formattedAllowance = ethers.formatUnits(allowance, tokenDecimals);
@@ -8115,9 +8150,11 @@ app.post('/api/admin/reconcile-active-users', async (req, res) => {
             "function allowance(address owner, address spender) view returns (uint256)",
             "function balanceOf(address owner) view returns (uint256)"
           ], provider);
+          
+          // Use safe contract calls with timeout protection
           return Promise.all([
-            tokenContract.allowance(userAddress, ecionBatchAddress),
-            tokenContract.balanceOf(userAddress)
+            safeContractCall(tokenContract, 'allowance', userAddress, ecionBatchAddress),
+            safeContractCall(tokenContract, 'balanceOf', userAddress)
           ]);
         }, 4);
 
