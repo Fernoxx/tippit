@@ -1077,6 +1077,9 @@ app.get('/api/check-allowance', async (req, res) => {
 });
 
 // Combined allowance and balance endpoint - Single blockchain call for both
+// Added request deduplication to prevent concurrent requests for same address
+const pendingAllowanceBalanceRequests = new Map(); // Track pending requests by cache key
+
 app.get('/api/allowance-balance/:userAddress/:tokenAddress', async (req, res) => {
   const { userAddress, tokenAddress } = req.params;
   const cacheKey = `${userAddress.toLowerCase()}-${tokenAddress.toLowerCase()}`;
@@ -1095,51 +1098,88 @@ app.get('/api/allowance-balance/:userAddress/:tokenAddress', async (req, res) =>
     });
   };
 
-  try {
-    const { ethers } = require('ethers');
-    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
-    const tokenDecimals = await getTokenDecimals(tokenAddress);
+  // Check cache first
+  if (cacheEntry && now - cacheEntry.timestamp <= ALLOWANCE_CACHE_TTL_MS) {
+    return sendCached(cacheEntry);
+  }
 
-    const [allowance, balance] = await executeWithFallback(async (provider) => {
-      const tokenContract = new ethers.Contract(tokenAddress, [
-        "function allowance(address owner, address spender) view returns (uint256)",
-        "function balanceOf(address owner) view returns (uint256)"
-      ], provider);
-
-      // Use safe contract calls with timeout protection
-      return Promise.all([
-        safeContractCall(tokenContract, 'allowance', userAddress, ecionBatchAddress),
-        safeContractCall(tokenContract, 'balanceOf', userAddress)
-      ]);
-    }, 4);
-
-    const formattedAllowance = ethers.formatUnits(allowance, tokenDecimals);
-    const formattedBalance = ethers.formatUnits(balance, tokenDecimals);
-
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`📊 Combined check: User ${userAddress} - Allowance: ${formattedAllowance}, Balance: ${formattedBalance} (${tokenAddress})`);
+  // Check if there's already a pending request for this address
+  if (pendingAllowanceBalanceRequests.has(cacheKey)) {
+    // Wait for existing request to complete
+    try {
+      const result = await pendingAllowanceBalanceRequests.get(cacheKey);
+      return res.json(result);
+    } catch (error) {
+      // If pending request failed, continue to make new request
     }
+  }
 
-    const entry = {
-      allowance: formattedAllowance,
-      balance: formattedBalance,
-      tokenAddress,
-      decimals: tokenDecimals,
-      timestamp: now
-    };
-    allowanceCache.set(cacheKey, entry);
+  // Create new request promise
+  const requestPromise = (async () => {
+    try {
+      const { ethers } = require('ethers');
+      const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+      const tokenDecimals = await getTokenDecimals(tokenAddress);
 
-    res.json({
-      allowance: formattedAllowance,
-      balance: formattedBalance,
-      tokenAddress,
-      decimals: tokenDecimals,
-      source: 'blockchain',
-      cachedAt: now
-    });
+      const [allowance, balance] = await executeWithFallback(async (provider) => {
+        const tokenContract = new ethers.Contract(tokenAddress, [
+          "function allowance(address owner, address spender) view returns (uint256)",
+          "function balanceOf(address owner) view returns (uint256)"
+        ], provider);
+
+        // Use safe contract calls with timeout protection
+        return Promise.all([
+          safeContractCall(tokenContract, 'allowance', userAddress, ecionBatchAddress),
+          safeContractCall(tokenContract, 'balanceOf', userAddress)
+        ]);
+      }, 4);
+
+      const formattedAllowance = ethers.formatUnits(allowance, tokenDecimals);
+      const formattedBalance = ethers.formatUnits(balance, tokenDecimals);
+
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`📊 Combined check: User ${userAddress} - Allowance: ${formattedAllowance}, Balance: ${formattedBalance} (${tokenAddress})`);
+      }
+
+      const entry = {
+        allowance: formattedAllowance,
+        balance: formattedBalance,
+        tokenAddress,
+        decimals: tokenDecimals,
+        timestamp: now
+      };
+      allowanceCache.set(cacheKey, entry);
+
+      const result = {
+        allowance: formattedAllowance,
+        balance: formattedBalance,
+        tokenAddress,
+        decimals: tokenDecimals,
+        source: 'blockchain',
+        cachedAt: now
+      };
+      
+      pendingAllowanceBalanceRequests.delete(cacheKey);
+      return result;
+    } catch (error) {
+      pendingAllowanceBalanceRequests.delete(cacheKey);
+      throw error;
+    }
+  })();
+
+  // Store promise for concurrent requests
+  pendingAllowanceBalanceRequests.set(cacheKey, requestPromise);
+
+  try {
+    const result = await requestPromise;
+    res.json(result);
   } catch (error) {
     const message = error?.message || '';
-    const isRateLimit = message.includes('rate limit') || message.includes('compute units') || error?.code === 429;
+    const isRateLimit = message.includes('rate limit') || 
+                        message.includes('compute units') || 
+                        error?.code === 429 || 
+                        message.includes('maximum 10 calls') ||
+                        message.includes('exceeded its compute units');
 
     if (cacheEntry && now - cacheEntry.timestamp <= ALLOWANCE_CACHE_TTL_MS * 3) {
       console.warn(`⚠️ Allowance/Balance fetch failed for ${userAddress} (${tokenAddress}) - serving cached value. Reason: ${message}`);
@@ -1206,7 +1246,12 @@ app.get('/api/allowance/:userAddress/:tokenAddress', async (req, res) => {
     });
   } catch (error) {
     const message = error?.message || '';
-      const isRateLimit = message.includes('rate limit') || message.includes('compute units') || error?.code === 429 || message.includes('maximum 10 calls') || message.includes('over rate limit');
+      const isRateLimit = message.includes('rate limit') || 
+                          message.includes('compute units') || 
+                          error?.code === 429 || 
+                          message.includes('maximum 10 calls') || 
+                          message.includes('over rate limit') ||
+                          message.includes('exceeded its compute units');
 
     if (cacheEntry) {
       console.warn(`⚠️ Allowance fetch failed for ${userAddress} (${tokenAddress}) - serving cached value. Reason: ${message}`);

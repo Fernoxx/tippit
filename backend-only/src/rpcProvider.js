@@ -1,7 +1,57 @@
-// RPC Provider with fallback support
-// Tries providers in order: Alchemy -> Infura -> QuickNode -> Public RPC
+// RPC Provider with request throttling
+// ONLY uses Alchemy (BASE_RPC_URL) - no fallbacks
 
 const { ethers } = require('ethers');
+
+// Request queue to throttle RPC calls and prevent exceeding Alchemy rate limits
+class RPCRequestQueue {
+  constructor() {
+    this.queue = [];
+    this.processing = false;
+    this.lastRequestTime = 0;
+    this.minRequestInterval = 100; // Minimum 100ms between requests (10 requests/second max)
+  }
+  
+  async add(fn) {
+    return new Promise((resolve, reject) => {
+      this.queue.push({ fn, resolve, reject });
+      this.process();
+    });
+  }
+  
+  async process() {
+    if (this.processing || this.queue.length === 0) {
+      return;
+    }
+    
+    this.processing = true;
+    
+    while (this.queue.length > 0) {
+      const now = Date.now();
+      const timeSinceLastRequest = now - this.lastRequestTime;
+      
+      // Wait if needed to maintain rate limit
+      if (timeSinceLastRequest < this.minRequestInterval) {
+        await new Promise(resolve => setTimeout(resolve, this.minRequestInterval - timeSinceLastRequest));
+      }
+      
+      const { fn, resolve, reject } = this.queue.shift();
+      this.lastRequestTime = Date.now();
+      
+      try {
+        const result = await fn();
+        resolve(result);
+      } catch (error) {
+        reject(error);
+      }
+    }
+    
+    this.processing = false;
+  }
+}
+
+// Global request queue instance
+const rpcRequestQueue = new RPCRequestQueue();
 
 class RPCProviderManager {
   constructor() {
@@ -68,71 +118,76 @@ class RPCProviderManager {
   }
   
   /**
-   * Execute a function with automatic provider fallback
+   * Execute a function with automatic provider fallback and request throttling
    * @param {Function} fn - Function that takes a provider as argument
    * @param {Number} maxRetries - Maximum retries with fallback
    */
   async executeWithFallback(fn, maxRetries = 3) {
-    let lastError = null;
-    let retryCount = 0;
-    
-    while (retryCount < maxRetries) {
-      try {
-        const provider = await this.getProvider();
-        return await fn(provider);
-      } catch (error) {
-        lastError = error;
-        const now = Date.now();
-        const signature = `${error?.code || ''}-${error?.message || error}`;
-        if (this.lastErrorSignature !== signature || now - this.lastErrorLoggedAt > 5000) {
-          console.log(`⚠️ RPC error on attempt ${retryCount + 1}/${maxRetries}: ${error?.message || error}`);
-          this.lastErrorSignature = signature;
-          this.lastErrorLoggedAt = now;
-        }
-        
-        retryCount++;
-        
-        // Check if it's a rate limit or batch limit error - don't retry immediately
-        const isRateLimitError = error.message?.includes('rate limit') ||
-                                 error.message?.includes('over rate limit') ||
-                                 error.message?.includes('maximum 10 calls') ||
-                                 error.code === -32016 || // over rate limit
-                                 error.code === -32014;   // maximum calls in batch
-        
-        // Check if it's a provider/RPC error
-        const isRpcError = error.message?.includes('503') ||
-                          error.message?.includes('Service Unavailable') ||
-                          error.message?.includes('SERVER_ERROR') ||
-                          error.message?.includes('network') ||
-                          error.message?.includes('missing revert data') ||
-                          error.message?.includes('CALL_EXCEPTION') ||
-                          error.code === 'SERVER_ERROR' ||
-                          error.code === 'NETWORK_ERROR' ||
-                          error.code === 'CALL_EXCEPTION';
-        
-        if (isRateLimitError) {
-          // Rate limit errors - wait longer before retry (exponential backoff)
-          const waitTime = Math.min(5000 * Math.pow(2, retryCount - 1), 30000); // Max 30 seconds
-          console.log(`⏳ Rate limit error detected, waiting ${waitTime}ms before retry...`);
-          await new Promise(resolve => setTimeout(resolve, waitTime));
-          
-          // Don't try fallback - only Alchemy is configured
-          if (retryCount >= maxRetries) {
-            throw error; // Max retries reached
+    // Use request queue to throttle RPC calls
+    return await rpcRequestQueue.add(async () => {
+      let lastError = null;
+      let retryCount = 0;
+      
+      while (retryCount < maxRetries) {
+        try {
+          const provider = await this.getProvider();
+          return await fn(provider);
+        } catch (error) {
+          lastError = error;
+          const now = Date.now();
+          const signature = `${error?.code || ''}-${error?.message || error}`;
+          if (this.lastErrorSignature !== signature || now - this.lastErrorLoggedAt > 5000) {
+            console.log(`⚠️ RPC error on attempt ${retryCount + 1}/${maxRetries}: ${error?.message || error}`);
+            this.lastErrorSignature = signature;
+            this.lastErrorLoggedAt = now;
           }
-          continue; // Retry with same provider
-        } else if (isRpcError && retryCount < maxRetries) {
-          // Wait before retry (no fallback, only Alchemy)
-          await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
-          continue;
-        } else {
-          // Non-RPC error or max retries reached
-          throw error;
+          
+          retryCount++;
+          
+          // Check if it's a rate limit or batch limit error - don't retry immediately
+          const isRateLimitError = error.message?.includes('rate limit') ||
+                                   error.message?.includes('over rate limit') ||
+                                   error.message?.includes('maximum 10 calls') ||
+                                   error.message?.includes('compute units') ||
+                                   error?.code === 429 ||
+                                   error?.code === -32016 || // over rate limit
+                                   error?.code === -32014;   // maximum calls in batch
+          
+          // Check if it's a provider/RPC error
+          const isRpcError = error.message?.includes('503') ||
+                            error.message?.includes('Service Unavailable') ||
+                            error.message?.includes('SERVER_ERROR') ||
+                            error.message?.includes('network') ||
+                            error.message?.includes('missing revert data') ||
+                            error.message?.includes('CALL_EXCEPTION') ||
+                            error?.code === 'SERVER_ERROR' ||
+                            error?.code === 'NETWORK_ERROR' ||
+                            error?.code === 'CALL_EXCEPTION';
+          
+          if (isRateLimitError) {
+            // Rate limit errors - wait longer before retry (exponential backoff)
+            const waitTime = Math.min(5000 * Math.pow(2, retryCount - 1), 30000); // Max 30 seconds
+            console.log(`⏳ Rate limit error detected, waiting ${waitTime}ms before retry...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            
+            // Don't try fallback - only Alchemy is configured
+            if (retryCount >= maxRetries) {
+              throw error; // Max retries reached
+            }
+            continue; // Retry with same provider
+          } else if (isRpcError && retryCount < maxRetries) {
+            // Wait before retry (no fallback, only Alchemy)
+            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+            continue;
+          } else {
+            // Non-RPC error or max retries reached
+            throw error;
+          }
         }
       }
-    }
-    
-    throw lastError || new Error('All retries exhausted');
+      
+      throw lastError || new Error('All retries exhausted');
+    });
   }
   
   /**
