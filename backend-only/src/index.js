@@ -2600,7 +2600,7 @@ async function addFidToWebhook(fid) {
 
 // Remove FID from webhook filter
 // Remove FID from webhook AND remove their latest cast hash
-async function removeFidFromWebhook(fid) {
+async function removeFidFromWebhook(fid, reason = 'insufficient_funds') {
   try {
     const webhookId = await database.getWebhookId();
     if (!webhookId) {
@@ -2618,14 +2618,18 @@ async function removeFidFromWebhook(fid) {
     // Remove FID from follow.created (active users)
     const updatedFids = trackedFids.filter(f => f !== fidInt);
     
-    // Get user's latest cast hash to remove from cast tracking
+    // Get user address before removing (for notifications)
     const userResult = await database.pool.query(`
-      SELECT latest_cast_hash 
+      SELECT user_address, latest_cast_hash 
       FROM user_profiles 
       WHERE fid = $1
     `, [fidInt]);
     
+    const userAddress = userResult.rows[0]?.user_address;
     const userCastHash = userResult.rows[0]?.latest_cast_hash;
+    
+    // Remove FID from follow.created (active users)
+    const updatedFids = trackedFids.filter(f => f !== fidInt);
     
     // Get ALL latest cast hashes and remove this user's cast
     const latestCasts = await getAllLatestCastHashes();
@@ -2633,7 +2637,7 @@ async function removeFidFromWebhook(fid) {
       ? latestCasts.filter(hash => hash !== userCastHash)
       : latestCasts;
     
-    console.log(`🗑️ Removing FID ${fid} from follow.created${userCastHash ? ` and cast hash ${userCastHash} from cast/reaction tracking` : ''}`);
+    console.log(`🗑️ Removing FID ${fid} from follow.created${userCastHash ? ` and cast hash ${userCastHash} from cast/reaction tracking` : ''} - Reason: ${reason}`);
     
     const webhookResponse = await fetch(`https://api.neynar.com/v2/farcaster/webhook/`, {
       method: 'PUT',
