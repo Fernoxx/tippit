@@ -210,11 +210,21 @@ const [criteria, setCriteria] = useState({
     }, [userConfig]);
 
   useEffect(() => {
-    if (selectedToken && tokenAllowance !== null) {
+    // Only use cached allowance from userConfig, don't fetch from blockchain
+    // Allowance will ONLY be fetched when:
+    // 1. User clicks approve button
+    // 2. User clicks revoke button
+    // 3. After transaction confirms (handled in usePIT.ts)
+    if (selectedToken && userConfig?.lastAllowance !== undefined) {
+      const cachedAllowance = normalizeAllowance(userConfig.lastAllowance);
+      setDisplayAllowance(cachedAllowance);
+      setAllowanceCache(prev => ({ ...prev, [selectedToken]: cachedAllowance }));
+    } else if (selectedToken && tokenAllowance !== null) {
+      // Only update if tokenAllowance was explicitly fetched (after approve/revoke)
       setDisplayAllowance(tokenAllowance);
       setAllowanceCache(prev => ({ ...prev, [selectedToken]: tokenAllowance }));
     }
-  }, [tokenAllowance, selectedToken]);
+  }, [userConfig?.lastAllowance, selectedToken, tokenAllowance]);
 
   const lookupTokenName = async (
     tokenAddress: string,
