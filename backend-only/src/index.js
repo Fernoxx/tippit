@@ -2341,6 +2341,7 @@ async function getUserAddressFromFid(fid) {
 }
 
 // Check if user has sufficient allowance for at least one tip
+// Uses cache to avoid excessive RPC calls
 async function checkUserAllowanceForWebhook(userAddress) {
   try {
     // Validate address format
@@ -2366,24 +2367,55 @@ async function checkUserAllowanceForWebhook(userAddress) {
       return false;
     }
     
-    const { ethers } = require('ethers');
-    const provider = await getProvider(); // Use fallback provider
-    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    // Check cache first to avoid excessive RPC calls
     const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+    const cacheKey = `${userAddress.toLowerCase()}-${tokenAddress.toLowerCase()}`;
+    const cacheEntry = allowanceCache.get(cacheKey);
+    const now = Date.now();
     
-    const tokenContract = new ethers.Contract(tokenAddress, [
-      "function allowance(address owner, address spender) view returns (uint256)",
-      "function balanceOf(address owner) view returns (uint256)"
-    ], provider);
+    // Use cached value if less than 5 minutes old (more aggressive caching for background checks)
+    if (cacheEntry && now - cacheEntry.timestamp < 5 * 60 * 1000) {
+      const cachedAllowance = parseFloat(cacheEntry.allowance);
+      const cachedBalance = parseFloat(cacheEntry.balance || '0');
+      const hasSufficientAllowance = cachedAllowance >= minTipAmount;
+      const hasSufficientBalance = cachedBalance >= minTipAmount;
+      const canAfford = hasSufficientAllowance && hasSufficientBalance;
+      
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`🔍 Allowance check (CACHED): ${userAddress} - Allowance: ${cachedAllowance}, Balance: ${cachedBalance}, Required: ${minTipAmount} - ${canAfford ? '✅' : '❌'}`);
+      }
+      return canAfford;
+    }
     
-    const [allowance, balance] = await Promise.all([
-      tokenContract.allowance(userAddress, ecionBatchAddress),
-      tokenContract.balanceOf(userAddress)
-    ]);
+    // Cache miss or stale - make blockchain call with safe wrapper
+    const { ethers } = require('ethers');
+    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+    
+    const [allowance, balance] = await executeWithFallback(async (provider) => {
+      const tokenContract = new ethers.Contract(tokenAddress, [
+        "function allowance(address owner, address spender) view returns (uint256)",
+        "function balanceOf(address owner) view returns (uint256)"
+      ], provider);
+      
+      // Use safe contract calls with timeout protection
+      return Promise.all([
+        safeContractCall(tokenContract, 'allowance', userAddress, ecionBatchAddress),
+        safeContractCall(tokenContract, 'balanceOf', userAddress)
+      ]);
+    }, 2); // Reduced retries for background checks
     
     const tokenDecimals = isBaseUsdcAddress(tokenAddress) ? 6 : 18;
     const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
     const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
+    
+    // Update cache
+    allowanceCache.set(cacheKey, {
+      allowance: allowanceAmount.toString(),
+      balance: balanceAmount.toString(),
+      tokenAddress,
+      decimals: tokenDecimals,
+      timestamp: now
+    });
     
     const hasSufficientAllowance = allowanceAmount >= minTipAmount;
     const hasSufficientBalance = balanceAmount >= minTipAmount;
@@ -2659,31 +2691,8 @@ async function updateUserWebhookStatus(userAddress) {
     }
     
     // Check current allowance and balance from blockchain
-    const { ethers } = require('ethers');
-    const provider = await getProvider(); // Use fallback provider
-    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
-    
-    const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
-    const tokenContract = new ethers.Contract(tokenAddress, [
-      "function allowance(address owner, address spender) view returns (uint256)",
-      "function balanceOf(address owner) view returns (uint256)"
-    ], provider);
-    
-    const [allowance, balance] = await Promise.all([
-      tokenContract.allowance(userAddress, ecionBatchAddress),
-      tokenContract.balanceOf(userAddress)
-    ]);
-    
-    const tokenDecimals = isBaseUsdcAddress(tokenAddress) ? 6 : 18;
-    const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
-    const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
-    
-    console.log(`💰 Allowance & Balance check: ${userAddress}`);
-    console.log(`  - Allowance: ${allowanceAmount} (required: ${minTipAmount}) - ${allowanceAmount >= minTipAmount ? '✅' : '❌'}`);
-    console.log(`  - Balance: ${balanceAmount} (required: ${minTipAmount}) - ${balanceAmount >= minTipAmount ? '✅' : '❌'}`);
-    
-    const hasSufficientAllowance = allowanceAmount >= minTipAmount;
-    const hasSufficientBalance = balanceAmount >= minTipAmount;
+    // Use checkUserAllowanceForWebhook which has caching built in
+    const canAfford = await checkUserAllowanceForWebhook(userAddress);
     
     const fid = await getUserFid(userAddress);
     if (!fid) {
@@ -2827,7 +2836,8 @@ app.post('/api/allowance-updated', async (req, res) => {
   }
 });
 
-// Periodic webhook status update - check all users every hour
+// Periodic webhook status update - check all users every 3 hours (reduced from 1 hour)
+// Added rate limiting to prevent RPC overload
 setInterval(async () => {
   try {
     console.log('🔄 Running periodic webhook status update...');
@@ -2838,13 +2848,24 @@ setInterval(async () => {
     let processedCount = 0;
     let errorCount = 0;
     
-    for (const userAddress of activeUsers) {
-      try {
-        await updateUserWebhookStatus(userAddress);
-        processedCount++;
-      } catch (error) {
-        console.error(`❌ Error updating webhook status for ${userAddress}:`, error);
-        errorCount++;
+    // Process users in batches with delays to avoid rate limits
+    const batchSize = 5;
+    for (let i = 0; i < activeUsers.length; i += batchSize) {
+      const batch = activeUsers.slice(i, i + batchSize);
+      
+      await Promise.all(batch.map(async (userAddress) => {
+        try {
+          await updateUserWebhookStatus(userAddress);
+          processedCount++;
+        } catch (error) {
+          console.error(`❌ Error updating webhook status for ${userAddress}:`, error);
+          errorCount++;
+        }
+      }));
+      
+      // Delay between batches to avoid rate limits (2 second delay per batch)
+      if (i + batchSize < activeUsers.length) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
     }
     
@@ -2852,7 +2873,7 @@ setInterval(async () => {
   } catch (error) {
     console.error('❌ Error in periodic webhook update:', error);
   }
-}, 60 * 60 * 1000); // Every hour
+}, 3 * 60 * 60 * 1000); // Every 3 hours (reduced frequency)
 
 // OLD PERIODIC CLEANUP REMOVED - Now using allowance sync system that updates webhooks every 3 hours
 
@@ -3384,61 +3405,69 @@ async function syncAllUsersAllowancesFromBlockchain() {
     let errorCount = 0;
     const results = [];
     
-    for (const userAddress of activeUsers) {
-      try {
-        // Get user config to determine token address
-        const userConfig = await database.getUserConfig(userAddress);
-        if (!userConfig) {
-          console.log(`⚠️ No config found for ${userAddress}, skipping`);
-          continue;
+    // Process users in batches with delays to avoid rate limits
+    const batchSize = 3; // Smaller batches for allowance sync
+    for (let i = 0; i < activeUsers.length; i += batchSize) {
+      const batch = activeUsers.slice(i, i + batchSize);
+      
+      await Promise.all(batch.map(async (userAddress) => {
+        try {
+          // Get user config to determine token address
+          const userConfig = await database.getUserConfig(userAddress);
+          if (!userConfig) {
+            console.log(`⚠️ No config found for ${userAddress}, skipping`);
+            return;
+          }
+          
+          const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+          
+          // Get token decimals with safe wrapper
+          const decimalsContract = new ethers.Contract(tokenAddress, [
+            "function decimals() view returns (uint8)"
+          ], provider);
+          
+          const decimals = await executeWithFallback(async (provider) => {
+            return await safeContractCall(decimalsContract, 'decimals');
+          }, 2);
+          
+          // Get allowance from blockchain with safe wrapper
+          const allowanceContract = new ethers.Contract(tokenAddress, [
+            "function allowance(address owner, address spender) view returns (uint256)"
+          ], provider);
+          
+          const allowance = await executeWithFallback(async (provider) => {
+            return await safeContractCall(allowanceContract, 'allowance', userAddress, ecionBatchAddress);
+          }, 2);
+          
+          const allowanceAmount = parseFloat(ethers.formatUnits(allowance, decimals));
+          
+          // Update database with blockchain allowance
+          await updateDatabaseAllowance(userAddress, allowanceAmount);
+          
+          syncedCount++;
+          results.push({
+            userAddress,
+            tokenAddress,
+            blockchainAllowance: allowanceAmount,
+            previousAllowance: userConfig.lastAllowance || 0,
+            synced: true
+          });
+          
+          console.log(`✅ Synced ${userAddress}: ${userConfig.lastAllowance || 0} → ${allowanceAmount} ${tokenAddress}`);
+        } catch (error) {
+          errorCount++;
+          console.log(`⚠️ Error syncing ${userAddress}: ${error.message}`);
+          results.push({
+            userAddress,
+            error: error.message,
+            synced: false
+          });
         }
-        
-        const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
-        
-        // Get token decimals
-        const tokenContract = new ethers.Contract(tokenAddress, [
-          "function decimals() view returns (uint8)"
-        ], provider);
-        
-        const decimals = await tokenContract.decimals();
-        
-        // Get allowance from blockchain
-        const allowanceContract = new ethers.Contract(tokenAddress, [
-          "function allowance(address owner, address spender) view returns (uint256)"
-        ], provider);
-        
-        const allowance = await allowanceContract.allowance(userAddress, ecionBatchAddress);
-        const allowanceAmount = parseFloat(ethers.formatUnits(allowance, decimals));
-        
-        // Update database with blockchain allowance
-        await updateDatabaseAllowance(userAddress, allowanceAmount);
-        
-        // Note: Webhook updates are handled separately in approve/revoke endpoints
-        // This sync only updates database allowance
-        
-        syncedCount++;
-        results.push({
-          userAddress,
-          tokenAddress,
-          blockchainAllowance: allowanceAmount,
-          previousAllowance: userConfig.lastAllowance || 0,
-          synced: true,
-          webhookUpdated: true
-        });
-        
-        console.log(`✅ Synced ${userAddress}: ${userConfig.lastAllowance || 0} → ${allowanceAmount} ${tokenAddress}`);
-        
-        // Small delay to avoid rate limits
-        await new Promise(resolve => setTimeout(resolve, 50));
-        
-      } catch (error) {
-        errorCount++;
-        console.log(`⚠️ Error syncing ${userAddress}: ${error.message}`);
-        results.push({
-          userAddress,
-          error: error.message,
-          synced: false
-        });
+      }));
+      
+      // Delay between batches to avoid rate limits (3 second delay per batch)
+      if (i + batchSize < activeUsers.length) {
+        await new Promise(resolve => setTimeout(resolve, 3000));
       }
     }
     
@@ -3477,11 +3506,12 @@ app.post('/api/sync-allowances-from-blockchain', async (req, res) => {
   }
 });
 
-// Schedule allowance sync (run every 12 hours)
+// Schedule allowance sync (run every 24 hours - reduced from 12 hours)
+// Added rate limiting to prevent RPC overload
 setInterval(async () => {
   console.log('🔄 Running scheduled allowance sync...');
   await syncAllUsersAllowancesFromBlockchain();
-}, 12 * 60 * 60 * 1000); // Every 12 hours
+}, 24 * 60 * 60 * 1000); // Every 24 hours (reduced frequency)
 
 // SIMPLIFIED SYSTEM: No real-time monitoring needed
 // Webhook FIDs are updated only when:
