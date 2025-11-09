@@ -553,7 +553,7 @@ class BatchTransferManager {
                 const { removeFidFromWebhook, sendNeynarNotification } = require('./index');
                 const userFid = tip.interaction.authorFid; // Already available from webhook event
                 if (userFid) {
-                  await removeFidFromWebhook(userFid);
+                  await removeFidFromWebhook(userFid, reason === 'Insufficient allowance' ? 'insufficient_allowance' : 'insufficient_funds');
                   console.log(`🚫 Removed FID ${userFid} from webhook follow.created - ${reason} after tip`);
                   
                   // Update isActive to false in user config

@@ -2728,7 +2728,7 @@ async function updateUserWebhookStatus(userAddress) {
     
     if (!canAfford) {
       console.log(`❌ User ${userAddress} has insufficient funds - removing from webhook`);
-      await removeFidFromWebhook(fid);
+      await removeFidFromWebhook(fid, 'insufficient_allowance');
       
       // If balance is insufficient, auto-revoke allowance
       if (!hasSufficientBalance) {
