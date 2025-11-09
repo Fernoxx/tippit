@@ -4216,7 +4216,8 @@ app.get('/api/homepage', async (req, res) => {
       const likeAmount = normalizeBool(config.likeEnabled) ? normalizeAmount(config.likeAmount) : 0;
       const recastAmount = normalizeBool(config.recastEnabled) ? normalizeAmount(config.recastAmount) : 0;
       const replyAmount = normalizeBool(config.replyEnabled) ? normalizeAmount(config.replyAmount) : 0;
-      const totalEngagementValue = isUSDC ? likeAmount + recastAmount + replyAmount : minTipValue;
+      // For USDC users: sum of all enabled amounts. For non-USDC users: 0 (so they sort to bottom)
+      const totalEngagementValue = isUSDC ? likeAmount + recastAmount + replyAmount : 0;
 
       let cast = row.cast;
       if (typeof cast === 'string') {
