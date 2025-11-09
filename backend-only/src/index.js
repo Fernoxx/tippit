@@ -4179,12 +4179,12 @@ app.get('/api/homepage', async (req, res) => {
   try {
     const pageNum = Math.max(parseInt(req.query.page, 10) || 1, 1);
     const limitNum = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 100);
-    const offset = (pageNum - 1) * limitNum;
 
-    const { rows, total } = await database.getActiveCasts(limitNum, offset);
-    console.log(`🏠 Homepage cache: ${rows.length} rows returned (total ${total})`);
+    // Fetch ALL rows first (no pagination), then sort, then paginate
+    const { rows: allRows, total } = await database.getActiveCasts(10000, 0); // Get all rows
+    console.log(`🏠 Homepage cache: ${allRows.length} rows returned (total ${total})`);
 
-    if (!rows.length) {
+    if (!allRows.length) {
       return res.json({
         success: true,
         users: [],
@@ -4206,7 +4206,7 @@ app.get('/api/homepage', async (req, res) => {
     };
     const normalizeBool = (value) => value === true || value === 'true' || value === 1;
 
-    const formatted = rows.map((row) => {
+    const formatted = allRows.map((row) => {
       const config = typeof row.config === 'string' ? JSON.parse(row.config) : (row.config || {});
       const allowanceValue = Number(row.allowance) || 0;
       const minTipValue = computeMinTipFromConfig(config);
@@ -4299,17 +4299,21 @@ app.get('/api/homepage', async (req, res) => {
       return b.timestamp - a.timestamp;
     });
 
+    // Now paginate the sorted results
+    const offset = (pageNum - 1) * limitNum;
+    const paginatedResults = formatted.slice(offset, offset + limitNum);
+
     res.json({
       success: true,
-      casts: formatted.map((item) => item.cast),
-      users: formatted.map((item) => item.userAddress),
-      amounts: formatted.map((item) => item.allowance.toString()),
+      casts: paginatedResults.map((item) => item.cast),
+      users: paginatedResults.map((item) => item.userAddress),
+      amounts: paginatedResults.map((item) => item.allowance.toString()),
       pagination: {
         page: pageNum,
         limit: limitNum,
-        totalUsers: total,
-        totalPages: Math.ceil(total / limitNum),
-        hasMore: offset + formatted.length < total
+        totalUsers: formatted.length,
+        totalPages: Math.ceil(formatted.length / limitNum),
+        hasMore: offset + paginatedResults.length < formatted.length
       }
     });
   } catch (error) {
