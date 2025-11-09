@@ -1206,7 +1206,7 @@ app.get('/api/allowance/:userAddress/:tokenAddress', async (req, res) => {
     });
   } catch (error) {
     const message = error?.message || '';
-    const isRateLimit = message.includes('rate limit') || message.includes('compute units') || error?.code === 429 || message.includes('missing revert data') || message.includes('maximum 10 calls');
+      const isRateLimit = message.includes('rate limit') || message.includes('compute units') || error?.code === 429 || message.includes('maximum 10 calls') || message.includes('over rate limit');
 
     if (cacheEntry) {
       console.warn(`⚠️ Allowance fetch failed for ${userAddress} (${tokenAddress}) - serving cached value. Reason: ${message}`);
@@ -1272,19 +1272,12 @@ app.post('/api/approve', async (req, res) => {
         
         // getUserFid already stores user data, but ensure it's complete
         // For new users, update-allowance-simple.js will create default config and add to webhook
-        // For existing users, check if they have config and add to webhook if sufficient allowance
+        // For existing users, skip immediate check - will be checked after 8 second delay when blockchain updates
         const userConfig = await database.getUserConfig(userAddress);
         if (userConfig) {
-          // Use cached allowance check function (has 5-minute cache to avoid excessive RPC calls)
-          const hasSufficientAllowance = await checkUserAllowanceForWebhook(userAddress);
-          
-          if (hasSufficientAllowance) {
-            console.log(`🔗 User has config and sufficient funds - immediately adding FID ${fid} to webhook after approval`);
-            await addFidToWebhook(fid);
-            console.log(`✅ FID ${fid} added to webhook immediately`);
-          } else {
-            console.log(`⚠️ User has config but insufficient allowance - will be added after 8 second delay check`);
-          }
+          // Don't check allowance immediately - blockchain hasn't updated yet
+          // Will be checked after 8 second delay below
+          console.log(`ℹ️ User ${userAddress} (FID: ${fid}) has config - will check allowance after blockchain update (8 second delay)`);
         } else {
           console.log(`ℹ️ User ${userAddress} (FID: ${fid}) approved but no config yet - update-allowance-simple.js will create default config and add to webhook`);
         }
@@ -1296,57 +1289,31 @@ app.post('/api/approve', async (req, res) => {
     }
     
     // Also verify allowance/balance after blockchain update (async, non-blocking)
+    // Use cached function to avoid excessive RPC calls - it will make fresh call after 8 seconds
     setTimeout(async () => {
       try {
         console.log(`⏳ Waiting 8 seconds for blockchain to update after approval...`);
         await new Promise(resolve => setTimeout(resolve, 8000));
         
-        // Check current allowance and balance from blockchain
-        const { ethers } = require('ethers');
-        const provider = await getProvider(); // Use fallback provider
-        const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+        // Clear cache for this user to force fresh check after blockchain update
+        const cacheKey = `${userAddress.toLowerCase()}-${tokenAddress.toLowerCase()}`;
+        allowanceCache.delete(cacheKey);
         
-        const tokenContract = new ethers.Contract(tokenAddress, [
-          "function allowance(address owner, address spender) view returns (uint256)",
-          "function balanceOf(address owner) view returns (uint256)"
-        ], provider);
-        
-        const [allowance, balance] = await Promise.all([
-          tokenContract.allowance(userAddress, ecionBatchAddress),
-          tokenContract.balanceOf(userAddress)
-        ]);
-        
-        const tokenDecimals = isBaseUsdcAddress(tokenAddress) ? 6 : 18;
-        const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
-        const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
-        
-        console.log(`📊 Blockchain check after approval: Allowance: ${allowanceAmount}, Balance: ${balanceAmount}`);
+        // Use cached allowance check function (will make fresh call after cache clear)
+        const hasSufficientAllowance = await checkUserAllowanceForWebhook(userAddress);
         
         // Get user's FID
         console.log(`🔍 Getting FID for user ${userAddress}...`);
         const fid = await getUserFid(userAddress);
         if (!fid) {
           console.log(`⚠️ No FID found for user ${userAddress} - this user has no verified Farcaster address`);
-          console.log(`📊 User has sufficient allowance (${allowanceAmount}) and balance (${balanceAmount}) but no FID`);
           console.log(`❌ Cannot add to webhook without FID - user needs to verify their address on Farcaster`);
           return;
         }
         
         console.log(`✅ Found FID ${fid} for user ${userAddress}`);
         
-        // Check if user has sufficient allowance and balance
-        const userConfig = await database.getUserConfig(userAddress);
-        if (!userConfig) {
-          console.log(`⚠️ No config found for user ${userAddress}`);
-          return;
-        }
-        
-        const likeAmount = parseFloat(userConfig.likeAmount || '0');
-        const recastAmount = parseFloat(userConfig.recastAmount || '0');
-        const replyAmount = parseFloat(userConfig.replyAmount || '0');
-        const minTipAmount = likeAmount + recastAmount + replyAmount;
-        
-        if (allowanceAmount >= minTipAmount && balanceAmount >= minTipAmount) {
+        if (hasSufficientAllowance) {
           console.log(`✅ User ${userAddress} has sufficient allowance and balance - adding to webhook`);
           const added = await addFidToWebhook(fid);
           if (added) {
@@ -1355,7 +1322,7 @@ app.post('/api/approve', async (req, res) => {
             console.log(`ℹ️ FID ${fid} already in webhook or failed to add`);
           }
         } else {
-          console.log(`❌ User ${userAddress} has insufficient allowance (${allowanceAmount}) or balance (${balanceAmount}) - not adding to webhook`);
+          console.log(`❌ User ${userAddress} has insufficient allowance or balance - not adding to webhook`);
         }
       } catch (error) {
         console.error(`❌ Error checking allowance and updating webhook for ${userAddress}:`, error);
@@ -2323,7 +2290,8 @@ async function checkUserAllowanceForWebhook(userAddress) {
     const now = Date.now();
     
     // Use cached value if less than 5 minutes old (more aggressive caching for background checks)
-    if (cacheEntry && now - cacheEntry.timestamp < 5 * 60 * 1000) {
+    // Increased cache time to 10 minutes to reduce RPC calls
+    if (cacheEntry && now - cacheEntry.timestamp < 10 * 60 * 1000) {
       const cachedAllowance = parseFloat(cacheEntry.allowance);
       const cachedBalance = parseFloat(cacheEntry.balance || '0');
       const hasSufficientAllowance = cachedAllowance >= minTipAmount;
@@ -2643,13 +2611,21 @@ async function updateUserWebhookStatus(userAddress) {
     // Use checkUserAllowanceForWebhook which has caching built in
     const canAfford = await checkUserAllowanceForWebhook(userAddress);
     
+    // Get allowance and balance from cache for logging/notifications
+    const tokenAddress = userConfig.tokenAddress || BASE_USDC_ADDRESS;
+    const cacheKey = `${userAddress.toLowerCase()}-${tokenAddress.toLowerCase()}`;
+    const cacheEntry = allowanceCache.get(cacheKey);
+    const allowanceAmount = cacheEntry ? parseFloat(cacheEntry.allowance) : 0;
+    const balanceAmount = cacheEntry ? parseFloat(cacheEntry.balance || '0') : 0;
+    const hasSufficientBalance = balanceAmount >= minTipAmount;
+    
     const fid = await getUserFid(userAddress);
     if (!fid) {
       console.log(`⚠️ No FID found for address: ${userAddress} - skipping webhook update`);
       return false;
     }
     
-    if (!hasSufficientAllowance || !hasSufficientBalance) {
+    if (!canAfford) {
       console.log(`❌ User ${userAddress} has insufficient funds - removing from webhook`);
       await removeFidFromWebhook(fid);
       

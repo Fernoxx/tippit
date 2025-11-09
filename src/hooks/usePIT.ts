@@ -198,22 +198,10 @@ export const useEcion = () => {
 
     setIsApproving(true);
     try {
-      // Check user balance before allowing approval
-      const balanceResponse = await fetch(`${BACKEND_URL}/api/allowance-balance/${address}/${tokenAddress}`);
-      if (balanceResponse.ok) {
-        const balanceData = await balanceResponse.json();
-        const userBalance = parseFloat(balanceData.balance);
-        const approvalAmount = parseFloat(amount);
-        
-        if (userBalance < approvalAmount) {
-          toast.error(`Insufficient balance. You have ${userBalance.toFixed(6)} tokens but trying to approve ${approvalAmount}`, { duration: 3000 });
-          setIsApproving(false);
-          return;
-        }
-        
-        console.log(`✅ Balance check passed: ${userBalance} >= ${approvalAmount}`);
-      }
-
+      // Skip balance check before approval - user will approve anyway
+      // Balance check happens on backend after approval via update-allowance endpoint
+      // This reduces RPC calls and prevents rate limiting
+      
       // Fetch the latest EcionBatch contract address
       const contractAddress = await fetchBackendWalletAddress();
       

@@ -144,6 +144,13 @@ class RPCProviderManager {
         
         retryCount++;
         
+        // Check if it's a rate limit or batch limit error - don't retry immediately
+        const isRateLimitError = error.message?.includes('rate limit') ||
+                                 error.message?.includes('over rate limit') ||
+                                 error.message?.includes('maximum 10 calls') ||
+                                 error.code === -32016 || // over rate limit
+                                 error.code === -32014;   // maximum calls in batch
+        
         // Check if it's a provider/RPC error
         const isRpcError = error.message?.includes('503') ||
                           error.message?.includes('Service Unavailable') ||
@@ -155,7 +162,24 @@ class RPCProviderManager {
                           error.code === 'NETWORK_ERROR' ||
                           error.code === 'CALL_EXCEPTION';
         
-        if (isRpcError && retryCount < maxRetries) {
+        if (isRateLimitError) {
+          // Rate limit errors - wait longer before retry (exponential backoff)
+          const waitTime = Math.min(5000 * Math.pow(2, retryCount - 1), 30000); // Max 30 seconds
+          console.log(`⏳ Rate limit error detected, waiting ${waitTime}ms before retry...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          
+          if (retryCount < maxRetries) {
+            try {
+              await this.fallbackToNextProvider();
+              continue;
+            } catch (fallbackError) {
+              console.log(`❌ Fallback failed: ${fallbackError.message}`);
+              continue;
+            }
+          } else {
+            throw error; // Max retries reached
+          }
+        } else if (isRpcError && retryCount < maxRetries) {
           // Try next provider
           try {
             await this.fallbackToNextProvider();
