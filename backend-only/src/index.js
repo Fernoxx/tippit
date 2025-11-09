@@ -4288,52 +4288,13 @@ app.get('/api/homepage', async (req, res) => {
     });
 
     formatted.sort((a, b) => {
-      // Primary sort: USDC tokens first, then other tokens
-      const aTokenAddress = (a.cast?.tipper?.tokenAddress || '').toLowerCase();
-      const bTokenAddress = (b.cast?.tipper?.tokenAddress || '').toLowerCase();
-      const aIsUSDC = aTokenAddress === BASE_USDC_ADDRESS;
-      const bIsUSDC = bTokenAddress === BASE_USDC_ADDRESS;
-      
-      if (aIsUSDC !== bIsUSDC) {
-        // USDC comes first
-        return aIsUSDC ? -1 : 1;
+      // Primary sort: USDC tokens first (they have totalEngagementValue > 0), then other tokens (totalEngagementValue = 0)
+      // This ensures USDC users always appear before non-USDC users
+      if (Math.abs(a.totalEngagementValue - b.totalEngagementValue) > 0.0001) {
+        return b.totalEngagementValue - a.totalEngagementValue;
       }
       
-      // For USDC users: Sort by number of enabled configs (3 > 2 > 1), then total amount, then timestamp
-      if (aIsUSDC && bIsUSDC) {
-        const aConfig = a.cast?.tipper || {};
-        const bConfig = b.cast?.tipper || {};
-        
-        // Count enabled configs
-        const aEnabledCount = (aConfig.likeEnabled ? 1 : 0) + 
-                              (aConfig.recastEnabled ? 1 : 0) + 
-                              (aConfig.replyEnabled ? 1 : 0);
-        const bEnabledCount = (bConfig.likeEnabled ? 1 : 0) + 
-                              (bConfig.recastEnabled ? 1 : 0) + 
-                              (bConfig.replyEnabled ? 1 : 0);
-        
-        // Primary: Number of enabled configs (more enabled = higher priority)
-        if (aEnabledCount !== bEnabledCount) {
-          return bEnabledCount - aEnabledCount;
-        }
-        
-        // Secondary: Total amount (sum of enabled configs)
-        const aTotalAmount = (aConfig.likeEnabled ? (parseFloat(aConfig.likeAmount) || 0) : 0) +
-                            (aConfig.recastEnabled ? (parseFloat(aConfig.recastAmount) || 0) : 0) +
-                            (aConfig.replyEnabled ? (parseFloat(aConfig.replyAmount) || 0) : 0);
-        const bTotalAmount = (bConfig.likeEnabled ? (parseFloat(bConfig.likeAmount) || 0) : 0) +
-                            (bConfig.recastEnabled ? (parseFloat(bConfig.recastAmount) || 0) : 0) +
-                            (bConfig.replyEnabled ? (parseFloat(bConfig.replyAmount) || 0) : 0);
-        
-        if (Math.abs(aTotalAmount - bTotalAmount) > 0.0001) {
-          return bTotalAmount - aTotalAmount;
-        }
-        
-        // Tertiary: Latest cast timestamp (newest first)
-        return b.timestamp - a.timestamp;
-      }
-      
-      // For non-USDC users: Sort by latest cast timestamp only (newest first)
+      // Secondary sort: Newest casts first (if same total value)
       return b.timestamp - a.timestamp;
     });
 
