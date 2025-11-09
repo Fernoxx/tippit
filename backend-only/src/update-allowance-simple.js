@@ -2,6 +2,7 @@
 const express = require('express');
 const { ethers } = require('ethers');
 const { getProvider } = require('./rpcProvider');
+const allowanceCache = global.__allowanceCache || (global.__allowanceCache = new Map());
 
 const BASE_USDC_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
 
@@ -39,8 +40,10 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
     ]);
     
     const tokenDecimals = await getTokenDecimals(tokenAddress);
-    const allowanceAmount = parseFloat(ethers.formatUnits(allowance, tokenDecimals));
-    const balanceAmount = parseFloat(ethers.formatUnits(balance, tokenDecimals));
+    const allowanceFormatted = ethers.formatUnits(allowance, tokenDecimals);
+    const balanceFormatted = ethers.formatUnits(balance, tokenDecimals);
+    const allowanceAmount = parseFloat(allowanceFormatted);
+    const balanceAmount = parseFloat(balanceFormatted);
     
     console.log(`📊 Blockchain check: Allowance: ${allowanceAmount}, Balance: ${balanceAmount}`);
     
@@ -79,6 +82,14 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
     }
       
       const normalizedTokenAddress = (tokenAddress || userConfig?.tokenAddress || BASE_USDC_ADDRESS).toLowerCase();
+      const cacheKey = `${userAddress.toLowerCase()}-${normalizedTokenAddress}`;
+      allowanceCache.set(cacheKey, {
+        allowance: allowanceFormatted,
+        balance: balanceFormatted,
+        tokenAddress: normalizedTokenAddress,
+        decimals: tokenDecimals,
+        timestamp: Date.now()
+      });
       if (userConfig) {
         const existingHistory = Array.isArray(userConfig.tokenHistory)
           ? userConfig.tokenHistory

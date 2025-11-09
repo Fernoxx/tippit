@@ -24,6 +24,8 @@ try {
 // Using webhook filtering based on allowance and balance checks
 
 const BASE_USDC_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
+const allowanceCache = global.__allowanceCache || (global.__allowanceCache = new Map());
+const ALLOWANCE_CACHE_TTL_MS = Math.max(10000, parseInt(process.env.ALLOWANCE_CACHE_TTL_MS || '30000', 10) || 30000);
 
 // Initialize batchTransferManager
 console.log('🔄 Initializing batchTransferManager...');
@@ -1019,71 +1021,147 @@ app.get('/api/check-allowance', async (req, res) => {
 
 // Combined allowance and balance endpoint - Single blockchain call for both
 app.get('/api/allowance-balance/:userAddress/:tokenAddress', async (req, res) => {
+  const { userAddress, tokenAddress } = req.params;
+  const cacheKey = `${userAddress.toLowerCase()}-${tokenAddress.toLowerCase()}`;
+  const cacheEntry = allowanceCache.get(cacheKey);
+  const now = Date.now();
+
+  const sendCached = (entry, opts = {}) => {
+    return res.json({
+      allowance: entry.allowance,
+      balance: entry.balance ?? null,
+      tokenAddress: entry.tokenAddress,
+      decimals: entry.decimals,
+      source: opts.source || 'cache',
+      cachedAt: entry.timestamp,
+      stale: opts.stale || false
+    });
+  };
+
   try {
-    const { userAddress, tokenAddress } = req.params;
     const { ethers } = require('ethers');
-    
-    const provider = await getProvider(); // Use fallback provider
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
-    
-    const tokenContract = new ethers.Contract(tokenAddress, [
-      "function allowance(address owner, address spender) view returns (uint256)",
-      "function balanceOf(address owner) view returns (uint256)"
-    ], provider);
-    
-    // Get both allowance and balance in parallel - single blockchain call
-    const [allowance, balance] = await Promise.all([
-      tokenContract.allowance(userAddress, ecionBatchAddress),
-      tokenContract.balanceOf(userAddress)
-    ]);
-    
     const tokenDecimals = await getTokenDecimals(tokenAddress);
+
+    const [allowance, balance] = await executeWithFallback(async (provider) => {
+      const tokenContract = new ethers.Contract(tokenAddress, [
+        "function allowance(address owner, address spender) view returns (uint256)",
+        "function balanceOf(address owner) view returns (uint256)"
+      ], provider);
+
+      return Promise.all([
+        tokenContract.allowance(userAddress, ecionBatchAddress),
+        tokenContract.balanceOf(userAddress)
+      ]);
+    }, 4);
+
     const formattedAllowance = ethers.formatUnits(allowance, tokenDecimals);
     const formattedBalance = ethers.formatUnits(balance, tokenDecimals);
-    
-    console.log(`📊 Combined check: User ${userAddress} - Allowance: ${formattedAllowance}, Balance: ${formattedBalance} (${tokenAddress})`);
-    
-    res.json({ 
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`📊 Combined check: User ${userAddress} - Allowance: ${formattedAllowance}, Balance: ${formattedBalance} (${tokenAddress})`);
+    }
+
+    const entry = {
       allowance: formattedAllowance,
       balance: formattedBalance,
-      tokenAddress: tokenAddress,
-      decimals: tokenDecimals
+      tokenAddress,
+      decimals: tokenDecimals,
+      timestamp: now
+    };
+    allowanceCache.set(cacheKey, entry);
+
+    res.json({
+      allowance: formattedAllowance,
+      balance: formattedBalance,
+      tokenAddress,
+      decimals: tokenDecimals,
+      source: 'blockchain',
+      cachedAt: now
     });
   } catch (error) {
+    const message = error?.message || '';
+    const isRateLimit = message.includes('rate limit') || message.includes('compute units') || error?.code === 429;
+
+    if (cacheEntry && now - cacheEntry.timestamp <= ALLOWANCE_CACHE_TTL_MS * 3) {
+      console.warn(`⚠️ Allowance/Balance fetch failed for ${userAddress} (${tokenAddress}) - serving cached value. Reason: ${message}`);
+      return sendCached(cacheEntry, { stale: true });
+    }
+
     console.error('Allowance/Balance fetch error:', error);
-    res.status(500).json({ error: 'Failed to fetch allowance and balance' });
+    res.status(isRateLimit ? 429 : 500).json({ error: isRateLimit ? 'Rate limited - try again' : 'Failed to fetch allowance and balance' });
   }
 });
 
-// Token allowance endpoint - Always returns blockchain allowance (what user approved)
+// Token allowance endpoint - Always returns blockchain allowance (what user approved) with caching
 app.get('/api/allowance/:userAddress/:tokenAddress', async (req, res) => {
+  const { userAddress, tokenAddress } = req.params;
+  const forceRefresh = req.query.force === 'true';
+  const cacheKey = `${userAddress.toLowerCase()}-${tokenAddress.toLowerCase()}`;
+  const cacheEntry = allowanceCache.get(cacheKey);
+  const now = Date.now();
+
+  if (!forceRefresh && cacheEntry && now - cacheEntry.timestamp <= ALLOWANCE_CACHE_TTL_MS) {
+    return res.json({
+      allowance: cacheEntry.allowance,
+      tokenAddress: cacheEntry.tokenAddress,
+      decimals: cacheEntry.decimals,
+      source: 'cache',
+      cachedAt: cacheEntry.timestamp
+    });
+  }
+
   try {
-    const { userAddress, tokenAddress } = req.params;
     const { ethers } = require('ethers');
-    
-    const provider = await getProvider(); // Use fallback provider
-    
-    // Check allowance for ECION BATCH CONTRACT, not backend wallet!
     const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
-    
-    const tokenContract = new ethers.Contract(tokenAddress, [
-      "function allowance(address owner, address spender) view returns (uint256)"
-    ], provider);
-    
-    const allowance = await tokenContract.allowance(userAddress, ecionBatchAddress);
     const tokenDecimals = await getTokenDecimals(tokenAddress);
+
+    const allowance = await executeWithFallback(async (provider) => {
+      const tokenContract = new ethers.Contract(tokenAddress, [
+        "function allowance(address owner, address spender) view returns (uint256)"
+      ], provider);
+      return tokenContract.allowance(userAddress, ecionBatchAddress);
+    }, 4);
+
     const formattedAllowance = ethers.formatUnits(allowance, tokenDecimals);
-    
-    console.log(`📊 Blockchain allowance: User ${userAddress} approved ${formattedAllowance} tokens (${tokenAddress}) to EcionBatch contract ${ecionBatchAddress}`);
-    
-    res.json({ 
+
+    const entry = {
       allowance: formattedAllowance,
-      tokenAddress: tokenAddress,
-      decimals: tokenDecimals
+      tokenAddress,
+      decimals: tokenDecimals,
+      timestamp: now
+    };
+    allowanceCache.set(cacheKey, entry);
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`📊 Blockchain allowance: User ${userAddress} approved ${formattedAllowance} tokens (${tokenAddress}) to EcionBatch contract ${ecionBatchAddress}`);
+    }
+
+    res.json({
+      allowance: formattedAllowance,
+      tokenAddress,
+      decimals: tokenDecimals,
+      source: 'blockchain',
+      cachedAt: now
     });
   } catch (error) {
+    const message = error?.message || '';
+    const isRateLimit = message.includes('rate limit') || message.includes('compute units') || error?.code === 429 || message.includes('missing revert data');
+
+    if (cacheEntry) {
+      console.warn(`⚠️ Allowance fetch failed for ${userAddress} (${tokenAddress}) - serving cached value. Reason: ${message}`);
+      return res.json({
+        allowance: cacheEntry.allowance,
+        tokenAddress: cacheEntry.tokenAddress,
+        decimals: cacheEntry.decimals,
+        source: 'cache',
+        cachedAt: cacheEntry.timestamp,
+        stale: true
+      });
+    }
+
     console.error('Allowance fetch error:', error);
-    res.status(500).json({ error: 'Failed to fetch allowance' });
+    res.status(isRateLimit ? 429 : 500).json({ error: isRateLimit ? 'Rate limited - try again' : 'Failed to fetch allowance' });
   }
 });
 
