@@ -8207,7 +8207,8 @@ app.post('/api/admin/reconcile-active-users', async (req, res) => {
       totalProfiles: profiles.length,
       added: [],
       skipped: [],
-      errors: []
+      errors: [],
+      castUpdates: []
     };
 
     const { ethers } = require('ethers');
@@ -8299,40 +8300,77 @@ app.post('/api/admin/reconcile-active-users', async (req, res) => {
           balance: balanceAmount,
           minTipAmount
         });
-        continue;
+      } else {
+        try {
+          const added = await addFidToWebhook(fid);
+          if (added) {
+            summary.added.push({
+              fid,
+              userAddress,
+              allowance: allowanceAmount,
+              balance: balanceAmount,
+              minTipAmount
+            });
+            trackedSet.add(fid);
+
+            userConfig.isActive = true;
+            await database.setUserConfig(userAddress, userConfig);
+
+            await database.pool.query(`
+              UPDATE user_profiles 
+              SET is_tracking = true, updated_at = NOW()
+              WHERE fid = $1
+            `, [fid]);
+          } else {
+            summary.errors.push({ fid, userAddress, reason: 'webhook_add_failed' });
+          }
+        } catch (error) {
+          summary.errors.push({ fid, userAddress, reason: 'webhook_error', error: error.message });
+        }
       }
 
+      // Fetch and update latest cast hash for this user
       try {
-        const added = await addFidToWebhook(fid);
-        if (added) {
-          summary.added.push({
+        const latestCast = await getLatestCast(fid);
+        if (latestCast && latestCast.hash) {
+          const existingCast = await database.pool.query(`
+            SELECT latest_cast_hash FROM user_profiles WHERE fid = $1
+          `, [fid]);
+          
+          if (existingCast.rows.length === 0 || existingCast.rows[0].latest_cast_hash !== latestCast.hash) {
+            await updateLatestCastHash(userAddress, latestCast.hash, latestCast.timestamp);
+            summary.castUpdates.push({
+              fid,
+              userAddress,
+              castHash: latestCast.hash,
+              updated: true
+            });
+          } else {
+            summary.castUpdates.push({
+              fid,
+              userAddress,
+              castHash: latestCast.hash,
+              updated: false,
+              reason: 'already_latest'
+            });
+          }
+        } else {
+          summary.castUpdates.push({
             fid,
             userAddress,
-            allowance: allowanceAmount,
-            balance: balanceAmount,
-            minTipAmount
+            updated: false,
+            reason: 'no_cast_found'
           });
-          trackedSet.add(fid);
-
-          userConfig.isActive = true;
-          await database.setUserConfig(userAddress, userConfig);
-
-          await database.pool.query(`
-            UPDATE user_profiles 
-            SET is_tracking = true, updated_at = NOW()
-            WHERE fid = $1
-          `, [fid]);
-        } else {
-          summary.errors.push({ fid, userAddress, reason: 'webhook_add_failed' });
         }
       } catch (error) {
-        summary.errors.push({ fid, userAddress, reason: 'webhook_error', error: error.message });
+        summary.errors.push({ fid, userAddress, reason: 'cast_fetch_error', error: error.message });
       }
     }
 
     summary.addedCount = summary.added.length;
     summary.skippedCount = summary.skipped.length;
     summary.errorCount = summary.errors.length;
+    summary.castUpdateCount = summary.castUpdates.filter(c => c.updated).length;
 
     res.json(summary);
   } catch (error) {

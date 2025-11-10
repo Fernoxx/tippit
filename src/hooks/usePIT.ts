@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useFarcasterWallet } from './useFarcasterWallet';
 import { useFarcasterSDK } from './useFarcasterSDK';
 import { toast } from 'react-hot-toast';
-import { useWriteContract, useReadContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useWriteContract, useReadContract, useWaitForTransactionReceipt, usePublicClient } from 'wagmi';
 import { parseUnits, formatUnits } from 'viem';
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001').replace(/\/$/, '');
@@ -51,6 +51,7 @@ interface UserConfig {
 
 export const useEcion = () => {
   const { address, isConnected } = useFarcasterWallet();
+  const publicClient = usePublicClient();
   const [userConfig, setUserConfig] = useState<UserConfig | null>(null);
   const [tokenBalance, setTokenBalance] = useState<any>(null);
   const [tokenAllowance, setTokenAllowance] = useState<string | null>(null);
@@ -198,10 +199,6 @@ export const useEcion = () => {
 
     setIsApproving(true);
     try {
-      // Skip balance check before approval - user will approve anyway
-      // Balance check happens on backend after approval via update-allowance endpoint
-      // This reduces RPC calls and prevents rate limiting
-      
       // Fetch the latest EcionBatch contract address
       const contractAddress = await fetchBackendWalletAddress();
       
@@ -210,10 +207,6 @@ export const useEcion = () => {
         setIsApproving(false);
         return;
       }
-      
-      console.log('Approving EXACT amount:', amount, 'tokens to EcionBatch contract');
-      console.log('EcionBatch contract address:', contractAddress);
-      console.log('Token address:', tokenAddress);
       
       // Get token decimals from backend
       const tokenInfoResponse = await fetch(`${BACKEND_URL}/api/token-info/${tokenAddress}`);
@@ -225,7 +218,42 @@ export const useEcion = () => {
         tokenDecimals = 6; // USDC
       }
       
+      // Check user's balance before approval
+      if (!publicClient) {
+        toast.error('Wallet not connected. Please connect your wallet first.', { duration: 2000 });
+        setIsApproving(false);
+        return;
+      }
+      
+      const balance = await publicClient.readContract({
+        address: tokenAddress as `0x${string}`,
+        abi: [
+          {
+            "constant": true,
+            "inputs": [{"name": "_owner", "type": "address"}],
+            "name": "balanceOf",
+            "outputs": [{"name": "", "type": "uint256"}],
+            "type": "function"
+          }
+        ],
+        functionName: 'balanceOf',
+        args: [address as `0x${string}`]
+      });
+      
+      const balanceAmount = parseFloat(formatUnits(balance, tokenDecimals));
+      
+      if (amountNum > balanceAmount) {
+        toast.error(`Insufficient funds. You have ${balanceAmount.toFixed(tokenDecimals === 6 ? 6 : 18)} tokens but trying to approve ${amount}.`, { duration: 4000 });
+        setIsApproving(false);
+        return;
+      }
+      
+      console.log('Approving EXACT amount:', amount, 'tokens to EcionBatch contract');
+      console.log('EcionBatch contract address:', contractAddress);
+      console.log('Token address:', tokenAddress);
+      console.log('User balance:', balanceAmount);
       console.log('Token decimals:', tokenDecimals);
+      
       const amountWei = parseUnits(amount, tokenDecimals);
       
       writeContract({
