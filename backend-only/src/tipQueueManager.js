@@ -148,12 +148,23 @@ class TipQueueManager {
         return { success: false, reason: 'Could not fetch user data' };
       }
 
-      // Check follower count
-      if (userData.followerCount < authorConfig.minFollowerCount) {
-        console.log(`❌ FOLLOWER CHECK FAILED: Interactor ${interaction.interactorFid} has ${userData.followerCount} followers (required: ${authorConfig.minFollowerCount})`);
+      // Check follower count with detailed logging
+      const interactorFollowerCount = Number(userData.followerCount) || 0;
+      const requiredFollowerCount = Number(authorConfig.minFollowerCount) || 0;
+      
+      console.log(`🔍 FOLLOWER COUNT VALIDATION:`, {
+        interactorFid: interaction.interactorFid,
+        interactorFollowerCount: interactorFollowerCount,
+        requiredFollowerCount: requiredFollowerCount,
+        comparison: `${interactorFollowerCount} < ${requiredFollowerCount}`,
+        passes: interactorFollowerCount >= requiredFollowerCount
+      });
+      
+      if (interactorFollowerCount < requiredFollowerCount) {
+        console.log(`❌ FOLLOWER CHECK FAILED: Interactor ${interaction.interactorFid} has ${interactorFollowerCount} followers (required: ${requiredFollowerCount})`);
         return { success: false, reason: 'Insufficient follower count' };
       }
-      console.log(`✅ FOLLOWER CHECK PASSED: Interactor ${interaction.interactorFid} has ${userData.followerCount} followers (required: ${authorConfig.minFollowerCount})`);
+      console.log(`✅ FOLLOWER CHECK PASSED: Interactor ${interaction.interactorFid} has ${interactorFollowerCount} followers (required: ${requiredFollowerCount})`);
 
       // Check Neynar score
       if (userData.neynarScore < authorConfig.minNeynarScore) {
@@ -277,24 +288,57 @@ class TipQueueManager {
 
   async getUserData(fid) {
     try {
+      console.log(`🔍 Fetching user data for FID ${fid}...`);
       const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`, {
         headers: { 'x-api-key': process.env.NEYNAR_API_KEY }
       });
       
       if (!response.ok) {
-        console.error(`Failed to fetch user data for FID ${fid}: ${response.status}`);
+        console.error(`❌ Failed to fetch user data for FID ${fid}: ${response.status}`);
+        const errorText = await response.text();
+        console.error(`❌ Error response:`, errorText);
         return null;
       }
       
       const data = await response.json();
+      console.log(`📊 API response for FID ${fid}:`, JSON.stringify(data, null, 2));
+      
+      if (!data.users || !Array.isArray(data.users) || data.users.length === 0) {
+        console.error(`❌ No users found in API response for FID ${fid}`);
+        return null;
+      }
+      
       const user = data.users[0];
+      if (!user) {
+        console.error(`❌ User data is null/undefined for FID ${fid}`);
+        return null;
+      }
+      
+      // Ensure proper type conversion - handle both string and number
+      const rawFollowerCount = user.follower_count;
+      const followerCount = rawFollowerCount !== null && rawFollowerCount !== undefined 
+        ? Number(rawFollowerCount) 
+        : 0;
+      
+      const rawNeynarScore = user.score;
+      const neynarScore = rawNeynarScore !== null && rawNeynarScore !== undefined 
+        ? Number(rawNeynarScore) 
+        : 0;
+      
+      console.log(`✅ User data for FID ${fid}:`, {
+        followerCount: followerCount,
+        rawFollowerCount: rawFollowerCount,
+        followerCountType: typeof rawFollowerCount,
+        neynarScore: neynarScore,
+        username: user.username || 'N/A'
+      });
       
       return {
-        followerCount: user.follower_count || 0,
-        neynarScore: user.score || 0
+        followerCount: followerCount,
+        neynarScore: neynarScore
       };
     } catch (error) {
-      console.error(`Error fetching user data for FID ${fid}:`, error);
+      console.error(`❌ Error fetching user data for FID ${fid}:`, error);
       return null;
     }
   }
