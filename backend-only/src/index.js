@@ -3009,21 +3009,42 @@ async function hasNotificationTokens(userAddress) {
 
 // Legacy function for backward compatibility (now uses Farcaster API)
 async function sendNeynarNotification(recipientFid, title, message, targetUrl = "https://ecion.vercel.app") {
-  // Get user address from FID
-  const userAddress = await getUserAddressFromFid(recipientFid);
-  if (!userAddress) {
-    console.log(`⚠️ Could not find user address for FID ${recipientFid}`);
+  try {
+    console.log(`📱 Sending notification to FID ${recipientFid}`);
+    
+    // Use Neynar Frame API endpoint
+    const notificationUrl = "https://api.neynar.com/f/app/9bb8f859-7dad-4f31-abeb-9ca871fe2863/event";
+    
+    // Send notification using Neynar Frame API
+    const response = await fetch(notificationUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.NEYNAR_API_KEY
+      },
+      body: JSON.stringify({
+        targetFids: [parseInt(recipientFid)],
+        notification: {
+          title: title,
+          body: message,
+          target_url: targetUrl
+        }
+      })
+    });
+    
+    if (response.ok) {
+      const result = await response.json();
+      console.log(`✅ Notification sent to FID ${recipientFid}: ${title}`, result);
+      return true;
+    } else {
+      const errorText = await response.text();
+      console.log(`❌ Failed to send notification to FID ${recipientFid}: ${response.status} - ${errorText}`);
+      return false;
+    }
+  } catch (error) {
+    console.error(`❌ Error sending notification to FID ${recipientFid}:`, error);
     return false;
   }
-  
-  // Check if user has notification tokens first
-  const hasTokens = await hasNotificationTokens(userAddress);
-  if (!hasTokens) {
-    console.log(`⏭️ User ${userAddress} (FID: ${recipientFid}) hasn't added mini app - skipping notification`);
-    return false;
-  }
-  
-  return await sendFarcasterNotification(userAddress, title, message, targetUrl);
 }
 
 // Send notification to multiple users using Farcaster API
