@@ -5732,6 +5732,171 @@ app.get('/api/debug/user-config-allowance', async (req, res) => {
     }
   });
 
+// Test endpoint to verify routing
+app.get('/api/token/test', (req, res) => {
+  res.json({ success: true, message: 'Token API routes are working', timestamp: Date.now() });
+});
+
+// Token buyers leaderboard endpoint using Codex GraphQL API
+app.get('/api/token/top-buyers', async (req, res) => {
+  try {
+    const tokenAddress = req.query.tokenAddress || '0x946a173ad73cbb942b9877e9029fa4c4dc7f2b07';
+    const hours = parseInt(req.query.hours || '24', 10);
+    const limit = parseInt(req.query.limit || '10', 10);
+    const codexApiKey = process.env.CODEX_API_KEY || '864af8bb6489c42e2b2750c5476386cbdb4bd05d';
+
+    console.log(`🔍 Fetching top buyers for token ${tokenAddress} (last ${hours} hours, limit: ${limit})`);
+
+    // Determine timeframe based on hours
+    let timeframe = '1d'; // Default to 1 day
+    let amountField = 'amountBoughtUsd1d';
+    
+    if (hours <= 24) {
+      timeframe = '1d';
+      amountField = 'amountBoughtUsd1d';
+    } else if (hours <= 168) { // 7 days
+      timeframe = '1w';
+      amountField = 'amountBoughtUsd1w';
+    } else if (hours <= 720) { // 30 days
+      timeframe = '30d';
+      amountField = 'amountBoughtUsd30d';
+    } else {
+      timeframe = '1y';
+      amountField = 'amountBoughtUsd1y';
+    }
+
+    // Base network ID (8453 for Base mainnet)
+    const networkId = 8453;
+    const tokenId = `${tokenAddress}:${networkId}`;
+
+    console.log(`📡 Using Codex GraphQL API with tokenId: ${tokenId}, timeframe: ${timeframe}`);
+
+    // GraphQL query for filterTokenWallets
+    const graphqlQuery = {
+      query: `
+        query FilterTokenWallets($input: FilterTokenWalletsInput!) {
+          filterTokenWallets(input: $input) {
+            address
+            amountBoughtUsd1d
+            amountBoughtUsd1w
+            amountBoughtUsd30d
+            amountBoughtUsd1y
+          }
+        }
+      `,
+      variables: {
+        input: {
+          tokenId: tokenId,
+          sortBy: {
+            field: amountField,
+            order: "DESC"
+          },
+          limit: limit
+        }
+      }
+    };
+
+    console.log(`📡 GraphQL Query:`, JSON.stringify(graphqlQuery, null, 2));
+
+    const codexResponse = await fetch('https://api.codex.io/graphql', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': codexApiKey
+      },
+      body: JSON.stringify(graphqlQuery)
+    });
+
+    console.log(`📡 Codex API response status: ${codexResponse.status}`);
+
+    if (!codexResponse.ok) {
+      const errorText = await codexResponse.text();
+      console.error(`❌ Codex API error: ${codexResponse.status} - ${errorText}`);
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Failed to fetch token wallets',
+        details: errorText,
+        status: codexResponse.status
+      });
+    }
+
+    const codexData = await codexResponse.json();
+    console.log(`📊 Codex API response:`, JSON.stringify(codexData, null, 2));
+
+    if (codexData.errors) {
+      console.error(`❌ GraphQL errors:`, codexData.errors);
+      return res.status(500).json({ 
+        success: false, 
+        error: 'GraphQL query errors',
+        details: codexData.errors
+      });
+    }
+
+    const wallets = codexData.data?.filterTokenWallets || [];
+    console.log(`📊 Found ${wallets.length} wallets`);
+
+    if (wallets.length === 0) {
+      return res.json({
+        success: true,
+        tokenAddress,
+        hours,
+        timeframe,
+        leaderboard: [],
+        message: 'No buyers found for the specified timeframe'
+      });
+    }
+
+    // Map wallets to buyer format
+    const topBuyers = wallets.map((wallet, index) => ({
+      address: wallet.address.toLowerCase(),
+      totalSpent: parseFloat(wallet[amountField] || 0)
+    })).filter(buyer => buyer.totalSpent > 0);
+
+    console.log(`📊 Top ${topBuyers.length} buyers found`);
+
+    // Fetch Farcaster profiles for all buyers
+    console.log(`🔍 Fetching Farcaster profiles for ${topBuyers.length} buyers...`);
+    const { fetchBulkUsersByEthOrSolAddress } = require('./neynar');
+    const buyerAddresses = topBuyers.map(b => b.address);
+    console.log(`📋 Buyer addresses:`, buyerAddresses);
+    
+    const farcasterProfiles = await fetchBulkUsersByEthOrSolAddress(buyerAddresses);
+    console.log(`📊 Farcaster profiles found:`, Object.keys(farcasterProfiles).length);
+
+    // Combine buyer data with Farcaster profiles
+    const leaderboard = topBuyers.map((buyer, index) => {
+      const farcasterData = farcasterProfiles[buyer.address]?.[0];
+      
+      return {
+        rank: index + 1,
+        address: buyer.address,
+        amountSpent: buyer.totalSpent,
+        username: farcasterData?.username || null,
+        displayName: farcasterData?.display_name || null,
+        pfpUrl: farcasterData?.pfp_url || null,
+        fid: farcasterData?.fid || null
+      };
+    });
+
+    res.json({
+      success: true,
+      tokenAddress,
+      hours,
+      timeframe,
+      leaderboard
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching top buyers:', error);
+    console.error('❌ Error stack:', error.stack);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
       // Simple fallback for frontend routes (LAST ROUTE) - but NOT for API routes
     // NOTE: All API routes must be defined BEFORE this catch-all route
     app.get('*', (req, res) => {
