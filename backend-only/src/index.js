@@ -8428,8 +8428,6 @@ app.get('/api/token/top-buyers', async (req, res) => {
             amountBoughtUsd1w
             amountBoughtUsd30d
             amountBoughtUsd1y
-            tokenAmountBought30d
-            buys30d
           }
         }
       `,
@@ -8440,14 +8438,7 @@ app.get('/api/token/top-buyers', async (req, res) => {
             field: amountField,
             order: "DESC"
           },
-          limit: limit,
-          filters: {
-            amountBoughtUsd: {
-              [timeframe]: {
-                min: 0.01 // Minimum $0.01 spent
-              }
-            }
-          }
+          limit: limit
         }
       }
     };
