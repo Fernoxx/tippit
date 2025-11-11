@@ -5805,10 +5805,7 @@ app.get('/api/token/top-buyers', async (req, res) => {
     
     // Try Codex API endpoints - check docs for correct endpoint
     const codexEndpoints = [
-      'https://api.codex.io/graphql',
-      'https://graphql.codex.io',
-      'https://api.codex.io/v1/graphql',
-      'https://api.codex.io/v2/graphql'
+      'https://graph.codex.io/graphql'
     ];
     
     let codexData;
