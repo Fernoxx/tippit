@@ -8384,25 +8384,28 @@ app.get('/api/token/top-buyers', async (req, res) => {
   try {
     const tokenAddress = req.query.tokenAddress || '0x946a173ad73cbb942b9877e9029fa4c4dc7f2b07';
     const hours = parseInt(req.query.hours || '24', 10);
-    const limit = parseInt(req.query.limit || '5', 10);
+    const limit = parseInt(req.query.limit || '10', 10);
     const clankerContractAddress = '0x11Ff62d7C7D617083dF805BC5Bc098fD54CFd0De';
     const codexApiKey = process.env.CODEX_API_KEY || '864af8bb6489c42e2b2750c5476386cbdb4bd05d';
 
-    console.log(`🔍 Fetching top buyers for token ${tokenAddress} (last ${hours} hours)`);
+    console.log(`🔍 Fetching top buyers for token ${tokenAddress} (last ${hours} hours, limit: ${limit})`);
 
     // Calculate timestamp for filtering
     const now = Math.floor(Date.now() / 1000);
     const fromTimestamp = now - (hours * 3600);
 
     // Fetch token transfers from Codex API
-    const codexResponse = await fetch(
-      `https://api.codex.io/v1/tokens/${tokenAddress}/transfers?chain=base&limit=1000&from_timestamp=${fromTimestamp}`,
-      {
-        headers: {
-          'x-api-key': codexApiKey
-        }
+    const codexUrl = `https://api.codex.io/v1/tokens/${tokenAddress}/transfers?chain=base&limit=1000&from_timestamp=${fromTimestamp}`;
+    console.log(`📡 Calling Codex API: ${codexUrl}`);
+    console.log(`🔑 Using API key: ${codexApiKey.substring(0, 10)}...`);
+    
+    const codexResponse = await fetch(codexUrl, {
+      headers: {
+        'x-api-key': codexApiKey
       }
-    );
+    });
+
+    console.log(`📡 Codex API response status: ${codexResponse.status}`);
 
     if (!codexResponse.ok) {
       const errorText = await codexResponse.text();
@@ -8410,12 +8413,14 @@ app.get('/api/token/top-buyers', async (req, res) => {
       return res.status(500).json({ 
         success: false, 
         error: 'Failed to fetch token transfers',
-        details: errorText
+        details: errorText,
+        status: codexResponse.status
       });
     }
 
     const codexData = await codexResponse.json();
     console.log(`📊 Codex API returned ${codexData.transfers?.length || 0} transfers`);
+    console.log(`📊 Codex API response structure:`, JSON.stringify(codexData).substring(0, 500));
 
     // Filter transfers FROM Clanker contract TO users
     const buyerTransfers = (codexData.transfers || []).filter(transfer => {
@@ -8444,13 +8449,30 @@ app.get('/api/token/top-buyers', async (req, res) => {
     }
 
     // Process each transfer to get transaction value
+    console.log(`🔄 Processing ${buyerTransfers.length} buyer transfers...`);
+    let processedCount = 0;
+    let errorCount = 0;
+    
     for (const transfer of buyerTransfers) {
       try {
         const txHash = transfer.transaction_hash;
-        if (!txHash) continue;
+        if (!txHash) {
+          console.log(`⚠️ Transfer missing transaction hash, skipping`);
+          continue;
+        }
 
+        console.log(`🔍 Processing transfer: ${txHash}`);
         const tx = await provider.getTransaction(txHash);
-        if (!tx || tx.to?.toLowerCase() !== clankerContractAddress.toLowerCase()) continue;
+        
+        if (!tx) {
+          console.log(`⚠️ Transaction not found: ${txHash}`);
+          continue;
+        }
+        
+        if (tx.to?.toLowerCase() !== clankerContractAddress.toLowerCase()) {
+          console.log(`⚠️ Transaction not to Clanker contract: ${tx.to} vs ${clankerContractAddress}`);
+          continue;
+        }
 
         const ethSpent = parseFloat(ethers.formatEther(tx.value || 0));
         const usdSpent = ethSpent * ethPriceUSD;
@@ -8458,11 +8480,17 @@ app.get('/api/token/top-buyers', async (req, res) => {
         const buyerAddress = transfer.to_address?.toLowerCase();
         if (buyerAddress) {
           buyerSpending[buyerAddress] = (buyerSpending[buyerAddress] || 0) + usdSpent;
+          processedCount++;
+          console.log(`✅ Processed: ${buyerAddress} spent $${usdSpent.toFixed(2)}`);
         }
       } catch (error) {
+        errorCount++;
         console.error(`❌ Error processing transfer ${transfer.transaction_hash}:`, error.message);
+        console.error(`❌ Error stack:`, error.stack);
       }
     }
+    
+    console.log(`📊 Processed ${processedCount} transfers, ${errorCount} errors`);
 
     // Sort and get top buyers
     const topBuyers = Object.entries(buyerSpending)
@@ -8473,9 +8501,13 @@ app.get('/api/token/top-buyers', async (req, res) => {
     console.log(`📊 Top ${topBuyers.length} buyers found`);
 
     // Fetch Farcaster profiles for all buyers
+    console.log(`🔍 Fetching Farcaster profiles for ${topBuyers.length} buyers...`);
     const { fetchBulkUsersByEthOrSolAddress } = require('./neynar');
     const buyerAddresses = topBuyers.map(b => b.address);
+    console.log(`📋 Buyer addresses:`, buyerAddresses);
+    
     const farcasterProfiles = await fetchBulkUsersByEthOrSolAddress(buyerAddresses);
+    console.log(`📊 Farcaster profiles found:`, Object.keys(farcasterProfiles).length);
 
     // Combine buyer data with Farcaster profiles
     const leaderboard = topBuyers.map((buyer, index) => {
