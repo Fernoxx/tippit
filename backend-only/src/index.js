@@ -5772,6 +5772,7 @@ app.get('/api/token/top-buyers', async (req, res) => {
     console.log(`📡 Using Codex GraphQL API with tokenId: ${tokenId}, timeframe: ${timeframe}`);
 
     // GraphQL query for filterTokenWallets
+    // Based on Codex docs: https://docs.codex.io/api-reference/queries/filtertokenwallets
     const graphqlQuery = {
       query: `
         query FilterTokenWallets($input: FilterTokenWalletsInput!) {
@@ -5797,6 +5798,8 @@ app.get('/api/token/top-buyers', async (req, res) => {
     };
 
     console.log(`📡 GraphQL Query:`, JSON.stringify(graphqlQuery, null, 2));
+    console.log(`🔑 API Key (first 10 chars): ${codexApiKey.substring(0, 10)}...`);
+    console.log(`🌐 Codex GraphQL endpoint: https://api.codex.io/graphql`);
 
     let codexResponse;
     let codexData;
@@ -5808,10 +5811,12 @@ app.get('/api/token/top-buyers', async (req, res) => {
           'Content-Type': 'application/json',
           'x-api-key': codexApiKey
         },
-        body: JSON.stringify(graphqlQuery)
+        body: JSON.stringify(graphqlQuery),
+        signal: AbortSignal.timeout(30000) // 30 second timeout
       });
 
       console.log(`📡 Codex API response status: ${codexResponse.status}`);
+      console.log(`📡 Codex API response headers:`, Object.fromEntries(codexResponse.headers.entries()));
 
       if (!codexResponse.ok) {
         const errorText = await codexResponse.text();
@@ -5829,12 +5834,26 @@ app.get('/api/token/top-buyers', async (req, res) => {
     } catch (fetchError) {
       console.error(`❌ Fetch error:`, fetchError);
       console.error(`❌ Fetch error message:`, fetchError.message);
+      console.error(`❌ Fetch error name:`, fetchError.name);
+      console.error(`❌ Fetch error code:`, fetchError.code);
       console.error(`❌ Fetch error stack:`, fetchError.stack);
+      
+      // Check if it's a network error
+      if (fetchError.name === 'TypeError' && fetchError.message.includes('fetch')) {
+        return res.status(500).json({ 
+          success: false, 
+          error: 'Network error connecting to Codex API',
+          details: fetchError.message,
+          suggestion: 'Check if Codex API is accessible and API key is valid'
+        });
+      }
+      
       return res.status(500).json({ 
         success: false, 
         error: 'Failed to fetch from Codex API',
         details: fetchError.message,
-        type: fetchError.name
+        type: fetchError.name,
+        code: fetchError.code
       });
     }
 
