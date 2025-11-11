@@ -8379,6 +8379,136 @@ app.post('/api/admin/reconcile-active-users', async (req, res) => {
   }
 });
 
+// Token buyers leaderboard endpoint using Codex API
+app.get('/api/token/top-buyers', async (req, res) => {
+  try {
+    const tokenAddress = req.query.tokenAddress || '0x946a173ad73cbb942b9877e9029fa4c4dc7f2b07';
+    const hours = parseInt(req.query.hours || '24', 10);
+    const limit = parseInt(req.query.limit || '5', 10);
+    const clankerContractAddress = '0x11Ff62d7C7D617083dF805BC5Bc098fD54CFd0De';
+    const codexApiKey = process.env.CODEX_API_KEY || '864af8bb6489c42e2b2750c5476386cbdb4bd05d';
+
+    console.log(`🔍 Fetching top buyers for token ${tokenAddress} (last ${hours} hours)`);
+
+    // Calculate timestamp for filtering
+    const now = Math.floor(Date.now() / 1000);
+    const fromTimestamp = now - (hours * 3600);
+
+    // Fetch token transfers from Codex API
+    const codexResponse = await fetch(
+      `https://api.codex.io/v1/tokens/${tokenAddress}/transfers?chain=base&limit=1000&from_timestamp=${fromTimestamp}`,
+      {
+        headers: {
+          'x-api-key': codexApiKey
+        }
+      }
+    );
+
+    if (!codexResponse.ok) {
+      const errorText = await codexResponse.text();
+      console.error(`❌ Codex API error: ${codexResponse.status} - ${errorText}`);
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Failed to fetch token transfers',
+        details: errorText
+      });
+    }
+
+    const codexData = await codexResponse.json();
+    console.log(`📊 Codex API returned ${codexData.transfers?.length || 0} transfers`);
+
+    // Filter transfers FROM Clanker contract TO users
+    const buyerTransfers = (codexData.transfers || []).filter(transfer => {
+      return transfer.from_address?.toLowerCase() === clankerContractAddress.toLowerCase() &&
+             transfer.to_address?.toLowerCase() !== clankerContractAddress.toLowerCase();
+    });
+
+    console.log(`✅ Found ${buyerTransfers.length} purchase transfers`);
+
+    // Aggregate spending by buyer address
+    const buyerSpending = {};
+    const { ethers } = require('ethers');
+    const { getProvider } = require('./rpcProvider');
+    const provider = await getProvider();
+
+    // Get current ETH price (simplified - you might want to use a price oracle)
+    let ethPriceUSD = 3000; // Default fallback
+    try {
+      const coingeckoResponse = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd');
+      if (coingeckoResponse.ok) {
+        const priceData = await coingeckoResponse.json();
+        ethPriceUSD = priceData.ethereum?.usd || 3000;
+      }
+    } catch (error) {
+      console.log(`⚠️ Failed to fetch ETH price, using default: ${ethPriceUSD}`);
+    }
+
+    // Process each transfer to get transaction value
+    for (const transfer of buyerTransfers) {
+      try {
+        const txHash = transfer.transaction_hash;
+        if (!txHash) continue;
+
+        const tx = await provider.getTransaction(txHash);
+        if (!tx || tx.to?.toLowerCase() !== clankerContractAddress.toLowerCase()) continue;
+
+        const ethSpent = parseFloat(ethers.formatEther(tx.value || 0));
+        const usdSpent = ethSpent * ethPriceUSD;
+
+        const buyerAddress = transfer.to_address?.toLowerCase();
+        if (buyerAddress) {
+          buyerSpending[buyerAddress] = (buyerSpending[buyerAddress] || 0) + usdSpent;
+        }
+      } catch (error) {
+        console.error(`❌ Error processing transfer ${transfer.transaction_hash}:`, error.message);
+      }
+    }
+
+    // Sort and get top buyers
+    const topBuyers = Object.entries(buyerSpending)
+      .map(([address, totalSpent]) => ({ address, totalSpent }))
+      .sort((a, b) => b.totalSpent - a.totalSpent)
+      .slice(0, limit);
+
+    console.log(`📊 Top ${topBuyers.length} buyers found`);
+
+    // Fetch Farcaster profiles for all buyers
+    const { fetchBulkUsersByEthOrSolAddress } = require('./neynar');
+    const buyerAddresses = topBuyers.map(b => b.address);
+    const farcasterProfiles = await fetchBulkUsersByEthOrSolAddress(buyerAddresses);
+
+    // Combine buyer data with Farcaster profiles
+    const leaderboard = topBuyers.map((buyer, index) => {
+      const farcasterData = farcasterProfiles[buyer.address]?.[0];
+      
+      return {
+        rank: index + 1,
+        address: buyer.address,
+        amountSpent: buyer.totalSpent,
+        username: farcasterData?.username || null,
+        displayName: farcasterData?.display_name || null,
+        pfpUrl: farcasterData?.pfp_url || null,
+        fid: farcasterData?.fid || null
+      };
+    });
+
+    res.json({
+      success: true,
+      tokenAddress,
+      hours,
+      leaderboard,
+      ethPriceUSD
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching top buyers:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
 // Export functions for use in other modules
 module.exports = {
   app,
