@@ -5811,8 +5811,7 @@ app.get('/api/token/top-buyers', async (req, res) => {
           'Content-Type': 'application/json',
           'x-api-key': codexApiKey
         },
-        body: JSON.stringify(graphqlQuery),
-        signal: AbortSignal.timeout(30000) // 30 second timeout
+        body: JSON.stringify(graphqlQuery)
       });
 
       console.log(`📡 Codex API response status: ${codexResponse.status}`);
