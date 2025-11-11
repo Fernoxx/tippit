@@ -5801,58 +5801,57 @@ app.get('/api/token/top-buyers', async (req, res) => {
     console.log(`🔑 API Key (first 10 chars): ${codexApiKey.substring(0, 10)}...`);
     console.log(`🌐 Codex GraphQL endpoint: https://api.codex.io/graphql`);
 
+    // Try alternative Codex API endpoints
+    // Based on Codex docs, the endpoint might be different
+    const codexEndpoints = [
+      'https://api.codex.io/graphql',
+      'https://graphql.codex.io',
+      'https://api.codex.io/v1/graphql'
+    ];
+    
     let codexResponse;
     let codexData;
+    let lastError;
     
-    try {
-      codexResponse = await fetch('https://api.codex.io/graphql', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': codexApiKey
-        },
-        body: JSON.stringify(graphqlQuery)
-      });
-
-      console.log(`📡 Codex API response status: ${codexResponse.status}`);
-      console.log(`📡 Codex API response headers:`, Object.fromEntries(codexResponse.headers.entries()));
-
-      if (!codexResponse.ok) {
-        const errorText = await codexResponse.text();
-        console.error(`❌ Codex API error: ${codexResponse.status} - ${errorText}`);
-        return res.status(500).json({ 
-          success: false, 
-          error: 'Failed to fetch token wallets',
-          details: errorText,
-          status: codexResponse.status
+    for (const endpoint of codexEndpoints) {
+      try {
+        console.log(`🔍 Trying Codex endpoint: ${endpoint}`);
+        
+        codexResponse = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': codexApiKey,
+            'Authorization': `Bearer ${codexApiKey}` // Try both header formats
+          },
+          body: JSON.stringify(graphqlQuery)
         });
-      }
 
-      codexData = await codexResponse.json();
-      console.log(`📊 Codex API response:`, JSON.stringify(codexData, null, 2));
-    } catch (fetchError) {
-      console.error(`❌ Fetch error:`, fetchError);
-      console.error(`❌ Fetch error message:`, fetchError.message);
-      console.error(`❌ Fetch error name:`, fetchError.name);
-      console.error(`❌ Fetch error code:`, fetchError.code);
-      console.error(`❌ Fetch error stack:`, fetchError.stack);
-      
-      // Check if it's a network error
-      if (fetchError.name === 'TypeError' && fetchError.message.includes('fetch')) {
-        return res.status(500).json({ 
-          success: false, 
-          error: 'Network error connecting to Codex API',
-          details: fetchError.message,
-          suggestion: 'Check if Codex API is accessible and API key is valid'
-        });
+        console.log(`📡 Codex API response status: ${codexResponse.status} from ${endpoint}`);
+
+        if (codexResponse.ok) {
+          codexData = await codexResponse.json();
+          console.log(`✅ Successfully connected to ${endpoint}`);
+          break; // Success, exit loop
+        } else {
+          const errorText = await codexResponse.text();
+          console.error(`❌ Endpoint ${endpoint} returned ${codexResponse.status}: ${errorText}`);
+          lastError = { endpoint, status: codexResponse.status, error: errorText };
+        }
+      } catch (fetchError) {
+        console.error(`❌ Failed to connect to ${endpoint}:`, fetchError.message);
+        lastError = { endpoint, error: fetchError.message };
+        continue; // Try next endpoint
       }
-      
+    }
+    
+    if (!codexResponse || !codexResponse.ok) {
+      console.error(`❌ All Codex endpoints failed. Last error:`, lastError);
       return res.status(500).json({ 
         success: false, 
-        error: 'Failed to fetch from Codex API',
-        details: fetchError.message,
-        type: fetchError.name,
-        code: fetchError.code
+        error: 'Failed to connect to Codex API',
+        details: lastError,
+        triedEndpoints: codexEndpoints
       });
     }
 
