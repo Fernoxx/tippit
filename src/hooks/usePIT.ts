@@ -240,7 +240,7 @@ export const useEcion = () => {
         args: [address as `0x${string}`]
       });
       
-      const balanceAmount = parseFloat(formatUnits(balance, tokenDecimals));
+      const balanceAmount = parseFloat(formatUnits(balance as bigint, tokenDecimals));
       
       if (amountNum > balanceAmount) {
         toast.error(`Insufficient funds. You have ${balanceAmount.toFixed(tokenDecimals === 6 ? 6 : 18)} tokens but trying to approve ${amount}.`, { duration: 4000 });
