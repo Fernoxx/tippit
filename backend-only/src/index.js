@@ -5798,30 +5798,45 @@ app.get('/api/token/top-buyers', async (req, res) => {
 
     console.log(`📡 GraphQL Query:`, JSON.stringify(graphqlQuery, null, 2));
 
-    const codexResponse = await fetch('https://api.codex.io/graphql', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': codexApiKey
-      },
-      body: JSON.stringify(graphqlQuery)
-    });
+    let codexResponse;
+    let codexData;
+    
+    try {
+      codexResponse = await fetch('https://api.codex.io/graphql', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': codexApiKey
+        },
+        body: JSON.stringify(graphqlQuery)
+      });
 
-    console.log(`📡 Codex API response status: ${codexResponse.status}`);
+      console.log(`📡 Codex API response status: ${codexResponse.status}`);
 
-    if (!codexResponse.ok) {
-      const errorText = await codexResponse.text();
-      console.error(`❌ Codex API error: ${codexResponse.status} - ${errorText}`);
+      if (!codexResponse.ok) {
+        const errorText = await codexResponse.text();
+        console.error(`❌ Codex API error: ${codexResponse.status} - ${errorText}`);
+        return res.status(500).json({ 
+          success: false, 
+          error: 'Failed to fetch token wallets',
+          details: errorText,
+          status: codexResponse.status
+        });
+      }
+
+      codexData = await codexResponse.json();
+      console.log(`📊 Codex API response:`, JSON.stringify(codexData, null, 2));
+    } catch (fetchError) {
+      console.error(`❌ Fetch error:`, fetchError);
+      console.error(`❌ Fetch error message:`, fetchError.message);
+      console.error(`❌ Fetch error stack:`, fetchError.stack);
       return res.status(500).json({ 
         success: false, 
-        error: 'Failed to fetch token wallets',
-        details: errorText,
-        status: codexResponse.status
+        error: 'Failed to fetch from Codex API',
+        details: fetchError.message,
+        type: fetchError.name
       });
     }
-
-    const codexData = await codexResponse.json();
-    console.log(`📊 Codex API response:`, JSON.stringify(codexData, null, 2));
 
     if (codexData.errors) {
       console.error(`❌ GraphQL errors:`, codexData.errors);
