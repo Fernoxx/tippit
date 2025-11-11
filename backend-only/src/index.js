@@ -8379,6 +8379,16 @@ app.post('/api/admin/reconcile-active-users', async (req, res) => {
   }
 });
 
+// Test endpoint to verify routing
+app.get('/api/token/test', (req, res) => {
+  res.json({ success: true, message: 'Token API routes are working' });
+});
+
+// Test endpoint to verify routing
+app.get('/api/token/test', (req, res) => {
+  res.json({ success: true, message: 'Token API routes are working', timestamp: Date.now() });
+});
+
 // Token buyers leaderboard endpoint using Codex API
 app.get('/api/token/top-buyers', async (req, res) => {
   try {
