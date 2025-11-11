@@ -5788,10 +5788,10 @@ app.get('/api/token/top-buyers', async (req, res) => {
       variables: {
         input: {
           tokenId: tokenId,
-          sortBy: {
-            field: amountField,
-            order: "DESC"
-          },
+          rankings: [{
+            attribute: amountField,
+            direction: "DESC"
+          }],
           limit: limit
         }
       }
