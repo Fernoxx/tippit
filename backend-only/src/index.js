@@ -5797,61 +5797,67 @@ app.get('/api/token/top-buyers', async (req, res) => {
       }
     };
 
+    // Use axios instead of fetch for better error handling
+    const axios = require('axios');
+    
     console.log(`📡 GraphQL Query:`, JSON.stringify(graphqlQuery, null, 2));
     console.log(`🔑 API Key (first 10 chars): ${codexApiKey.substring(0, 10)}...`);
-    console.log(`🌐 Codex GraphQL endpoint: https://api.codex.io/graphql`);
-
-    // Try alternative Codex API endpoints
-    // Based on Codex docs, the endpoint might be different
+    
+    // Try Codex API endpoints - check docs for correct endpoint
     const codexEndpoints = [
       'https://api.codex.io/graphql',
       'https://graphql.codex.io',
-      'https://api.codex.io/v1/graphql'
+      'https://api.codex.io/v1/graphql',
+      'https://api.codex.io/v2/graphql'
     ];
     
-    let codexResponse;
     let codexData;
     let lastError;
+    let successfulEndpoint = null;
     
     for (const endpoint of codexEndpoints) {
       try {
         console.log(`🔍 Trying Codex endpoint: ${endpoint}`);
         
-        codexResponse = await fetch(endpoint, {
-          method: 'POST',
+        const response = await axios.post(endpoint, graphqlQuery, {
           headers: {
             'Content-Type': 'application/json',
-            'x-api-key': codexApiKey,
-            'Authorization': `Bearer ${codexApiKey}` // Try both header formats
+            'x-api-key': codexApiKey
           },
-          body: JSON.stringify(graphqlQuery)
+          timeout: 30000 // 30 second timeout
         });
 
-        console.log(`📡 Codex API response status: ${codexResponse.status} from ${endpoint}`);
-
-        if (codexResponse.ok) {
-          codexData = await codexResponse.json();
-          console.log(`✅ Successfully connected to ${endpoint}`);
-          break; // Success, exit loop
+        console.log(`✅ Successfully connected to ${endpoint}`);
+        console.log(`📡 Response status: ${response.status}`);
+        codexData = response.data;
+        successfulEndpoint = endpoint;
+        break; // Success, exit loop
+      } catch (axiosError) {
+        if (axiosError.response) {
+          // Server responded with error
+          console.error(`❌ Endpoint ${endpoint} returned ${axiosError.response.status}:`, axiosError.response.data);
+          lastError = { endpoint, status: axiosError.response.status, error: axiosError.response.data };
+        } else if (axiosError.request) {
+          // Request made but no response
+          console.error(`❌ No response from ${endpoint}:`, axiosError.message);
+          lastError = { endpoint, error: axiosError.message, type: 'no_response' };
         } else {
-          const errorText = await codexResponse.text();
-          console.error(`❌ Endpoint ${endpoint} returned ${codexResponse.status}: ${errorText}`);
-          lastError = { endpoint, status: codexResponse.status, error: errorText };
+          // Error setting up request
+          console.error(`❌ Error setting up request to ${endpoint}:`, axiosError.message);
+          lastError = { endpoint, error: axiosError.message, type: 'request_error' };
         }
-      } catch (fetchError) {
-        console.error(`❌ Failed to connect to ${endpoint}:`, fetchError.message);
-        lastError = { endpoint, error: fetchError.message };
         continue; // Try next endpoint
       }
     }
     
-    if (!codexResponse || !codexResponse.ok) {
+    if (!codexData) {
       console.error(`❌ All Codex endpoints failed. Last error:`, lastError);
       return res.status(500).json({ 
         success: false, 
         error: 'Failed to connect to Codex API',
         details: lastError,
-        triedEndpoints: codexEndpoints
+        triedEndpoints: codexEndpoints,
+        suggestion: 'Please verify the correct Codex API endpoint URL from their documentation'
       });
     }
 
