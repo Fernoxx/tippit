@@ -8384,30 +8384,83 @@ app.get('/api/token/test', (req, res) => {
   res.json({ success: true, message: 'Token API routes are working', timestamp: Date.now() });
 });
 
-// Token buyers leaderboard endpoint using Codex API
+// Token buyers leaderboard endpoint using Codex GraphQL API
 app.get('/api/token/top-buyers', async (req, res) => {
   try {
     const tokenAddress = req.query.tokenAddress || '0x946a173ad73cbb942b9877e9029fa4c4dc7f2b07';
     const hours = parseInt(req.query.hours || '24', 10);
     const limit = parseInt(req.query.limit || '10', 10);
-    const clankerContractAddress = '0x11Ff62d7C7D617083dF805BC5Bc098fD54CFd0De';
     const codexApiKey = process.env.CODEX_API_KEY || '864af8bb6489c42e2b2750c5476386cbdb4bd05d';
 
     console.log(`🔍 Fetching top buyers for token ${tokenAddress} (last ${hours} hours, limit: ${limit})`);
 
-    // Calculate timestamp for filtering
-    const now = Math.floor(Date.now() / 1000);
-    const fromTimestamp = now - (hours * 3600);
-
-    // Fetch token transfers from Codex API
-    const codexUrl = `https://api.codex.io/v1/tokens/${tokenAddress}/transfers?chain=base&limit=1000&from_timestamp=${fromTimestamp}`;
-    console.log(`📡 Calling Codex API: ${codexUrl}`);
-    console.log(`🔑 Using API key: ${codexApiKey.substring(0, 10)}...`);
+    // Determine timeframe based on hours
+    let timeframe = '1d'; // Default to 1 day
+    let amountField = 'amountBoughtUsd1d';
     
-    const codexResponse = await fetch(codexUrl, {
-      headers: {
-        'x-api-key': codexApiKey
+    if (hours <= 24) {
+      timeframe = '1d';
+      amountField = 'amountBoughtUsd1d';
+    } else if (hours <= 168) { // 7 days
+      timeframe = '1w';
+      amountField = 'amountBoughtUsd1w';
+    } else if (hours <= 720) { // 30 days
+      timeframe = '30d';
+      amountField = 'amountBoughtUsd30d';
+    } else {
+      timeframe = '1y';
+      amountField = 'amountBoughtUsd1y';
+    }
+
+    // Base network ID (8453 for Base mainnet)
+    const networkId = 8453;
+    const tokenId = `${tokenAddress}:${networkId}`;
+
+    console.log(`📡 Using Codex GraphQL API with tokenId: ${tokenId}, timeframe: ${timeframe}`);
+
+    // GraphQL query for filterTokenWallets
+    const graphqlQuery = {
+      query: `
+        query FilterTokenWallets($input: FilterTokenWalletsInput!) {
+          filterTokenWallets(input: $input) {
+            address
+            amountBoughtUsd1d
+            amountBoughtUsd1w
+            amountBoughtUsd30d
+            amountBoughtUsd1y
+            tokenAmountBought30d
+            buys30d
+          }
+        }
+      `,
+      variables: {
+        input: {
+          tokenId: tokenId,
+          sortBy: {
+            field: amountField,
+            order: "DESC"
+          },
+          limit: limit,
+          filters: {
+            amountBoughtUsd: {
+              [timeframe]: {
+                min: 0.01 // Minimum $0.01 spent
+              }
+            }
+          }
+        }
       }
+    };
+
+    console.log(`📡 GraphQL Query:`, JSON.stringify(graphqlQuery, null, 2));
+
+    const codexResponse = await fetch('https://api.codex.io/graphql', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': codexApiKey
+      },
+      body: JSON.stringify(graphqlQuery)
     });
 
     console.log(`📡 Codex API response status: ${codexResponse.status}`);
@@ -8417,91 +8470,43 @@ app.get('/api/token/top-buyers', async (req, res) => {
       console.error(`❌ Codex API error: ${codexResponse.status} - ${errorText}`);
       return res.status(500).json({ 
         success: false, 
-        error: 'Failed to fetch token transfers',
+        error: 'Failed to fetch token wallets',
         details: errorText,
         status: codexResponse.status
       });
     }
 
     const codexData = await codexResponse.json();
-    console.log(`📊 Codex API returned ${codexData.transfers?.length || 0} transfers`);
-    console.log(`📊 Codex API response structure:`, JSON.stringify(codexData).substring(0, 500));
+    console.log(`📊 Codex API response:`, JSON.stringify(codexData, null, 2));
 
-    // Filter transfers FROM Clanker contract TO users
-    const buyerTransfers = (codexData.transfers || []).filter(transfer => {
-      return transfer.from_address?.toLowerCase() === clankerContractAddress.toLowerCase() &&
-             transfer.to_address?.toLowerCase() !== clankerContractAddress.toLowerCase();
-    });
-
-    console.log(`✅ Found ${buyerTransfers.length} purchase transfers`);
-
-    // Aggregate spending by buyer address
-    const buyerSpending = {};
-    const { ethers } = require('ethers');
-    const { getProvider } = require('./rpcProvider');
-    const provider = await getProvider();
-
-    // Get current ETH price (simplified - you might want to use a price oracle)
-    let ethPriceUSD = 3000; // Default fallback
-    try {
-      const coingeckoResponse = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd');
-      if (coingeckoResponse.ok) {
-        const priceData = await coingeckoResponse.json();
-        ethPriceUSD = priceData.ethereum?.usd || 3000;
-      }
-    } catch (error) {
-      console.log(`⚠️ Failed to fetch ETH price, using default: ${ethPriceUSD}`);
+    if (codexData.errors) {
+      console.error(`❌ GraphQL errors:`, codexData.errors);
+      return res.status(500).json({ 
+        success: false, 
+        error: 'GraphQL query errors',
+        details: codexData.errors
+      });
     }
 
-    // Process each transfer to get transaction value
-    console.log(`🔄 Processing ${buyerTransfers.length} buyer transfers...`);
-    let processedCount = 0;
-    let errorCount = 0;
-    
-    for (const transfer of buyerTransfers) {
-      try {
-        const txHash = transfer.transaction_hash;
-        if (!txHash) {
-          console.log(`⚠️ Transfer missing transaction hash, skipping`);
-          continue;
-        }
+    const wallets = codexData.data?.filterTokenWallets || [];
+    console.log(`📊 Found ${wallets.length} wallets`);
 
-        console.log(`🔍 Processing transfer: ${txHash}`);
-        const tx = await provider.getTransaction(txHash);
-        
-        if (!tx) {
-          console.log(`⚠️ Transaction not found: ${txHash}`);
-          continue;
-        }
-        
-        if (tx.to?.toLowerCase() !== clankerContractAddress.toLowerCase()) {
-          console.log(`⚠️ Transaction not to Clanker contract: ${tx.to} vs ${clankerContractAddress}`);
-          continue;
-        }
-
-        const ethSpent = parseFloat(ethers.formatEther(tx.value || 0));
-        const usdSpent = ethSpent * ethPriceUSD;
-
-        const buyerAddress = transfer.to_address?.toLowerCase();
-        if (buyerAddress) {
-          buyerSpending[buyerAddress] = (buyerSpending[buyerAddress] || 0) + usdSpent;
-          processedCount++;
-          console.log(`✅ Processed: ${buyerAddress} spent $${usdSpent.toFixed(2)}`);
-        }
-      } catch (error) {
-        errorCount++;
-        console.error(`❌ Error processing transfer ${transfer.transaction_hash}:`, error.message);
-        console.error(`❌ Error stack:`, error.stack);
-      }
+    if (wallets.length === 0) {
+      return res.json({
+        success: true,
+        tokenAddress,
+        hours,
+        timeframe,
+        leaderboard: [],
+        message: 'No buyers found for the specified timeframe'
+      });
     }
-    
-    console.log(`📊 Processed ${processedCount} transfers, ${errorCount} errors`);
 
-    // Sort and get top buyers
-    const topBuyers = Object.entries(buyerSpending)
-      .map(([address, totalSpent]) => ({ address, totalSpent }))
-      .sort((a, b) => b.totalSpent - a.totalSpent)
-      .slice(0, limit);
+    // Map wallets to buyer format
+    const topBuyers = wallets.map((wallet, index) => ({
+      address: wallet.address.toLowerCase(),
+      totalSpent: parseFloat(wallet[amountField] || 0)
+    })).filter(buyer => buyer.totalSpent > 0);
 
     console.log(`📊 Top ${topBuyers.length} buyers found`);
 
@@ -8533,15 +8538,17 @@ app.get('/api/token/top-buyers', async (req, res) => {
       success: true,
       tokenAddress,
       hours,
-      leaderboard,
-      ethPriceUSD
+      timeframe,
+      leaderboard
     });
 
   } catch (error) {
     console.error('❌ Error fetching top buyers:', error);
+    console.error('❌ Error stack:', error.stack);
     res.status(500).json({ 
       success: false, 
-      error: error.message 
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
