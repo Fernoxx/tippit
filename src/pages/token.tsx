@@ -30,21 +30,29 @@ export default function TokenLeaderboard() {
       setIsLoading(true);
       setError(null);
       
-      const response = await fetch(`${BACKEND_URL}/api/token/top-buyers?hours=24&limit=5`);
+      console.log('🔍 Fetching token leaderboard...');
+      const response = await fetch(`${BACKEND_URL}/api/token/top-buyers?hours=24&limit=10`);
+      
+      console.log('📡 Response status:', response.status);
       
       if (!response.ok) {
-        throw new Error('Failed to fetch leaderboard');
+        const errorText = await response.text();
+        console.error('❌ API Error:', response.status, errorText);
+        throw new Error(`Failed to fetch leaderboard: ${response.status} - ${errorText}`);
       }
       
       const data = await response.json();
+      console.log('📊 Leaderboard data:', data);
       
       if (data.success && data.leaderboard) {
+        console.log(`✅ Loaded ${data.leaderboard.length} buyers`);
         setLeaderboard(data.leaderboard);
       } else {
+        console.error('❌ Invalid response format:', data);
         throw new Error(data.error || 'Failed to load leaderboard');
       }
     } catch (err: any) {
-      console.error('Error fetching leaderboard:', err);
+      console.error('❌ Error fetching leaderboard:', err);
       setError(err.message || 'Failed to load leaderboard');
     } finally {
       setIsLoading(false);
@@ -57,15 +65,16 @@ export default function TokenLeaderboard() {
   };
 
   const getRankIcon = (rank: number) => {
+    const rankColor = rank <= 3 ? 'text-yellow-500' : 'text-gray-600';
     switch (rank) {
       case 1:
-        return <Crown className="w-6 h-6 text-yellow-500" />;
+        return <Crown className={`w-6 h-6 ${rankColor}`} />;
       case 2:
-        return <Medal className="w-6 h-6 text-gray-400" />;
+        return <Medal className={`w-6 h-6 ${rankColor}`} />;
       case 3:
-        return <Award className="w-6 h-6 text-orange-500" />;
+        return <Award className={`w-6 h-6 ${rankColor}`} />;
       default:
-        return <span className="text-lg font-semibold text-gray-600">#{rank}</span>;
+        return <span className={`text-lg font-semibold ${rankColor}`}>#{rank}</span>;
     }
   };
 
@@ -107,7 +116,7 @@ export default function TokenLeaderboard() {
         <div className="max-w-4xl mx-auto px-4 py-8">
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold text-gray-900 mb-2">Leaderboard</h1>
-            <p className="text-gray-600">Top 5 token buyers in the last 24 hours</p>
+            <p className="text-gray-600">Top 10 token buyers in the last 24 hours</p>
           </div>
 
           {isLoading ? (
@@ -139,10 +148,12 @@ export default function TokenLeaderboard() {
                 <motion.div
                   key={buyer.address}
                   variants={itemVariants}
-                  className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow"
+                  className={`bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-shadow ${
+                    buyer.rank <= 3 ? 'border-2 border-yellow-400' : ''
+                  }`}
                 >
                   <div className="flex items-center gap-4">
-                    <div className="flex-shrink-0">
+                    <div className={`flex-shrink-0 ${buyer.rank <= 3 ? 'text-yellow-500' : 'text-gray-600'}`}>
                       {getRankIcon(buyer.rank)}
                     </div>
 
@@ -172,7 +183,7 @@ export default function TokenLeaderboard() {
                     </div>
 
                     <div className="text-right">
-                      <div className="text-2xl font-bold text-accent">
+                      <div className={`text-2xl font-bold ${buyer.rank <= 3 ? 'text-yellow-600' : 'text-accent'}`}>
                         ${buyer.amountSpent.toFixed(2)}
                       </div>
                       <div className="text-sm text-gray-500">spent</div>
