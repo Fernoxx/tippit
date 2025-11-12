@@ -16,7 +16,9 @@ import {
   Check,
   X,
   ChevronDown,
+  ArrowLeft,
 } from 'lucide-react';
+import Link from 'next/link';
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001').replace(/\/$/, '');
 const BASE_USDC_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
@@ -530,6 +532,17 @@ const [criteria, setCriteria] = useState({
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 bg-yellow-50 min-h-full">
+      {/* Back Navigation */}
+      <div className="mb-6">
+        <Link 
+          href="/"
+          className="inline-flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5 mr-2" />
+          <span className="text-sm font-medium">Back to Home</span>
+        </Link>
+      </div>
+      
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
