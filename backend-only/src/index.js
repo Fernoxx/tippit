@@ -459,14 +459,13 @@ app.post('/api/add-all-users-to-webhook', async (req, res) => {
         url: webhookUrl,
         subscription: {
           "cast.created": {
-            author_fids: allFids,           // Fires when user creates cast
-            parent_author_fids: allFids     // Fires when someone replies/quotes user's cast
+            parent_hashes: []  // Will be updated with latest cast hashes via polling
           },
           "reaction.created": {
-            target_fids: allFids            // ✅ CORRECT: Likes/recasts on user's cast
+            target_cast_hashes: []  // Will be updated with latest cast hashes via polling
           },
           "follow.created": {
-            target_fids: allFids            // Fires when someone follows user
+            target_fids: allFids            // Active users (users with funds)
           }
         }
       })
@@ -531,14 +530,13 @@ app.post('/api/set-webhook-fids', async (req, res) => {
         url: webhookUrl,
         subscription: {
           "cast.created": { 
-            author_fids: fids,
-            parent_author_fids: fids
+            parent_hashes: []  // Will be updated with latest cast hashes via polling
           },
           "reaction.created": { 
-            target_fids: fids  // ✅ CORRECT
+            target_cast_hashes: []  // Will be updated with latest cast hashes via polling
           },
           "follow.created": { 
-            target_fids: fids
+            target_fids: fids  // Active users (users with funds)
           }
         }
       })
@@ -585,14 +583,13 @@ app.post('/api/manual-add-fid', async (req, res) => {
         url: webhookUrl,
         subscription: {
           "cast.created": {
-            author_fids: [parseInt(fid)],
-            parent_author_fids: [parseInt(fid)]
+            parent_hashes: []  // Will be updated with latest cast hashes via polling
           },
           "reaction.created": {
-            target_fids: [parseInt(fid)]  // ✅ CORRECT
+            target_cast_hashes: []  // Will be updated with latest cast hashes via polling
           },
           "follow.created": {
-            target_fids: [parseInt(fid)]
+            target_fids: [parseInt(fid)]  // Active users (users with funds)
           }
         }
       })
@@ -870,14 +867,13 @@ app.post('/api/config', async (req, res) => {
                 url: `https://${req.get('host')}/webhook/neynar`,
                 subscription: {
                   "cast.created": {
-                    author_fids: updatedFids,           // Fires when user creates a cast (to update latest earnable)
-                    parent_author_fids: updatedFids     // Fires when someone replies/quotes user's cast (for tips)
+                    parent_hashes: []  // Will be updated with latest cast hashes via polling
                   },
                   "reaction.created": {
-                    target_fids: updatedFids            // ✅ CORRECT: Fires when someone likes/recasts user's cast
+                    target_cast_hashes: []  // Will be updated with latest cast hashes via polling
                   },
                   "follow.created": {
-                    target_fids: updatedFids            // Fires when someone follows user (for tips)
+                    target_fids: updatedFids            // Active users (users with funds)
                   }
                 }
               };
@@ -4948,14 +4944,13 @@ app.post('/api/force-update-webhook', async (req, res) => {
       url: webhookUrl,
       subscription: {
         "cast.created": {
-          author_fids: trackedFids,           // When user posts (update earnable cast)
-          parent_author_fids: trackedFids     // When someone replies to user's cast
+          parent_hashes: []  // Will be updated with latest cast hashes via polling
         },
         "reaction.created": {
-          target_fids: trackedFids            // When someone likes/recasts user's cast
+          target_cast_hashes: []  // Will be updated with latest cast hashes via polling
         },
         "follow.created": {
-          target_fids: trackedFids            // When someone follows user
+          target_fids: trackedFids            // Active users (users with funds)
         }
       }
     };
