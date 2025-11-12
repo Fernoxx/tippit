@@ -4421,45 +4421,17 @@ app.get('/api/leaderboard', async (req, res) => {
           console.log(`❌ Neynar API error for ${tipper.userAddress}: ${userResponse.status}`);
         }
         
-        // Fetch token info
-        let tokenInfo = null;
-        if (tipper.tokenAddress) {
-          try {
-            const { ethers } = require('ethers');
-            const provider = await getProvider(); // Use fallback provider
-            const tokenContract = new ethers.Contract(tipper.tokenAddress, [
-              "function name() view returns (string)",
-              "function symbol() view returns (string)",
-              "function decimals() view returns (uint8)"
-            ], provider);
-            
-            const [name, symbol, decimals] = await Promise.all([
-              tokenContract.name(),
-              tokenContract.symbol(),
-              tokenContract.decimals()
-            ]);
-            
-            tokenInfo = { name, symbol, decimals: Number(decimals) };
-          } catch (tokenError) {
-            console.log(`Could not fetch token info for ${tipper.tokenAddress}:`, tokenError.message);
-            tokenInfo = { name: 'Unknown', symbol: 'UNK', decimals: 18 };
-          }
-        } else {
-          tokenInfo = { name: 'Unknown', symbol: 'UNK', decimals: 18 };
-        }
-        
         enrichedTippers.push({
           ...tipper,
           username: farcasterUser?.username,
           displayName: farcasterUser?.display_name,
           pfpUrl: farcasterUser?.pfp_url,
-          tokenInfo: tokenInfo
+          fid: farcasterUser?.fid
         });
       } catch (error) {
         console.log(`Could not fetch profile for tipper ${tipper.userAddress}:`, error.message);
         enrichedTippers.push({
-          ...tipper,
-          tokenInfo: { name: 'Unknown', symbol: 'UNK', decimals: 18 }
+          ...tipper
         });
       }
     }
@@ -4488,45 +4460,17 @@ app.get('/api/leaderboard', async (req, res) => {
           console.log(`❌ Neynar API error for ${earner.userAddress}: ${userResponse.status}`);
         }
         
-        // Fetch token info
-        let tokenInfo = null;
-        if (earner.tokenAddress) {
-          try {
-            const { ethers } = require('ethers');
-            const provider = await getProvider(); // Use fallback provider
-            const tokenContract = new ethers.Contract(earner.tokenAddress, [
-              "function name() view returns (string)",
-              "function symbol() view returns (string)",
-              "function decimals() view returns (uint8)"
-            ], provider);
-            
-            const [name, symbol, decimals] = await Promise.all([
-              tokenContract.name(),
-              tokenContract.symbol(),
-              tokenContract.decimals()
-            ]);
-            
-            tokenInfo = { name, symbol, decimals: Number(decimals) };
-          } catch (tokenError) {
-            console.log(`Could not fetch token info for ${earner.tokenAddress}:`, tokenError.message);
-            tokenInfo = { name: 'Unknown', symbol: 'UNK', decimals: 18 };
-          }
-        } else {
-          tokenInfo = { name: 'Unknown', symbol: 'UNK', decimals: 18 };
-        }
-        
         enrichedEarners.push({
           ...earner,
           username: farcasterUser?.username,
           displayName: farcasterUser?.display_name,
           pfpUrl: farcasterUser?.pfp_url,
-          tokenInfo: tokenInfo
+          fid: farcasterUser?.fid
         });
       } catch (error) {
         console.log(`Could not fetch profile for earner ${earner.userAddress}:`, error.message);
         enrichedEarners.push({
-          ...earner,
-          tokenInfo: { name: 'Unknown', symbol: 'UNK', decimals: 18 }
+          ...earner
         });
       }
     }

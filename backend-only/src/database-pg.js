@@ -283,25 +283,24 @@ class PostgresDatabase {
       const timeMs = timeFilter === '24h' ? '24 hours' :
                      timeFilter === '7d' ? '7 days' : '30 days';
       
+      // Group ONLY by user address (lowercase) to avoid duplicates
+      // Sum ALL tips from this user regardless of token_address
       const result = await this.pool.query(`
         SELECT 
-          from_address as user_address,
-          token_address,
+          LOWER(from_address) as user_address,
           SUM(CAST(amount AS DECIMAL)) as total_amount,
           COUNT(*) as tip_count
         FROM tip_history 
         WHERE processed_at > NOW() - INTERVAL '${timeMs}'
-        AND LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
-        GROUP BY from_address, token_address 
+        GROUP BY LOWER(from_address)
         ORDER BY total_amount DESC 
         LIMIT 50
       `);
       
       return result.rows.map(row => ({
         userAddress: row.user_address,
-        tokenAddress: row.token_address,
-        totalAmount: parseFloat(row.total_amount),
-        tipCount: parseInt(row.tip_count)
+        totalAmount: parseFloat(row.total_amount || 0),
+        tipCount: parseInt(row.tip_count || 0)
       }));
     } catch (error) {
       console.error('Error getting top tippers:', error);
@@ -314,25 +313,24 @@ class PostgresDatabase {
       const timeMs = timeFilter === '24h' ? '24 hours' :
                      timeFilter === '7d' ? '7 days' : '30 days';
       
+      // Group ONLY by user address (lowercase) to avoid duplicates
+      // Sum ALL tips to this user regardless of token_address
       const result = await this.pool.query(`
         SELECT 
-          to_address as user_address,
-          token_address,
+          LOWER(to_address) as user_address,
           SUM(CAST(amount AS DECIMAL)) as total_amount,
           COUNT(*) as tip_count
         FROM tip_history 
         WHERE processed_at > NOW() - INTERVAL '${timeMs}'
-        AND LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
-        GROUP BY to_address, token_address 
+        GROUP BY LOWER(to_address)
         ORDER BY total_amount DESC 
         LIMIT 50
       `);
       
       return result.rows.map(row => ({
         userAddress: row.user_address,
-        tokenAddress: row.token_address,
-        totalAmount: parseFloat(row.total_amount),
-        tipCount: parseInt(row.tip_count)
+        totalAmount: parseFloat(row.total_amount || 0),
+        tipCount: parseInt(row.tip_count || 0)
       }));
     } catch (error) {
       console.error('Error getting top earners:', error);
