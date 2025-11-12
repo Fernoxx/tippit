@@ -613,6 +613,13 @@ class BatchTransferManager {
       // Combine tip transfers + reward transfers into one batch
       const allTransfers = [...tipTransfers, ...rewardTransfers];
       console.log(`📦 Combined batch: ${tipTransfers.length} tip transfers + ${rewardTransfers.length} reward transfers = ${allTransfers.length} total transfers`);
+      console.log(`📋 Transfer breakdown:`);
+      tipTransfers.forEach((transfer, i) => {
+        console.log(`  Tip ${i + 1}: ${transfer.from} → ${transfer.to} (${transfer.amount} ${transfer.tokenAddress})`);
+      });
+      rewardTransfers.forEach((transfer, i) => {
+        console.log(`  Reward ${i + 1}: ${transfer.from} → ${transfer.to} (${ethers.formatEther(transfer.amount)} ECION)`);
+      });
 
       const tipData = this.ecionBatchManager.prepareTokenTips(allTransfers);
       const results = await this.ecionBatchManager.executeBatchTips(tipData);
@@ -620,10 +627,30 @@ class BatchTransferManager {
       console.log(`✅ EcionBatch successful: ${results.successfulCount || results.results.length} transfers processed`);
       if (results.failedCount > 0) {
         console.log(`❌ EcionBatch had ${results.failedCount} failed transfers`);
+        console.log(`📊 Results breakdown:`);
+        console.log(`  - Total results: ${results.results.length}`);
+        console.log(`  - Successful: ${results.successfulCount}`);
+        console.log(`  - Failed: ${results.failedCount}`);
+        console.log(`  - Tips (first ${tipTransfers.length}): ${results.results.slice(0, tipTransfers.length).filter(r => r.success).length} successful`);
+        console.log(`  - Rewards (last ${rewardTransfers.length}): ${results.results.slice(tipTransfers.length).filter(r => r.success).length} successful`);
       }
       
       // Update database for successful tips only (not rewards - those are handled separately)
       const tipResults = results.results.slice(0, tipTransfers.length); // First N results are tips
+      const rewardResultsFromBatch = results.results.slice(tipTransfers.length); // Remaining are rewards
+      
+      // Log reward transfer results
+      if (rewardTransfers.length > 0) {
+        console.log(`🎁 ECION reward transfer results from batch:`);
+        rewardResultsFromBatch.forEach((result, i) => {
+          const rewardTransfer = rewardTransfers[i];
+          if (result.success) {
+            console.log(`  ✅ Reward ${i + 1}: ${rewardTransfer.from} → ${rewardTransfer.to} (${ethers.formatEther(rewardTransfer.amount)} ECION) - SUCCESS`);
+          } else {
+            console.log(`  ❌ Reward ${i + 1}: ${rewardTransfer.from} → ${rewardTransfer.to} (${ethers.formatEther(rewardTransfer.amount)} ECION) - FAILED`);
+          }
+        });
+      }
       for (let i = 0; i < tipResults.length; i++) {
         const result = tipResults[i];
         if (result.success) {
