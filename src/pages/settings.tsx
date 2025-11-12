@@ -16,9 +16,7 @@ import {
   Check,
   X,
   ChevronDown,
-  ArrowLeft,
 } from 'lucide-react';
-import Link from 'next/link';
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001').replace(/\/$/, '');
 const BASE_USDC_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
@@ -228,45 +226,62 @@ const [criteria, setCriteria] = useState({
     // 3. After transaction confirms (handled in usePIT.ts)
     // 4. User visits allowance tab (fetch once for display)
     // 5. User changes token (fetch for new token)
-    if (selectedToken && userConfig?.tokenAddress?.toLowerCase() === selectedToken.toLowerCase() && userConfig?.lastAllowance !== undefined) {
-      // Only use cached allowance if it's for the currently selected token
+    if (!selectedToken) return;
+    
+    const cacheKey = selectedToken.toLowerCase();
+    
+    // If tokenAllowance was explicitly fetched (after approve/revoke), use it
+    if (tokenAllowance !== null) {
+      setDisplayAllowance(tokenAllowance);
+      setAllowanceCache(prev => ({ ...prev, [cacheKey]: tokenAllowance }));
+      return;
+    }
+    
+    // Check if userConfig has allowance for this token
+    if (userConfig?.tokenAddress?.toLowerCase() === cacheKey && userConfig?.lastAllowance !== undefined) {
       const cachedAllowance = normalizeAllowance(userConfig.lastAllowance);
       setDisplayAllowance(cachedAllowance);
-      setAllowanceCache(prev => ({ ...prev, [selectedToken.toLowerCase()]: cachedAllowance }));
-    } else if (selectedToken && tokenAllowance !== null) {
-      // Only update if tokenAllowance was explicitly fetched (after approve/revoke)
-      setDisplayAllowance(tokenAllowance);
-      setAllowanceCache(prev => ({ ...prev, [selectedToken.toLowerCase()]: tokenAllowance }));
-    } else if (selectedToken) {
-      // Check cache for this token
-      const cacheKey = selectedToken.toLowerCase();
-      const cachedAllowance = allowanceCache[cacheKey];
-      if (cachedAllowance) {
-        setDisplayAllowance(cachedAllowance);
-      } else {
-        // No cache, fetch it
-        if (activeTab === 'allowance' && address) {
-          fetchTokenAllowance(selectedToken);
+      setAllowanceCache(prev => ({ ...prev, [cacheKey]: cachedAllowance }));
+      return;
+    }
+    
+    // Check local cache
+    const cachedAllowance = allowanceCache[cacheKey];
+    if (cachedAllowance) {
+      setDisplayAllowance(cachedAllowance);
+      return;
+    }
+    
+    // No cache found, set to 0 (will be fetched by the other useEffect if on allowance tab)
+    setDisplayAllowance('0');
+  }, [userConfig?.lastAllowance, userConfig?.tokenAddress, selectedToken, tokenAllowance]);
+
+  // Fetch allowance when user visits allowance tab (for display only)
+  useEffect(() => {
+    if (activeTab !== 'allowance' || !selectedToken || !address || isAllowanceLoading) return;
+    
+    const cacheKey = selectedToken.toLowerCase();
+    const cached = allowanceCache[cacheKey];
+    
+    // Only fetch if we don't have a cached value (or it's 0 and we're not sure)
+    if (!cached || cached === '0') {
+      // Check if we have it in userConfig first
+      if (userConfig?.tokenAddress?.toLowerCase() === cacheKey && userConfig?.lastAllowance !== undefined) {
+        const configAllowance = normalizeAllowance(userConfig.lastAllowance);
+        if (configAllowance !== '0') {
+          setDisplayAllowance(configAllowance);
+          setAllowanceCache(prev => ({ ...prev, [cacheKey]: configAllowance }));
+          return;
         }
       }
+      // Fetch from blockchain
+      console.log(`🔍 Fetching allowance for token ${selectedToken} on allowance tab`);
+      fetchTokenAllowance(selectedToken);
+    } else {
+      // Use cached value
+      setDisplayAllowance(cached);
     }
-  }, [userConfig?.lastAllowance, userConfig?.tokenAddress, selectedToken, tokenAllowance, allowanceCache, activeTab, address]);
-
-  // Fetch allowance when user visits allowance tab or changes token (for display only)
-  useEffect(() => {
-    if (activeTab === 'allowance' && selectedToken && address && !isAllowanceLoading) {
-      // Always fetch allowance for the selected token when on allowance tab
-      const cacheKey = selectedToken.toLowerCase();
-      // Fetch if no cache or cache is 0, or if cache is for different token
-      if (!allowanceCache[cacheKey] || allowanceCache[cacheKey] === '0') {
-        console.log(`🔍 Fetching allowance for token ${selectedToken} on allowance tab`);
-        fetchTokenAllowance(selectedToken);
-      } else {
-        // Use cached value
-        setDisplayAllowance(allowanceCache[cacheKey]);
-      }
-    }
-  }, [activeTab, selectedToken, address]);
+  }, [activeTab, selectedToken, address, isAllowanceLoading]);
 
   const lookupTokenName = async (
     tokenAddress: string,
@@ -543,17 +558,6 @@ const [criteria, setCriteria] = useState({
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 bg-yellow-50 min-h-full">
-      {/* Back Navigation */}
-      <div className="mb-6">
-        <Link 
-          href="/"
-          className="inline-flex items-center text-gray-600 hover:text-gray-900 transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5 mr-2" />
-          <span className="text-sm font-medium">Back to Home</span>
-        </Link>
-      </div>
-      
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
