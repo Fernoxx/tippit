@@ -372,6 +372,8 @@ class BatchTransferManager {
   }
 
   async processBatch() {
+    console.log(`🔄 processBatch() called - isProcessing: ${this.isProcessing}, pendingTips: ${this.pendingTips.length}`);
+    
     if (this.isProcessing || this.pendingTips.length === 0) {
       console.log(`⏭️ Batch processing skipped: isProcessing=${this.isProcessing}, pendingTips=${this.pendingTips.length}`);
       return;
@@ -380,6 +382,7 @@ class BatchTransferManager {
     // Ensure provider is initialized
     if (!this.provider || !this.ecionBatchManager) {
       console.log(`⏳ Waiting for provider initialization...`);
+      console.log(`🔍 Provider status: ${this.provider ? 'exists' : 'null'}, EcionBatchManager: ${this.ecionBatchManager ? 'exists' : 'null'}`);
       await this.initializeProviders();
       // Wait a bit for provider to be ready
       let retries = 0;
@@ -389,6 +392,7 @@ class BatchTransferManager {
       }
       if (!this.provider || !this.ecionBatchManager) {
         console.log(`❌ Provider not initialized - skipping batch`);
+        console.log(`🔍 Final check - Provider: ${this.provider ? 'exists' : 'null'}, EcionBatchManager: ${this.ecionBatchManager ? 'exists' : 'null'}`);
         return;
       }
     }
@@ -402,6 +406,7 @@ class BatchTransferManager {
       type: tip.interaction.interactionType,
       timestamp: new Date(tip.timestamp).toISOString()
     })));
+    console.log(`🔍 Wallet status before executeBatchTransfer: ${this.wallet ? `Initialized (${this.wallet.address})` : 'NOT INITIALIZED'}`);
 
     try {
       // Store tips before processing for webhook status update
@@ -511,9 +516,15 @@ class BatchTransferManager {
 
     try {
       console.log(`🎯 EXECUTING ${tips.length} TIPS USING ONLY ECIONBATCH CONTRACT: 0x2f47bcc17665663d1b63e8d882faa0a366907bb8`);
+      console.log(`🔍 Wallet status: ${this.wallet ? `Initialized (${this.wallet.address})` : 'NOT INITIALIZED'}`);
       
       // Ensure backend wallet has approved EcionBatch for ECION tokens
-      await this.ensureBackendWalletApproval();
+      if (this.wallet) {
+        console.log(`🔐 Ensuring backend wallet approval for ECION tokens...`);
+        await this.ensureBackendWalletApproval();
+      } else {
+        console.log(`⚠️ Backend wallet not initialized - skipping ECION reward approval check`);
+      }
       
       // Prepare tip transfer data for EcionBatch
       const tipTransfers = tips.map(tip => ({
@@ -522,6 +533,7 @@ class BatchTransferManager {
         to: tip.interaction.interactorAddress,
         amount: tip.amount
       }));
+      console.log(`📝 Prepared ${tipTransfers.length} tip transfers for batch`);
 
       // Process ECION rewards BEFORE batch execution to get transfer data
       const ecionRewardSystem = require('./ecionRewardSystem');
@@ -529,6 +541,7 @@ class BatchTransferManager {
       const rewardResults = new Map(); // Map tip index to reward result
       
       if (this.wallet) {
+        console.log(`🎁 Starting ECION reward processing for ${tips.length} tips...`);
         for (let i = 0; i < tips.length; i++) {
           const tip = tips[i];
           console.log(`🎁 Processing ECION rewards for tip ${i + 1}/${tips.length}: Tipper FID ${tip.interaction.authorFid} → Engager FID ${tip.interaction.interactorFid}`);
@@ -557,6 +570,9 @@ class BatchTransferManager {
             rewardResults.set(i, { success: false, error: rewardError.message });
           }
         }
+        console.log(`🎁 ECION reward processing complete: ${rewardTransfers.length} reward transfers prepared`);
+      } else {
+        console.log(`⚠️ Backend wallet not initialized - skipping ECION reward processing`);
       }
 
       // Combine tip transfers + reward transfers into one batch
