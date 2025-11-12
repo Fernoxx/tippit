@@ -478,37 +478,64 @@ class BatchTransferManager {
       const ECION_TOKEN_ADDRESS = ecionRewardSystem.ECION_TOKEN_ADDRESS;
       const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
       
+      console.log(`🔍 Checking ECION token approval:`);
+      console.log(`  - Backend wallet: ${this.wallet.address}`);
+      console.log(`  - ECION token: ${ECION_TOKEN_ADDRESS}`);
+      console.log(`  - EcionBatch contract: ${ecionBatchAddress}`);
+      
       // Create token contract instance
       const tokenContract = new ethers.Contract(
         ECION_TOKEN_ADDRESS,
         [
           "function allowance(address owner, address spender) view returns (uint256)",
-          "function approve(address spender, uint256 amount) returns (bool)"
+          "function approve(address spender, uint256 amount) returns (bool)",
+          "function balanceOf(address owner) view returns (uint256)"
         ],
         this.wallet
       );
+
+      // Check backend wallet balance first
+      const backendBalance = await tokenContract.balanceOf(this.wallet.address);
+      console.log(`💰 Backend wallet ECION balance: ${ethers.formatEther(backendBalance)} tokens`);
+      
+      if (backendBalance === 0n) {
+        console.error(`❌ Backend wallet has 0 ECION tokens - cannot send rewards`);
+        return false;
+      }
 
       // Check current allowance
       const currentAllowance = await tokenContract.allowance(this.wallet.address, ecionBatchAddress);
       const MAX_UINT256 = ethers.MaxUint256;
       
-      // If allowance is already max, we're good
+      console.log(`📊 Current allowance: ${ethers.formatEther(currentAllowance)} tokens (max: ${ethers.formatEther(MAX_UINT256)} tokens)`);
+      
+      // If allowance is already sufficient (at least max/2), we're good
       if (currentAllowance >= MAX_UINT256 / 2n) {
         console.log(`✅ Backend wallet already approved EcionBatch for ECION tokens (allowance: ${ethers.formatEther(currentAllowance)} tokens)`);
         return true;
       }
 
       // Approve max amount
-      console.log(`🔐 Approving EcionBatch contract to spend ECION tokens from backend wallet...`);
+      console.log(`🔐 Backend wallet needs approval - approving EcionBatch contract to spend ECION tokens...`);
+      console.log(`   Approval amount: ${ethers.formatEther(MAX_UINT256)} tokens (max uint256)`);
+      
       const approveTx = await tokenContract.approve(ecionBatchAddress, MAX_UINT256);
       console.log(`⏳ Approval transaction submitted: ${approveTx.hash}`);
+      console.log(`   View on BaseScan: https://basescan.org/tx/${approveTx.hash}`);
       
       // Wait for confirmation
-      await approveTx.wait();
+      const receipt = await approveTx.wait();
       console.log(`✅ Backend wallet approved EcionBatch for ECION tokens`);
+      console.log(`   Transaction confirmed: ${approveTx.hash} (gas used: ${receipt.gasUsed.toString()})`);
+      
+      // Verify approval
+      const newAllowance = await tokenContract.allowance(this.wallet.address, ecionBatchAddress);
+      console.log(`✅ Verified new allowance: ${ethers.formatEther(newAllowance)} tokens`);
+      
       return true;
     } catch (error) {
       console.error(`❌ Error ensuring backend wallet approval:`, error.message);
+      console.error(`❌ Error stack:`, error.stack);
       return false;
     }
   }
@@ -524,9 +551,14 @@ class BatchTransferManager {
       // Ensure backend wallet has approved EcionBatch for ECION tokens
       if (this.wallet) {
         console.log(`🔐 Ensuring backend wallet approval for ECION tokens...`);
-        await this.ensureBackendWalletApproval();
+        const approvalResult = await this.ensureBackendWalletApproval();
+        if (!approvalResult) {
+          console.error(`❌ CRITICAL: Backend wallet approval failed - ECION rewards will fail!`);
+          console.error(`❌ Continuing with batch but reward transfers will likely fail`);
+        }
       } else {
         console.log(`⚠️ Backend wallet not initialized - skipping ECION reward approval check`);
+        console.log(`⚠️ ECION rewards will fail without wallet initialization`);
       }
       
       // Prepare tip transfer data for EcionBatch
