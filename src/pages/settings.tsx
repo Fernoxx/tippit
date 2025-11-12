@@ -176,10 +176,19 @@ const [criteria, setCriteria] = useState({
         setSelectedToken(userTokenAddress);
         setCustomTokenAddress(userTokenAddress);
         lookupTokenName(userTokenAddress, { updateSelected: true });
-      const lastAllowanceValueRaw = userConfig.lastAllowance ?? '0';
-      const normalizedAllowance = normalizeAllowance(lastAllowanceValueRaw);
-      setAllowanceCache(prev => ({ ...prev, [userTokenAddress]: normalizedAllowance }));
-      setDisplayAllowance(normalizedAllowance);
+        // Only use lastAllowance if it matches the token address in config
+        if (userConfig.tokenAddress?.toLowerCase() === userTokenAddress) {
+          const lastAllowanceValueRaw = userConfig.lastAllowance ?? '0';
+          const normalizedAllowance = normalizeAllowance(lastAllowanceValueRaw);
+          setAllowanceCache(prev => ({ ...prev, [userTokenAddress]: normalizedAllowance }));
+          setDisplayAllowance(normalizedAllowance);
+        } else {
+          // Token changed, fetch allowance for the new token
+          setDisplayAllowance('0');
+          if (activeTab === 'allowance' && address) {
+            fetchTokenAllowance(userTokenAddress);
+          }
+        }
         
         const historySet = new Set<string>();
         historySet.add(userTokenAddress);
@@ -210,31 +219,49 @@ const [criteria, setCriteria] = useState({
     }, [userConfig]);
 
   useEffect(() => {
-    // Only use cached allowance from userConfig, don't fetch from blockchain
+    // Only use cached allowance from userConfig if it matches the selected token
     // Allowance will ONLY be fetched when:
     // 1. User clicks approve button
     // 2. User clicks revoke button
     // 3. After transaction confirms (handled in usePIT.ts)
     // 4. User visits allowance tab (fetch once for display)
-    if (selectedToken && userConfig?.lastAllowance !== undefined) {
+    // 5. User changes token (fetch for new token)
+    if (selectedToken && userConfig?.tokenAddress?.toLowerCase() === selectedToken.toLowerCase() && userConfig?.lastAllowance !== undefined) {
+      // Only use cached allowance if it's for the currently selected token
       const cachedAllowance = normalizeAllowance(userConfig.lastAllowance);
       setDisplayAllowance(cachedAllowance);
-      setAllowanceCache(prev => ({ ...prev, [selectedToken]: cachedAllowance }));
+      setAllowanceCache(prev => ({ ...prev, [selectedToken.toLowerCase()]: cachedAllowance }));
     } else if (selectedToken && tokenAllowance !== null) {
       // Only update if tokenAllowance was explicitly fetched (after approve/revoke)
       setDisplayAllowance(tokenAllowance);
-      setAllowanceCache(prev => ({ ...prev, [selectedToken]: tokenAllowance }));
+      setAllowanceCache(prev => ({ ...prev, [selectedToken.toLowerCase()]: tokenAllowance }));
+    } else if (selectedToken) {
+      // Check cache for this token
+      const cacheKey = selectedToken.toLowerCase();
+      const cachedAllowance = allowanceCache[cacheKey];
+      if (cachedAllowance) {
+        setDisplayAllowance(cachedAllowance);
+      } else {
+        // No cache, fetch it
+        if (activeTab === 'allowance' && address) {
+          fetchTokenAllowance(selectedToken);
+        }
+      }
     }
-  }, [userConfig?.lastAllowance, selectedToken, tokenAllowance]);
+  }, [userConfig?.lastAllowance, userConfig?.tokenAddress, selectedToken, tokenAllowance, allowanceCache, activeTab, address]);
 
-  // Fetch allowance when user visits allowance tab (for display only)
+  // Fetch allowance when user visits allowance tab or changes token (for display only)
   useEffect(() => {
     if (activeTab === 'allowance' && selectedToken && address && !isAllowanceLoading) {
-      // Only fetch if we don't have cached value for this token
+      // Always fetch allowance for the selected token when on allowance tab
       const cacheKey = selectedToken.toLowerCase();
+      // Fetch if no cache or cache is 0, or if cache is for different token
       if (!allowanceCache[cacheKey] || allowanceCache[cacheKey] === '0') {
-        console.log('🔍 Fetching allowance for display on allowance tab');
+        console.log(`🔍 Fetching allowance for token ${selectedToken} on allowance tab`);
         fetchTokenAllowance(selectedToken);
+      } else {
+        // Use cached value
+        setDisplayAllowance(allowanceCache[cacheKey]);
       }
     }
   }, [activeTab, selectedToken, address]);
@@ -311,25 +338,28 @@ const [criteria, setCriteria] = useState({
     if (newAddress.length === 42 && newAddress.startsWith('0x')) {
       const normalized = newAddress.toLowerCase();
       setSelectedToken(normalized);
-      setDisplayAllowance('0');
       const { isValid } = await lookupTokenName(normalized, { updateSelected: true });
       if (isValid) {
         setTokenHistory(prev => {
           const next = [normalized, ...prev.filter(addr => addr !== normalized)];
           return next;
         });
-        // REMOVED: Automatic allowance fetching when token changes
-        // Allowance will only be fetched when user clicks approve button
-        // or after transaction confirms (handled in usePIT.ts)
-        // Use cached value if available, otherwise show 0
-        if (address) {
+        // Fetch allowance for the newly selected token
+        if (address && activeTab === 'allowance') {
           const cacheKey = normalized.toLowerCase();
           const cachedAllowance = allowanceCache[cacheKey];
           if (cachedAllowance) {
             setDisplayAllowance(cachedAllowance);
           } else {
-            setDisplayAllowance('0');
+            // Fetch allowance for this token
+            console.log(`🔍 Fetching allowance for newly selected token: ${normalized}`);
+            fetchTokenAllowance(normalized);
           }
+        } else {
+          // Not on allowance tab, check cache or set to 0
+          const cacheKey = normalized.toLowerCase();
+          const cachedAllowance = allowanceCache[cacheKey];
+          setDisplayAllowance(cachedAllowance || '0');
         }
       } else {
         setIsValidToken(false);
@@ -344,6 +374,18 @@ const [criteria, setCriteria] = useState({
     const handleTokenSelect = async (tokenAddress: string) => {
       await handleTokenAddressChange(tokenAddress);
       setShowTokenDropdown(false);
+      // Save selected token to config immediately so it persists on refresh
+      if (address && userConfig) {
+        try {
+          await setTippingConfig({
+            ...userConfig,
+            tokenAddress: tokenAddress.toLowerCase(),
+          });
+        } catch (error) {
+          console.error('Failed to save selected token:', error);
+          // Don't show error toast - this is a background save
+        }
+      }
     };
 
   // REMOVED: Automatic allowance fetching on page load
@@ -389,7 +431,7 @@ const [criteria, setCriteria] = useState({
         };
         
       await setTippingConfig({
-          tokenAddress: normalizedSelectedToken,
+          tokenAddress: normalizedSelectedToken, // Persist selected token
           likeAmount: sanitizedAmounts.like,
           replyAmount: sanitizedAmounts.reply,
           recastAmount: sanitizedAmounts.recast,
