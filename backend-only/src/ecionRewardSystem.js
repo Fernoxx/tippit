@@ -8,51 +8,93 @@ const BASE_NETWORK = 'base';
 console.log(`🎁 ECION Reward System initialized with token: ${ECION_TOKEN_ADDRESS}`);
 
 /**
- * Check token balance for a user using Neynar API
+ * Get wallet address from FID
+ * @param {number} fid - Farcaster FID
+ * @returns {Promise<string|null>} - Wallet address or null
+ */
+async function getWalletAddressFromFid(fid) {
+  try {
+    const { getUserByFid } = require('./neynar');
+    const user = await getUserByFid(fid);
+    if (!user) return null;
+    
+    const address = user.verified_addresses?.primary?.eth_address || 
+                   user.verified_addresses?.eth_addresses?.[0];
+    return address ? address.toLowerCase() : null;
+  } catch (error) {
+    console.error(`❌ Error getting address for FID ${fid}:`, error.message);
+    return null;
+  }
+}
+
+/**
+ * Check token balance using Infura RPC (blockchain)
+ * @param {string} walletAddress - Wallet address to check
+ * @param {string} tokenAddress - Token contract address
+ * @returns {Promise<number>} - Balance in tokens (not wei)
+ */
+async function getTokenBalanceFromBlockchain(walletAddress, tokenAddress) {
+  try {
+    const { ethers } = require('ethers');
+    const { getProvider } = require('./rpcProvider');
+    
+    // Try Infura first if available
+    let provider = null;
+    if (process.env.INFURA_RPC_URL || process.env.INFURA_URL) {
+      const infuraUrl = process.env.INFURA_RPC_URL || process.env.INFURA_URL;
+      provider = new ethers.JsonRpcProvider(infuraUrl);
+    } else {
+      // Fallback to regular provider
+      provider = await getProvider();
+    }
+    
+    const normalizedTokenAddress = tokenAddress.toLowerCase();
+    const normalizedWalletAddress = walletAddress.toLowerCase();
+    
+    // Create token contract instance
+    const tokenContract = new ethers.Contract(
+      normalizedTokenAddress,
+      [
+        "function balanceOf(address owner) view returns (uint256)",
+        "function decimals() view returns (uint8)"
+      ],
+      provider
+    );
+    
+    // Get balance and decimals
+    const [balance, decimals] = await Promise.all([
+      tokenContract.balanceOf(normalizedWalletAddress),
+      tokenContract.decimals().catch(() => ECION_TOKEN_DECIMALS) // Fallback to 18 if decimals() fails
+    ]);
+    
+    // Convert from wei to tokens
+    const balanceInTokens = parseFloat(ethers.formatUnits(balance, decimals));
+    
+    return balanceInTokens;
+  } catch (error) {
+    console.error(`❌ Blockchain balance check error for ${walletAddress}:`, error.message);
+    return 0;
+  }
+}
+
+/**
+ * Check token balance for a user using blockchain RPC (Infura)
  * @param {number} fid - Farcaster FID
  * @param {string} tokenAddress - Token contract address to check
  * @returns {Promise<number>} - Balance in tokens (not wei)
  */
 async function getTokenBalanceFromNeynar(fid, tokenAddress) {
   try {
-    const normalizedTokenAddress = tokenAddress.toLowerCase();
-    
-    const response = await fetch(
-      `https://api.neynar.com/v2/farcaster/user/balance/?fid=${fid}&networks=${BASE_NETWORK}`,
-      {
-        headers: {
-          'x-api-key': process.env.NEYNAR_API_KEY
-        }
-      }
-    );
-
-    if (!response.ok) {
-      console.error(`❌ Balance check failed for FID ${fid}: ${response.status}`);
+    // Get wallet address from FID first
+    const walletAddress = await getWalletAddressFromFid(fid);
+    if (!walletAddress) {
+      console.error(`❌ No wallet address found for FID ${fid}`);
       return 0;
     }
-
-    const data = await response.json();
     
-    // Loop through all address balances - find our token only
-    if (data.user_balance?.address_balances) {
-      for (const addressBalance of data.user_balance.address_balances) {
-        if (addressBalance.token_balances) {
-          for (const tokenBalance of addressBalance.token_balances) {
-            const token = tokenBalance.token;
-            const contractAddress = token.contract_address?.toLowerCase();
-            
-            // Check if this is the token we're looking for
-            if (contractAddress === normalizedTokenAddress) {
-              const balance = parseFloat(tokenBalance.balance?.in_token || 0);
-              return balance;
-            }
-          }
-        }
-      }
-    }
-
-    // No balance found - don't log (too verbose)
-    return 0;
+    // Check balance using blockchain RPC (Infura)
+    const balance = await getTokenBalanceFromBlockchain(walletAddress, tokenAddress);
+    return balance;
   } catch (error) {
     console.error(`❌ Balance check error for FID ${fid}:`, error.message);
     return 0;
@@ -189,17 +231,17 @@ async function sendEcionRewards(tipperAddress, engagerAddress, tipperReward, eng
  */
 async function processTipRewards(tipperFid, engagerFid, tipperAddress, engagerAddress) {
   try {
-    console.log(`🎁 Checking ECION balances: Tipper FID ${tipperFid}, Engager FID ${engagerFid}`);
+    console.log(`🎁 Checking ECION balances via blockchain: Tipper ${tipperAddress}, Engager ${engagerAddress}`);
     
-    // Check balances for both parties
+    // Check balances directly from blockchain using wallet addresses
     const [tipperBalance, engagerBalance] = await Promise.all([
-      getTokenBalanceFromNeynar(tipperFid, ECION_TOKEN_ADDRESS),
-      getTokenBalanceFromNeynar(engagerFid, ECION_TOKEN_ADDRESS)
+      getTokenBalanceFromBlockchain(tipperAddress, ECION_TOKEN_ADDRESS),
+      getTokenBalanceFromBlockchain(engagerAddress, ECION_TOKEN_ADDRESS)
     ]);
 
     const tipperM = tipperBalance > 0 ? (tipperBalance / 1_000_000).toFixed(2) : '0';
     const engagerM = engagerBalance > 0 ? (engagerBalance / 1_000_000).toFixed(2) : '0';
-    console.log(`📊 ECION balances - Tipper: ${tipperM}M, Engager: ${engagerM}M`);
+    console.log(`📊 ECION balances - Tipper: ${tipperM}M (${tipperBalance} tokens), Engager: ${engagerM}M (${engagerBalance} tokens)`);
 
     // Calculate rewards
     const rewards = calculateTipRewards(tipperBalance, engagerBalance);
