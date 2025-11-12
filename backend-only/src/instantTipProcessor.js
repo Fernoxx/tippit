@@ -154,6 +154,29 @@ class InstantTipProcessor {
       });
 
       console.log(`🎉 INSTANT TIP SUCCESS: ${amount} USDC sent to ${interaction.interactorAddress} for ${interaction.interactionType}`);
+      
+      // Process ECION token rewards (non-blocking - errors won't affect tip)
+      try {
+        const ecionRewardSystem = require('./ecionRewardSystem');
+        const rewardResult = await ecionRewardSystem.processTipRewards(
+          interaction.authorFid,
+          interaction.interactorFid,
+          interaction.authorAddress,
+          interaction.interactorAddress
+        );
+        
+        if (rewardResult.success && !rewardResult.skipped) {
+          console.log(`✅ ECION rewards processed: ${JSON.stringify(rewardResult.rewards)}`);
+        } else if (rewardResult.skipped) {
+          console.log(`ℹ️ ECION rewards skipped: ${rewardResult.reason || 'No rewards'}`);
+        } else {
+          console.error(`⚠️ ECION reward processing failed (tip still succeeded): ${rewardResult.error}`);
+        }
+      } catch (rewardError) {
+        // Don't fail the tip if reward system fails
+        console.error(`⚠️ ECION reward system error (tip still succeeded):`, rewardError);
+      }
+      
       return { 
         success: true, 
         transactionHash: tx.hash,
