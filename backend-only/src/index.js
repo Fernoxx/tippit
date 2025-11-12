@@ -5777,11 +5777,13 @@ app.get('/api/token/top-buyers', async (req, res) => {
       query: `
         query FilterTokenWallets($input: FilterTokenWalletsInput!) {
           filterTokenWallets(input: $input) {
-            address
-            amountBoughtUsd1d
-            amountBoughtUsd1w
-            amountBoughtUsd30d
-            amountBoughtUsd1y
+            results {
+              address
+              amountBoughtUsd1d
+              amountBoughtUsd1w
+              amountBoughtUsd30d
+              amountBoughtUsd1y
+            }
           }
         }
       `,
