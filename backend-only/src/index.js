@@ -46,6 +46,20 @@ console.log('🔄 Redeployment triggered:', new Date().toISOString());
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Admin authentication middleware (defined early so all routes can use it)
+const adminAuth = (req, res, next) => {
+  const adminPassword = req.headers['x-admin-password'] || req.query.password || req.body?.password;
+  const expectedPassword = process.env.ADMIN_PASSWORD || 'ecion2024';
+  
+  if (!adminPassword || adminPassword !== expectedPassword) {
+    return res.status(401).json({ 
+      success: false, 
+      error: 'Unauthorized - Admin password required' 
+    });
+  }
+  next();
+};
+
 // Middleware - Configure CORS properly
 app.use(cors({
   origin: [
@@ -5566,20 +5580,6 @@ app.get('/api/debug/user-config-allowance', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
   });
-
-  // Admin authentication middleware
-  const adminAuth = (req, res, next) => {
-    const adminPassword = req.headers['x-admin-password'] || req.query.password || req.body?.password;
-    const expectedPassword = process.env.ADMIN_PASSWORD || 'ecion2024';
-    
-    if (!adminPassword || adminPassword !== expectedPassword) {
-      return res.status(401).json({ 
-        success: false, 
-        error: 'Unauthorized - Admin password required' 
-      });
-    }
-    next();
-  };
 
   // Admin panel - Get total tips statistics
   app.get('/api/admin/total-stats', adminAuth, async (req, res) => {
