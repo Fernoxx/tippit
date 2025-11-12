@@ -5867,7 +5867,7 @@ app.get('/api/token/top-buyers', async (req, res) => {
       });
     }
 
-    const wallets = codexData.data?.filterTokenWallets || [];
+    const wallets = codexData.data?.filterTokenWallets?.results || [];
     console.log(`📊 Found ${wallets.length} wallets`);
 
     if (wallets.length === 0) {
