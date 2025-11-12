@@ -8128,12 +8128,8 @@ app.get('/api/admin/tip-history', adminAuth, async (req, res) => {
 });
 
 // Admin utility: reconcile active users who have allowance but are not tracked
-app.post('/api/admin/reconcile-active-users', async (req, res) => {
+app.post('/api/admin/reconcile-active-users', adminAuth, async (req, res) => {
   try {
-    const adminKey = req.headers['x-admin-key'] || req.body?.adminKey;
-    if (process.env.ADMIN_API_KEY && adminKey !== process.env.ADMIN_API_KEY) {
-      return res.status(401).json({ success: false, error: 'Unauthorized' });
-    }
 
     const targetFids = Array.isArray(req.body?.fids)
       ? req.body.fids.map(fid => parseInt(fid, 10)).filter(Number.isFinite)
