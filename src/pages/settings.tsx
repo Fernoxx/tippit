@@ -397,9 +397,20 @@ const [criteria, setCriteria] = useState({
   // 3. When user manually selects a token (handled in handleTokenAddressChange)
   // This prevents excessive RPC calls
 
-  // Close dropdown when clicking outside
+  // Close dropdown when clicking outside (but don't interfere with navigation)
   useEffect(() => {
-    const handleClickOutside = () => setShowTokenDropdown(false);
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      // Don't close dropdown if clicking on navigation links
+      if (target.closest('nav') || target.closest('a[href]')) {
+        return;
+      }
+      // Don't close if clicking inside the dropdown
+      if (target.closest('.token-dropdown-container')) {
+        return;
+      }
+      setShowTokenDropdown(false);
+    };
     if (showTokenDropdown) {
       document.addEventListener('click', handleClickOutside);
       return () => document.removeEventListener('click', handleClickOutside);
@@ -804,7 +815,7 @@ const [criteria, setCriteria] = useState({
               {/* Token Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Token</label>
-                <div className="relative">
+                <div className="relative token-dropdown-container">
                   <input
                     type="text"
                     value={customTokenAddress}
