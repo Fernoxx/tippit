@@ -5567,8 +5567,22 @@ app.get('/api/debug/user-config-allowance', async (req, res) => {
   }
   });
 
+  // Admin authentication middleware
+  const adminAuth = (req, res, next) => {
+    const adminPassword = req.headers['x-admin-password'] || req.query.password || req.body?.password;
+    const expectedPassword = process.env.ADMIN_PASSWORD || 'ecion2024';
+    
+    if (!adminPassword || adminPassword !== expectedPassword) {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Unauthorized - Admin password required' 
+      });
+    }
+    next();
+  };
+
   // Admin panel - Get total tips statistics
-  app.get('/api/admin/total-stats', async (req, res) => {
+  app.get('/api/admin/total-stats', adminAuth, async (req, res) => {
     try {
       console.log('📊 Admin: Fetching total tips statistics...', { path: req.originalUrl, time: new Date().toISOString() });
       if (!database?.pool) {
@@ -5782,7 +5796,7 @@ app.get('/api/debug/gas-prices', async (req, res) => {
 // ADMIN ENDPOINTS - Total App Statistics (removed duplicate, using comprehensive version below)
 
 // Get recent tips for admin monitoring
-app.get('/api/admin/recent-tips', async (req, res) => {
+app.get('/api/admin/recent-tips', adminAuth, async (req, res) => {
   try {
     const { limit = 50 } = req.query;
     const recentTips = await database.getRecentTips(parseInt(limit));
@@ -6005,7 +6019,7 @@ app.get('/api/debug/leaderboard-data', async (req, res) => {
 });
 
 // Initialize user earnings table (run once to migrate existing data)
-app.post('/api/admin/initialize-user-earnings', async (req, res) => {
+app.post('/api/admin/initialize-user-earnings', adminAuth, async (req, res) => {
   try {
     console.log('🔄 Starting user earnings initialization...');
     await database.initializeUserEarnings();
@@ -8036,7 +8050,7 @@ app.get('/api/latest-cast-hashes', async (req, res) => {
 });
 
 // Admin panel stats endpoint
-app.get('/api/admin/stats', async (req, res) => {
+app.get('/api/admin/stats', adminAuth, async (req, res) => {
   try {
     // Get total tips count
     const tipsResult = await database.pool.query(`
@@ -8090,7 +8104,7 @@ app.get('/api/admin/stats', async (req, res) => {
 });
 
 // Get detailed tip history for admin
-app.get('/api/admin/tip-history', async (req, res) => {
+app.get('/api/admin/tip-history', adminAuth, async (req, res) => {
   try {
     const { limit = 50, offset = 0 } = req.query;
     

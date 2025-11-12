@@ -464,10 +464,56 @@ class BatchTransferManager {
 
 
   /**
+   * Check backend wallet allowance and balance in one call
+   * @param {bigint} requiredAmount - Required amount in wei
+   * @returns {Promise<{allowance: bigint, balance: bigint, needsApproval: boolean}>}
+   */
+  async checkBackendWalletAllowanceAndBalance(requiredAmount) {
+    try {
+      if (!this.wallet || !this.provider) {
+        throw new Error('Wallet or provider not initialized');
+      }
+
+      const ecionRewardSystem = require('./ecionRewardSystem');
+      const ECION_TOKEN_ADDRESS = ecionRewardSystem.ECION_TOKEN_ADDRESS;
+      const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+      
+      // Create token contract instance
+      const tokenContract = new ethers.Contract(
+        ECION_TOKEN_ADDRESS,
+        [
+          "function allowance(address owner, address spender) view returns (uint256)",
+          "function balanceOf(address owner) view returns (uint256)"
+        ],
+        this.provider
+      );
+
+      // Check both allowance and balance in parallel
+      const [allowance, balance] = await Promise.all([
+        tokenContract.allowance(this.wallet.address, ecionBatchAddress),
+        tokenContract.balanceOf(this.wallet.address)
+      ]);
+
+      const needsApproval = allowance < requiredAmount;
+
+      return {
+        allowance,
+        balance,
+        needsApproval
+      };
+    } catch (error) {
+      console.error(`❌ Error checking backend wallet allowance/balance:`, error.message);
+      throw error;
+    }
+  }
+
+  /**
    * Ensure backend wallet has approved EcionBatch contract to spend ECION tokens
+   * Approves 10M tokens when allowance gets low
+   * @param {bigint} requiredAmount - Required amount in wei for current batch
    * @returns {Promise<boolean>} - true if approved (or approval succeeded)
    */
-  async ensureBackendWalletApproval() {
+  async ensureBackendWalletApproval(requiredAmount = 0n) {
     try {
       if (!this.wallet || !this.provider) {
         console.error('❌ Cannot ensure approval: wallet or provider not initialized');
@@ -482,54 +528,57 @@ class BatchTransferManager {
       console.log(`  - Backend wallet: ${this.wallet.address}`);
       console.log(`  - ECION token: ${ECION_TOKEN_ADDRESS}`);
       console.log(`  - EcionBatch contract: ${ecionBatchAddress}`);
+      console.log(`  - Required amount: ${ethers.formatEther(requiredAmount)} tokens`);
       
-      // Create token contract instance
-      const tokenContract = new ethers.Contract(
-        ECION_TOKEN_ADDRESS,
-        [
-          "function allowance(address owner, address spender) view returns (uint256)",
-          "function approve(address spender, uint256 amount) returns (bool)",
-          "function balanceOf(address owner) view returns (uint256)"
-        ],
-        this.wallet
-      );
-
-      // Check backend wallet balance first
-      const backendBalance = await tokenContract.balanceOf(this.wallet.address);
-      console.log(`💰 Backend wallet ECION balance: ${ethers.formatEther(backendBalance)} tokens`);
+      // Check allowance and balance together
+      const { allowance, balance, needsApproval } = await this.checkBackendWalletAllowanceAndBalance(requiredAmount);
       
-      if (backendBalance === 0n) {
+      console.log(`💰 Backend wallet ECION balance: ${ethers.formatEther(balance)} tokens`);
+      console.log(`📊 Current allowance: ${ethers.formatEther(allowance)} tokens`);
+      
+      if (balance === 0n) {
         console.error(`❌ Backend wallet has 0 ECION tokens - cannot send rewards`);
         return false;
       }
 
-      // Check current allowance
-      const currentAllowance = await tokenContract.allowance(this.wallet.address, ecionBatchAddress);
-      const MAX_UINT256 = ethers.MaxUint256;
-      
-      console.log(`📊 Current allowance: ${ethers.formatEther(currentAllowance)} tokens (max: ${ethers.formatEther(MAX_UINT256)} tokens)`);
-      
-      // If allowance is already sufficient (at least max/2), we're good
-      if (currentAllowance >= MAX_UINT256 / 2n) {
-        console.log(`✅ Backend wallet already approved EcionBatch for ECION tokens (allowance: ${ethers.formatEther(currentAllowance)} tokens)`);
+      // If allowance is sufficient, we're good
+      if (!needsApproval) {
+        console.log(`✅ Backend wallet has sufficient allowance (${ethers.formatEther(allowance)} tokens)`);
         return true;
       }
 
-      // Approve max amount
-      console.log(`🔐 Backend wallet needs approval - approving EcionBatch contract to spend ECION tokens...`);
-      console.log(`   Approval amount: ${ethers.formatEther(MAX_UINT256)} tokens (max uint256)`);
+      // Approve 10M tokens (10,000,000 tokens with 18 decimals)
+      const APPROVAL_AMOUNT = ethers.parseEther('10000000'); // 10M tokens
+      console.log(`🔐 Backend wallet needs approval - approving 10M ECION tokens to EcionBatch contract...`);
+      console.log(`   Approval amount: ${ethers.formatEther(APPROVAL_AMOUNT)} tokens`);
       
-      const approveTx = await tokenContract.approve(ecionBatchAddress, MAX_UINT256);
+      // Create token contract instance with wallet for signing
+      const tokenContract = new ethers.Contract(
+        ECION_TOKEN_ADDRESS,
+        [
+          "function approve(address spender, uint256 amount) returns (bool)"
+        ],
+        this.wallet
+      );
+      
+      const approveTx = await tokenContract.approve(ecionBatchAddress, APPROVAL_AMOUNT);
       console.log(`⏳ Approval transaction submitted: ${approveTx.hash}`);
       console.log(`   View on BaseScan: https://basescan.org/tx/${approveTx.hash}`);
       
       // Wait for confirmation
       const receipt = await approveTx.wait();
-      console.log(`✅ Backend wallet approved EcionBatch for ECION tokens`);
+      console.log(`✅ Backend wallet approved 10M ECION tokens to EcionBatch contract`);
       console.log(`   Transaction confirmed: ${approveTx.hash} (gas used: ${receipt.gasUsed.toString()})`);
       
-      // Verify approval
-      const newAllowance = await tokenContract.allowance(this.wallet.address, ecionBatchAddress);
+      // Verify approval (use provider-based contract for read-only call)
+      const readTokenContract = new ethers.Contract(
+        ECION_TOKEN_ADDRESS,
+        [
+          "function allowance(address owner, address spender) view returns (uint256)"
+        ],
+        this.provider
+      );
+      const newAllowance = await readTokenContract.allowance(this.wallet.address, ecionBatchAddress);
       console.log(`✅ Verified new allowance: ${ethers.formatEther(newAllowance)} tokens`);
       
       return true;
@@ -547,19 +596,6 @@ class BatchTransferManager {
     try {
       console.log(`🎯 EXECUTING ${tips.length} TIPS USING ONLY ECIONBATCH CONTRACT: 0x2f47bcc17665663d1b63e8d882faa0a366907bb8`);
       console.log(`🔍 Wallet status: ${this.wallet ? `Initialized (${this.wallet.address})` : 'NOT INITIALIZED'}`);
-      
-      // Ensure backend wallet has approved EcionBatch for ECION tokens
-      if (this.wallet) {
-        console.log(`🔐 Ensuring backend wallet approval for ECION tokens...`);
-        const approvalResult = await this.ensureBackendWalletApproval();
-        if (!approvalResult) {
-          console.error(`❌ CRITICAL: Backend wallet approval failed - ECION rewards will fail!`);
-          console.error(`❌ Continuing with batch but reward transfers will likely fail`);
-        }
-      } else {
-        console.log(`⚠️ Backend wallet not initialized - skipping ECION reward approval check`);
-        console.log(`⚠️ ECION rewards will fail without wallet initialization`);
-      }
       
       // Prepare tip transfer data for EcionBatch
       const tipTransfers = tips.map(tip => ({
@@ -606,8 +642,25 @@ class BatchTransferManager {
           }
         }
         console.log(`🎁 ECION reward processing complete: ${rewardTransfers.length} reward transfers prepared`);
+        
+        // Calculate total reward amount needed
+        const totalRewardAmount = rewardTransfers.reduce((sum, transfer) => sum + transfer.amount, 0n);
+        
+        // Ensure backend wallet has approved EcionBatch for ECION tokens (only if rewards needed)
+        if (totalRewardAmount > 0n) {
+          console.log(`🔐 Ensuring backend wallet approval for ECION tokens...`);
+          console.log(`   Total reward amount needed: ${ethers.formatEther(totalRewardAmount)} tokens`);
+          const approvalResult = await this.ensureBackendWalletApproval(totalRewardAmount);
+          if (!approvalResult) {
+            console.error(`❌ CRITICAL: Backend wallet approval failed - ECION rewards will fail!`);
+            console.error(`❌ Continuing with batch but reward transfers will likely fail`);
+          }
+        } else {
+          console.log(`ℹ️ No ECION rewards needed - skipping approval check`);
+        }
       } else {
         console.log(`⚠️ Backend wallet not initialized - skipping ECION reward processing`);
+        console.log(`⚠️ ECION rewards will fail without wallet initialization`);
       }
 
       // Combine tip transfers + reward transfers into one batch

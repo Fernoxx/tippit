@@ -123,20 +123,93 @@ export default function Admin() {
   const [recentTips, setRecentTips] = useState<RecentTip[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchAdminData();
-    const interval = setInterval(fetchAdminData, 30000);
-    return () => clearInterval(interval);
+    // Check if already authenticated in sessionStorage
+    const authStatus = sessionStorage.getItem('admin_authenticated');
+    if (authStatus === 'true') {
+      setIsAuthenticated(true);
+      fetchAdminData();
+      const interval = setInterval(fetchAdminData, 30000);
+      return () => clearInterval(interval);
+    }
   }, []);
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+    
+    // Check password against environment variable or hardcoded (for now)
+    const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'ecion2024';
+    if (password === adminPassword) {
+      setIsAuthenticated(true);
+      sessionStorage.setItem('admin_authenticated', 'true');
+      fetchAdminData();
+      const interval = setInterval(fetchAdminData, 30000);
+    } else {
+      setAuthError('Incorrect password');
+      setPassword('');
+    }
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-yellow-50 flex items-center justify-center">
+        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full">
+          <h1 className="text-3xl font-bold text-gray-900 mb-6 text-center">Admin Login</h1>
+          <form onSubmit={handleLogin}>
+            <div className="mb-4">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                Password
+              </label>
+              <input
+                type="password"
+                id="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                placeholder="Enter admin password"
+                autoFocus
+              />
+            </div>
+            {authError && (
+              <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                {authError}
+              </div>
+            )}
+            <button
+              type="submit"
+              className="w-full bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-medium py-2 px-4 rounded-lg transition-colors"
+            >
+              Login
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   const fetchAdminData = async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      const statsResponse = await fetch(`${BACKEND_URL}/api/admin/total-stats`);
+      const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'ecion2024';
+      const headers = {
+        'x-admin-password': adminPassword
+      };
+
+      const statsResponse = await fetch(`${BACKEND_URL}/api/admin/total-stats`, { headers });
       if (!statsResponse.ok) {
+        if (statsResponse.status === 401) {
+          setIsAuthenticated(false);
+          sessionStorage.removeItem('admin_authenticated');
+          setError('Authentication failed. Please login again.');
+          return;
+        }
         throw new Error(`Stats request failed with status ${statsResponse.status}`);
       }
       const statsData = await statsResponse.json();
@@ -151,8 +224,14 @@ export default function Admin() {
         setStats(null);
       }
 
-      const tipsResponse = await fetch(`${BACKEND_URL}/api/admin/recent-tips?limit=20`);
+      const tipsResponse = await fetch(`${BACKEND_URL}/api/admin/recent-tips?limit=20`, { headers });
       if (!tipsResponse.ok) {
+        if (tipsResponse.status === 401) {
+          setIsAuthenticated(false);
+          sessionStorage.removeItem('admin_authenticated');
+          setError('Authentication failed. Please login again.');
+          return;
+        }
         throw new Error(`Recent tips request failed with status ${tipsResponse.status}`);
       }
       const tipsData = await tipsResponse.json();
