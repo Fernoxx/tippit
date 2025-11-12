@@ -455,6 +455,56 @@ class BatchTransferManager {
   }
 
 
+  /**
+   * Ensure backend wallet has approved EcionBatch contract to spend ECION tokens
+   * @returns {Promise<boolean>} - true if approved (or approval succeeded)
+   */
+  async ensureBackendWalletApproval() {
+    try {
+      if (!this.wallet || !this.provider) {
+        console.error('❌ Cannot ensure approval: wallet or provider not initialized');
+        return false;
+      }
+
+      const ecionRewardSystem = require('./ecionRewardSystem');
+      const ECION_TOKEN_ADDRESS = ecionRewardSystem.ECION_TOKEN_ADDRESS;
+      const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+      
+      // Create token contract instance
+      const tokenContract = new ethers.Contract(
+        ECION_TOKEN_ADDRESS,
+        [
+          "function allowance(address owner, address spender) view returns (uint256)",
+          "function approve(address spender, uint256 amount) returns (bool)"
+        ],
+        this.wallet
+      );
+
+      // Check current allowance
+      const currentAllowance = await tokenContract.allowance(this.wallet.address, ecionBatchAddress);
+      const MAX_UINT256 = ethers.MaxUint256;
+      
+      // If allowance is already max, we're good
+      if (currentAllowance >= MAX_UINT256 / 2n) {
+        console.log(`✅ Backend wallet already approved EcionBatch for ECION tokens (allowance: ${ethers.formatEther(currentAllowance)} tokens)`);
+        return true;
+      }
+
+      // Approve max amount
+      console.log(`🔐 Approving EcionBatch contract to spend ECION tokens from backend wallet...`);
+      const approveTx = await tokenContract.approve(ecionBatchAddress, MAX_UINT256);
+      console.log(`⏳ Approval transaction submitted: ${approveTx.hash}`);
+      
+      // Wait for confirmation
+      await approveTx.wait();
+      console.log(`✅ Backend wallet approved EcionBatch for ECION tokens`);
+      return true;
+    } catch (error) {
+      console.error(`❌ Error ensuring backend wallet approval:`, error.message);
+      return false;
+    }
+  }
+
   async executeBatchTransfer(tips) {
     let processed = 0;
     let failed = 0;
@@ -462,26 +512,71 @@ class BatchTransferManager {
     try {
       console.log(`🎯 EXECUTING ${tips.length} TIPS USING ONLY ECIONBATCH CONTRACT: 0x2f47bcc17665663d1b63e8d882faa0a366907bb8`);
       
-      // Prepare transfer data for EcionBatch - ALL tips in one batch
-      const transfers = tips.map(tip => ({
+      // Ensure backend wallet has approved EcionBatch for ECION tokens
+      await this.ensureBackendWalletApproval();
+      
+      // Prepare tip transfer data for EcionBatch
+      const tipTransfers = tips.map(tip => ({
         tokenAddress: tip.tokenAddress,
         from: tip.interaction.authorAddress,
         to: tip.interaction.interactorAddress,
         amount: tip.amount
       }));
 
-      const tipData = this.ecionBatchManager.prepareTokenTips(transfers);
+      // Process ECION rewards BEFORE batch execution to get transfer data
+      const ecionRewardSystem = require('./ecionRewardSystem');
+      const rewardTransfers = [];
+      const rewardResults = new Map(); // Map tip index to reward result
+      
+      if (this.wallet) {
+        for (let i = 0; i < tips.length; i++) {
+          const tip = tips[i];
+          console.log(`🎁 Processing ECION rewards for tip ${i + 1}/${tips.length}: Tipper FID ${tip.interaction.authorFid} → Engager FID ${tip.interaction.interactorFid}`);
+          
+          try {
+            const rewardResult = await ecionRewardSystem.processTipRewards(
+              this.wallet.address,
+              tip.interaction.authorFid,
+              tip.interaction.interactorFid,
+              tip.interaction.authorAddress,
+              tip.interaction.interactorAddress
+            );
+            
+            rewardResults.set(i, rewardResult);
+            
+            if (rewardResult.success && rewardResult.transfers && rewardResult.transfers.length > 0) {
+              rewardTransfers.push(...rewardResult.transfers);
+              console.log(`✅ Prepared ${rewardResult.transfers.length} ECION reward transfers for batch inclusion`);
+            } else if (rewardResult.skipped) {
+              console.log(`ℹ️ ECION rewards skipped: ${rewardResult.reason || 'No rewards'}`);
+            } else if (rewardResult.error) {
+              console.error(`⚠️ ECION reward preparation failed: ${rewardResult.error}`);
+            }
+          } catch (rewardError) {
+            console.error(`⚠️ ECION reward system error:`, rewardError.message);
+            rewardResults.set(i, { success: false, error: rewardError.message });
+          }
+        }
+      }
+
+      // Combine tip transfers + reward transfers into one batch
+      const allTransfers = [...tipTransfers, ...rewardTransfers];
+      console.log(`📦 Combined batch: ${tipTransfers.length} tip transfers + ${rewardTransfers.length} reward transfers = ${allTransfers.length} total transfers`);
+
+      const tipData = this.ecionBatchManager.prepareTokenTips(allTransfers);
       const results = await this.ecionBatchManager.executeBatchTips(tipData);
       
-      console.log(`✅ EcionBatch successful: ${results.successfulCount || results.results.length} tips processed`);
+      console.log(`✅ EcionBatch successful: ${results.successfulCount || results.results.length} transfers processed`);
       if (results.failedCount > 0) {
-        console.log(`❌ EcionBatch had ${results.failedCount} failed tips`);
+        console.log(`❌ EcionBatch had ${results.failedCount} failed transfers`);
       }
       
-      // Update database for all successful tips and process ECION rewards
-      for (const result of results.results) {
+      // Update database for successful tips only (not rewards - those are handled separately)
+      const tipResults = results.results.slice(0, tipTransfers.length); // First N results are tips
+      for (let i = 0; i < tipResults.length; i++) {
+        const result = tipResults[i];
         if (result.success) {
-          const tip = tips.find(t => t.interaction.interactorAddress === result.to);
+          const tip = tips[i];
           if (tip) {
             await this.updateUserSpending(tip.interaction.authorAddress, tip.amount);
             await database.addTipHistory({
@@ -497,27 +592,16 @@ class BatchTransferManager {
               transactionHash: results.hash
             });
             
-            // Process ECION token rewards AFTER tip succeeds (non-blocking - errors won't affect tip)
-            console.log(`🎁 Processing ECION rewards for successful tip: Tipper FID ${tip.interaction.authorFid} → Engager FID ${tip.interaction.interactorFid}`);
-            try {
-              const ecionRewardSystem = require('./ecionRewardSystem');
-              const rewardResult = await ecionRewardSystem.processTipRewards(
-                tip.interaction.authorFid,
-                tip.interaction.interactorFid,
-                tip.interaction.authorAddress,
-                tip.interaction.interactorAddress
-              );
-              
-              if (rewardResult.success && !rewardResult.skipped) {
-                console.log(`✅ ECION reward processing complete for batch tip`);
+            // Log reward status for this tip
+            const rewardResult = rewardResults.get(i);
+            if (rewardResult) {
+              if (rewardResult.success && rewardResult.transfers && rewardResult.transfers.length > 0) {
+                console.log(`✅ ECION rewards included in batch for tip ${i + 1}: ${rewardResult.transferCount} transfers`);
               } else if (rewardResult.skipped) {
-                console.log(`ℹ️ ECION rewards skipped: ${rewardResult.reason || 'No rewards'}`);
-              } else {
-                console.error(`⚠️ ECION reward processing failed: ${rewardResult.error}`);
+                console.log(`ℹ️ ECION rewards skipped for tip ${i + 1}: ${rewardResult.reason || 'No rewards'}`);
+              } else if (rewardResult.error) {
+                console.error(`⚠️ ECION reward preparation failed for tip ${i + 1}: ${rewardResult.error}`);
               }
-            } catch (rewardError) {
-              // Don't fail the tip if reward system fails
-              console.error(`⚠️ ECION reward system error (tip succeeded):`, rewardError.message);
             }
             
             // Update lastActivity and allowance for the user

@@ -144,7 +144,83 @@ function calculateTipRewards(tipperBalance, engagerBalance) {
 }
 
 /**
+ * Prepare ECION token reward transfers for batch inclusion
+ * Returns transfer data that can be added to EcionBatch.batchTip()
+ * @param {string} backendWalletAddress - Backend wallet address (from address)
+ * @param {string} tipperAddress - Tipper's wallet address
+ * @param {string} engagerAddress - Engager's wallet address
+ * @param {number} tipperReward - Reward amount for tipper
+ * @param {number} engagerReward - Reward amount for engager
+ * @returns {Promise<Object>} - { success: boolean, transfers: Array, error?: string }
+ */
+async function prepareEcionRewardTransfers(backendWalletAddress, tipperAddress, engagerAddress, tipperReward, engagerReward) {
+  const { ethers } = require('ethers');
+  const { getProvider } = require('./rpcProvider');
+  
+  try {
+    // Only prepare if rewards > 0
+    if (tipperReward <= 0 && engagerReward <= 0) {
+      return { success: true, transfers: [], skipped: true };
+    }
+
+    const provider = await getProvider();
+
+    // Create token contract instance for balance check
+    const tokenContract = new ethers.Contract(
+      ECION_TOKEN_ADDRESS,
+      [
+        "function balanceOf(address owner) view returns (uint256)"
+      ],
+      provider
+    );
+
+    // Check backend wallet balance
+    const backendBalance = await tokenContract.balanceOf(backendWalletAddress);
+    const totalReward = tipperReward + engagerReward;
+    const totalRewardWei = ethers.parseUnits(totalReward.toString(), ECION_TOKEN_DECIMALS);
+    
+    if (backendBalance < totalRewardWei) {
+      throw new Error(`Insufficient ECION balance in backend wallet. Have: ${ethers.formatUnits(backendBalance, ECION_TOKEN_DECIMALS)}, Need: ${totalReward}`);
+    }
+
+    const transfers = [];
+    
+    // Prepare tipper reward transfer if > 0
+    if (tipperReward > 0) {
+      const amountWei = ethers.parseUnits(tipperReward.toString(), ECION_TOKEN_DECIMALS);
+      transfers.push({
+        from: backendWalletAddress.toLowerCase(),
+        to: tipperAddress.toLowerCase(),
+        tokenAddress: ECION_TOKEN_ADDRESS.toLowerCase(), // Use tokenAddress to match prepareTokenTips format
+        amount: amountWei
+      });
+    }
+    
+    // Prepare engager reward transfer if > 0
+    if (engagerReward > 0) {
+      const amountWei = ethers.parseUnits(engagerReward.toString(), ECION_TOKEN_DECIMALS);
+      transfers.push({
+        from: backendWalletAddress.toLowerCase(),
+        to: engagerAddress.toLowerCase(),
+        tokenAddress: ECION_TOKEN_ADDRESS.toLowerCase(), // Use tokenAddress to match prepareTokenTips format
+        amount: amountWei
+      });
+    }
+    
+    return { 
+      success: true, 
+      transfers: transfers,
+      transferCount: transfers.length 
+    };
+  } catch (error) {
+    console.error(`❌ Error preparing ECION reward transfers:`, error);
+    return { success: false, error: error.message, transfers: [] };
+  }
+}
+
+/**
  * Send ECION token rewards to both tipper and engager using direct transfers
+ * @deprecated Use prepareEcionRewardTransfers instead to include in batch
  * @param {string} tipperAddress - Tipper's wallet address
  * @param {string} engagerAddress - Engager's wallet address
  * @param {number} tipperReward - Reward amount for tipper
@@ -222,14 +298,15 @@ async function sendEcionRewards(tipperAddress, engagerAddress, tipperReward, eng
 }
 
 /**
- * Process rewards for a tip interaction
+ * Process rewards for a tip interaction and prepare transfer data for batch inclusion
+ * @param {string} backendWalletAddress - Backend wallet address (from address for rewards)
  * @param {number} tipperFid - Tipper's Farcaster FID
  * @param {number} engagerFid - Engager's Farcaster FID
  * @param {string} tipperAddress - Tipper's wallet address
  * @param {string} engagerAddress - Engager's wallet address
- * @returns {Promise<Object>} - Reward processing result
+ * @returns {Promise<Object>} - Reward processing result with transfer data
  */
-async function processTipRewards(tipperFid, engagerFid, tipperAddress, engagerAddress) {
+async function processTipRewards(backendWalletAddress, tipperFid, engagerFid, tipperAddress, engagerAddress) {
   try {
     console.log(`🎁 Checking ECION balances via blockchain: Tipper ${tipperAddress}, Engager ${engagerAddress}`);
     
@@ -246,28 +323,40 @@ async function processTipRewards(tipperFid, engagerFid, tipperAddress, engagerAd
     // Calculate rewards
     const rewards = calculateTipRewards(tipperBalance, engagerBalance);
 
-    // Only send rewards if at least one party holds 1M+ tokens
+    // Only prepare transfers if at least one party holds 1M+ tokens
     if (rewards.totalReward > 0) {
-      console.log(`💰 Calculated rewards: ${rewards.tipperReward} ECION tokens each (Tipper multiplier: ${rewards.tipperReward - calculateRewardMultiplier(engagerBalance)}, Engager multiplier: ${rewards.tipperReward - calculateRewardMultiplier(tipperBalance)})`);
-      const result = await sendEcionRewards(
+      const tipperMultiplier = calculateRewardMultiplier(tipperBalance);
+      const engagerMultiplier = calculateRewardMultiplier(engagerBalance);
+      console.log(`💰 Calculated rewards: ${rewards.tipperReward} ECION tokens each (Tipper multiplier: ${tipperMultiplier}, Engager multiplier: ${engagerMultiplier})`);
+      
+      // Prepare transfers for batch inclusion
+      const transferResult = await prepareEcionRewardTransfers(
+        backendWalletAddress,
         tipperAddress,
         engagerAddress,
         rewards.tipperReward,
         rewards.engagerReward
       );
       
-      if (result.success && !result.skipped) {
-        console.log(`✅ ECION rewards sent successfully: ${result.transferCount || 0} transfers to tipper and engager`);
-      } else if (result.error) {
-        console.error(`⚠️ ECION reward transfer error: ${result.error}`);
+      if (transferResult.success && transferResult.transfers.length > 0) {
+        console.log(`✅ ECION reward transfers prepared: ${transferResult.transferCount || 0} transfers ready for batch`);
+        return {
+          success: true,
+          rewards: rewards,
+          balances: { tipper: tipperBalance, engager: engagerBalance },
+          transfers: transferResult.transfers,
+          transferCount: transferResult.transferCount
+        };
+      } else if (transferResult.error) {
+        console.error(`⚠️ ECION reward transfer preparation error: ${transferResult.error}`);
+        return {
+          success: false,
+          rewards: rewards,
+          balances: { tipper: tipperBalance, engager: engagerBalance },
+          error: transferResult.error,
+          transfers: []
+        };
       }
-      
-      return {
-        success: true,
-        rewards: rewards,
-        balances: { tipper: tipperBalance, engager: engagerBalance },
-        ...result
-      };
     } else {
       console.log(`ℹ️ No ECION rewards (both hold < 1M tokens)`);
       return {
@@ -275,14 +364,16 @@ async function processTipRewards(tipperFid, engagerFid, tipperAddress, engagerAd
         rewards: rewards,
         balances: { tipper: tipperBalance, engager: engagerBalance },
         skipped: true,
-        reason: 'Insufficient token holdings'
+        reason: 'Insufficient token holdings',
+        transfers: []
       };
     }
   } catch (error) {
     console.error(`❌ ECION reward processing error:`, error.message);
     return {
       success: false,
-      error: error.message
+      error: error.message,
+      transfers: []
     };
   }
 }
@@ -292,6 +383,7 @@ module.exports = {
   calculateRewardMultiplier,
   calculateTipRewards,
   sendEcionRewards,
+  prepareEcionRewardTransfers,
   processTipRewards,
   ECION_TOKEN_ADDRESS
 };
