@@ -77,8 +77,11 @@ class BatchTransferManager {
 
   // Start the batch processing timer
   startBatchTimer() {
+    console.log(`⏰ Starting batch timer - will process every 60 seconds`);
     // Process batch every 60 seconds exactly
     setInterval(async () => {
+      const timestamp = new Date().toISOString();
+      console.log(`⏰ [${timestamp}] Batch timer triggered - pendingTips: ${this.pendingTips.length}`);
       if (this.pendingTips.length > 0) {
         console.log(`⏰ Batch timer triggered - processing ${this.pendingTips.length} pending tips`);
         await this.processBatch();
