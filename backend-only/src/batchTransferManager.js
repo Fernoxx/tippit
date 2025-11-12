@@ -494,7 +494,9 @@ class BatchTransferManager {
         tokenContract.balanceOf(this.wallet.address)
       ]);
 
-      const needsApproval = allowance < requiredAmount;
+      // Check if allowance is sufficient (if max uint256 or at least required amount)
+      const MAX_UINT256 = ethers.MaxUint256;
+      const needsApproval = allowance < requiredAmount && allowance < MAX_UINT256 / 2n;
 
       return {
         allowance,
@@ -509,7 +511,8 @@ class BatchTransferManager {
 
   /**
    * Ensure backend wallet has approved EcionBatch contract to spend ECION tokens
-   * Approves 10M tokens when allowance gets low
+   * Approves max uint256 (standard DeFi pattern) - contract can only spend what wallet actually holds
+   * This avoids needing to approve repeatedly as allowance gets used up
    * @param {bigint} requiredAmount - Required amount in wei for current batch
    * @returns {Promise<boolean>} - true if approved (or approval succeeded)
    */
@@ -541,16 +544,17 @@ class BatchTransferManager {
         return false;
       }
 
-      // If allowance is sufficient, we're good
-      if (!needsApproval) {
-        console.log(`✅ Backend wallet has sufficient allowance (${ethers.formatEther(allowance)} tokens)`);
+      // If allowance is sufficient (at least max/2 to account for large approvals), we're good
+      const MAX_UINT256 = ethers.MaxUint256;
+      if (allowance >= MAX_UINT256 / 2n) {
+        console.log(`✅ Backend wallet already has max approval (${ethers.formatEther(allowance)} tokens)`);
         return true;
       }
 
-      // Approve 10M tokens (10,000,000 tokens with 18 decimals)
-      const APPROVAL_AMOUNT = ethers.parseEther('10000000'); // 10M tokens
-      console.log(`🔐 Backend wallet needs approval - approving 10M ECION tokens to EcionBatch contract...`);
-      console.log(`   Approval amount: ${ethers.formatEther(APPROVAL_AMOUNT)} tokens`);
+      // Approve max uint256 (standard DeFi pattern - contract can only spend what wallet actually has)
+      console.log(`🔐 Backend wallet needs approval - approving max uint256 to EcionBatch contract...`);
+      console.log(`   This is safe: contract can only transfer what wallet actually holds`);
+      console.log(`   Approval amount: max uint256 (${ethers.formatEther(MAX_UINT256)} tokens)`);
       
       // Create token contract instance with wallet for signing
       const tokenContract = new ethers.Contract(
@@ -561,13 +565,13 @@ class BatchTransferManager {
         this.wallet
       );
       
-      const approveTx = await tokenContract.approve(ecionBatchAddress, APPROVAL_AMOUNT);
+      const approveTx = await tokenContract.approve(ecionBatchAddress, MAX_UINT256);
       console.log(`⏳ Approval transaction submitted: ${approveTx.hash}`);
       console.log(`   View on BaseScan: https://basescan.org/tx/${approveTx.hash}`);
       
       // Wait for confirmation
       const receipt = await approveTx.wait();
-      console.log(`✅ Backend wallet approved 10M ECION tokens to EcionBatch contract`);
+      console.log(`✅ Backend wallet approved max uint256 to EcionBatch contract`);
       console.log(`   Transaction confirmed: ${approveTx.hash} (gas used: ${receipt.gasUsed.toString()})`);
       
       // Verify approval (use provider-based contract for read-only call)
