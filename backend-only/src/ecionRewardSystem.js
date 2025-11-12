@@ -5,6 +5,8 @@ const ECION_TOKEN_ADDRESS = process.env.ECION_TOKEN_ADDRESS || '0x946a173ad73cbb
 const ECION_TOKEN_DECIMALS = 18; // Assuming 18 decimals
 const BASE_NETWORK = 'base';
 
+console.log(`🎁 ECION Reward System initialized with token: ${ECION_TOKEN_ADDRESS}`);
+
 /**
  * Check token balance for a user using Neynar API
  * @param {number} fid - Farcaster FID
