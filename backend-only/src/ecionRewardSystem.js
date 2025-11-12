@@ -44,7 +44,10 @@ async function getTokenBalanceFromNeynar(fid, tokenAddress) {
             // Check if this is the token we're looking for
             if (contractAddress === normalizedTokenAddress) {
               const balance = parseFloat(tokenBalance.balance?.in_token || 0);
-              console.log(`✅ FID ${fid} holds ${balance} ECION tokens`);
+              // Only log if balance > 0 to reduce noise
+              if (balance > 0) {
+                console.log(`✅ FID ${fid} holds ${(balance / 1_000_000).toFixed(2)}M ECION`);
+              }
               return balance;
             }
           }
@@ -201,7 +204,9 @@ async function processTipRewards(tipperFid, engagerFid, tipperAddress, engagerAd
 
     // Only send rewards if at least one party holds 1M+ tokens
     if (rewards.totalReward > 0) {
-      console.log(`🎁 Sending ECION rewards: ${rewards.tipperReward} tokens each (Tipper: ${tipperBalance}M, Engager: ${engagerBalance}M)`);
+      const tipperM = (tipperBalance / 1_000_000).toFixed(2);
+      const engagerM = (engagerBalance / 1_000_000).toFixed(2);
+      console.log(`🎁 ECION rewards: ${rewards.tipperReward} tokens each (Tipper: ${tipperM}M, Engager: ${engagerM}M)`);
       const result = await sendEcionRewards(
         tipperAddress,
         engagerAddress,
