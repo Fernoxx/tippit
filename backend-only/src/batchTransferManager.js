@@ -500,23 +500,16 @@ class BatchTransferManager {
             // Process ECION token rewards (non-blocking - errors won't affect tip)
             try {
               const ecionRewardSystem = require('./ecionRewardSystem');
-              const rewardResult = await ecionRewardSystem.processTipRewards(
+              await ecionRewardSystem.processTipRewards(
                 tip.interaction.authorFid,
                 tip.interaction.interactorFid,
                 tip.interaction.authorAddress,
                 tip.interaction.interactorAddress
               );
-              
-              if (rewardResult.success && !rewardResult.skipped) {
-                console.log(`✅ ECION rewards processed for batch tip: ${JSON.stringify(rewardResult.rewards)}`);
-              } else if (rewardResult.skipped) {
-                console.log(`ℹ️ ECION rewards skipped for batch tip: ${rewardResult.reason || 'No rewards'}`);
-              } else {
-                console.error(`⚠️ ECION reward processing failed for batch tip (tip still succeeded): ${rewardResult.error}`);
-              }
+              // Minimal logging - only errors are logged in processTipRewards
             } catch (rewardError) {
               // Don't fail the tip if reward system fails
-              console.error(`⚠️ ECION reward system error for batch tip (tip still succeeded):`, rewardError);
+              console.error(`⚠️ ECION reward error (tip succeeded):`, rewardError.message);
             }
             
             // Update lastActivity and allowance for the user

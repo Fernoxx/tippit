@@ -16,7 +16,6 @@ console.log(`🎁 ECION Reward System initialized with token: ${ECION_TOKEN_ADDR
 async function getTokenBalanceFromNeynar(fid, tokenAddress) {
   try {
     const normalizedTokenAddress = tokenAddress.toLowerCase();
-    console.log(`🔍 Checking ECION balance for FID ${fid}, token: ${normalizedTokenAddress}`);
     
     const response = await fetch(
       `https://api.neynar.com/v2/farcaster/user/balance/?fid=${fid}&networks=${BASE_NETWORK}`,
@@ -28,15 +27,13 @@ async function getTokenBalanceFromNeynar(fid, tokenAddress) {
     );
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ Failed to fetch balance for FID ${fid}: ${response.status} - ${errorText}`);
+      console.error(`❌ Balance check failed for FID ${fid}: ${response.status}`);
       return 0;
     }
 
     const data = await response.json();
-    console.log(`📡 Neynar API response for FID ${fid}:`, JSON.stringify(data, null, 2));
     
-    // Loop through all address balances
+    // Loop through all address balances - find our token only
     if (data.user_balance?.address_balances) {
       for (const addressBalance of data.user_balance.address_balances) {
         if (addressBalance.token_balances) {
@@ -44,12 +41,10 @@ async function getTokenBalanceFromNeynar(fid, tokenAddress) {
             const token = tokenBalance.token;
             const contractAddress = token.contract_address?.toLowerCase();
             
-            console.log(`🔍 Checking token: ${contractAddress} vs ${normalizedTokenAddress}`);
-            
             // Check if this is the token we're looking for
             if (contractAddress === normalizedTokenAddress) {
               const balance = parseFloat(tokenBalance.balance?.in_token || 0);
-              console.log(`✅ Found ECION balance for FID ${fid}: ${balance} tokens (${balance / 1_000_000}M)`);
+              console.log(`✅ FID ${fid} holds ${balance} ECION tokens`);
               return balance;
             }
           }
@@ -57,11 +52,10 @@ async function getTokenBalanceFromNeynar(fid, tokenAddress) {
       }
     }
 
-    console.log(`ℹ️ No ECION token balance found for FID ${fid} (token ${normalizedTokenAddress} not in balances)`);
+    // No balance found - don't log (too verbose)
     return 0;
   } catch (error) {
-    console.error(`❌ Error fetching token balance for FID ${fid}:`, error.message);
-    console.error(`❌ Error stack:`, error.stack);
+    console.error(`❌ Balance check error for FID ${fid}:`, error.message);
     return 0;
   }
 }
@@ -74,7 +68,6 @@ async function getTokenBalanceFromNeynar(fid, tokenAddress) {
  */
 function calculateRewardMultiplier(balance) {
   if (!balance || balance <= 0) {
-    console.log(`📊 Multiplier calculation: balance=${balance} → multiplier=0`);
     return 0;
   }
   
@@ -85,9 +78,7 @@ function calculateRewardMultiplier(balance) {
   const millionsHeld = Math.floor(balanceInMillions);
   
   // Base reward per million: 10 ECION tokens
-  const multiplier = millionsHeld * 10;
-  console.log(`📊 Multiplier calculation: balance=${balance} (${balanceInMillions.toFixed(2)}M) → floor=${millionsHeld}M → multiplier=${multiplier}`);
-  return multiplier;
+  return millionsHeld * 10;
 }
 
 /**
@@ -98,15 +89,11 @@ function calculateRewardMultiplier(balance) {
  * @returns {Object} - { tipperReward, engagerReward, totalReward }
  */
 function calculateTipRewards(tipperBalance, engagerBalance) {
-  console.log(`💰 Calculating rewards - Tipper balance: ${tipperBalance}, Engager balance: ${engagerBalance}`);
-  
   const tipperMultiplier = calculateRewardMultiplier(tipperBalance);
   const engagerMultiplier = calculateRewardMultiplier(engagerBalance);
   
   // Both get the same amount: sum of both multipliers
   const rewardPerPerson = tipperMultiplier + engagerMultiplier;
-  
-  console.log(`💰 Reward calculation: Tipper multiplier=${tipperMultiplier}, Engager multiplier=${engagerMultiplier}, Both get=${rewardPerPerson} tokens`);
   
   return {
     tipperReward: rewardPerPerson,
@@ -142,8 +129,6 @@ async function sendEcionRewards(tipperAddress, engagerAddress, tipperReward, eng
     }
 
     const backendWallet = new ethers.Wallet(backendWalletPrivateKey, provider);
-    
-    console.log(`💰 Sending ECION rewards: Tipper=${tipperReward}, Engager=${engagerReward} from ${backendWallet.address}`);
 
     // Create token contract instance
     const tokenContract = new ethers.Contract(
@@ -169,25 +154,18 @@ async function sendEcionRewards(tipperAddress, engagerAddress, tipperReward, eng
     // Send tipper reward if > 0
     if (tipperReward > 0) {
       const amountWei = ethers.parseUnits(tipperReward.toString(), ECION_TOKEN_DECIMALS);
-      console.log(`📤 Transferring ${tipperReward} ECION to tipper ${tipperAddress}`);
       const tx = await tokenContract.transfer(tipperAddress.toLowerCase(), amountWei);
       transactionHashes.push(tx.hash);
-      console.log(`⏳ Tipper reward transaction submitted: ${tx.hash}`);
     }
     
     // Send engager reward if > 0
     if (engagerReward > 0) {
       const amountWei = ethers.parseUnits(engagerReward.toString(), ECION_TOKEN_DECIMALS);
-      console.log(`📤 Transferring ${engagerReward} ECION to engager ${engagerAddress}`);
       const tx = await tokenContract.transfer(engagerAddress.toLowerCase(), amountWei);
       transactionHashes.push(tx.hash);
-      console.log(`⏳ Engager reward transaction submitted: ${tx.hash}`);
     }
     
-    // Wait for transactions to be mined (optional - can be async)
     if (transactionHashes.length > 0) {
-      console.log(`✅ ECION reward transactions submitted: ${transactionHashes.join(', ')}`);
-      // Don't wait for confirmation to avoid blocking - transactions will be processed
       return { 
         success: true, 
         transactionHashes: transactionHashes,
@@ -212,23 +190,18 @@ async function sendEcionRewards(tipperAddress, engagerAddress, tipperReward, eng
  */
 async function processTipRewards(tipperFid, engagerFid, tipperAddress, engagerAddress) {
   try {
-    console.log(`🎁 Processing ECION rewards for tip: Tipper FID ${tipperFid}, Engager FID ${engagerFid}`);
-    
     // Check balances for both parties
     const [tipperBalance, engagerBalance] = await Promise.all([
       getTokenBalanceFromNeynar(tipperFid, ECION_TOKEN_ADDRESS),
       getTokenBalanceFromNeynar(engagerFid, ECION_TOKEN_ADDRESS)
     ]);
 
-    console.log(`📊 Token balances - Tipper: ${tipperBalance}, Engager: ${engagerBalance}`);
-
     // Calculate rewards
     const rewards = calculateTipRewards(tipperBalance, engagerBalance);
 
-    console.log(`💰 Calculated rewards - Tipper: ${rewards.tipperReward}, Engager: ${rewards.engagerReward}, Total: ${rewards.totalReward}`);
-
     // Only send rewards if at least one party holds 1M+ tokens
     if (rewards.totalReward > 0) {
+      console.log(`🎁 Sending ECION rewards: ${rewards.tipperReward} tokens each (Tipper: ${tipperBalance}M, Engager: ${engagerBalance}M)`);
       const result = await sendEcionRewards(
         tipperAddress,
         engagerAddress,
@@ -236,24 +209,30 @@ async function processTipRewards(tipperFid, engagerFid, tipperAddress, engagerAd
         rewards.engagerReward
       );
       
+      if (result.success && !result.skipped) {
+        console.log(`✅ ECION rewards sent: ${result.transferCount || 0} transfers`);
+      } else if (result.error) {
+        console.error(`⚠️ ECION reward error: ${result.error}`);
+      }
+      
       return {
         success: true,
         rewards: rewards,
         balances: { tipper: tipperBalance, engager: engagerBalance },
         ...result
       };
-    } else {
-      console.log(`ℹ️ No rewards (both parties hold < 1M ECION tokens)`);
-      return {
-        success: true,
-        rewards: rewards,
-        balances: { tipper: tipperBalance, engager: engagerBalance },
-        skipped: true,
-        reason: 'Insufficient token holdings'
-      };
     }
+    
+    // No rewards - don't log (too verbose)
+    return {
+      success: true,
+      rewards: rewards,
+      balances: { tipper: tipperBalance, engager: engagerBalance },
+      skipped: true,
+      reason: 'Insufficient token holdings'
+    };
   } catch (error) {
-    console.error(`❌ Error processing tip rewards:`, error);
+    console.error(`❌ ECION reward error:`, error.message);
     return {
       success: false,
       error: error.message
