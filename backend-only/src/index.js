@@ -41,6 +41,7 @@ if (batchTransferManager) {
 // Force deployment trigger
 console.log('🚀 Backend deployment triggered at:', new Date().toISOString());
 console.log('🔧 Railway deployment test - file modified');
+console.log('🔄 Redeployment triggered:', new Date().toISOString());
 
 const app = express();
 const PORT = process.env.PORT || 3001;
