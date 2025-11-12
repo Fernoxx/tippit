@@ -16,6 +16,8 @@ console.log(`🎁 ECION Reward System initialized with token: ${ECION_TOKEN_ADDR
 async function getTokenBalanceFromNeynar(fid, tokenAddress) {
   try {
     const normalizedTokenAddress = tokenAddress.toLowerCase();
+    console.log(`🔍 Checking ECION balance for FID ${fid}, token: ${normalizedTokenAddress}`);
+    
     const response = await fetch(
       `https://api.neynar.com/v2/farcaster/user/balance/?fid=${fid}&networks=${BASE_NETWORK}`,
       {
@@ -26,11 +28,13 @@ async function getTokenBalanceFromNeynar(fid, tokenAddress) {
     );
 
     if (!response.ok) {
-      console.error(`❌ Failed to fetch balance for FID ${fid}: ${response.status}`);
+      const errorText = await response.text();
+      console.error(`❌ Failed to fetch balance for FID ${fid}: ${response.status} - ${errorText}`);
       return 0;
     }
 
     const data = await response.json();
+    console.log(`📡 Neynar API response for FID ${fid}:`, JSON.stringify(data, null, 2));
     
     // Loop through all address balances
     if (data.user_balance?.address_balances) {
@@ -40,10 +44,12 @@ async function getTokenBalanceFromNeynar(fid, tokenAddress) {
             const token = tokenBalance.token;
             const contractAddress = token.contract_address?.toLowerCase();
             
+            console.log(`🔍 Checking token: ${contractAddress} vs ${normalizedTokenAddress}`);
+            
             // Check if this is the token we're looking for
             if (contractAddress === normalizedTokenAddress) {
               const balance = parseFloat(tokenBalance.balance?.in_token || 0);
-              console.log(`✅ Found ECION balance for FID ${fid}: ${balance} tokens`);
+              console.log(`✅ Found ECION balance for FID ${fid}: ${balance} tokens (${balance / 1_000_000}M)`);
               return balance;
             }
           }
@@ -51,10 +57,11 @@ async function getTokenBalanceFromNeynar(fid, tokenAddress) {
       }
     }
 
-    console.log(`ℹ️ No ECION token balance found for FID ${fid}`);
+    console.log(`ℹ️ No ECION token balance found for FID ${fid} (token ${normalizedTokenAddress} not in balances)`);
     return 0;
   } catch (error) {
     console.error(`❌ Error fetching token balance for FID ${fid}:`, error.message);
+    console.error(`❌ Error stack:`, error.stack);
     return 0;
   }
 }
@@ -66,7 +73,10 @@ async function getTokenBalanceFromNeynar(fid, tokenAddress) {
  * @returns {number} - Reward multiplier (tokens per person)
  */
 function calculateRewardMultiplier(balance) {
-  if (!balance || balance <= 0) return 0;
+  if (!balance || balance <= 0) {
+    console.log(`📊 Multiplier calculation: balance=${balance} → multiplier=0`);
+    return 0;
+  }
   
   // Convert balance to millions (assuming 18 decimals)
   const balanceInMillions = balance / 1_000_000;
@@ -75,7 +85,9 @@ function calculateRewardMultiplier(balance) {
   const millionsHeld = Math.floor(balanceInMillions);
   
   // Base reward per million: 10 ECION tokens
-  return millionsHeld * 10;
+  const multiplier = millionsHeld * 10;
+  console.log(`📊 Multiplier calculation: balance=${balance} (${balanceInMillions.toFixed(2)}M) → floor=${millionsHeld}M → multiplier=${multiplier}`);
+  return multiplier;
 }
 
 /**
@@ -86,11 +98,15 @@ function calculateRewardMultiplier(balance) {
  * @returns {Object} - { tipperReward, engagerReward, totalReward }
  */
 function calculateTipRewards(tipperBalance, engagerBalance) {
+  console.log(`💰 Calculating rewards - Tipper balance: ${tipperBalance}, Engager balance: ${engagerBalance}`);
+  
   const tipperMultiplier = calculateRewardMultiplier(tipperBalance);
   const engagerMultiplier = calculateRewardMultiplier(engagerBalance);
   
   // Both get the same amount: sum of both multipliers
   const rewardPerPerson = tipperMultiplier + engagerMultiplier;
+  
+  console.log(`💰 Reward calculation: Tipper multiplier=${tipperMultiplier}, Engager multiplier=${engagerMultiplier}, Both get=${rewardPerPerson} tokens`);
   
   return {
     tipperReward: rewardPerPerson,
