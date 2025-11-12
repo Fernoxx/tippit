@@ -284,7 +284,7 @@ class PostgresDatabase {
                      timeFilter === '7d' ? '7 days' : '30 days';
       
       // Group ONLY by user address (lowercase) to avoid duplicates
-      // Sum ALL tips from this user regardless of token_address
+      // Sum ONLY USDC tips from this user
       const result = await this.pool.query(`
         SELECT 
           LOWER(from_address) as user_address,
@@ -292,6 +292,7 @@ class PostgresDatabase {
           COUNT(*) as tip_count
         FROM tip_history 
         WHERE processed_at > NOW() - INTERVAL '${timeMs}'
+        AND LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
         GROUP BY LOWER(from_address)
         ORDER BY total_amount DESC 
         LIMIT 50
@@ -314,7 +315,7 @@ class PostgresDatabase {
                      timeFilter === '7d' ? '7 days' : '30 days';
       
       // Group ONLY by user address (lowercase) to avoid duplicates
-      // Sum ALL tips to this user regardless of token_address
+      // Sum ONLY USDC tips to this user
       const result = await this.pool.query(`
         SELECT 
           LOWER(to_address) as user_address,
@@ -322,6 +323,7 @@ class PostgresDatabase {
           COUNT(*) as tip_count
         FROM tip_history 
         WHERE processed_at > NOW() - INTERVAL '${timeMs}'
+        AND LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
         GROUP BY LOWER(to_address)
         ORDER BY total_amount DESC 
         LIMIT 50
