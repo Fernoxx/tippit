@@ -98,7 +98,7 @@ function calculateTipRewards(tipperBalance, engagerBalance) {
 }
 
 /**
- * Send ECION token rewards to both tipper and engager
+ * Send ECION token rewards to both tipper and engager using direct transfers
  * @param {string} tipperAddress - Tipper's wallet address
  * @param {string} engagerAddress - Engager's wallet address
  * @param {number} tipperReward - Reward amount for tipper
@@ -107,7 +107,7 @@ function calculateTipRewards(tipperBalance, engagerBalance) {
  */
 async function sendEcionRewards(tipperAddress, engagerAddress, tipperReward, engagerReward) {
   const { ethers } = require('ethers');
-  const batchTransferManager = require('./batchTransferManager');
+  const { getProvider } = require('./rpcProvider');
   
   try {
     // Only send if rewards > 0
@@ -116,49 +116,65 @@ async function sendEcionRewards(tipperAddress, engagerAddress, tipperReward, eng
       return { success: true, skipped: true };
     }
 
-    const provider = new ethers.JsonRpcProvider(process.env.BASE_RPC_URL);
-    const backendWallet = new ethers.Wallet(process.env.BACKEND_REWARD_WALLET_PRIVATE_KEY || process.env.BACKEND_WALLET_PRIVATE_KEY, provider);
+    const provider = await getProvider();
+    const backendWalletPrivateKey = process.env.BACKEND_REWARD_WALLET_PRIVATE_KEY || process.env.BACKEND_WALLET_PRIVATE_KEY;
     
-    if (!backendWallet) {
-      throw new Error('Backend reward wallet not configured');
+    if (!backendWalletPrivateKey) {
+      throw new Error('Backend reward wallet private key not configured (BACKEND_REWARD_WALLET_PRIVATE_KEY or BACKEND_WALLET_PRIVATE_KEY)');
     }
 
-    console.log(`💰 Sending ECION rewards: Tipper=${tipperReward}, Engager=${engagerReward}`);
-
-    const transfers = [];
+    const backendWallet = new ethers.Wallet(backendWalletPrivateKey, provider);
     
-    // Add tipper reward if > 0
+    console.log(`💰 Sending ECION rewards: Tipper=${tipperReward}, Engager=${engagerReward} from ${backendWallet.address}`);
+
+    // Create token contract instance
+    const tokenContract = new ethers.Contract(
+      ECION_TOKEN_ADDRESS,
+      [
+        "function transfer(address to, uint256 amount) returns (bool)",
+        "function balanceOf(address owner) view returns (uint256)"
+      ],
+      backendWallet
+    );
+
+    // Check backend wallet balance
+    const backendBalance = await tokenContract.balanceOf(backendWallet.address);
+    const totalReward = tipperReward + engagerReward;
+    const totalRewardWei = ethers.parseUnits(totalReward.toString(), ECION_TOKEN_DECIMALS);
+    
+    if (backendBalance < totalRewardWei) {
+      throw new Error(`Insufficient ECION balance in backend wallet. Have: ${ethers.formatUnits(backendBalance, ECION_TOKEN_DECIMALS)}, Need: ${totalReward}`);
+    }
+
+    const transactionHashes = [];
+    
+    // Send tipper reward if > 0
     if (tipperReward > 0) {
-      transfers.push({
-        from: backendWallet.address,
-        to: tipperAddress.toLowerCase(),
-        token: ECION_TOKEN_ADDRESS.toLowerCase(),
-        amount: ethers.parseUnits(tipperReward.toString(), ECION_TOKEN_DECIMALS)
-      });
+      const amountWei = ethers.parseUnits(tipperReward.toString(), ECION_TOKEN_DECIMALS);
+      console.log(`📤 Transferring ${tipperReward} ECION to tipper ${tipperAddress}`);
+      const tx = await tokenContract.transfer(tipperAddress.toLowerCase(), amountWei);
+      transactionHashes.push(tx.hash);
+      console.log(`⏳ Tipper reward transaction submitted: ${tx.hash}`);
     }
     
-    // Add engager reward if > 0
+    // Send engager reward if > 0
     if (engagerReward > 0) {
-      transfers.push({
-        from: backendWallet.address,
-        to: engagerAddress.toLowerCase(),
-        token: ECION_TOKEN_ADDRESS.toLowerCase(),
-        amount: ethers.parseUnits(engagerReward.toString(), ECION_TOKEN_DECIMALS)
-      });
+      const amountWei = ethers.parseUnits(engagerReward.toString(), ECION_TOKEN_DECIMALS);
+      console.log(`📤 Transferring ${engagerReward} ECION to engager ${engagerAddress}`);
+      const tx = await tokenContract.transfer(engagerAddress.toLowerCase(), amountWei);
+      transactionHashes.push(tx.hash);
+      console.log(`⏳ Engager reward transaction submitted: ${tx.hash}`);
     }
     
-    // Use batch transfer system
-    if (transfers.length > 0) {
-      console.log(`📦 Adding ${transfers.length} reward transfers to batch`);
-      await batchTransferManager.addToBatch({
-        froms: transfers.map(t => t.from),
-        tos: transfers.map(t => t.to),
-        tokens: transfers.map(t => t.token),
-        amounts: transfers.map(t => t.amount)
-      });
-      
-      console.log(`✅ ECION rewards queued for batch transfer`);
-      return { success: true, queued: true, transferCount: transfers.length };
+    // Wait for transactions to be mined (optional - can be async)
+    if (transactionHashes.length > 0) {
+      console.log(`✅ ECION reward transactions submitted: ${transactionHashes.join(', ')}`);
+      // Don't wait for confirmation to avoid blocking - transactions will be processed
+      return { 
+        success: true, 
+        transactionHashes: transactionHashes,
+        transferCount: transactionHashes.length 
+      };
     }
 
     return { success: true, skipped: true };
