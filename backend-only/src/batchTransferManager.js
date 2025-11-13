@@ -640,6 +640,45 @@ class BatchTransferManager {
           console.error(`❌ Wallet address raw:`, this.wallet?.address);
           throw new Error(`Backend wallet address invalid: ${error.message}`);
         }
+        
+        // CRITICAL: Ensure backend wallet has approval BEFORE processing rewards
+        // This must happen first to avoid transferFrom failures
+        console.log(`🔐 Pre-checking backend wallet approval for ECION tokens...`);
+        const ecionRewardSystem = require('./ecionRewardSystem');
+        const ECION_TOKEN_ADDRESS = ecionRewardSystem.ECION_TOKEN_ADDRESS;
+        const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
+        
+        const { ethers } = require('ethers');
+        const tokenContract = new ethers.Contract(
+          ECION_TOKEN_ADDRESS,
+          [
+            "function balanceOf(address owner) view returns (uint256)",
+            "function allowance(address owner, address spender) view returns (uint256)"
+          ],
+          this.provider
+        );
+        
+        const [backendBalance, backendAllowance] = await Promise.all([
+          tokenContract.balanceOf(backendWalletAddress),
+          tokenContract.allowance(backendWalletAddress, ecionBatchAddress)
+        ]);
+        
+        console.log(`💰 Backend wallet ECION status:`);
+        console.log(`   Balance: ${ethers.formatEther(backendBalance)} ECION`);
+        console.log(`   Allowance: ${ethers.formatEther(backendAllowance)} ECION`);
+        
+        // Approve if needed (estimate max needed as 100K tokens for safety)
+        const MAX_UINT256 = ethers.MaxUint256;
+        if (backendAllowance < MAX_UINT256 / 2n) {
+          console.log(`🔐 Backend wallet needs approval - approving max uint256...`);
+          const approvalResult = await this.ensureBackendWalletApproval(MAX_UINT256);
+          if (!approvalResult) {
+            console.error(`❌ CRITICAL: Backend wallet approval failed - cannot process rewards`);
+            throw new Error('Backend wallet approval failed');
+          }
+        } else {
+          console.log(`✅ Backend wallet already has sufficient approval`);
+        }
           
         for (let i = 0; i < tips.length; i++) {
           const tip = tips[i];
@@ -694,22 +733,6 @@ class BatchTransferManager {
           }
         }
         console.log(`🎁 ECION reward processing complete: ${rewardTransfers.length} reward transfers prepared`);
-        
-        // Calculate total reward amount needed
-        const totalRewardAmount = rewardTransfers.reduce((sum, transfer) => sum + transfer.amount, 0n);
-        
-        // Ensure backend wallet has approved EcionBatch for ECION tokens (only if rewards needed)
-        if (totalRewardAmount > 0n) {
-          console.log(`🔐 Ensuring backend wallet approval for ECION tokens...`);
-          console.log(`   Total reward amount needed: ${ethers.formatEther(totalRewardAmount)} tokens`);
-          const approvalResult = await this.ensureBackendWalletApproval(totalRewardAmount);
-          if (!approvalResult) {
-            console.error(`❌ CRITICAL: Backend wallet approval failed - ECION rewards will fail!`);
-            console.error(`❌ Continuing with batch but reward transfers will likely fail`);
-          }
-        } else {
-          console.log(`ℹ️ No ECION rewards needed - skipping approval check`);
-        }
       } else {
         console.log(`⚠️ Backend wallet not initialized - skipping ECION reward processing`);
         console.log(`⚠️ ECION rewards will fail without wallet initialization`);
