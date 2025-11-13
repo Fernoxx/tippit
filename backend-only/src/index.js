@@ -69,7 +69,7 @@ app.use(cors({
   ].filter(Boolean),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-neynar-signature']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-neynar-signature', 'x-admin-password']
 }));
 // Store raw body for webhook signature verification
 app.use('/webhook/neynar', express.raw({ type: 'application/json', verify: (req, res, buf) => {

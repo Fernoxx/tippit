@@ -234,6 +234,12 @@ export default function Admin() {
     }
   };
 
+  // Hooks must be called unconditionally - move useMemo before conditional return
+  const lastUpdated = useMemo(() => {
+    if (!stats?.timestamp) return null;
+    return new Date(stats.timestamp).toLocaleString();
+  }, [stats?.timestamp]);
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-yellow-50 flex items-center justify-center">
@@ -270,11 +276,6 @@ export default function Admin() {
       </div>
     );
   }
-
-  const lastUpdated = useMemo(() => {
-    if (!stats?.timestamp) return null;
-    return new Date(stats.timestamp).toLocaleString();
-  }, [stats?.timestamp]);
 
   const formatAddress = (address: string) => {
     if (!address) return 'N/A';
