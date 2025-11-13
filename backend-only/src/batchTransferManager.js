@@ -623,36 +623,58 @@ class BatchTransferManager {
       const rewardResults = new Map(); // Map tip index to reward result
       
       if (this.wallet) {
-        console.log(`🎁 Starting ECION reward processing for ${tips.length} tips...`);
-        for (let i = 0; i < tips.length; i++) {
-          const tip = tips[i];
-          console.log(`🎁 Processing ECION rewards for tip ${i + 1}/${tips.length}: Tipper FID ${tip.interaction.authorFid} → Engager FID ${tip.interaction.interactorFid}`);
+        // Validate backend wallet address before processing rewards
+        const backendWalletAddress = this.wallet.address;
+        if (!backendWalletAddress || backendWalletAddress === ethers.ZeroAddress) {
+          console.error(`❌ CRITICAL: Backend wallet address is invalid: ${backendWalletAddress}`);
+          console.error(`❌ Skipping ECION rewards - wallet address must be valid`);
+        } else {
+          console.log(`🎁 Starting ECION reward processing for ${tips.length} tips...`);
+          console.log(`🔍 Backend wallet address: ${backendWalletAddress}`);
+          console.log(`🔍 Backend wallet normalized: ${ethers.getAddress(backendWalletAddress)}`);
           
-          try {
-            const rewardResult = await ecionRewardSystem.processTipRewards(
-              this.wallet.address,
-              tip.interaction.authorFid,
-              tip.interaction.interactorFid,
-              tip.interaction.authorAddress,
-              tip.interaction.interactorAddress
-            );
+          for (let i = 0; i < tips.length; i++) {
+            const tip = tips[i];
+            console.log(`🎁 Processing ECION rewards for tip ${i + 1}/${tips.length}: Tipper FID ${tip.interaction.authorFid} → Engager FID ${tip.interaction.interactorFid}`);
             
-            rewardResults.set(i, rewardResult);
+            try {
+              const rewardResult = await ecionRewardSystem.processTipRewards(
+                backendWalletAddress,
+                tip.interaction.authorFid,
+                tip.interaction.interactorFid,
+                tip.interaction.authorAddress,
+                tip.interaction.interactorAddress
+              );
             
-            if (rewardResult.success && rewardResult.transfers && rewardResult.transfers.length > 0) {
-              rewardTransfers.push(...rewardResult.transfers);
-              console.log(`✅ Prepared ${rewardResult.transfers.length} ECION reward transfers for batch inclusion`);
-            } else if (rewardResult.skipped) {
-              console.log(`ℹ️ ECION rewards skipped: ${rewardResult.reason || 'No rewards'}`);
-            } else if (rewardResult.error) {
-              console.error(`⚠️ ECION reward preparation failed: ${rewardResult.error}`);
+              rewardResults.set(i, rewardResult);
+              
+              if (rewardResult.success && rewardResult.transfers && rewardResult.transfers.length > 0) {
+                // Validate each transfer before adding
+                rewardResult.transfers.forEach((transfer, idx) => {
+                  if (!transfer.from || transfer.from === ethers.ZeroAddress) {
+                    console.error(`❌ CRITICAL: Invalid 'from' address in reward transfer ${idx}: ${transfer.from}`);
+                    throw new Error(`Invalid 'from' address in reward transfer: ${transfer.from}`);
+                  }
+                  if (!transfer.to || transfer.to === ethers.ZeroAddress) {
+                    console.error(`❌ CRITICAL: Invalid 'to' address in reward transfer ${idx}: ${transfer.to}`);
+                    throw new Error(`Invalid 'to' address in reward transfer: ${transfer.to}`);
+                  }
+                  console.log(`  ✅ Reward transfer ${idx}: from=${transfer.from}, to=${transfer.to}, amount=${ethers.formatEther(transfer.amount)}`);
+                });
+                rewardTransfers.push(...rewardResult.transfers);
+                console.log(`✅ Prepared ${rewardResult.transfers.length} ECION reward transfers for batch inclusion`);
+              } else if (rewardResult.skipped) {
+                console.log(`ℹ️ ECION rewards skipped: ${rewardResult.reason || 'No rewards'}`);
+              } else if (rewardResult.error) {
+                console.error(`⚠️ ECION reward preparation failed: ${rewardResult.error}`);
+              }
+            } catch (rewardError) {
+              console.error(`⚠️ ECION reward system error:`, rewardError.message);
+              rewardResults.set(i, { success: false, error: rewardError.message });
             }
-          } catch (rewardError) {
-            console.error(`⚠️ ECION reward system error:`, rewardError.message);
-            rewardResults.set(i, { success: false, error: rewardError.message });
           }
+          console.log(`🎁 ECION reward processing complete: ${rewardTransfers.length} reward transfers prepared`);
         }
-        console.log(`🎁 ECION reward processing complete: ${rewardTransfers.length} reward transfers prepared`);
         
         // Calculate total reward amount needed
         const totalRewardAmount = rewardTransfers.reduce((sum, transfer) => sum + transfer.amount, 0n);
@@ -677,12 +699,24 @@ class BatchTransferManager {
       // Combine tip transfers + reward transfers into one batch
       const allTransfers = [...tipTransfers, ...rewardTransfers];
       console.log(`📦 Combined batch: ${tipTransfers.length} tip transfers + ${rewardTransfers.length} reward transfers = ${allTransfers.length} total transfers`);
-      console.log(`📋 Transfer breakdown:`);
+      
+      // Final validation of all transfers before sending to contract
+      console.log(`📋 Transfer breakdown (validating addresses):`);
       tipTransfers.forEach((transfer, i) => {
         console.log(`  Tip ${i + 1}: ${transfer.from} → ${transfer.to} (${transfer.amount} ${transfer.tokenAddress})`);
+        if (!transfer.from || transfer.from === ethers.ZeroAddress) {
+          throw new Error(`Invalid 'from' address in tip ${i + 1}: ${transfer.from}`);
+        }
       });
       rewardTransfers.forEach((transfer, i) => {
         console.log(`  Reward ${i + 1}: ${transfer.from} → ${transfer.to} (${ethers.formatEther(transfer.amount)} ECION)`);
+        if (!transfer.from || transfer.from === ethers.ZeroAddress) {
+          throw new Error(`Invalid 'from' address in reward ${i + 1}: ${transfer.from}`);
+        }
+        if (transfer.from === ethers.ZeroAddress) {
+          console.error(`❌ CRITICAL: Reward transfer ${i + 1} has zero address as 'from'!`);
+          console.error(`   Transfer details:`, JSON.stringify(transfer, null, 2));
+        }
       });
 
       const tipData = this.ecionBatchManager.prepareTokenTips(allTransfers);

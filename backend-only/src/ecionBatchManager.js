@@ -264,9 +264,31 @@ class EcionBatchManager {
       }
       
       // Prepare batch data (only 4 parameters needed)
-      const froms = tips.map(tip => tip.from);
-      const tos = tips.map(tip => tip.to);
-      const tokens = tips.map(tip => tip.token); // Token addresses
+      // Validate and normalize addresses one more time before sending to contract
+      const froms = tips.map((tip, idx) => {
+        const fromAddr = ethers.getAddress(tip.from);
+        if (!fromAddr || fromAddr === ethers.ZeroAddress) {
+          console.error(`❌ CRITICAL: Tip ${idx} has invalid 'from' address: ${tip.from}`);
+          throw new Error(`Invalid 'from' address at index ${idx}: ${tip.from}`);
+        }
+        return fromAddr;
+      });
+      const tos = tips.map((tip, idx) => {
+        const toAddr = ethers.getAddress(tip.to);
+        if (!toAddr || toAddr === ethers.ZeroAddress) {
+          console.error(`❌ CRITICAL: Tip ${idx} has invalid 'to' address: ${tip.to}`);
+          throw new Error(`Invalid 'to' address at index ${idx}: ${tip.to}`);
+        }
+        return toAddr;
+      });
+      const tokens = tips.map((tip, idx) => {
+        const tokenAddr = ethers.getAddress(tip.token);
+        if (!tokenAddr || tokenAddr === ethers.ZeroAddress) {
+          console.error(`❌ CRITICAL: Tip ${idx} has invalid token address: ${tip.token}`);
+          throw new Error(`Invalid token address at index ${idx}: ${tip.token}`);
+        }
+        return tokenAddr;
+      });
       const amounts = [];
       for (let i = 0; i < tips.length; i++) {
         const tip = tips[i];
