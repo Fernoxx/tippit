@@ -174,13 +174,26 @@ async function prepareEcionRewardTransfers(backendWalletAddress, tipperAddress, 
       provider
     );
 
-    // Check backend wallet balance
-    const backendBalance = await tokenContract.balanceOf(backendWalletAddress);
+    // Check backend wallet balance and allowance
+    const [backendBalance, backendAllowance] = await Promise.all([
+      tokenContract.balanceOf(backendWalletAddress),
+      tokenContract.allowance(backendWalletAddress, process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8')
+    ]);
+    
     const totalReward = tipperReward + engagerReward;
     const totalRewardWei = ethers.parseUnits(totalReward.toString(), ECION_TOKEN_DECIMALS);
     
+    console.log(`🔍 Backend wallet check for rewards:`);
+    console.log(`   Balance: ${ethers.formatUnits(backendBalance, ECION_TOKEN_DECIMALS)} ECION`);
+    console.log(`   Allowance: ${ethers.formatUnits(backendAllowance, ECION_TOKEN_DECIMALS)} ECION`);
+    console.log(`   Required: ${totalReward} ECION`);
+    
     if (backendBalance < totalRewardWei) {
       throw new Error(`Insufficient ECION balance in backend wallet. Have: ${ethers.formatUnits(backendBalance, ECION_TOKEN_DECIMALS)}, Need: ${totalReward}`);
+    }
+    
+    if (backendAllowance < totalRewardWei) {
+      throw new Error(`Insufficient ECION allowance. Have: ${ethers.formatUnits(backendAllowance, ECION_TOKEN_DECIMALS)}, Need: ${totalReward}. Backend wallet must approve EcionBatch contract.`);
     }
 
     // Validate and normalize addresses (use getAddress for checksummed addresses)
