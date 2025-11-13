@@ -663,8 +663,10 @@ class BatchTransferManager {
         ]);
         
         console.log(`💰 Backend wallet ECION status:`);
+        console.log(`   Address: ${backendWalletAddress}`);
         console.log(`   Balance: ${ethers.formatEther(backendBalance)} ECION`);
         console.log(`   Allowance: ${ethers.formatEther(backendAllowance)} ECION`);
+        console.log(`   EcionBatch contract: ${ecionBatchAddress}`);
         
         // Approve if needed (estimate max needed as 100K tokens for safety)
         const MAX_UINT256 = ethers.MaxUint256;
@@ -675,9 +677,18 @@ class BatchTransferManager {
             console.error(`❌ CRITICAL: Backend wallet approval failed - cannot process rewards`);
             throw new Error('Backend wallet approval failed');
           }
+          // Re-check allowance after approval
+          const newAllowance = await tokenContract.allowance(backendWalletAddress, ecionBatchAddress);
+          console.log(`✅ Verified new allowance: ${ethers.formatEther(newAllowance)} ECION`);
         } else {
           console.log(`✅ Backend wallet already has sufficient approval`);
         }
+        
+        // Verify backend wallet address is not zero one more time
+        if (backendWalletAddress === ethers.ZeroAddress) {
+          throw new Error('Backend wallet address is zero address - cannot proceed');
+        }
+        console.log(`✅ Backend wallet address verified: ${backendWalletAddress} (not zero)`);
           
         for (let i = 0; i < tips.length; i++) {
           const tip = tips[i];

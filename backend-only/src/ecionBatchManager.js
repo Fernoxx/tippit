@@ -553,12 +553,29 @@ class EcionBatchManager {
             throw new Error(`Backend wallet insufficient funds: ${balanceEth} ETH < ${requiredEth} ETH required for gas`);
           }
           
-          // Log exact addresses being sent to contract
+          // Log exact addresses being sent to contract - CRITICAL for debugging ERC20ExceededSafeSupply
           console.log(`🚀 Calling batchTip with ${froms.length} transfers:`);
+          console.log(`   Contract address: ${this.contractAddress}`);
+          console.log(`   Backend wallet (executor): ${this.wallet.address}`);
           froms.forEach((from, idx) => {
-            console.log(`   Transfer ${idx}: from=${from}, to=${tos[idx]}, token=${tokens[idx]}, amount=${amounts[idx]?.toString() || 'undefined'}`);
-            if (from === ethers.ZeroAddress) {
+            const fromAddr = from.toString();
+            const toAddr = tos[idx].toString();
+            const tokenAddr = tokens[idx].toString();
+            const amount = amounts[idx]?.toString() || 'undefined';
+            console.log(`   Transfer ${idx}: from=${fromAddr}, to=${toAddr}, token=${tokenAddr}, amount=${amount}`);
+            if (fromAddr === ethers.ZeroAddress || fromAddr === '0x0000000000000000000000000000000000000000') {
               console.error(`❌ CRITICAL: Transfer ${idx} has ZERO ADDRESS as 'from'!`);
+              console.error(`   Raw from value:`, from);
+              console.error(`   Type:`, typeof from);
+            }
+            // Double-check address format
+            try {
+              const normalized = ethers.getAddress(fromAddr);
+              if (normalized !== fromAddr) {
+                console.error(`⚠️ Address format mismatch for transfer ${idx}: ${fromAddr} vs ${normalized}`);
+              }
+            } catch (e) {
+              console.error(`❌ Invalid address format for transfer ${idx}: ${fromAddr}`, e.message);
             }
           });
           
