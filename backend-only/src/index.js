@@ -1805,7 +1805,25 @@ async function refreshActiveCastEntry({
     const recastCount = latestCast.reactions?.recasts_count ?? latestCast.reactions?.recasts ?? 0;
     const replyCount = latestCast.replies?.count ?? latestCast.replies_count ?? 0;
     const allowanceValue = Number(allowance) || Number(parsedConfig?.lastAllowance) || 0;
-    const balanceValue = Number(balance) || allowanceValue;
+    
+    // CRITICAL: Check actual balance from blockchain, not fallback to allowance
+    const { checkAllowanceAndBalance } = require('./batchTransferManager');
+    const batchManager = require('./batchTransferManager');
+    const balanceCheck = await batchManager.checkAllowanceAndBalance(normalizedAddress, normalizedToken, effectiveMinTip);
+    const balanceValue = balanceCheck.balanceAmount;
+    
+    // Remove from homepage if insufficient balance (even if they have allowance)
+    if (balanceValue < effectiveMinTip) {
+      console.log(`🚫 User ${normalizedAddress} has insufficient balance (${balanceValue} < ${effectiveMinTip}) - removing from homepage`);
+      await database.removeActiveCast(fid);
+      
+      // Also remove from webhook if balance is insufficient
+      const { removeFidFromWebhook } = require('./webhook');
+      await removeFidFromWebhook(fid, 'insufficient_balance');
+      
+      return false;
+    }
+    
     const timestamp = latestCast.timestamp ? new Date(latestCast.timestamp) : new Date();
     const castText = latestCast.text || null;
     
@@ -2121,16 +2139,28 @@ async function pollLatestCasts() {
           console.log(`✅ Latest cast for ${user.user_address} is still ${latestCast.hash}`);
         }
         if (user.user_address) {
-          await refreshActiveCastEntry({
-            fid: user.fid,
-            userAddress: user.user_address,
-            config: userConfig,
-            tokenAddress,
-            allowance: allowanceValue,
-            balance: allowanceValue,
-            minTip: minTipValue,
-            castData: latestCast
-          });
+          // Check balance before refreshing - remove if insufficient
+          const { checkAllowanceAndBalance } = require('./batchTransferManager');
+          const batchManager = require('./batchTransferManager');
+          const balanceCheck = await batchManager.checkAllowanceAndBalance(user.user_address, tokenAddress, minTipValue);
+          
+          if (balanceCheck.balanceAmount < minTipValue) {
+            console.log(`🚫 User ${user.user_address} has insufficient balance (${balanceCheck.balanceAmount} < ${minTipValue}) - removing from homepage`);
+            await database.removeActiveCast(user.fid);
+            const { removeFidFromWebhook } = require('./webhook');
+            await removeFidFromWebhook(user.fid, 'insufficient_balance');
+          } else {
+            await refreshActiveCastEntry({
+              fid: user.fid,
+              userAddress: user.user_address,
+              config: userConfig,
+              tokenAddress,
+              allowance: allowanceValue,
+              balance: balanceCheck.balanceAmount,
+              minTip: minTipValue,
+              castData: latestCast
+            });
+          }
         }
       } else if (user.user_address) {
         await database.removeActiveCast(user.fid);
