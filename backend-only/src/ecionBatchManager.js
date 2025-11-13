@@ -553,6 +553,15 @@ class EcionBatchManager {
             throw new Error(`Backend wallet insufficient funds: ${balanceEth} ETH < ${requiredEth} ETH required for gas`);
           }
           
+          // Log exact addresses being sent to contract
+          console.log(`🚀 Calling batchTip with ${froms.length} transfers:`);
+          froms.forEach((from, idx) => {
+            console.log(`   Transfer ${idx}: from=${from}, to=${tos[idx]}, token=${tokens[idx]}, amount=${amounts[idx]?.toString() || 'undefined'}`);
+            if (from === ethers.ZeroAddress) {
+              console.error(`❌ CRITICAL: Transfer ${idx} has ZERO ADDRESS as 'from'!`);
+            }
+          });
+          
           tx = await contract.batchTip(froms, tos, tokens, amounts, gasOptions);
           console.log(`✅ Transaction submitted successfully on attempt ${txRetryCount + 1}`);
           break;
