@@ -165,11 +165,13 @@ async function prepareEcionRewardTransfers(backendWalletAddress, tipperAddress, 
 
     const provider = await getProvider();
 
-    // Create token contract instance for balance check
+    // Create token contract instance for balance and allowance check
+    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     const tokenContract = new ethers.Contract(
       ECION_TOKEN_ADDRESS,
       [
-        "function balanceOf(address owner) view returns (uint256)"
+        "function balanceOf(address owner) view returns (uint256)",
+        "function allowance(address owner, address spender) view returns (uint256)"
       ],
       provider
     );
@@ -177,7 +179,7 @@ async function prepareEcionRewardTransfers(backendWalletAddress, tipperAddress, 
     // Check backend wallet balance and allowance
     const [backendBalance, backendAllowance] = await Promise.all([
       tokenContract.balanceOf(backendWalletAddress),
-      tokenContract.allowance(backendWalletAddress, process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8')
+      tokenContract.allowance(backendWalletAddress, ecionBatchAddress)
     ]);
     
     const totalReward = tipperReward + engagerReward;
