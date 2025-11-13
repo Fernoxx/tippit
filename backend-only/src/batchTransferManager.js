@@ -648,7 +648,6 @@ class BatchTransferManager {
         const ECION_TOKEN_ADDRESS = ecionRewardSystem.ECION_TOKEN_ADDRESS;
         const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
         
-        const { ethers } = require('ethers');
         const tokenContract = new ethers.Contract(
           ECION_TOKEN_ADDRESS,
           [
@@ -791,10 +790,14 @@ class BatchTransferManager {
           }
         });
       }
+      
+      // Process successful and failed tips
+      const failedTips = [];
       for (let i = 0; i < tipResults.length; i++) {
         const result = tipResults[i];
+        const tip = tips[i];
+        
         if (result.success) {
-          const tip = tips[i];
           if (tip) {
             await this.updateUserSpending(tip.interaction.authorAddress, tip.amount);
             await database.addTipHistory({
@@ -828,7 +831,6 @@ class BatchTransferManager {
               userConfig.lastActivity = Date.now();
               
               // Get current blockchain allowance and update database with it (using fallback provider)
-              const { ethers } = require('ethers');
               const provider = await getProvider(); // Use provider with fallback
               const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
               
@@ -933,8 +935,31 @@ class BatchTransferManager {
             processed++;
           }
         } else {
+          // Save failed tip to database for retry
+          if (tip) {
+            try {
+              await database.addPendingTip({
+                interactionType: tip.interaction.interactionType,
+                authorFid: tip.interaction.authorFid,
+                interactorFid: tip.interaction.interactorFid,
+                authorAddress: tip.interaction.authorAddress,
+                interactorAddress: tip.interaction.interactorAddress,
+                castHash: tip.interaction.castHash,
+                amount: tip.amount.toString(),
+                tokenAddress: tip.tokenAddress
+              });
+              console.log(`💾 Saved failed tip to pending_tips for retry: ${tip.interaction.authorAddress} → ${tip.interaction.interactorAddress}`);
+              failedTips.push(tip);
+            } catch (saveError) {
+              console.error(`❌ Failed to save pending tip:`, saveError.message);
+            }
+          }
           failed++;
         }
+      }
+      
+      if (failedTips.length > 0) {
+        console.log(`📋 Saved ${failedTips.length} failed tips to database for retry`);
       }
 
     } catch (error) {
