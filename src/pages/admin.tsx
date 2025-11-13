@@ -138,19 +138,37 @@ export default function Admin() {
     }
   }, []);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError(null);
     
-    // Check password against environment variable or hardcoded (for now)
-    const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'ecion2024';
-    if (password === adminPassword) {
-      setIsAuthenticated(true);
-      sessionStorage.setItem('admin_authenticated', 'true');
-      fetchAdminData();
-      const interval = setInterval(fetchAdminData, 30000);
-    } else {
-      setAuthError('Incorrect password');
+    try {
+      // Send password to backend for validation (never expose password in frontend)
+      const response = await fetch(`${BACKEND_URL}/api/admin/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ password }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Store authentication status (not the password itself for security)
+        setIsAuthenticated(true);
+        sessionStorage.setItem('admin_authenticated', 'true');
+        // Store password temporarily in sessionStorage for API calls (not ideal but needed)
+        // TODO: Implement proper JWT/session tokens
+        sessionStorage.setItem('admin_password', password);
+        fetchAdminData();
+        const interval = setInterval(fetchAdminData, 30000);
+      } else {
+        setAuthError('Incorrect password');
+        setPassword('');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      setAuthError('Failed to connect to server');
       setPassword('');
     }
   };
@@ -197,9 +215,25 @@ export default function Admin() {
       setIsLoading(true);
       setError(null);
 
-      const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'ecion2024';
+      // Get password from sessionStorage (stored after login) or prompt user
+      // Actually, we'll send it in the request body for admin endpoints
+      // But wait - we need to store it securely... Actually, let's use a different approach
+      // We'll store a session token after login, but for now, let's get password from user input
+      // Actually, the best approach is to store password in sessionStorage after successful login
+      // But that's also not secure... Let's use a session token approach
+      
+      // For now, get password from sessionStorage (set after login)
+      // In production, use proper session tokens/JWT
+      const storedPassword = sessionStorage.getItem('admin_password');
+      if (!storedPassword) {
+        setIsAuthenticated(false);
+        sessionStorage.removeItem('admin_authenticated');
+        setError('Session expired. Please login again.');
+        return;
+      }
+      
       const headers = {
-        'x-admin-password': adminPassword
+        'x-admin-password': storedPassword
       };
 
       const statsResponse = await fetch(`${BACKEND_URL}/api/admin/total-stats`, { headers });

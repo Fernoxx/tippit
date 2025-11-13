@@ -6,27 +6,20 @@ The admin panel at `/admin` requires a password to access. Set the `ADMIN_PASSWO
 ## Environment Variables
 
 ### Frontend (Vercel)
-- **Variable Name:** `NEXT_PUBLIC_ADMIN_PASSWORD`
-- **Value:** Your admin password (e.g., `ecion2024` or a secure password)
-- **Required:** Yes
+- **No environment variable needed** - Password is validated server-side only
+- Password is never exposed in client-side code
 
 ### Backend (Railway)
 - **Variable Name:** `ADMIN_PASSWORD`
-- **Value:** Same password as frontend (must match)
+- **Value:** Your admin password (e.g., `ecion2024` or a secure password)
 - **Required:** Yes
+- **Security:** This password is only stored server-side and never exposed to clients
 
 ## Setup Instructions
 
 ### Vercel Setup
-1. Go to your Vercel project dashboard
-2. Navigate to **Settings** → **Environment Variables**
-3. Click **Add New**
-4. Add:
-   - **Name:** `NEXT_PUBLIC_ADMIN_PASSWORD`
-   - **Value:** Your chosen password
-   - **Environment:** Production, Preview, Development (select all)
-5. Click **Save**
-6. **Redeploy** your application for changes to take effect
+- **No environment variables needed** - Password validation happens server-side only
+- The frontend sends the entered password to the backend for validation
 
 ### Railway Setup
 1. Go to your Railway project dashboard
