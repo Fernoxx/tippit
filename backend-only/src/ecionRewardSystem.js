@@ -221,25 +221,42 @@ async function prepareEcionRewardTransfers(backendWalletAddress, tipperAddress, 
     const transfers = [];
     
     // Prepare tipper reward transfer if > 0
+    // CRITICAL: Ensure 'from' is exactly the backend wallet address (not zero)
     if (tipperReward > 0) {
       const amountWei = ethers.parseUnits(tipperReward.toString(), ECION_TOKEN_DECIMALS);
+      
+      // Final validation - backend wallet must not be zero
+      if (normalizedBackendWallet === ethers.ZeroAddress) {
+        throw new Error(`Cannot create reward transfer: backend wallet is zero address`);
+      }
+      
       transfers.push({
-        from: normalizedBackendWallet,
+        from: normalizedBackendWallet, // Must be backend wallet address
         to: normalizedTipper,
         tokenAddress: normalizedToken,
         amount: amountWei
       });
+      
+      console.log(`  Prepared tipper reward: from=${normalizedBackendWallet}, to=${normalizedTipper}, amount=${ethers.formatEther(amountWei)}`);
     }
     
     // Prepare engager reward transfer if > 0
     if (engagerReward > 0) {
       const amountWei = ethers.parseUnits(engagerReward.toString(), ECION_TOKEN_DECIMALS);
+      
+      // Final validation - backend wallet must not be zero
+      if (normalizedBackendWallet === ethers.ZeroAddress) {
+        throw new Error(`Cannot create reward transfer: backend wallet is zero address`);
+      }
+      
       transfers.push({
-        from: normalizedBackendWallet,
+        from: normalizedBackendWallet, // Must be backend wallet address
         to: normalizedEngager,
         tokenAddress: normalizedToken,
         amount: amountWei
       });
+      
+      console.log(`  Prepared engager reward: from=${normalizedBackendWallet}, to=${normalizedEngager}, amount=${ethers.formatEther(amountWei)}`);
     }
     
     return { 
