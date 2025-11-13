@@ -267,12 +267,21 @@ class EcionBatchManager {
       // Validate and normalize addresses one more time before sending to contract
       console.log(`🔍 Preparing batch data for ${tips.length} transfers...`);
       const froms = tips.map((tip, idx) => {
-        const fromAddr = ethers.getAddress(tip.from);
-        if (!fromAddr || fromAddr === ethers.ZeroAddress) {
-          console.error(`❌ CRITICAL: Tip ${idx} has invalid 'from' address: ${tip.from}`);
+        // CRITICAL: Ensure 'from' address is never zero - this causes ERC20ExceededSafeSupply error
+        if (!tip.from || tip.from === ethers.ZeroAddress || tip.from === '0x0000000000000000000000000000000000000000') {
+          console.error(`❌ CRITICAL: Tip ${idx} has ZERO 'from' address: ${tip.from}`);
           console.error(`   Tip object:`, JSON.stringify(tip, null, 2));
-          throw new Error(`Invalid 'from' address at index ${idx}: ${tip.from}`);
+          throw new Error(`CRITICAL: 'from' address cannot be zero at index ${idx}. This causes ERC20ExceededSafeSupply error.`);
         }
+        
+        const fromAddr = ethers.getAddress(tip.from);
+        
+        // Double-check after normalization
+        if (!fromAddr || fromAddr === ethers.ZeroAddress) {
+          console.error(`❌ CRITICAL: Tip ${idx} normalized to invalid 'from' address: ${fromAddr} (original: ${tip.from})`);
+          throw new Error(`CRITICAL: Normalized 'from' address is zero at index ${idx}. Original: ${tip.from}`);
+        }
+        
         console.log(`  Transfer ${idx}: from=${fromAddr}, to=${ethers.getAddress(tip.to)}, token=${ethers.getAddress(tip.token)}`);
         return fromAddr;
       });
@@ -298,70 +307,92 @@ class EcionBatchManager {
         const tip = tips[i];
         
         try {
-          // Normalize amount to BigInt - handle both wei (BigInt) and token units (number/string)
-          let amountValue;
+          // Handle different amount formats:
+          // 1. BigInt = already in wei (reward transfers)
+          // 2. Decimal number/string (e.g., "0.005") = token units, need conversion
+          // 3. Large integer string/number (> 10^15) = already in wei
+          
+          let amountInWei;
+          
           if (typeof tip.amount === 'bigint') {
-            amountValue = tip.amount;
-          } else if (typeof tip.amount === 'string' || typeof tip.amount === 'number') {
-            // Check if it's already in wei format (very large number)
-            const numValue = BigInt(tip.amount.toString());
-            // If > 10^15, assume it's already in wei (regular tips are < 10^9 for USDC)
-            if (numValue > BigInt('1000000000000000')) {
-              amountValue = numValue;
-            } else {
-              // It's in token units, need to convert
-              amountValue = null; // Will convert below
-            }
+            // Already BigInt (reward transfers) - use directly
+            amountInWei = tip.amount;
+            console.log(`✅ Amount already BigInt (transfer ${i}): ${amountInWei.toString()}`);
           } else {
-            throw new Error(`Invalid amount type: ${typeof tip.amount}`);
-          }
-          
-          // If amount is already in wei, use it directly (reward transfers)
-          if (amountValue !== null) {
-            // Ensure it's a proper BigInt
-            const finalAmount = BigInt(amountValue.toString());
-            console.log(`✅ Amount already in wei (transfer ${i}): ${finalAmount.toString()}`);
-            amounts.push(finalAmount);
-            continue;
-          }
-          
-          // Amount is in token units, need to convert to wei (regular tips)
-          let decimals = 18; // Default to 18 decimals
-          
-          // Get token decimals dynamically with retry logic
-          const tokenContract = new ethers.Contract(tip.token, [
-            "function decimals() view returns (uint8)"
-          ], this.provider);
-          
-          let decimalRetryCount = 0;
-          const maxDecimalRetries = 2;
-          
-          while (decimalRetryCount < maxDecimalRetries) {
-            try {
-              decimals = await tokenContract.decimals();
-              console.log(`✅ Got decimals for token ${tip.token}: ${decimals}`);
-              break;
-            } catch (decimalError) {
-              decimalRetryCount++;
-              console.log(`❌ Decimal fetch attempt ${decimalRetryCount} failed for token ${tip.token}: ${decimalError.message}`);
+            const amountStr = tip.amount.toString();
+            
+            // Check if it's a decimal number (has decimal point)
+            const hasDecimal = amountStr.includes('.');
+            
+            if (hasDecimal) {
+              // Decimal number = token units, need to convert using ethers.parseUnits
+              // Get token decimals first
+              let decimals = 18; // Default to 18 decimals
               
-              if (decimalRetryCount >= maxDecimalRetries) {
-                console.log(`⚠️ Using default 18 decimals for token ${tip.token} after ${maxDecimalRetries} failed attempts`);
-                decimals = 18;
-                break;
+              const tokenContract = new ethers.Contract(tip.token, [
+                "function decimals() view returns (uint8)"
+              ], this.provider);
+              
+              let decimalRetryCount = 0;
+              const maxDecimalRetries = 2;
+              
+              while (decimalRetryCount < maxDecimalRetries) {
+                try {
+                  decimals = await tokenContract.decimals();
+                  console.log(`✅ Got decimals for token ${tip.token}: ${decimals}`);
+                  break;
+                } catch (decimalError) {
+                  decimalRetryCount++;
+                  console.log(`❌ Decimal fetch attempt ${decimalRetryCount} failed for token ${tip.token}: ${decimalError.message}`);
+                  
+                  if (decimalRetryCount >= maxDecimalRetries) {
+                    console.log(`⚠️ Using default 18 decimals for token ${tip.token} after ${maxDecimalRetries} failed attempts`);
+                    decimals = 18;
+                    break;
+                  }
+                  
+                  await new Promise(resolve => setTimeout(resolve, 500 * decimalRetryCount));
+                }
               }
               
-              // Wait before retry
-              await new Promise(resolve => setTimeout(resolve, 500 * decimalRetryCount));
+              // Convert decimal token amount to wei using ethers.parseUnits
+              amountInWei = ethers.parseUnits(amountStr, decimals);
+              console.log(`💰 Converting ${amountStr} ${tip.token} to ${amountInWei.toString()} (${decimals} decimals)`);
+            } else {
+              // Integer - check if it's already in wei (very large) or token units (small)
+              try {
+                const numValue = BigInt(amountStr);
+                // If > 10^15, assume it's already in wei (regular tips are < 10^9 for USDC)
+                if (numValue > BigInt('1000000000000000')) {
+                  // Already in wei format
+                  amountInWei = numValue;
+                  console.log(`✅ Amount already in wei (transfer ${i}): ${amountInWei.toString()}`);
+                } else {
+                  // Small integer = token units, need conversion
+                  // Get token decimals
+                  let decimals = 18;
+                  const tokenContract = new ethers.Contract(tip.token, [
+                    "function decimals() view returns (uint8)"
+                  ], this.provider);
+                  
+                  try {
+                    decimals = await tokenContract.decimals();
+                    console.log(`✅ Got decimals for token ${tip.token}: ${decimals}`);
+                  } catch (e) {
+                    console.log(`⚠️ Using default 18 decimals for token ${tip.token}`);
+                  }
+                  
+                  amountInWei = ethers.parseUnits(amountStr, decimals);
+                  console.log(`💰 Converting ${amountStr} ${tip.token} to ${amountInWei.toString()} (${decimals} decimals)`);
+                }
+              } catch (bigIntError) {
+                throw new Error(`Cannot convert amount "${amountStr}" to BigInt: ${bigIntError.message}`);
+              }
             }
           }
           
-          // Convert from token units to wei using ethers.parseUnits
-          const amountInSmallestUnit = ethers.parseUnits(tip.amount.toString(), decimals);
-          console.log(`💰 Converting ${tip.amount} ${tip.token} to ${amountInSmallestUnit.toString()} (${decimals} decimals)`);
-          
-          // Ensure it's a BigInt
-          amounts.push(BigInt(amountInSmallestUnit.toString()));
+          // Ensure it's a BigInt before pushing
+          amounts.push(BigInt(amountInWei.toString()));
         } catch (error) {
           console.log(`❌ Critical error processing token ${tip.token}, skipping: ${error.message}`);
           // Skip this tip if we can't process it
