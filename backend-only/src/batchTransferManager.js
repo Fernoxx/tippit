@@ -601,13 +601,20 @@ class BatchTransferManager {
       console.log(`🎯 EXECUTING ${tips.length} TIPS USING ONLY ECIONBATCH CONTRACT: 0x2f47bcc17665663d1b63e8d882faa0a366907bb8`);
       console.log(`🔍 Wallet status: ${this.wallet ? `Initialized (${this.wallet.address})` : 'NOT INITIALIZED'}`);
       
-      // Prepare tip transfer data for EcionBatch
-      const tipTransfers = tips.map(tip => ({
-        tokenAddress: tip.tokenAddress,
-        from: tip.interaction.authorAddress,
-        to: tip.interaction.interactorAddress,
-        amount: tip.amount
-      }));
+      // Prepare tip transfer data for EcionBatch (normalize addresses)
+      const tipTransfers = tips.map(tip => {
+        try {
+          return {
+            tokenAddress: ethers.getAddress(tip.tokenAddress),
+            from: ethers.getAddress(tip.interaction.authorAddress),
+            to: ethers.getAddress(tip.interaction.interactorAddress),
+            amount: tip.amount
+          };
+        } catch (error) {
+          console.error(`❌ Invalid address in tip:`, error.message);
+          throw new Error(`Invalid address format: ${error.message}`);
+        }
+      });
       console.log(`📝 Prepared ${tipTransfers.length} tip transfers for batch`);
 
       // Process ECION rewards BEFORE batch execution to get transfer data

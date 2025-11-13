@@ -183,15 +183,35 @@ async function prepareEcionRewardTransfers(backendWalletAddress, tipperAddress, 
       throw new Error(`Insufficient ECION balance in backend wallet. Have: ${ethers.formatUnits(backendBalance, ECION_TOKEN_DECIMALS)}, Need: ${totalReward}`);
     }
 
+    // Validate and normalize addresses (use getAddress for checksummed addresses)
+    let normalizedBackendWallet;
+    let normalizedTipper;
+    let normalizedEngager;
+    let normalizedToken;
+    
+    try {
+      normalizedBackendWallet = ethers.getAddress(backendWalletAddress);
+      normalizedTipper = ethers.getAddress(tipperAddress);
+      normalizedEngager = ethers.getAddress(engagerAddress);
+      normalizedToken = ethers.getAddress(ECION_TOKEN_ADDRESS);
+    } catch (error) {
+      throw new Error(`Invalid address format: ${error.message}`);
+    }
+    
+    // Verify backend wallet is not zero address
+    if (normalizedBackendWallet === ethers.ZeroAddress) {
+      throw new Error('Backend wallet address cannot be zero address');
+    }
+    
     const transfers = [];
     
     // Prepare tipper reward transfer if > 0
     if (tipperReward > 0) {
       const amountWei = ethers.parseUnits(tipperReward.toString(), ECION_TOKEN_DECIMALS);
       transfers.push({
-        from: backendWalletAddress.toLowerCase(),
-        to: tipperAddress.toLowerCase(),
-        tokenAddress: ECION_TOKEN_ADDRESS.toLowerCase(), // Use tokenAddress to match prepareTokenTips format
+        from: normalizedBackendWallet,
+        to: normalizedTipper,
+        tokenAddress: normalizedToken,
         amount: amountWei
       });
     }
@@ -200,9 +220,9 @@ async function prepareEcionRewardTransfers(backendWalletAddress, tipperAddress, 
     if (engagerReward > 0) {
       const amountWei = ethers.parseUnits(engagerReward.toString(), ECION_TOKEN_DECIMALS);
       transfers.push({
-        from: backendWalletAddress.toLowerCase(),
-        to: engagerAddress.toLowerCase(),
-        tokenAddress: ECION_TOKEN_ADDRESS.toLowerCase(), // Use tokenAddress to match prepareTokenTips format
+        from: normalizedBackendWallet,
+        to: normalizedEngager,
+        tokenAddress: normalizedToken,
         amount: amountWei
       });
     }
