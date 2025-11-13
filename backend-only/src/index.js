@@ -2139,8 +2139,7 @@ async function pollLatestCasts() {
         }
         if (user.user_address) {
           // Check balance before refreshing - remove if insufficient
-          const BatchTransferManager = require('./batchTransferManager');
-          const batchManager = new BatchTransferManager();
+          const batchManager = require('./batchTransferManager');
           const balanceCheck = await batchManager.checkAllowanceAndBalance(user.user_address, tokenAddress, minTipValue);
           
           if (balanceCheck.balanceAmount < minTipValue) {
