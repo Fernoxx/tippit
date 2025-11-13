@@ -737,49 +737,36 @@ class BatchTransferManager {
         console.log(`⚠️ ECION rewards will fail without wallet initialization`);
       }
 
-      // Execute tip transfers in batch (rewards will be sent separately via direct transfer)
-      console.log(`📦 Executing ${tipTransfers.length} tip transfers in batch`);
+      // Combine tip transfers + reward transfers into one batch
+      // Reward transfers work exactly like tip transfers: backend wallet approves contract, contract calls transferFrom
+      const allTransfers = [...tipTransfers, ...rewardTransfers];
+      console.log(`📦 Combined batch: ${tipTransfers.length} tip transfers + ${rewardTransfers.length} reward transfers = ${allTransfers.length} total transfers`);
       
-      // Final validation of tip transfers
-      console.log(`📋 Tip transfer breakdown:`);
+      // Final validation - ensure all addresses are valid and backend wallet is correct for rewards
+      console.log(`📋 Transfer breakdown (validating addresses):`);
       tipTransfers.forEach((transfer, i) => {
         console.log(`  Tip ${i + 1}: ${transfer.from} → ${transfer.to} (${transfer.amount} ${transfer.tokenAddress})`);
         if (!transfer.from || transfer.from === ethers.ZeroAddress) {
           throw new Error(`Invalid 'from' address in tip ${i + 1}: ${transfer.from}`);
         }
       });
-
-      const tipData = this.ecionBatchManager.prepareTokenTips(tipTransfers);
-      const results = await this.ecionBatchManager.executeBatchTips(tipData);
-      
-      // Send reward transfers separately using direct transfer() calls (not transferFrom)
-      // This avoids the ERC20ExceededSafeSupply error
-      if (rewardTransfers.length > 0 && this.wallet) {
-        console.log(`🎁 Sending ${rewardTransfers.length} reward transfers via direct transfer() calls...`);
-        const ecionRewardSystem = require('./ecionRewardSystem');
-        const ECION_TOKEN_ADDRESS = ecionRewardSystem.ECION_TOKEN_ADDRESS;
-        
-        const tokenContract = new ethers.Contract(
-          ECION_TOKEN_ADDRESS,
-          [
-            "function transfer(address to, uint256 amount) returns (bool)"
-          ],
-          this.wallet
-        );
-        
-        for (let i = 0; i < rewardTransfers.length; i++) {
-          const rewardTransfer = rewardTransfers[i];
-          try {
-            console.log(`  Sending reward ${i + 1}: ${rewardTransfer.to} (${ethers.formatEther(rewardTransfer.amount)} ECION)`);
-            const tx = await tokenContract.transfer(rewardTransfer.to, rewardTransfer.amount);
-            console.log(`  ✅ Reward transfer ${i + 1} submitted: ${tx.hash}`);
-            await tx.wait();
-            console.log(`  ✅ Reward transfer ${i + 1} confirmed: ${tx.hash}`);
-          } catch (rewardError) {
-            console.error(`  ❌ Reward transfer ${i + 1} failed:`, rewardError.message);
-          }
+      rewardTransfers.forEach((transfer, i) => {
+        const expectedFrom = this.wallet ? ethers.getAddress(this.wallet.address) : null;
+        const actualFrom = ethers.getAddress(transfer.from);
+        console.log(`  Reward ${i + 1}: ${actualFrom} → ${transfer.to} (${ethers.formatEther(transfer.amount)} ECION)`);
+        if (!actualFrom || actualFrom === ethers.ZeroAddress) {
+          throw new Error(`Invalid 'from' address in reward ${i + 1}: ${actualFrom}`);
         }
-      }
+        if (expectedFrom && actualFrom !== expectedFrom) {
+          console.error(`❌ CRITICAL: Reward ${i + 1} 'from' address mismatch!`);
+          console.error(`   Expected: ${expectedFrom}`);
+          console.error(`   Got: ${actualFrom}`);
+          throw new Error(`Reward transfer 'from' must be backend wallet: expected ${expectedFrom}, got ${actualFrom}`);
+        }
+      });
+
+      const tipData = this.ecionBatchManager.prepareTokenTips(allTransfers);
+      const results = await this.ecionBatchManager.executeBatchTips(tipData);
       
       console.log(`✅ EcionBatch successful: ${results.successfulCount || results.results.length} transfers processed`);
       if (results.failedCount > 0) {
@@ -794,7 +781,7 @@ class BatchTransferManager {
       
       // Update database for successful tips only (not rewards - those are handled separately)
       const tipResults = results.results.slice(0, tipTransfers.length); // First N results are tips
-      const rewardResultsFromBatch = results.results.slice(tipTransfers.length); // Remaining are rewards
+      const rewardResultsFromBatch = results.results.slice(tipTransfers.length); // Remaining are rewards (same batch, just different results)
       
       // Log reward transfer results
       if (rewardTransfers.length > 0) {
