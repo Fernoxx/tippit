@@ -694,11 +694,6 @@ class BatchTransferManager {
           }
         }
         console.log(`🎁 ECION reward processing complete: ${rewardTransfers.length} reward transfers prepared`);
-      } else {
-        console.error(`❌ CRITICAL: Backend wallet not initialized or has no address`);
-        console.error(`   Wallet exists: ${!!this.wallet}`);
-        console.error(`   Wallet address: ${this.wallet?.address || 'undefined'}`);
-      }
         
         // Calculate total reward amount needed
         const totalRewardAmount = rewardTransfers.reduce((sum, transfer) => sum + transfer.amount, 0n);
