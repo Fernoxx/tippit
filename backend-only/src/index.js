@@ -1807,7 +1807,6 @@ async function refreshActiveCastEntry({
     const allowanceValue = Number(allowance) || Number(parsedConfig?.lastAllowance) || 0;
     
     // CRITICAL: Check actual balance from blockchain, not fallback to allowance
-    const { checkAllowanceAndBalance } = require('./batchTransferManager');
     const batchManager = require('./batchTransferManager');
     const balanceCheck = await batchManager.checkAllowanceAndBalance(normalizedAddress, normalizedToken, effectiveMinTip);
     const balanceValue = balanceCheck.balanceAmount;
@@ -2140,8 +2139,8 @@ async function pollLatestCasts() {
         }
         if (user.user_address) {
           // Check balance before refreshing - remove if insufficient
-          const { checkAllowanceAndBalance } = require('./batchTransferManager');
-          const batchManager = require('./batchTransferManager');
+          const BatchTransferManager = require('./batchTransferManager');
+          const batchManager = new BatchTransferManager();
           const balanceCheck = await batchManager.checkAllowanceAndBalance(user.user_address, tokenAddress, minTipValue);
           
           if (balanceCheck.balanceAmount < minTipValue) {
