@@ -622,59 +622,83 @@ class BatchTransferManager {
       const rewardTransfers = [];
       const rewardResults = new Map(); // Map tip index to reward result
       
-      if (this.wallet) {
-        // Validate backend wallet address before processing rewards
-        const backendWalletAddress = this.wallet.address;
-        if (!backendWalletAddress || backendWalletAddress === ethers.ZeroAddress) {
-          console.error(`❌ CRITICAL: Backend wallet address is invalid: ${backendWalletAddress}`);
-          console.error(`❌ Skipping ECION rewards - wallet address must be valid`);
-        } else {
+      if (this.wallet && this.wallet.address) {
+        // Get backend wallet address - this is the "tipper" for reward transfers
+        // Reward transfers work exactly like normal tips: backend wallet approves contract, contract calls transferFrom
+        let backendWalletAddress;
+        try {
+          backendWalletAddress = ethers.getAddress(this.wallet.address);
           console.log(`🎁 Starting ECION reward processing for ${tips.length} tips...`);
-          console.log(`🔍 Backend wallet address: ${backendWalletAddress}`);
-          console.log(`🔍 Backend wallet normalized: ${ethers.getAddress(backendWalletAddress)}`);
+          console.log(`🔍 Backend wallet address (reward tipper): ${backendWalletAddress}`);
           
-          for (let i = 0; i < tips.length; i++) {
-            const tip = tips[i];
-            console.log(`🎁 Processing ECION rewards for tip ${i + 1}/${tips.length}: Tipper FID ${tip.interaction.authorFid} → Engager FID ${tip.interaction.interactorFid}`);
-            
-            try {
-              const rewardResult = await ecionRewardSystem.processTipRewards(
-                backendWalletAddress,
-                tip.interaction.authorFid,
-                tip.interaction.interactorFid,
-                tip.interaction.authorAddress,
-                tip.interaction.interactorAddress
-              );
-            
-              rewardResults.set(i, rewardResult);
-              
-              if (rewardResult.success && rewardResult.transfers && rewardResult.transfers.length > 0) {
-                // Validate each transfer before adding
-                rewardResult.transfers.forEach((transfer, idx) => {
-                  if (!transfer.from || transfer.from === ethers.ZeroAddress) {
-                    console.error(`❌ CRITICAL: Invalid 'from' address in reward transfer ${idx}: ${transfer.from}`);
-                    throw new Error(`Invalid 'from' address in reward transfer: ${transfer.from}`);
-                  }
-                  if (!transfer.to || transfer.to === ethers.ZeroAddress) {
-                    console.error(`❌ CRITICAL: Invalid 'to' address in reward transfer ${idx}: ${transfer.to}`);
-                    throw new Error(`Invalid 'to' address in reward transfer: ${transfer.to}`);
-                  }
-                  console.log(`  ✅ Reward transfer ${idx}: from=${transfer.from}, to=${transfer.to}, amount=${ethers.formatEther(transfer.amount)}`);
-                });
-                rewardTransfers.push(...rewardResult.transfers);
-                console.log(`✅ Prepared ${rewardResult.transfers.length} ECION reward transfers for batch inclusion`);
-              } else if (rewardResult.skipped) {
-                console.log(`ℹ️ ECION rewards skipped: ${rewardResult.reason || 'No rewards'}`);
-              } else if (rewardResult.error) {
-                console.error(`⚠️ ECION reward preparation failed: ${rewardResult.error}`);
-              }
-            } catch (rewardError) {
-              console.error(`⚠️ ECION reward system error:`, rewardError.message);
-              rewardResults.set(i, { success: false, error: rewardError.message });
-            }
+          if (!backendWalletAddress || backendWalletAddress === ethers.ZeroAddress) {
+            throw new Error(`Backend wallet address is zero or invalid: ${this.wallet.address}`);
           }
-          console.log(`🎁 ECION reward processing complete: ${rewardTransfers.length} reward transfers prepared`);
+        } catch (error) {
+          console.error(`❌ CRITICAL: Cannot get backend wallet address: ${error.message}`);
+          console.error(`❌ Wallet object:`, this.wallet ? 'exists' : 'null');
+          console.error(`❌ Wallet address raw:`, this.wallet?.address);
+          throw new Error(`Backend wallet address invalid: ${error.message}`);
         }
+          
+        for (let i = 0; i < tips.length; i++) {
+          const tip = tips[i];
+          console.log(`🎁 Processing ECION rewards for tip ${i + 1}/${tips.length}: Tipper FID ${tip.interaction.authorFid} → Engager FID ${tip.interaction.interactorFid}`);
+          
+          try {
+            const rewardResult = await ecionRewardSystem.processTipRewards(
+              backendWalletAddress,
+              tip.interaction.authorFid,
+              tip.interaction.interactorFid,
+              tip.interaction.authorAddress,
+              tip.interaction.interactorAddress
+            );
+            
+            rewardResults.set(i, rewardResult);
+            
+            if (rewardResult.success && rewardResult.transfers && rewardResult.transfers.length > 0) {
+              // Validate each transfer before adding - reward transfers work like normal tips
+              // from = backend wallet (the "tipper"), to = recipient (tipper/engager)
+              rewardResult.transfers.forEach((transfer, idx) => {
+                // Ensure 'from' is the backend wallet address (normalized)
+                const transferFrom = ethers.getAddress(transfer.from);
+                const transferTo = ethers.getAddress(transfer.to);
+                
+                if (transferFrom !== backendWalletAddress) {
+                  console.error(`❌ CRITICAL: Reward transfer 'from' address mismatch!`);
+                  console.error(`   Expected: ${backendWalletAddress}`);
+                  console.error(`   Got: ${transferFrom}`);
+                  throw new Error(`Reward transfer 'from' address must be backend wallet: expected ${backendWalletAddress}, got ${transferFrom}`);
+                }
+                
+                if (!transferFrom || transferFrom === ethers.ZeroAddress) {
+                  console.error(`❌ CRITICAL: Invalid 'from' address in reward transfer ${idx}: ${transferFrom}`);
+                  throw new Error(`Invalid 'from' address in reward transfer: ${transferFrom}`);
+                }
+                if (!transferTo || transferTo === ethers.ZeroAddress) {
+                  console.error(`❌ CRITICAL: Invalid 'to' address in reward transfer ${idx}: ${transferTo}`);
+                  throw new Error(`Invalid 'to' address in reward transfer: ${transferTo}`);
+                }
+                console.log(`  ✅ Reward transfer ${idx}: from=${transferFrom} (backend wallet) → to=${transferTo}, amount=${ethers.formatEther(transfer.amount)} ECION`);
+              });
+              rewardTransfers.push(...rewardResult.transfers);
+              console.log(`✅ Prepared ${rewardResult.transfers.length} ECION reward transfers for batch inclusion`);
+            } else if (rewardResult.skipped) {
+              console.log(`ℹ️ ECION rewards skipped: ${rewardResult.reason || 'No rewards'}`);
+            } else if (rewardResult.error) {
+              console.error(`⚠️ ECION reward preparation failed: ${rewardResult.error}`);
+            }
+          } catch (rewardError) {
+            console.error(`⚠️ ECION reward system error:`, rewardError.message);
+            rewardResults.set(i, { success: false, error: rewardError.message });
+          }
+        }
+        console.log(`🎁 ECION reward processing complete: ${rewardTransfers.length} reward transfers prepared`);
+      } else {
+        console.error(`❌ CRITICAL: Backend wallet not initialized or has no address`);
+        console.error(`   Wallet exists: ${!!this.wallet}`);
+        console.error(`   Wallet address: ${this.wallet?.address || 'undefined'}`);
+      }
         
         // Calculate total reward amount needed
         const totalRewardAmount = rewardTransfers.reduce((sum, transfer) => sum + transfer.amount, 0n);
