@@ -265,12 +265,15 @@ class EcionBatchManager {
       
       // Prepare batch data (only 4 parameters needed)
       // Validate and normalize addresses one more time before sending to contract
+      console.log(`🔍 Preparing batch data for ${tips.length} transfers...`);
       const froms = tips.map((tip, idx) => {
         const fromAddr = ethers.getAddress(tip.from);
         if (!fromAddr || fromAddr === ethers.ZeroAddress) {
           console.error(`❌ CRITICAL: Tip ${idx} has invalid 'from' address: ${tip.from}`);
+          console.error(`   Tip object:`, JSON.stringify(tip, null, 2));
           throw new Error(`Invalid 'from' address at index ${idx}: ${tip.from}`);
         }
+        console.log(`  Transfer ${idx}: from=${fromAddr}, to=${ethers.getAddress(tip.to)}, token=${ethers.getAddress(tip.token)}`);
         return fromAddr;
       });
       const tos = tips.map((tip, idx) => {
@@ -289,6 +292,7 @@ class EcionBatchManager {
         }
         return tokenAddr;
       });
+      console.log(`✅ Prepared ${froms.length} transfers - froms array:`, froms.slice(0, 5).map(addr => `${addr.slice(0,6)}...${addr.slice(-4)}`));
       const amounts = [];
       for (let i = 0; i < tips.length; i++) {
         const tip = tips[i];
@@ -827,12 +831,24 @@ class EcionBatchManager {
    * @returns {Array} - Formatted tip data
    */
   prepareTokenTips(transfers) {
-    return transfers.map(transfer => ({
-      from: transfer.from,
-      to: transfer.to,
-      token: transfer.tokenAddress,
-      amount: transfer.amount
-    }));
+    return transfers.map((transfer, idx) => {
+      // Ensure addresses are properly formatted
+      const from = ethers.getAddress(transfer.from);
+      const to = ethers.getAddress(transfer.to);
+      const token = ethers.getAddress(transfer.tokenAddress);
+      
+      if (!from || from === ethers.ZeroAddress) {
+        console.error(`❌ CRITICAL: Transfer ${idx} has invalid 'from': ${transfer.from}`);
+        throw new Error(`Invalid 'from' address in transfer ${idx}: ${transfer.from}`);
+      }
+      
+      return {
+        from: from,
+        to: to,
+        token: token,
+        amount: transfer.amount
+      };
+    });
   }
   
   /**
