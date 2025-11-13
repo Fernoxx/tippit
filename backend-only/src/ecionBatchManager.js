@@ -296,27 +296,39 @@ class EcionBatchManager {
       const amounts = [];
       for (let i = 0; i < tips.length; i++) {
         const tip = tips[i];
-        let decimals = 18; // Default to 18 decimals
         
         try {
-          // Check if amount is already in wei (BigInt or very large number)
-          // Reward transfers from ecionRewardSystem already have amounts in wei
-          const amountValue = typeof tip.amount === 'bigint' ? tip.amount : BigInt(tip.amount.toString());
-          const amountStr = amountValue.toString();
+          // Normalize amount to BigInt - handle both wei (BigInt) and token units (number/string)
+          let amountValue;
+          if (typeof tip.amount === 'bigint') {
+            amountValue = tip.amount;
+          } else if (typeof tip.amount === 'string' || typeof tip.amount === 'number') {
+            // Check if it's already in wei format (very large number)
+            const numValue = BigInt(tip.amount.toString());
+            // If > 10^15, assume it's already in wei (regular tips are < 10^9 for USDC)
+            if (numValue > BigInt('1000000000000000')) {
+              amountValue = numValue;
+            } else {
+              // It's in token units, need to convert
+              amountValue = null; // Will convert below
+            }
+          } else {
+            throw new Error(`Invalid amount type: ${typeof tip.amount}`);
+          }
           
-          // If amount is > 10^15, it's likely already in wei (even for 6-decimal tokens)
-          // Regular tips are typically < 1000 tokens, so 1000 * 10^6 = 10^9 max for USDC
-          // Reward transfers are in wei: 2430 * 10^18 = 2.43 * 10^21
-          const isAlreadyInWei = amountValue > BigInt('1000000000000000'); // > 10^15
-          
-          if (isAlreadyInWei) {
-            // Amount is already in wei, use it directly
-            console.log(`✅ Amount already in wei (${amountStr}), using directly`);
-            amounts.push(amountValue);
+          // If amount is already in wei, use it directly (reward transfers)
+          if (amountValue !== null) {
+            // Ensure it's a proper BigInt
+            const finalAmount = BigInt(amountValue.toString());
+            console.log(`✅ Amount already in wei (transfer ${i}): ${finalAmount.toString()}`);
+            amounts.push(finalAmount);
             continue;
           }
           
-          // Get token decimals dynamically with retry logic (only needed for conversion)
+          // Amount is in token units, need to convert to wei (regular tips)
+          let decimals = 18; // Default to 18 decimals
+          
+          // Get token decimals dynamically with retry logic
           const tokenContract = new ethers.Contract(tip.token, [
             "function decimals() view returns (uint8)"
           ], this.provider);
@@ -344,12 +356,12 @@ class EcionBatchManager {
             }
           }
           
-          // Convert from token units to wei
-          const amountInSmallestUnit = ethers.parseUnits(amountValue.toString(), decimals);
-          console.log(`💰 Converting ${amountValue} ${tip.token} to ${amountInSmallestUnit.toString()} (${decimals} decimals)`);
-          console.log(`🔍 Debug: ${amountValue} * 10^${decimals} = ${amountInSmallestUnit.toString()}`);
+          // Convert from token units to wei using ethers.parseUnits
+          const amountInSmallestUnit = ethers.parseUnits(tip.amount.toString(), decimals);
+          console.log(`💰 Converting ${tip.amount} ${tip.token} to ${amountInSmallestUnit.toString()} (${decimals} decimals)`);
           
-          amounts.push(amountInSmallestUnit);
+          // Ensure it's a BigInt
+          amounts.push(BigInt(amountInSmallestUnit.toString()));
         } catch (error) {
           console.log(`❌ Critical error processing token ${tip.token}, skipping: ${error.message}`);
           // Skip this tip if we can't process it
@@ -589,7 +601,17 @@ class EcionBatchManager {
             }
           });
           
-          tx = await contract.batchTip(froms, tos, tokens, amounts, gasOptions);
+          // Ensure all amounts are BigInt before calling contract
+          const finalAmounts = amounts.map((amt, idx) => {
+            const bigIntAmt = typeof amt === 'bigint' ? amt : BigInt(amt.toString());
+            if (idx >= tips.length - 2) {
+              // Log reward transfer amounts for debugging
+              console.log(`   🔍 Final amount ${idx} (reward?): ${bigIntAmt.toString()}, type: ${typeof bigIntAmt}`);
+            }
+            return bigIntAmt;
+          });
+          
+          tx = await contract.batchTip(froms, tos, tokens, finalAmounts, gasOptions);
           console.log(`✅ Transaction submitted successfully on attempt ${txRetryCount + 1}`);
           break;
         } catch (txError) {
