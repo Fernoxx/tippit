@@ -24,15 +24,6 @@ interface AdminStats {
   timestamp?: string;
 }
 
-interface RecentTip {
-  fromAddress: string;
-  toAddress: string;
-  amount: number;
-  tokenAddress: string;
-  txHash: string | null;
-  processedAt: string;
-  interactionType: string;
-}
 
 interface MetricCardConfig {
   key: string;
@@ -120,7 +111,6 @@ const timeframeCards: TimeframeCardConfig[] = [
 
 export default function Admin() {
   const [stats, setStats] = useState<AdminStats | null>(null);
-  const [recentTips, setRecentTips] = useState<RecentTip[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -151,35 +141,30 @@ export default function Admin() {
         if (statsResponse.status === 401) {
           setIsAuthenticated(false);
           sessionStorage.removeItem('admin_authenticated');
+          sessionStorage.removeItem('admin_password');
           setError('Authentication failed. Please login again.');
           return;
         }
-        throw new Error(`Stats request failed with status ${statsResponse.status}`);
+        const errorText = await statsResponse.text();
+        console.error('Stats API error:', statsResponse.status, errorText);
+        throw new Error(`Stats request failed with status ${statsResponse.status}: ${errorText}`);
       }
       const statsData = await statsResponse.json();
-      const payload = (statsData.stats as AdminStats | undefined) ?? (statsData.data as AdminStats | undefined);
+      console.log('Stats data received:', statsData);
+      
+      const payload = (statsData.stats as AdminStats | undefined) ?? (statsData.data as AdminStats | undefined) ?? statsData;
 
-      if (payload) {
+      if (payload && (payload.allTime || payload.last24h)) {
         setStats({
           ...payload,
-          timestamp: statsData.timestamp ?? payload.timestamp,
+          timestamp: statsData.timestamp ?? payload.timestamp ?? new Date().toISOString(),
         });
       } else {
+        console.warn('Invalid stats payload:', payload);
         setStats(null);
       }
 
-      const tipsResponse = await fetch(`${BACKEND_URL}/api/admin/recent-tips?limit=20`, { headers });
-      if (!tipsResponse.ok) {
-        if (tipsResponse.status === 401) {
-          setIsAuthenticated(false);
-          sessionStorage.removeItem('admin_authenticated');
-          setError('Authentication failed. Please login again.');
-          return;
-        }
-        throw new Error(`Recent tips request failed with status ${tipsResponse.status}`);
-      }
-      const tipsData = await tipsResponse.json();
-      setRecentTips(Array.isArray(tipsData.tips) ? tipsData.tips : []);
+      // Removed recent tips fetching - not needed per user request
     } catch (err) {
       console.error('Error fetching admin data:', err);
       setError('Failed to fetch admin data');
@@ -189,13 +174,21 @@ export default function Admin() {
   };
 
   useEffect(() => {
-    // Check if already authenticated in sessionStorage
+    // Check if already authenticated in sessionStorage - require BOTH auth status AND password
     const authStatus = sessionStorage.getItem('admin_authenticated');
-    if (authStatus === 'true') {
+    const storedPassword = sessionStorage.getItem('admin_password');
+    
+    // Only authenticate if BOTH exist
+    if (authStatus === 'true' && storedPassword) {
       setIsAuthenticated(true);
       fetchAdminData();
       const interval = setInterval(fetchAdminData, 30000);
       return () => clearInterval(interval);
+    } else {
+      // Clear invalid session data
+      sessionStorage.removeItem('admin_authenticated');
+      sessionStorage.removeItem('admin_password');
+      setIsAuthenticated(false);
     }
   }, []);
 
@@ -277,22 +270,6 @@ export default function Admin() {
     );
   }
 
-  const formatAddress = (address: string) => {
-    if (!address) return 'N/A';
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
-
-  const formatAmount = (amount: number) => {
-    return amount.toFixed(2);
-  };
-
-  const formatDate = (timestamp: string) => {
-    const date = new Date(timestamp);
-    if (Number.isNaN(date.getTime())) {
-      return 'Unknown';
-    }
-    return date.toLocaleString();
-  };
 
   if (isLoading && !stats) {
     return (
@@ -372,78 +349,6 @@ export default function Admin() {
             No statistics available yet. Tips will appear here once activity is tracked.
           </div>
         )}
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-white rounded-lg shadow-sm border border-gray-200"
-        >
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900">Recent Tips</h2>
-            <p className="text-sm text-gray-600 mt-1">Latest 20 tips processed</p>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    From
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    To
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Amount
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Time
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    TX Hash
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {recentTips.map((tip, index) => (
-                  <tr key={`${tip.txHash ?? 'tx'}-${index}`} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
-                      {formatAddress(tip.fromAddress)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
-                      {formatAddress(tip.toAddress)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatAmount(tip.amount)} USDC
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        {tip.interactionType}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(tip.processedAt)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-500">
-                      {tip.txHash ? formatAddress(tip.txHash) : 'N/A'}
-                    </td>
-                  </tr>
-                ))}
-                {recentTips.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-500">
-                      No recent tips recorded yet.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </motion.div>
 
         <div className="mt-6 text-center">
           <button
