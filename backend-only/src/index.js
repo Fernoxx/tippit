@@ -60,32 +60,6 @@ const adminAuth = (req, res, next) => {
   next();
 };
 
-// Admin login endpoint (validates password server-side)
-app.post('/api/admin/login', async (req, res) => {
-  try {
-    const { password } = req.body;
-    const expectedPassword = process.env.ADMIN_PASSWORD || 'ecion2024';
-    
-    if (!password || password !== expectedPassword) {
-      return res.status(401).json({ 
-        success: false, 
-        error: 'Incorrect password' 
-      });
-    }
-    
-    res.json({ 
-      success: true, 
-      message: 'Login successful' 
-    });
-  } catch (error) {
-    console.error('Admin login error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Login failed' 
-    });
-  }
-});
-
 // Middleware - Configure CORS properly
 app.use(cors({
   origin: [
