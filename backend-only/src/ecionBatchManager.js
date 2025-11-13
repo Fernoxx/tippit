@@ -297,10 +297,26 @@ class EcionBatchManager {
       for (let i = 0; i < tips.length; i++) {
         const tip = tips[i];
         let decimals = 18; // Default to 18 decimals
-        let amountToConvert = tip.amount;
         
         try {
-          // Get token decimals dynamically with retry logic
+          // Check if amount is already in wei (BigInt or very large number)
+          // Reward transfers from ecionRewardSystem already have amounts in wei
+          const amountValue = typeof tip.amount === 'bigint' ? tip.amount : BigInt(tip.amount.toString());
+          const amountStr = amountValue.toString();
+          
+          // If amount is > 10^15, it's likely already in wei (even for 6-decimal tokens)
+          // Regular tips are typically < 1000 tokens, so 1000 * 10^6 = 10^9 max for USDC
+          // Reward transfers are in wei: 2430 * 10^18 = 2.43 * 10^21
+          const isAlreadyInWei = amountValue > BigInt('1000000000000000'); // > 10^15
+          
+          if (isAlreadyInWei) {
+            // Amount is already in wei, use it directly
+            console.log(`✅ Amount already in wei (${amountStr}), using directly`);
+            amounts.push(amountValue);
+            continue;
+          }
+          
+          // Get token decimals dynamically with retry logic (only needed for conversion)
           const tokenContract = new ethers.Contract(tip.token, [
             "function decimals() view returns (uint8)"
           ], this.provider);
@@ -328,16 +344,10 @@ class EcionBatchManager {
             }
           }
           
-          // For 18-decimal tokens, limit the amount to prevent overflow
-          if (decimals === 18 && parseFloat(tip.amount) > 1000) {
-            console.log(`⚠️ Token has 18 decimals, limiting amount from ${tip.amount} to 1000 to prevent overflow`);
-            amountToConvert = 1000;
-          }
-          
-          // Use ethers.parseUnits for proper BigInt conversion
-          const amountInSmallestUnit = ethers.parseUnits(amountToConvert.toString(), decimals);
-          console.log(`💰 Converting ${amountToConvert} ${tip.token} to ${amountInSmallestUnit.toString()} (${decimals} decimals)`);
-          console.log(`🔍 Debug: ${amountToConvert} * 10^${decimals} = ${amountInSmallestUnit.toString()}`);
+          // Convert from token units to wei
+          const amountInSmallestUnit = ethers.parseUnits(amountValue.toString(), decimals);
+          console.log(`💰 Converting ${amountValue} ${tip.token} to ${amountInSmallestUnit.toString()} (${decimals} decimals)`);
+          console.log(`🔍 Debug: ${amountValue} * 10^${decimals} = ${amountInSmallestUnit.toString()}`);
           
           amounts.push(amountInSmallestUnit);
         } catch (error) {
