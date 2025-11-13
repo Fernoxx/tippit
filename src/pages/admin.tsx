@@ -127,6 +127,67 @@ export default function Admin() {
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
 
+  // Define fetchAdminData BEFORE it's used in useEffect and handleLogin
+  const fetchAdminData = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Get password from sessionStorage (stored after login)
+      const storedPassword = sessionStorage.getItem('admin_password');
+      if (!storedPassword) {
+        setIsAuthenticated(false);
+        sessionStorage.removeItem('admin_authenticated');
+        setError('Session expired. Please login again.');
+        return;
+      }
+      
+      const headers = {
+        'x-admin-password': storedPassword
+      };
+
+      const statsResponse = await fetch(`${BACKEND_URL}/api/admin/total-stats`, { headers });
+      if (!statsResponse.ok) {
+        if (statsResponse.status === 401) {
+          setIsAuthenticated(false);
+          sessionStorage.removeItem('admin_authenticated');
+          setError('Authentication failed. Please login again.');
+          return;
+        }
+        throw new Error(`Stats request failed with status ${statsResponse.status}`);
+      }
+      const statsData = await statsResponse.json();
+      const payload = (statsData.stats as AdminStats | undefined) ?? (statsData.data as AdminStats | undefined);
+
+      if (payload) {
+        setStats({
+          ...payload,
+          timestamp: statsData.timestamp ?? payload.timestamp,
+        });
+      } else {
+        setStats(null);
+      }
+
+      const tipsResponse = await fetch(`${BACKEND_URL}/api/admin/recent-tips?limit=20`, { headers });
+      if (!tipsResponse.ok) {
+        if (tipsResponse.status === 401) {
+          setIsAuthenticated(false);
+          sessionStorage.removeItem('admin_authenticated');
+          setError('Authentication failed. Please login again.');
+          return;
+        }
+        throw new Error(`Recent tips request failed with status ${tipsResponse.status}`);
+      }
+      const tipsData = await tipsResponse.json();
+      setRecentTips(Array.isArray(tipsData.tips) ? tipsData.tips : []);
+    } catch (err) {
+      console.error('Error fetching admin data:', err);
+      setError('Failed to fetch admin data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     // Check if already authenticated in sessionStorage
     const authStatus = sessionStorage.getItem('admin_authenticated');
@@ -209,74 +270,6 @@ export default function Admin() {
       </div>
     );
   }
-
-  const fetchAdminData = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      // Get password from sessionStorage (stored after login) or prompt user
-      // Actually, we'll send it in the request body for admin endpoints
-      // But wait - we need to store it securely... Actually, let's use a different approach
-      // We'll store a session token after login, but for now, let's get password from user input
-      // Actually, the best approach is to store password in sessionStorage after successful login
-      // But that's also not secure... Let's use a session token approach
-      
-      // For now, get password from sessionStorage (set after login)
-      // In production, use proper session tokens/JWT
-      const storedPassword = sessionStorage.getItem('admin_password');
-      if (!storedPassword) {
-        setIsAuthenticated(false);
-        sessionStorage.removeItem('admin_authenticated');
-        setError('Session expired. Please login again.');
-        return;
-      }
-      
-      const headers = {
-        'x-admin-password': storedPassword
-      };
-
-      const statsResponse = await fetch(`${BACKEND_URL}/api/admin/total-stats`, { headers });
-      if (!statsResponse.ok) {
-        if (statsResponse.status === 401) {
-          setIsAuthenticated(false);
-          sessionStorage.removeItem('admin_authenticated');
-          setError('Authentication failed. Please login again.');
-          return;
-        }
-        throw new Error(`Stats request failed with status ${statsResponse.status}`);
-      }
-      const statsData = await statsResponse.json();
-      const payload = (statsData.stats as AdminStats | undefined) ?? (statsData.data as AdminStats | undefined);
-
-      if (payload) {
-        setStats({
-          ...payload,
-          timestamp: statsData.timestamp ?? payload.timestamp,
-        });
-      } else {
-        setStats(null);
-      }
-
-      const tipsResponse = await fetch(`${BACKEND_URL}/api/admin/recent-tips?limit=20`, { headers });
-      if (!tipsResponse.ok) {
-        if (tipsResponse.status === 401) {
-          setIsAuthenticated(false);
-          sessionStorage.removeItem('admin_authenticated');
-          setError('Authentication failed. Please login again.');
-          return;
-        }
-        throw new Error(`Recent tips request failed with status ${tipsResponse.status}`);
-      }
-      const tipsData = await tipsResponse.json();
-      setRecentTips(Array.isArray(tipsData.tips) ? tipsData.tips : []);
-    } catch (err) {
-      console.error('Error fetching admin data:', err);
-      setError('Failed to fetch admin data');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const lastUpdated = useMemo(() => {
     if (!stats?.timestamp) return null;
