@@ -4416,6 +4416,9 @@ app.get('/api/leaderboard', async (req, res) => {
     
     const offset = (pageNum - 1) * limitNum;
     
+    // Team FIDs to show at the end of leaderboard
+    const TEAM_FIDS = [1351395, 242597];
+    
     // Get top tippers and earners with amounts
     const topTippers = await database.getTopTippers(timeFilter);
     const topEarners = await database.getTopEarners(timeFilter);
@@ -4429,13 +4432,15 @@ app.get('/api/leaderboard', async (req, res) => {
       console.log(`📊 First raw earner:`, topEarners[0]);
     }
     
-    // Get paginated slices
-    const paginatedTippers = topTippers.slice(offset, offset + limitNum);
-    const paginatedEarners = topEarners.slice(offset, offset + limitNum);
+    // Separate team FIDs from regular users
+    // We'll need to enrich first to get FIDs, then separate
+    // For now, let's get all data and separate after enrichment
+    const allTippers = topTippers;
+    const allEarners = topEarners;
     
-    // Enrich tippers with user profiles and token info
-    const enrichedTippers = [];
-    for (const tipper of paginatedTippers) {
+    // Enrich ALL tippers with user profiles and token info (need FIDs to filter)
+    const allEnrichedTippers = [];
+    for (const tipper of allTippers) {
       try {
         // Fetch user profile
         const userResponse = await fetch(
@@ -4452,12 +4457,9 @@ app.get('/api/leaderboard', async (req, res) => {
         if (userResponse.ok) {
           const userData = await userResponse.json();
           farcasterUser = userData[tipper.userAddress]?.[0];
-          console.log(`🔍 Neynar API response for ${tipper.userAddress}:`, farcasterUser ? 'Found user' : 'No user found');
-        } else {
-          console.log(`❌ Neynar API error for ${tipper.userAddress}: ${userResponse.status}`);
         }
         
-        enrichedTippers.push({
+        allEnrichedTippers.push({
           ...tipper,
           username: farcasterUser?.username,
           displayName: farcasterUser?.display_name,
@@ -4465,16 +4467,15 @@ app.get('/api/leaderboard', async (req, res) => {
           fid: farcasterUser?.fid
         });
       } catch (error) {
-        console.log(`Could not fetch profile for tipper ${tipper.userAddress}:`, error.message);
-        enrichedTippers.push({
+        allEnrichedTippers.push({
           ...tipper
         });
       }
     }
     
-    // Enrich earners with user profiles and token info
-    const enrichedEarners = [];
-    for (const earner of paginatedEarners) {
+    // Enrich ALL earners with user profiles and token info (need FIDs to filter)
+    const allEnrichedEarners = [];
+    for (const earner of allEarners) {
       try {
         // Fetch user profile
         const userResponse = await fetch(
@@ -4491,12 +4492,9 @@ app.get('/api/leaderboard', async (req, res) => {
         if (userResponse.ok) {
           const userData = await userResponse.json();
           farcasterUser = userData[earner.userAddress]?.[0];
-          console.log(`🔍 Neynar API response for ${earner.userAddress}:`, farcasterUser ? 'Found user' : 'No user found');
-        } else {
-          console.log(`❌ Neynar API error for ${earner.userAddress}: ${userResponse.status}`);
         }
         
-        enrichedEarners.push({
+        allEnrichedEarners.push({
           ...earner,
           username: farcasterUser?.username,
           displayName: farcasterUser?.display_name,
@@ -4504,12 +4502,30 @@ app.get('/api/leaderboard', async (req, res) => {
           fid: farcasterUser?.fid
         });
       } catch (error) {
-        console.log(`Could not fetch profile for earner ${earner.userAddress}:`, error.message);
-        enrichedEarners.push({
+        allEnrichedEarners.push({
           ...earner
         });
       }
     }
+    
+    // Separate team FIDs from regular users
+    const regularTippers = allEnrichedTippers.filter(tipper => !tipper.fid || !TEAM_FIDS.includes(tipper.fid));
+    const teamTippers = allEnrichedTippers.filter(tipper => tipper.fid && TEAM_FIDS.includes(tipper.fid));
+    
+    const regularEarners = allEnrichedEarners.filter(earner => !earner.fid || !TEAM_FIDS.includes(earner.fid));
+    const teamEarners = allEnrichedEarners.filter(earner => earner.fid && TEAM_FIDS.includes(earner.fid));
+    
+    // Combine: regular users first, then team FIDs at the end
+    const sortedTippers = [...regularTippers, ...teamTippers];
+    const sortedEarners = [...regularEarners, ...teamEarners];
+    
+    // Get paginated slices from the sorted list
+    const paginatedTippers = sortedTippers.slice(offset, offset + limitNum);
+    const paginatedEarners = sortedEarners.slice(offset, offset + limitNum);
+    
+    // Use sorted lists for enriched results
+    const enrichedTippers = paginatedTippers;
+    const enrichedEarners = paginatedEarners;
     
     // Calculate pagination info
     const totalTippers = topTippers.length;
