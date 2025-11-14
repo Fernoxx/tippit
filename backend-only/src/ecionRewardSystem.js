@@ -1,7 +1,7 @@
 // ECION Token Reward System
 // Rewards tipper and engager based on their ECION token holdings
 
-const ECION_TOKEN_ADDRESS = process.env.ECION_TOKEN_ADDRESS || '0x946a173ad73cbb942b9877e9029fa4c4dc7f2b07'; // Test token
+const ECION_TOKEN_ADDRESS = process.env.ECION_TOKEN_ADDRESS || '0xdcc17f9429f8fd30e31315e1d33e2ef33ae38b07';
 const ECION_TOKEN_DECIMALS = 18; // Assuming 18 decimals
 const BASE_NETWORK = 'base';
 
