@@ -4527,9 +4527,9 @@ app.get('/api/leaderboard', async (req, res) => {
     const enrichedTippers = paginatedTippers;
     const enrichedEarners = paginatedEarners;
     
-    // Calculate pagination info
-    const totalTippers = topTippers.length;
-    const totalEarners = topEarners.length;
+    // Calculate pagination info (use sorted lists which include team FIDs)
+    const totalTippers = sortedTippers.length;
+    const totalEarners = sortedEarners.length;
     const totalPages = Math.ceil(Math.max(totalTippers, totalEarners) / limitNum);
     const hasMore = pageNum < totalPages;
     
