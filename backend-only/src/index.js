@@ -4416,31 +4416,37 @@ app.get('/api/leaderboard', async (req, res) => {
     
     const offset = (pageNum - 1) * limitNum;
     
-    // Team FIDs to show at the end of leaderboard
+    // Team FIDs to exclude from leaderboard (but still visible in "you" section)
     const TEAM_FIDS = [1351395, 242597];
+    
+    // Get user addresses for team FIDs to filter them out early
+    const teamAddressesResult = await database.pool.query(`
+      SELECT LOWER(user_address) as user_address 
+      FROM user_profiles 
+      WHERE fid = ANY($1::bigint[])
+    `, [TEAM_FIDS]);
+    
+    const teamAddresses = new Set(teamAddressesResult.rows.map(row => row.user_address));
+    console.log(`🚫 Filtering out ${teamAddresses.size} team addresses from leaderboard`);
     
     // Get top tippers and earners with amounts
     const topTippers = await database.getTopTippers(timeFilter);
     const topEarners = await database.getTopEarners(timeFilter);
     
-    console.log(`📊 Raw topTippers count: ${topTippers.length}`);
-    console.log(`📊 Raw topEarners count: ${topEarners.length}`);
-    if (topTippers.length > 0) {
-      console.log(`📊 First raw tipper:`, topTippers[0]);
-    }
-    if (topEarners.length > 0) {
-      console.log(`📊 First raw earner:`, topEarners[0]);
-    }
+    // Filter out team addresses BEFORE enrichment (much faster!)
+    const filteredTippers = topTippers.filter(tipper => !teamAddresses.has(tipper.userAddress.toLowerCase()));
+    const filteredEarners = topEarners.filter(earner => !teamAddresses.has(earner.userAddress.toLowerCase()));
     
-    // Separate team FIDs from regular users
-    // We'll need to enrich first to get FIDs, then separate
-    // For now, let's get all data and separate after enrichment
-    const allTippers = topTippers;
-    const allEarners = topEarners;
+    console.log(`📊 Filtered tippers: ${filteredTippers.length} (removed ${topTippers.length - filteredTippers.length} team FIDs)`);
+    console.log(`📊 Filtered earners: ${filteredEarners.length} (removed ${topEarners.length - filteredEarners.length} team FIDs)`);
     
-    // Enrich ALL tippers with user profiles and token info (need FIDs to filter)
-    const allEnrichedTippers = [];
-    for (const tipper of allTippers) {
+    // Get paginated slices from filtered lists
+    const paginatedTippers = filteredTippers.slice(offset, offset + limitNum);
+    const paginatedEarners = filteredEarners.slice(offset, offset + limitNum);
+    
+    // Enrich tippers with user profiles and token info
+    const enrichedTippers = [];
+    for (const tipper of paginatedTippers) {
       try {
         // Fetch user profile
         const userResponse = await fetch(
@@ -4459,7 +4465,7 @@ app.get('/api/leaderboard', async (req, res) => {
           farcasterUser = userData[tipper.userAddress]?.[0];
         }
         
-        allEnrichedTippers.push({
+        enrichedTippers.push({
           ...tipper,
           username: farcasterUser?.username,
           displayName: farcasterUser?.display_name,
@@ -4467,15 +4473,15 @@ app.get('/api/leaderboard', async (req, res) => {
           fid: farcasterUser?.fid
         });
       } catch (error) {
-        allEnrichedTippers.push({
+        enrichedTippers.push({
           ...tipper
         });
       }
     }
     
-    // Enrich ALL earners with user profiles and token info (need FIDs to filter)
-    const allEnrichedEarners = [];
-    for (const earner of allEarners) {
+    // Enrich earners with user profiles and token info
+    const enrichedEarners = [];
+    for (const earner of paginatedEarners) {
       try {
         // Fetch user profile
         const userResponse = await fetch(
@@ -4494,7 +4500,7 @@ app.get('/api/leaderboard', async (req, res) => {
           farcasterUser = userData[earner.userAddress]?.[0];
         }
         
-        allEnrichedEarners.push({
+        enrichedEarners.push({
           ...earner,
           username: farcasterUser?.username,
           displayName: farcasterUser?.display_name,
@@ -4502,34 +4508,15 @@ app.get('/api/leaderboard', async (req, res) => {
           fid: farcasterUser?.fid
         });
       } catch (error) {
-        allEnrichedEarners.push({
+        enrichedEarners.push({
           ...earner
         });
       }
     }
     
-    // Separate team FIDs from regular users
-    const regularTippers = allEnrichedTippers.filter(tipper => !tipper.fid || !TEAM_FIDS.includes(tipper.fid));
-    const teamTippers = allEnrichedTippers.filter(tipper => tipper.fid && TEAM_FIDS.includes(tipper.fid));
-    
-    const regularEarners = allEnrichedEarners.filter(earner => !earner.fid || !TEAM_FIDS.includes(earner.fid));
-    const teamEarners = allEnrichedEarners.filter(earner => earner.fid && TEAM_FIDS.includes(earner.fid));
-    
-    // Combine: regular users first, then team FIDs at the end
-    const sortedTippers = [...regularTippers, ...teamTippers];
-    const sortedEarners = [...regularEarners, ...teamEarners];
-    
-    // Get paginated slices from the sorted list
-    const paginatedTippers = sortedTippers.slice(offset, offset + limitNum);
-    const paginatedEarners = sortedEarners.slice(offset, offset + limitNum);
-    
-    // Use sorted lists for enriched results
-    const enrichedTippers = paginatedTippers;
-    const enrichedEarners = paginatedEarners;
-    
-    // Calculate pagination info (use sorted lists which include team FIDs)
-    const totalTippers = sortedTippers.length;
-    const totalEarners = sortedEarners.length;
+    // Calculate pagination info (use filtered lists)
+    const totalTippers = filteredTippers.length;
+    const totalEarners = filteredEarners.length;
     const totalPages = Math.ceil(Math.max(totalTippers, totalEarners) / limitNum);
     const hasMore = pageNum < totalPages;
     
@@ -4548,11 +4535,12 @@ app.get('/api/leaderboard', async (req, res) => {
           const userAddress = userResult.rows[0].user_address;
           console.log(`🔍 User address: ${userAddress}`);
           
-          // Find user in sorted tippers and earners data (includes team FIDs at end)
-          const userAsTipper = sortedTippers.find(tipper => 
+          // Find user in original data (includes team FIDs for "you" section stats)
+          // Use original topTippers/topEarners so team FIDs can see their stats
+          const userAsTipper = topTippers.find(tipper => 
             tipper.userAddress.toLowerCase() === userAddress.toLowerCase()
           );
-          const userAsEarner = sortedEarners.find(earner => 
+          const userAsEarner = topEarners.find(earner => 
             earner.userAddress.toLowerCase() === userAddress.toLowerCase()
           );
           
