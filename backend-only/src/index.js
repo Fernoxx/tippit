@@ -4548,11 +4548,11 @@ app.get('/api/leaderboard', async (req, res) => {
           const userAddress = userResult.rows[0].user_address;
           console.log(`🔍 User address: ${userAddress}`);
           
-          // Find user in tippers and earners data
-          const userAsTipper = topTippers.find(tipper => 
+          // Find user in sorted tippers and earners data (includes team FIDs at end)
+          const userAsTipper = sortedTippers.find(tipper => 
             tipper.userAddress.toLowerCase() === userAddress.toLowerCase()
           );
-          const userAsEarner = topEarners.find(earner => 
+          const userAsEarner = sortedEarners.find(earner => 
             earner.userAddress.toLowerCase() === userAddress.toLowerCase()
           );
           
