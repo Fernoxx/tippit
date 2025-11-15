@@ -118,8 +118,8 @@ function calculateRewardMultiplier(balance) {
   // Round down to nearest million
   const millionsHeld = Math.floor(balanceInMillions);
   
-  // Base reward per million: 10 ECION tokens
-  return millionsHeld * 10;
+  // Base reward per million: 100 ECION tokens
+  return millionsHeld * 100;
 }
 
 /**
