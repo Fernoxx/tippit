@@ -1597,7 +1597,18 @@ app.get('/api/daily-checkin/status', async (req, res) => {
   }
 });
 
-// Process daily check-in
+// Daily reward amounts (in ECION tokens)
+const DAILY_REWARDS = {
+  1: '69',
+  2: '1000',
+  3: '5000',
+  4: '10000',
+  5: '20000',
+  6: '30000',
+  7: '100000'
+};
+
+// Process daily check-in (just records the check-in, doesn't claim reward)
 app.post('/api/daily-checkin/checkin', async (req, res) => {
   try {
     const userAddress = req.body.address || req.headers['x-user-address'];
@@ -1609,12 +1620,12 @@ app.post('/api/daily-checkin/checkin', async (req, res) => {
       });
     }
     
-    // Verify FID exists via Neynar (critical check)
+    // Verify FID exists via Neynar (critical security check)
     const userData = await getUserDataByAddress(userAddress);
     if (!userData || !userData.fid) {
       return res.status(404).json({ 
         success: false, 
-        error: 'FID not found for this address. Please ensure your Farcaster account is connected.' 
+        error: 'FID not found for this address. Only verified Farcaster users can check in. Please ensure your Farcaster account is connected.' 
       });
     }
     
@@ -1625,70 +1636,139 @@ app.post('/api/daily-checkin/checkin', async (req, res) => {
       return res.json({
         success: false,
         alreadyCheckedIn: result.alreadyCheckedIn,
-        streak: result.streak
+        streak: result.streak,
+        rewardClaimed: result.rewardClaimed
       });
-    }
-    
-    // Handle 7th day reward
-    let rewardGiven = false;
-    let rewardDetails = null;
-    
-    if (result.isSeventhDay) {
-      try {
-        // Get provider and wallet for transfers
-        const { getProvider } = require('./rpcProvider');
-        const { ethers } = require('ethers');
-        const provider = await getProvider();
-        const wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY, provider);
-        
-        // Transfer 100000 ECION tokens (18 decimals)
-        const ecionAmount = ethers.parseUnits('100000', 18);
-        const ecionTokenContract = new ethers.Contract(
-          ECION_TOKEN_ADDRESS,
-          ['function transfer(address to, uint256 amount) returns (bool)'],
-          wallet
-        );
-        
-        const ecionTx = await ecionTokenContract.transfer(userAddress, ecionAmount);
-        await ecionTx.wait();
-        console.log(`✅ Transferred 100000 ECION tokens to ${userAddress}`);
-        
-        // Transfer random 0.3-1 USDC (6 decimals)
-        const randomUsdcAmount = (Math.random() * 0.7 + 0.3).toFixed(6); // 0.3 to 1.0
-        const usdcAmount = ethers.parseUnits(randomUsdcAmount, 6);
-        const usdcTokenContract = new ethers.Contract(
-          BASE_USDC_ADDRESS,
-          ['function transfer(address to, uint256 amount) returns (bool)'],
-          wallet
-        );
-        
-        const usdcTx = await usdcTokenContract.transfer(userAddress, usdcAmount);
-        await usdcTx.wait();
-        console.log(`✅ Transferred ${randomUsdcAmount} USDC to ${userAddress}`);
-        
-        rewardGiven = true;
-        rewardDetails = {
-          ecionTokens: '100000',
-          usdcAmount: randomUsdcAmount
-        };
-      } catch (rewardError) {
-        console.error('❌ Error giving 7th day reward:', rewardError);
-        // Don't fail the check-in if reward fails, just log it
-      }
     }
     
     res.json({
       success: true,
       streak: result.streak,
-      isSeventhDay: result.isSeventhDay,
-      rewardGiven: rewardGiven,
-      rewardDetails: rewardDetails
+      dayNumber: result.dayNumber,
+      rewardAmount: DAILY_REWARDS[result.dayNumber] || '0'
     });
   } catch (error) {
     console.error('Error processing daily check-in:', error);
     res.status(500).json({ 
       success: false, 
       error: 'Failed to process check-in' 
+    });
+  }
+});
+
+// Claim daily reward (separate endpoint for claiming)
+app.post('/api/daily-checkin/claim', async (req, res) => {
+  try {
+    const userAddress = req.body.address || req.headers['x-user-address'];
+    const dayNumber = parseInt(req.body.dayNumber, 10);
+    
+    if (!userAddress) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'User address is required' 
+      });
+    }
+    
+    if (!dayNumber || dayNumber < 1 || dayNumber > 7) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Valid day number (1-7) is required' 
+      });
+    }
+    
+    // CRITICAL SECURITY CHECK: Verify FID exists via Neynar
+    // This ensures only verified Farcaster users can claim rewards
+    const userData = await getUserDataByAddress(userAddress);
+    if (!userData || !userData.fid) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Access denied. Only verified Farcaster users can claim rewards. Your address must be linked to a Farcaster FID via Neynar API.' 
+      });
+    }
+    
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Check if user has checked in today and has the correct streak
+    const checkinResult = await database.pool.query(
+      'SELECT * FROM daily_checkins WHERE fid = $1 AND checkin_date = $2',
+      [userData.fid, today]
+    );
+    
+    if (checkinResult.rows.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'You must check in first before claiming a reward' 
+      });
+    }
+    
+    const checkin = checkinResult.rows[0];
+    
+    // Verify the day number matches the streak
+    if (checkin.streak_count !== dayNumber) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Day number mismatch. Your current streak is ${checkin.streak_count}, not ${dayNumber}` 
+      });
+    }
+    
+    // Check if reward already claimed
+    if (checkin.reward_claimed) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Reward for this day has already been claimed',
+        alreadyClaimed: true
+      });
+    }
+    
+    // Get reward amount for this day
+    const rewardAmount = DAILY_REWARDS[dayNumber];
+    if (!rewardAmount) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid day number' 
+      });
+    }
+    
+    try {
+      // Get provider and wallet for transfers
+      const { getProvider } = require('./rpcProvider');
+      const { ethers } = require('ethers');
+      const provider = await getProvider();
+      const wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY, provider);
+      
+      // Transfer ECION tokens (18 decimals)
+      const ecionAmount = ethers.parseUnits(rewardAmount, 18);
+      const ecionTokenContract = new ethers.Contract(
+        ECION_TOKEN_ADDRESS,
+        ['function transfer(address to, uint256 amount) returns (bool)'],
+        wallet
+      );
+      
+      const ecionTx = await ecionTokenContract.transfer(userAddress, ecionAmount);
+      await ecionTx.wait();
+      console.log(`✅ Transferred ${rewardAmount} ECION tokens to ${userAddress} (Day ${dayNumber}, FID: ${userData.fid})`);
+      
+      // Mark reward as claimed in database
+      await database.markRewardClaimed(userData.fid, today, rewardAmount);
+      
+      res.json({
+        success: true,
+        dayNumber: dayNumber,
+        rewardAmount: rewardAmount,
+        transactionHash: ecionTx.hash
+      });
+    } catch (transferError) {
+      console.error('❌ Error transferring reward:', transferError);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Failed to transfer reward. Please try again.' 
+      });
+    }
+  } catch (error) {
+    console.error('Error claiming daily reward:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to claim reward' 
     });
   }
 });

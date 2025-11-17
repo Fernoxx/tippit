@@ -117,7 +117,19 @@ interface CheckinStatus {
   lastCheckinDate: string | null;
   currentDayUTC: string;
   fid?: number;
+  rewardClaimed?: boolean;
+  claimedDays?: number[];
 }
+
+const DAILY_REWARDS = {
+  1: '69',
+  2: '1000',
+  3: '5000',
+  4: '10000',
+  5: '20000',
+  6: '30000',
+  7: '100000'
+};
 
 export default function Admin() {
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -297,12 +309,7 @@ export default function Admin() {
       if (data.success) {
         // Refresh status after check-in
         await fetchCheckinStatus();
-        
-        if (data.isSeventhDay && data.rewardGiven) {
-          alert(`🎉 Congratulations! You've completed 7 days! You received ${data.rewardDetails.ecionTokens} ECION tokens and ${data.rewardDetails.usdcAmount} USDC!`);
-        } else {
-          alert(`✅ Check-in successful! Your streak is now ${data.streak} days.`);
-        }
+        alert(`✅ Check-in successful! Your streak is now ${data.streak} days. You can now claim your Day ${data.dayNumber} reward!`);
       } else {
         if (data.alreadyCheckedIn) {
           setCheckinError('You have already checked in today');
@@ -313,6 +320,50 @@ export default function Admin() {
     } catch (err: any) {
       console.error('Error checking in:', err);
       setCheckinError(err.message || 'Failed to check in');
+    } finally {
+      setCheckinLoading(false);
+    }
+  };
+
+  // Handle claiming reward for a specific day
+  const handleClaimReward = async (dayNumber: number) => {
+    if (!address || !isConnected) {
+      setCheckinError('Please connect your wallet first');
+      return;
+    }
+
+    if (!checkinStatus || checkinStatus.streak < dayNumber) {
+      setCheckinError(`You need to check in for ${dayNumber} days to claim this reward`);
+      return;
+    }
+
+    try {
+      setCheckinLoading(true);
+      setCheckinError(null);
+      const response = await fetch(`${BACKEND_URL}/api/daily-checkin/claim`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ address, dayNumber }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Refresh status after claiming
+        await fetchCheckinStatus();
+        alert(`🎉 Success! You received ${data.rewardAmount} ECION tokens!`);
+      } else {
+        if (data.alreadyClaimed) {
+          setCheckinError('This reward has already been claimed');
+        } else {
+          setCheckinError(data.error || 'Failed to claim reward');
+        }
+      }
+    } catch (err: any) {
+      console.error('Error claiming reward:', err);
+      setCheckinError(err.message || 'Failed to claim reward');
     } finally {
       setCheckinLoading(false);
     }
@@ -429,10 +480,79 @@ export default function Admin() {
                         )}
                       </div>
                       
+                      {/* 7 Gift Boxes */}
+                      <div className="grid grid-cols-7 gap-2">
+                        {[1, 2, 3, 4, 5, 6, 7].map((day) => {
+                          const isUnlocked = checkinStatus.streak >= day;
+                          const isClaimed = checkinStatus.claimedDays?.includes(day) || false;
+                          const canClaim = checkinStatus.checkedInToday && checkinStatus.streak === day && !isClaimed;
+                          
+                          return (
+                            <div
+                              key={day}
+                              className={`relative flex flex-col items-center p-2 rounded-lg border-2 transition-all ${
+                                isClaimed
+                                  ? 'bg-yellow-200 border-yellow-400'
+                                  : canClaim
+                                  ? 'bg-yellow-100 border-yellow-500 hover:border-yellow-600 cursor-pointer'
+                                  : isUnlocked
+                                  ? 'bg-gray-100 border-gray-300 opacity-60'
+                                  : 'bg-gray-50 border-gray-200 opacity-40'
+                              }`}
+                              onClick={canClaim ? () => handleClaimReward(day) : undefined}
+                            >
+                              {/* Gift Box Icon */}
+                              <div className={`w-10 h-10 flex items-center justify-center mb-1 ${
+                                isClaimed ? 'text-yellow-700' : canClaim ? 'text-yellow-600' : 'text-gray-400'
+                              }`}>
+                                {isClaimed ? (
+                                  <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M20 6h-2.18c.11-.31.18-.65.18-1a2.996 2.996 0 0 0-5.5-1.65l-.5.67-.5-.68C10.96 2.54 10 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/>
+                                  </svg>
+                                ) : (
+                                  <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M20 6h-2.18c.11-.31.18-.65.18-1a2.996 2.996 0 0 0-5.5-1.65l-.5.67-.5-.68C10.96 2.54 10 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/>
+                                  </svg>
+                                )}
+                              </div>
+                              
+                              {/* Day Number */}
+                              <span className={`text-xs font-semibold mb-1 ${
+                                isClaimed ? 'text-yellow-800' : canClaim ? 'text-yellow-700' : 'text-gray-500'
+                              }`}>
+                                Day {day}
+                              </span>
+                              
+                              {/* Reward Amount */}
+                              <span className={`text-xs font-bold ${
+                                isClaimed ? 'text-yellow-800' : canClaim ? 'text-yellow-700' : 'text-gray-400'
+                              }`}>
+                                {DAILY_REWARDS[day as keyof typeof DAILY_REWARDS]}
+                              </span>
+                              
+                              {/* Status Badge */}
+                              {isClaimed && (
+                                <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+                                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                </div>
+                              )}
+                              
+                              {canClaim && (
+                                <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 rounded-full animate-pulse"></div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      
                       {checkinStatus.checkedInToday ? (
-                        <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
-                          <p className="text-green-800 font-medium">✅ You've already checked in today!</p>
-                          <p className="text-sm text-green-600 mt-1">Come back tomorrow to continue your streak</p>
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+                          <p className="text-green-800 font-medium text-sm">✅ Checked in today!</p>
+                          {checkinStatus.streak < 7 && (
+                            <p className="text-xs text-green-600 mt-1">Come back tomorrow to continue your streak</p>
+                          )}
                         </div>
                       ) : (
                         <button
@@ -442,12 +562,6 @@ export default function Admin() {
                         >
                           {checkinLoading ? 'Processing...' : 'Check In Now'}
                         </button>
-                      )}
-                      
-                      {checkinStatus.streak === 6 && (
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-center">
-                          <p className="text-sm text-yellow-800 font-medium">🔥 One more day to get your 7-day reward!</p>
-                        </div>
                       )}
                       
                       {checkinError && (

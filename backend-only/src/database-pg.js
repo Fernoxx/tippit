@@ -219,6 +219,8 @@ class PostgresDatabase {
           user_address TEXT NOT NULL,
           checkin_date DATE NOT NULL,
           streak_count INTEGER DEFAULT 1,
+          reward_claimed BOOLEAN DEFAULT false,
+          reward_amount TEXT,
           created_at TIMESTAMP DEFAULT NOW(),
           UNIQUE(fid, checkin_date)
         )
@@ -227,6 +229,17 @@ class PostgresDatabase {
       await this.pool.query(`
         CREATE INDEX IF NOT EXISTS idx_daily_checkins_fid_date
         ON daily_checkins (fid, checkin_date DESC)
+      `);
+      
+      // Add reward_claimed and reward_amount columns if they don't exist (for existing tables)
+      await this.pool.query(`
+        ALTER TABLE daily_checkins 
+        ADD COLUMN IF NOT EXISTS reward_claimed BOOLEAN DEFAULT false
+      `);
+      
+      await this.pool.query(`
+        ALTER TABLE daily_checkins 
+        ADD COLUMN IF NOT EXISTS reward_amount TEXT
       `);
       
       console.log('✅ Database tables initialized');
@@ -1404,10 +1417,12 @@ class PostgresDatabase {
       
       let streak = 0;
       let lastCheckinDate = null;
+      let rewardClaimed = false;
       
       if (lastCheckin.rows.length > 0) {
         lastCheckinDate = lastCheckin.rows[0].checkin_date;
         streak = lastCheckin.rows[0].streak_count || 0;
+        rewardClaimed = lastCheckin.rows[0].reward_claimed || false;
         
         // Check if streak is broken (last check-in was not yesterday)
         const yesterday = new Date();
@@ -1420,11 +1435,17 @@ class PostgresDatabase {
         }
       }
       
+      // Get all claimed rewards to show which boxes are claimed
+      const claimedRewards = await this.getClaimedRewards(fid);
+      const claimedDays = new Set(claimedRewards.map(r => r.streak_count));
+      
       return {
         checkedInToday: todayCheckin.rows.length > 0,
         streak: streak,
         lastCheckinDate: lastCheckinDate,
-        currentDayUTC: today
+        currentDayUTC: today,
+        rewardClaimed: rewardClaimed,
+        claimedDays: Array.from(claimedDays)
       };
     } catch (error) {
       console.error('❌ Error getting daily check-in status:', error);
@@ -1432,7 +1453,9 @@ class PostgresDatabase {
         checkedInToday: false,
         streak: 0,
         lastCheckinDate: null,
-        currentDayUTC: new Date().toISOString().split('T')[0]
+        currentDayUTC: new Date().toISOString().split('T')[0],
+        rewardClaimed: false,
+        claimedDays: []
       };
     }
   }
@@ -1451,7 +1474,8 @@ class PostgresDatabase {
         return {
           success: false,
           alreadyCheckedIn: true,
-          streak: existing.rows[0].streak_count
+          streak: existing.rows[0].streak_count,
+          rewardClaimed: existing.rows[0].reward_claimed || false
         };
       }
       
@@ -1481,20 +1505,46 @@ class PostgresDatabase {
         // Otherwise, streak resets to 1
       }
       
-      // Insert new check-in
+      // Insert new check-in (reward not claimed yet)
       await this.pool.query(
-        'INSERT INTO daily_checkins (fid, user_address, checkin_date, streak_count) VALUES ($1, $2, $3, $4)',
+        'INSERT INTO daily_checkins (fid, user_address, checkin_date, streak_count, reward_claimed) VALUES ($1, $2, $3, $4, false)',
         [fid, userAddress, today, newStreak]
       );
       
       return {
         success: true,
         streak: newStreak,
-        isSeventhDay: newStreak === 7
+        dayNumber: newStreak
       };
     } catch (error) {
       console.error('❌ Error processing daily check-in:', error);
       throw error;
+    }
+  }
+
+  async markRewardClaimed(fid, checkinDate, rewardAmount) {
+    try {
+      await this.pool.query(
+        'UPDATE daily_checkins SET reward_claimed = true, reward_amount = $3 WHERE fid = $1 AND checkin_date = $2',
+        [fid, checkinDate, rewardAmount]
+      );
+      return true;
+    } catch (error) {
+      console.error('❌ Error marking reward as claimed:', error);
+      return false;
+    }
+  }
+
+  async getClaimedRewards(fid) {
+    try {
+      const result = await this.pool.query(
+        'SELECT checkin_date, reward_amount, streak_count FROM daily_checkins WHERE fid = $1 AND reward_claimed = true ORDER BY checkin_date DESC',
+        [fid]
+      );
+      return result.rows;
+    } catch (error) {
+      console.error('❌ Error getting claimed rewards:', error);
+      return [];
     }
   }
 }
