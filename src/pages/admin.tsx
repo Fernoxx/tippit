@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useFarcasterWallet } from '@/hooks/useFarcasterWallet';
-import { Calendar, X } from 'lucide-react';
+import { Calendar } from 'lucide-react';
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001').replace(/\/$/, '');
 
@@ -286,86 +286,98 @@ export default function Admin() {
     }
   };
 
-  // Handle daily check-in
-  const handleDailyCheckin = async () => {
+  // Handle box click - combines check-in and claim
+  const handleBoxClick = async (dayNumber: number) => {
     if (!address || !isConnected) {
       setCheckinError('Please connect your wallet first');
       return;
     }
 
-    try {
-      setCheckinLoading(true);
-      setCheckinError(null);
-      const response = await fetch(`${BACKEND_URL}/api/daily-checkin/checkin`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ address }),
-      });
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        // Refresh status after check-in
-        await fetchCheckinStatus();
-        alert(`✅ Check-in successful! Your streak is now ${data.streak} days. You can now claim your Day ${data.dayNumber} reward!`);
-      } else {
-        if (data.alreadyCheckedIn) {
-          setCheckinError('You have already checked in today');
-        } else {
-          setCheckinError(data.error || 'Failed to check in');
-        }
+    // Only allow clicking current day's box
+    if (!checkinStatus || checkinStatus.streak !== dayNumber) {
+      return;
+    }
+
+    // If already checked in today, just claim
+    if (checkinStatus.checkedInToday) {
+      // Check if already claimed
+      if (checkinStatus.claimedDays?.includes(dayNumber)) {
+        setCheckinError('Reward already claimed today');
+        return;
       }
-    } catch (err: any) {
-      console.error('Error checking in:', err);
-      setCheckinError(err.message || 'Failed to check in');
-    } finally {
-      setCheckinLoading(false);
-    }
-  };
 
-  // Handle claiming reward for a specific day
-  const handleClaimReward = async (dayNumber: number) => {
-    if (!address || !isConnected) {
-      setCheckinError('Please connect your wallet first');
-      return;
-    }
-
-    if (!checkinStatus || checkinStatus.streak < dayNumber) {
-      setCheckinError(`You need to check in for ${dayNumber} days to claim this reward`);
-      return;
-    }
-
-    try {
-      setCheckinLoading(true);
-      setCheckinError(null);
-      const response = await fetch(`${BACKEND_URL}/api/daily-checkin/claim`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ address, dayNumber }),
-      });
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        // Refresh status after claiming
-        await fetchCheckinStatus();
-        alert(`🎉 Success! You received ${data.rewardAmount} ECION tokens!`);
-      } else {
-        if (data.alreadyClaimed) {
-          setCheckinError('This reward has already been claimed');
+      // Claim reward
+      try {
+        setCheckinLoading(true);
+        setCheckinError(null);
+        const response = await fetch(`${BACKEND_URL}/api/daily-checkin/claim`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ address, dayNumber }),
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          await fetchCheckinStatus();
+          alert(`🎉 Success! You received ${data.rewardAmount} ECION tokens!`);
         } else {
           setCheckinError(data.error || 'Failed to claim reward');
         }
+      } catch (err: any) {
+        console.error('Error claiming reward:', err);
+        setCheckinError(err.message || 'Failed to claim reward');
+      } finally {
+        setCheckinLoading(false);
       }
-    } catch (err: any) {
-      console.error('Error claiming reward:', err);
-      setCheckinError(err.message || 'Failed to claim reward');
-    } finally {
-      setCheckinLoading(false);
+    } else {
+      // Check in first, then claim
+      try {
+        setCheckinLoading(true);
+        setCheckinError(null);
+        
+        // Step 1: Check in
+        const checkinResponse = await fetch(`${BACKEND_URL}/api/daily-checkin/checkin`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ address }),
+        });
+        
+        const checkinData = await checkinResponse.json();
+        
+        if (!checkinData.success) {
+          setCheckinError(checkinData.error || 'Failed to check in');
+          return;
+        }
+
+        // Step 2: Claim reward
+        const claimResponse = await fetch(`${BACKEND_URL}/api/daily-checkin/claim`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ address, dayNumber: checkinData.dayNumber }),
+        });
+        
+        const claimData = await claimResponse.json();
+        
+        if (claimData.success) {
+          await fetchCheckinStatus();
+          alert(`🎉 Check-in successful! You received ${claimData.rewardAmount} ECION tokens!`);
+        } else {
+          await fetchCheckinStatus();
+          setCheckinError(claimData.error || 'Check-in successful but failed to claim reward');
+        }
+      } catch (err: any) {
+        console.error('Error:', err);
+        setCheckinError(err.message || 'Failed to process');
+      } finally {
+        setCheckinLoading(false);
+      }
     }
   };
 
@@ -430,161 +442,18 @@ export default function Admin() {
       <div className="max-w-6xl mx-auto px-4">
         <div className="text-center mb-8 relative">
           <button
-            onClick={() => setShowDailyCheckin(!showDailyCheckin)}
-            className="absolute top-0 right-0 bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-medium py-2 px-4 rounded-lg transition-colors flex items-center space-x-2"
+            onClick={() => {
+              if (!showDailyCheckin && isConnected && address) {
+                fetchCheckinStatus();
+              }
+              setShowDailyCheckin(!showDailyCheckin);
+            }}
+            className="absolute top-0 right-0 bg-yellow-400 hover:bg-yellow-500 text-gray-900 text-xs font-medium py-1.5 px-3 rounded-md transition-colors flex items-center space-x-1.5 shadow-sm"
             title="Daily Check-in"
           >
-            <Calendar size={18} />
+            <Calendar size={14} />
             <span>Daily Check-in</span>
           </button>
-          
-          {showDailyCheckin && (
-            <div className="absolute top-12 right-0 w-96 bg-white border border-gray-200 rounded-lg shadow-xl p-6 z-50 text-left">
-              <div className="flex justify-between items-start mb-4">
-                <h3 className="font-semibold text-gray-900 text-lg">Daily Check-in</h3>
-                <button
-                  onClick={() => setShowDailyCheckin(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-              
-              {!isConnected ? (
-                <div className="text-center py-4">
-                  <p className="text-gray-600 mb-4">Please connect your wallet to check in</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {checkinLoading && !checkinStatus ? (
-                    <div className="text-center py-4">
-                      <div className="animate-spin rounded-full h-8 w-8 border-4 border-yellow-400 border-t-transparent mx-auto mb-2"></div>
-                      <p className="text-sm text-gray-600">Loading...</p>
-                    </div>
-                  ) : checkinStatus ? (
-                    <>
-                      <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium text-gray-600">Current Day (UTC):</span>
-                          <span className="text-sm font-semibold text-gray-900">{checkinStatus.currentDayUTC}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium text-gray-600">Streak:</span>
-                          <span className="text-sm font-semibold text-yellow-600">{checkinStatus.streak} days</span>
-                        </div>
-                        {checkinStatus.fid && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm font-medium text-gray-600">FID:</span>
-                            <span className="text-sm font-semibold text-gray-900">{checkinStatus.fid}</span>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* 7 Gift Boxes */}
-                      <div className="grid grid-cols-7 gap-2">
-                        {[1, 2, 3, 4, 5, 6, 7].map((day) => {
-                          const isUnlocked = checkinStatus.streak >= day;
-                          const isClaimed = checkinStatus.claimedDays?.includes(day) || false;
-                          const canClaim = checkinStatus.checkedInToday && checkinStatus.streak === day && !isClaimed;
-                          
-                          return (
-                            <div
-                              key={day}
-                              className={`relative flex flex-col items-center p-2 rounded-lg border-2 transition-all ${
-                                isClaimed
-                                  ? 'bg-yellow-200 border-yellow-400'
-                                  : canClaim
-                                  ? 'bg-yellow-100 border-yellow-500 hover:border-yellow-600 cursor-pointer'
-                                  : isUnlocked
-                                  ? 'bg-gray-100 border-gray-300 opacity-60'
-                                  : 'bg-gray-50 border-gray-200 opacity-40'
-                              }`}
-                              onClick={canClaim ? () => handleClaimReward(day) : undefined}
-                            >
-                              {/* Gift Box Icon */}
-                              <div className={`w-10 h-10 flex items-center justify-center mb-1 ${
-                                isClaimed ? 'text-yellow-700' : canClaim ? 'text-yellow-600' : 'text-gray-400'
-                              }`}>
-                                {isClaimed ? (
-                                  <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M20 6h-2.18c.11-.31.18-.65.18-1a2.996 2.996 0 0 0-5.5-1.65l-.5.67-.5-.68C10.96 2.54 10 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/>
-                                  </svg>
-                                ) : (
-                                  <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M20 6h-2.18c.11-.31.18-.65.18-1a2.996 2.996 0 0 0-5.5-1.65l-.5.67-.5-.68C10.96 2.54 10 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/>
-                                  </svg>
-                                )}
-                              </div>
-                              
-                              {/* Day Number */}
-                              <span className={`text-xs font-semibold mb-1 ${
-                                isClaimed ? 'text-yellow-800' : canClaim ? 'text-yellow-700' : 'text-gray-500'
-                              }`}>
-                                Day {day}
-                              </span>
-                              
-                              {/* Reward Amount */}
-                              <span className={`text-xs font-bold ${
-                                isClaimed ? 'text-yellow-800' : canClaim ? 'text-yellow-700' : 'text-gray-400'
-                              }`}>
-                                {DAILY_REWARDS[day as keyof typeof DAILY_REWARDS]}
-                              </span>
-                              
-                              {/* Status Badge */}
-                              {isClaimed && (
-                                <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
-                                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                  </svg>
-                                </div>
-                              )}
-                              
-                              {canClaim && (
-                                <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 rounded-full animate-pulse"></div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                      
-                      {checkinStatus.checkedInToday ? (
-                        <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
-                          <p className="text-green-800 font-medium text-sm">✅ Checked in today!</p>
-                          {checkinStatus.streak < 7 && (
-                            <p className="text-xs text-green-600 mt-1">Come back tomorrow to continue your streak</p>
-                          )}
-                        </div>
-                      ) : (
-                        <button
-                          onClick={handleDailyCheckin}
-                          disabled={checkinLoading}
-                          className="w-full bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-medium py-3 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {checkinLoading ? 'Processing...' : 'Check In Now'}
-                        </button>
-                      )}
-                      
-                      {checkinError && (
-                        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                          <p className="text-sm text-red-800">{checkinError}</p>
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div className="text-center py-4">
-                      <p className="text-gray-600">Failed to load check-in status</p>
-                      <button
-                        onClick={fetchCheckinStatus}
-                        className="mt-2 text-yellow-600 hover:text-yellow-700 text-sm"
-                      >
-                        Retry
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
           
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
           <p className="text-gray-600">Live tipping statistics for Ecion</p>
@@ -592,6 +461,119 @@ export default function Admin() {
             <p className="text-sm text-gray-500 mt-2">Last updated: {lastUpdated}</p>
           )}
         </div>
+
+        {/* Daily Check-in Boxes - Inline Display */}
+        {showDailyCheckin && (
+          <div className="mb-8 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            {!isConnected ? (
+              <div className="text-center py-4">
+                <p className="text-gray-600">Please connect your wallet to check in</p>
+              </div>
+            ) : (
+              <>
+                {checkinLoading && !checkinStatus ? (
+                  <div className="text-center py-4">
+                    <div className="animate-spin rounded-full h-8 w-8 border-4 border-yellow-400 border-t-transparent mx-auto mb-2"></div>
+                    <p className="text-sm text-gray-600">Loading...</p>
+                  </div>
+                ) : checkinStatus ? (
+                  <>
+                    {/* Streak Count */}
+                    <div className="text-center mb-6">
+                      <p className="text-sm text-gray-600 mb-1">Current Streak</p>
+                      <p className="text-3xl font-bold text-yellow-600">{checkinStatus.streak} days</p>
+                    </div>
+                    
+                    {/* 7 Gift Boxes */}
+                    <div className="grid grid-cols-7 gap-3 max-w-2xl mx-auto">
+                      {[1, 2, 3, 4, 5, 6, 7].map((day) => {
+                        const isCurrentDay = checkinStatus.streak === day;
+                        const isClaimed = checkinStatus.claimedDays?.includes(day) || false;
+                        const isPast = checkinStatus.streak > day;
+                        const isFuture = checkinStatus.streak < day;
+                        const canClick = isCurrentDay && !isClaimed;
+                        
+                        return (
+                          <div
+                            key={day}
+                            className={`relative flex flex-col items-center p-3 rounded-xl border-2 transition-all ${
+                              isClaimed
+                                ? 'bg-gradient-to-br from-yellow-200 to-yellow-300 border-yellow-400 shadow-md'
+                                : isCurrentDay
+                                ? 'bg-gradient-to-br from-yellow-400 to-yellow-500 border-yellow-600 shadow-lg cursor-pointer hover:shadow-xl hover:scale-105 animate-pulse'
+                                : isPast
+                                ? 'bg-gradient-to-br from-gray-100 to-gray-200 border-gray-300 opacity-70'
+                                : 'bg-gray-50 border-gray-200 opacity-40'
+                            }`}
+                            onClick={canClick ? () => handleBoxClick(day) : undefined}
+                          >
+                            {/* Shine effect for current day */}
+                            {isCurrentDay && !isClaimed && (
+                              <div 
+                                className="absolute inset-0 rounded-xl bg-gradient-to-r from-transparent via-white/30 to-transparent"
+                                style={{
+                                  animation: 'shimmer 2s infinite',
+                                  background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)',
+                                  backgroundSize: '200% 100%'
+                                }}
+                              ></div>
+                            )}
+                            
+                            {/* Gift Box Icon */}
+                            <div className={`w-12 h-12 flex items-center justify-center mb-2 relative z-10 ${
+                              isClaimed ? 'text-yellow-800' : isCurrentDay ? 'text-white' : 'text-gray-400'
+                            }`}>
+                              <svg className="w-full h-full" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M20 6h-2.18c.11-.31.18-.65.18-1a2.996 2.996 0 0 0-5.5-1.65l-.5.67-.5-.68C10.96 2.54 10 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/>
+                              </svg>
+                              {isClaimed && (
+                                <div className="absolute -top-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center shadow-md">
+                                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* Day Number */}
+                            <span className={`text-xs font-bold mb-1 ${
+                              isClaimed ? 'text-yellow-900' : isCurrentDay ? 'text-white' : 'text-gray-500'
+                            }`}>
+                              Day {day}
+                            </span>
+                            
+                            {/* Reward Amount */}
+                            <span className={`text-xs font-extrabold ${
+                              isClaimed ? 'text-yellow-900' : isCurrentDay ? 'text-white' : 'text-gray-400'
+                            }`}>
+                              {DAILY_REWARDS[day as keyof typeof DAILY_REWARDS]}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    
+                    {checkinError && (
+                      <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+                        <p className="text-sm text-red-800">{checkinError}</p>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-gray-600">Failed to load check-in status</p>
+                    <button
+                      onClick={fetchCheckinStatus}
+                      className="mt-2 text-yellow-600 hover:text-yellow-700 text-sm"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
 
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6 text-center">
