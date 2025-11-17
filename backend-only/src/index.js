@@ -1553,6 +1553,146 @@ app.get('/api/neynar/user/score/:fid', async (req, res) => {
   }
 });
 
+// ===== DAILY CHECK-IN SYSTEM =====
+
+const { getUserDataByAddress } = require('./neynar');
+const ecionRewardSystem = require('./ecionRewardSystem');
+const ECION_TOKEN_ADDRESS = process.env.ECION_TOKEN_ADDRESS || '0xdcc17f9429f8fd30e31315e1d33e2ef33ae38b07';
+const BASE_USDC_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
+
+// Get daily check-in status
+app.get('/api/daily-checkin/status', async (req, res) => {
+  try {
+    const userAddress = req.query.address || req.headers['x-user-address'];
+    
+    if (!userAddress) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'User address is required' 
+      });
+    }
+    
+    // Verify FID exists via Neynar
+    const userData = await getUserDataByAddress(userAddress);
+    if (!userData || !userData.fid) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'FID not found for this address. Please ensure your Farcaster account is connected.' 
+      });
+    }
+    
+    const status = await database.getDailyCheckinStatus(userData.fid);
+    
+    res.json({
+      success: true,
+      ...status,
+      fid: userData.fid
+    });
+  } catch (error) {
+    console.error('Error getting daily check-in status:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to get check-in status' 
+    });
+  }
+});
+
+// Process daily check-in
+app.post('/api/daily-checkin/checkin', async (req, res) => {
+  try {
+    const userAddress = req.body.address || req.headers['x-user-address'];
+    
+    if (!userAddress) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'User address is required' 
+      });
+    }
+    
+    // Verify FID exists via Neynar (critical check)
+    const userData = await getUserDataByAddress(userAddress);
+    if (!userData || !userData.fid) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'FID not found for this address. Please ensure your Farcaster account is connected.' 
+      });
+    }
+    
+    // Process check-in
+    const result = await database.processDailyCheckin(userData.fid, userAddress);
+    
+    if (!result.success) {
+      return res.json({
+        success: false,
+        alreadyCheckedIn: result.alreadyCheckedIn,
+        streak: result.streak
+      });
+    }
+    
+    // Handle 7th day reward
+    let rewardGiven = false;
+    let rewardDetails = null;
+    
+    if (result.isSeventhDay) {
+      try {
+        // Get provider and wallet for transfers
+        const { getProvider } = require('./rpcProvider');
+        const { ethers } = require('ethers');
+        const provider = await getProvider();
+        const wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY, provider);
+        
+        // Transfer 100000 ECION tokens (18 decimals)
+        const ecionAmount = ethers.parseUnits('100000', 18);
+        const ecionTokenContract = new ethers.Contract(
+          ECION_TOKEN_ADDRESS,
+          ['function transfer(address to, uint256 amount) returns (bool)'],
+          wallet
+        );
+        
+        const ecionTx = await ecionTokenContract.transfer(userAddress, ecionAmount);
+        await ecionTx.wait();
+        console.log(`✅ Transferred 100000 ECION tokens to ${userAddress}`);
+        
+        // Transfer random 0.3-1 USDC (6 decimals)
+        const randomUsdcAmount = (Math.random() * 0.7 + 0.3).toFixed(6); // 0.3 to 1.0
+        const usdcAmount = ethers.parseUnits(randomUsdcAmount, 6);
+        const usdcTokenContract = new ethers.Contract(
+          BASE_USDC_ADDRESS,
+          ['function transfer(address to, uint256 amount) returns (bool)'],
+          wallet
+        );
+        
+        const usdcTx = await usdcTokenContract.transfer(userAddress, usdcAmount);
+        await usdcTx.wait();
+        console.log(`✅ Transferred ${randomUsdcAmount} USDC to ${userAddress}`);
+        
+        rewardGiven = true;
+        rewardDetails = {
+          ecionTokens: '100000',
+          usdcAmount: randomUsdcAmount
+        };
+      } catch (rewardError) {
+        console.error('❌ Error giving 7th day reward:', rewardError);
+        // Don't fail the check-in if reward fails, just log it
+      }
+    }
+    
+    res.json({
+      success: true,
+      streak: result.streak,
+      isSeventhDay: result.isSeventhDay,
+      rewardGiven: rewardGiven,
+      rewardDetails: rewardDetails
+    });
+  } catch (error) {
+    console.error('Error processing daily check-in:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to process check-in' 
+    });
+  }
+});
+
 // ===== DYNAMIC FID MANAGEMENT SYSTEM =====
 
 // Store user address to FID mapping

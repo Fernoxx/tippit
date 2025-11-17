@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { useFarcasterWallet } from '@/hooks/useFarcasterWallet';
+import { Calendar, X } from 'lucide-react';
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001').replace(/\/$/, '');
 
@@ -109,6 +111,14 @@ const timeframeCards: TimeframeCardConfig[] = [
   },
 ];
 
+interface CheckinStatus {
+  checkedInToday: boolean;
+  streak: number;
+  lastCheckinDate: string | null;
+  currentDayUTC: string;
+  fid?: number;
+}
+
 export default function Admin() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -116,6 +126,11 @@ export default function Admin() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
+  const [showDailyCheckin, setShowDailyCheckin] = useState(false);
+  const [checkinStatus, setCheckinStatus] = useState<CheckinStatus | null>(null);
+  const [checkinLoading, setCheckinLoading] = useState(false);
+  const [checkinError, setCheckinError] = useState<string | null>(null);
+  const { address, isConnected, currentUser } = useFarcasterWallet();
 
   // Define fetchAdminData BEFORE it's used in useEffect and handleLogin
   const fetchAdminData = async () => {
@@ -233,6 +248,83 @@ export default function Admin() {
     return new Date(stats.timestamp).toLocaleString();
   }, [stats?.timestamp]);
 
+  // Fetch daily check-in status
+  const fetchCheckinStatus = async () => {
+    if (!address || !isConnected) {
+      setCheckinError('Please connect your wallet first');
+      return;
+    }
+
+    try {
+      setCheckinLoading(true);
+      setCheckinError(null);
+      const response = await fetch(`${BACKEND_URL}/api/daily-checkin/status?address=${address}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setCheckinStatus(data);
+      } else {
+        setCheckinError(data.error || 'Failed to fetch check-in status');
+      }
+    } catch (err: any) {
+      console.error('Error fetching check-in status:', err);
+      setCheckinError(err.message || 'Failed to fetch check-in status');
+    } finally {
+      setCheckinLoading(false);
+    }
+  };
+
+  // Handle daily check-in
+  const handleDailyCheckin = async () => {
+    if (!address || !isConnected) {
+      setCheckinError('Please connect your wallet first');
+      return;
+    }
+
+    try {
+      setCheckinLoading(true);
+      setCheckinError(null);
+      const response = await fetch(`${BACKEND_URL}/api/daily-checkin/checkin`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ address }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Refresh status after check-in
+        await fetchCheckinStatus();
+        
+        if (data.isSeventhDay && data.rewardGiven) {
+          alert(`🎉 Congratulations! You've completed 7 days! You received ${data.rewardDetails.ecionTokens} ECION tokens and ${data.rewardDetails.usdcAmount} USDC!`);
+        } else {
+          alert(`✅ Check-in successful! Your streak is now ${data.streak} days.`);
+        }
+      } else {
+        if (data.alreadyCheckedIn) {
+          setCheckinError('You have already checked in today');
+        } else {
+          setCheckinError(data.error || 'Failed to check in');
+        }
+      }
+    } catch (err: any) {
+      console.error('Error checking in:', err);
+      setCheckinError(err.message || 'Failed to check in');
+    } finally {
+      setCheckinLoading(false);
+    }
+  };
+
+  // Fetch check-in status when modal opens
+  useEffect(() => {
+    if (showDailyCheckin && isConnected && address) {
+      fetchCheckinStatus();
+    }
+  }, [showDailyCheckin, isConnected, address]);
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-yellow-50 flex items-center justify-center">
@@ -285,7 +377,101 @@ export default function Admin() {
   return (
     <div className="min-h-screen bg-yellow-50 py-8">
       <div className="max-w-6xl mx-auto px-4">
-        <div className="text-center mb-8">
+        <div className="text-center mb-8 relative">
+          <button
+            onClick={() => setShowDailyCheckin(!showDailyCheckin)}
+            className="absolute top-0 right-0 bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-medium py-2 px-4 rounded-lg transition-colors flex items-center space-x-2"
+            title="Daily Check-in"
+          >
+            <Calendar size={18} />
+            <span>Daily Check-in</span>
+          </button>
+          
+          {showDailyCheckin && (
+            <div className="absolute top-12 right-0 w-96 bg-white border border-gray-200 rounded-lg shadow-xl p-6 z-50 text-left">
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="font-semibold text-gray-900 text-lg">Daily Check-in</h3>
+                <button
+                  onClick={() => setShowDailyCheckin(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              
+              {!isConnected ? (
+                <div className="text-center py-4">
+                  <p className="text-gray-600 mb-4">Please connect your wallet to check in</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {checkinLoading && !checkinStatus ? (
+                    <div className="text-center py-4">
+                      <div className="animate-spin rounded-full h-8 w-8 border-4 border-yellow-400 border-t-transparent mx-auto mb-2"></div>
+                      <p className="text-sm text-gray-600">Loading...</p>
+                    </div>
+                  ) : checkinStatus ? (
+                    <>
+                      <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-600">Current Day (UTC):</span>
+                          <span className="text-sm font-semibold text-gray-900">{checkinStatus.currentDayUTC}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-600">Streak:</span>
+                          <span className="text-sm font-semibold text-yellow-600">{checkinStatus.streak} days</span>
+                        </div>
+                        {checkinStatus.fid && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium text-gray-600">FID:</span>
+                            <span className="text-sm font-semibold text-gray-900">{checkinStatus.fid}</span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {checkinStatus.checkedInToday ? (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                          <p className="text-green-800 font-medium">✅ You've already checked in today!</p>
+                          <p className="text-sm text-green-600 mt-1">Come back tomorrow to continue your streak</p>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={handleDailyCheckin}
+                          disabled={checkinLoading}
+                          className="w-full bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-medium py-3 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {checkinLoading ? 'Processing...' : 'Check In Now'}
+                        </button>
+                      )}
+                      
+                      {checkinStatus.streak === 6 && (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-center">
+                          <p className="text-sm text-yellow-800 font-medium">🔥 One more day to get your 7-day reward!</p>
+                        </div>
+                      )}
+                      
+                      {checkinError && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                          <p className="text-sm text-red-800">{checkinError}</p>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-center py-4">
+                      <p className="text-gray-600">Failed to load check-in status</p>
+                      <button
+                        onClick={fetchCheckinStatus}
+                        className="mt-2 text-yellow-600 hover:text-yellow-700 text-sm"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
           <p className="text-gray-600">Live tipping statistics for Ecion</p>
           {lastUpdated && (

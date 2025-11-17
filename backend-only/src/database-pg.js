@@ -211,6 +211,24 @@ class PostgresDatabase {
         )
       `);
       
+      // Create daily check-ins table
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS daily_checkins (
+          id SERIAL PRIMARY KEY,
+          fid INTEGER NOT NULL,
+          user_address TEXT NOT NULL,
+          checkin_date DATE NOT NULL,
+          streak_count INTEGER DEFAULT 1,
+          created_at TIMESTAMP DEFAULT NOW(),
+          UNIQUE(fid, checkin_date)
+        )
+      `);
+      
+      await this.pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_daily_checkins_fid_date
+        ON daily_checkins (fid, checkin_date DESC)
+      `);
+      
       console.log('✅ Database tables initialized');
     } catch (error) {
       
@@ -1363,6 +1381,120 @@ class PostgresDatabase {
     } catch (error) {
       console.error('❌ Error fetching active casts:', error.message);
       return { rows: [], total: 0 };
+    }
+  }
+
+  // Daily check-in methods
+  async getDailyCheckinStatus(fid) {
+    try {
+      // Get today's date in UTC
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Check if user checked in today
+      const todayCheckin = await this.pool.query(
+        'SELECT * FROM daily_checkins WHERE fid = $1 AND checkin_date = $2',
+        [fid, today]
+      );
+      
+      // Get the most recent check-in to calculate streak
+      const lastCheckin = await this.pool.query(
+        'SELECT * FROM daily_checkins WHERE fid = $1 ORDER BY checkin_date DESC LIMIT 1',
+        [fid]
+      );
+      
+      let streak = 0;
+      let lastCheckinDate = null;
+      
+      if (lastCheckin.rows.length > 0) {
+        lastCheckinDate = lastCheckin.rows[0].checkin_date;
+        streak = lastCheckin.rows[0].streak_count || 0;
+        
+        // Check if streak is broken (last check-in was not yesterday)
+        const yesterday = new Date();
+        yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+        const yesterdayStr = yesterday.toISOString().split('T')[0];
+        
+        if (lastCheckinDate.toISOString().split('T')[0] !== yesterdayStr && 
+            lastCheckinDate.toISOString().split('T')[0] !== today) {
+          streak = 0; // Streak broken
+        }
+      }
+      
+      return {
+        checkedInToday: todayCheckin.rows.length > 0,
+        streak: streak,
+        lastCheckinDate: lastCheckinDate,
+        currentDayUTC: today
+      };
+    } catch (error) {
+      console.error('❌ Error getting daily check-in status:', error);
+      return {
+        checkedInToday: false,
+        streak: 0,
+        lastCheckinDate: null,
+        currentDayUTC: new Date().toISOString().split('T')[0]
+      };
+    }
+  }
+
+  async processDailyCheckin(fid, userAddress) {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Check if already checked in today
+      const existing = await this.pool.query(
+        'SELECT * FROM daily_checkins WHERE fid = $1 AND checkin_date = $2',
+        [fid, today]
+      );
+      
+      if (existing.rows.length > 0) {
+        return {
+          success: false,
+          alreadyCheckedIn: true,
+          streak: existing.rows[0].streak_count
+        };
+      }
+      
+      // Get last check-in to calculate streak
+      const lastCheckin = await this.pool.query(
+        'SELECT * FROM daily_checkins WHERE fid = $1 ORDER BY checkin_date DESC LIMIT 1',
+        [fid]
+      );
+      
+      let newStreak = 1;
+      
+      if (lastCheckin.rows.length > 0) {
+        const lastDate = new Date(lastCheckin.rows[0].checkin_date);
+        const yesterday = new Date();
+        yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+        yesterday.setUTCHours(0, 0, 0, 0);
+        lastDate.setUTCHours(0, 0, 0, 0);
+        
+        // If last check-in was yesterday, continue streak
+        if (lastDate.getTime() === yesterday.getTime()) {
+          newStreak = (lastCheckin.rows[0].streak_count || 0) + 1;
+        }
+        // If last check-in was today (shouldn't happen but handle it), use existing streak
+        else if (lastDate.toISOString().split('T')[0] === today) {
+          newStreak = lastCheckin.rows[0].streak_count || 1;
+        }
+        // Otherwise, streak resets to 1
+      }
+      
+      // Insert new check-in
+      await this.pool.query(
+        'INSERT INTO daily_checkins (fid, user_address, checkin_date, streak_count) VALUES ($1, $2, $3, $4)',
+        [fid, userAddress, today, newStreak]
+      );
+      
+      return {
+        success: true,
+        streak: newStreak,
+        isSeventhDay: newStreak === 7
+      };
+    } catch (error) {
+      console.error('❌ Error processing daily check-in:', error);
+      throw error;
     }
   }
 }
