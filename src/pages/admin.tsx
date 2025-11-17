@@ -509,14 +509,7 @@ export default function Admin() {
                           >
                             {/* Shine effect for current day */}
                             {isCurrentDay && !isClaimed && (
-                              <div 
-                                className="absolute inset-0 rounded-xl bg-gradient-to-r from-transparent via-white/30 to-transparent"
-                                style={{
-                                  animation: 'shimmer 2s infinite',
-                                  background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)',
-                                  backgroundSize: '200% 100%'
-                                }}
-                              ></div>
+                              <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
                             )}
                             
                             {/* Gift Box Icon */}
