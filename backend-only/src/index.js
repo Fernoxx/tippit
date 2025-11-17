@@ -1558,7 +1558,6 @@ app.get('/api/neynar/user/score/:fid', async (req, res) => {
 const { getUserDataByAddress } = require('./neynar');
 const ecionRewardSystem = require('./ecionRewardSystem');
 const ECION_TOKEN_ADDRESS = process.env.ECION_TOKEN_ADDRESS || '0xdcc17f9429f8fd30e31315e1d33e2ef33ae38b07';
-const BASE_USDC_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
 
 // Get daily check-in status
 app.get('/api/daily-checkin/status', async (req, res) => {
