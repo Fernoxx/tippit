@@ -216,8 +216,10 @@ async function getUserDataByAddress(address) {
     console.log(`📊 Neynar response for ${address}:`, JSON.stringify(data, null, 2));
 
     // Check the correct response structure - it's a bulk response format
-    if (data[address] && data[address].length > 0) {
-      const user = data[address][0];
+    // Neynar returns addresses in lowercase as keys
+    const addressLower = address.toLowerCase();
+    if (data[addressLower] && Array.isArray(data[addressLower]) && data[addressLower].length > 0) {
+      const user = data[addressLower][0];
       return {
         fid: user.fid,
         username: user.username,
