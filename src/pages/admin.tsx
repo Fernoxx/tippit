@@ -461,7 +461,7 @@ export default function Admin() {
                     </div>
                     
                     {/* 7 Gift Boxes */}
-                    <div className="grid grid-cols-7 gap-3 max-w-2xl mx-auto">
+                    <div className="grid grid-cols-7 gap-2 max-w-xl mx-auto">
                       {[1, 2, 3, 4, 5, 6, 7].map((day) => {
                         const isCurrentDay = checkinStatus.streak === day;
                         const isClaimed = checkinStatus.claimedDays?.includes(day) || false;
@@ -472,32 +472,36 @@ export default function Admin() {
                         return (
                           <div
                             key={day}
-                            className={`relative flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${
+                            className={`relative aspect-square flex items-center justify-center rounded-2xl transition-all duration-300 ${
                               isClaimed
-                                ? 'bg-gradient-to-br from-yellow-200 to-yellow-300 border-yellow-400 shadow-md'
+                                ? 'bg-yellow-300/80 border-2 border-yellow-500 shadow-inner'
                                 : isCurrentDay
-                                ? 'bg-gradient-to-br from-yellow-400 to-yellow-500 border-yellow-600 shadow-lg cursor-pointer hover:shadow-xl hover:scale-105 animate-pulse'
+                                ? 'bg-gradient-to-br from-yellow-400 via-yellow-500 to-yellow-600 border-2 border-yellow-700 shadow-2xl cursor-pointer hover:scale-110 hover:shadow-yellow-500/50 animate-pulse'
                                 : isPast
-                                ? 'bg-gradient-to-br from-gray-100 to-gray-200 border-gray-300 opacity-70'
-                                : 'bg-gray-50 border-gray-200 opacity-40'
+                                ? 'bg-gray-200/50 border-2 border-gray-300 opacity-50'
+                                : 'bg-gray-100/30 border-2 border-gray-200 opacity-30'
                             }`}
                             onClick={canClick && !isContractPending && !isConfirming ? () => handleBoxClick(day) : undefined}
                           >
                             {/* Shine effect for current day */}
                             {isCurrentDay && !isClaimed && (
-                              <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+                              <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-transparent via-white/40 to-transparent animate-shimmer"></div>
                             )}
                             
-                            {/* Gift Box Icon */}
-                            <div className={`w-16 h-16 flex items-center justify-center relative z-10 ${
-                              isClaimed ? 'text-yellow-800' : isCurrentDay ? 'text-white' : 'text-gray-400'
-                            }`}>
-                              <svg className="w-full h-full" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M20 6h-2.18c.11-.31.18-.65.18-1a2.996 2.996 0 0 0-5.5-1.65l-.5.67-.5-.68C10.96 2.54 10 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/>
-                              </svg>
+                            {/* Gift Box Icon - Cleaner design */}
+                            <div className={`relative z-10 ${isClaimed ? 'text-yellow-900' : isCurrentDay ? 'text-white drop-shadow-lg' : 'text-gray-400'}`}>
+                              {isClaimed ? (
+                                <svg className="w-12 h-12" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M20 6h-2.18c.11-.31.18-.65.18-1a2.996 2.996 0 0 0-5.5-1.65l-.5.67-.5-.68C10.96 2.54 10 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/>
+                                </svg>
+                              ) : (
+                                <svg className="w-12 h-12" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M20 6h-2.18c.11-.31.18-.65.18-1a2.996 2.996 0 0 0-5.5-1.65l-.5.67-.5-.68C10.96 2.54 10 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/>
+                                </svg>
+                              )}
                               {isClaimed && (
-                                <div className="absolute -top-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center shadow-md">
-                                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <div className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center border-2 border-white shadow-lg">
+                                  <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
                                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                   </svg>
                                 </div>
@@ -506,6 +510,32 @@ export default function Admin() {
                           </div>
                         );
                       })}
+                    </div>
+                    
+                    {/* Reset button for testing */}
+                    <div className="mt-4 text-center">
+                      <button
+                        onClick={async () => {
+                          if (!address) return;
+                          try {
+                            const response = await fetch(`${BACKEND_URL}/api/daily-checkin/reset`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ address }),
+                            });
+                            const data = await response.json();
+                            if (data.success) {
+                              await fetchCheckinStatus();
+                              alert('✅ Daily check-in reset! You can test again.');
+                            }
+                          } catch (err) {
+                            console.error('Reset error:', err);
+                          }
+                        }}
+                        className="text-xs text-gray-500 hover:text-gray-700 underline"
+                      >
+                        Reset (for testing)
+                      </button>
                     </div>
                     
                     {(checkinError || isContractPending || isConfirming) && (
