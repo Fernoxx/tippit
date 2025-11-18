@@ -1772,6 +1772,48 @@ app.post('/api/daily-checkin/claim', async (req, res) => {
   }
 });
 
+// Reset daily check-in (for testing)
+app.post('/api/daily-checkin/reset', async (req, res) => {
+  try {
+    const userAddress = req.body.address || req.headers['x-user-address'];
+    
+    if (!userAddress) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'User address is required' 
+      });
+    }
+    
+    // Verify FID exists via Neynar
+    const userData = await getUserDataByAddress(userAddress);
+    if (!userData || !userData.fid) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'FID not found for this address' 
+      });
+    }
+    
+    // Delete all check-ins for this FID
+    await database.pool.query(
+      'DELETE FROM daily_checkins WHERE fid = $1',
+      [userData.fid]
+    );
+    
+    console.log(`✅ Reset daily check-ins for FID ${userData.fid}`);
+    
+    res.json({
+      success: true,
+      message: 'Daily check-in reset successfully'
+    });
+  } catch (error) {
+    console.error('Error resetting daily check-in:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to reset check-in' 
+    });
+  }
+});
+
 // ===== DYNAMIC FID MANAGEMENT SYSTEM =====
 
 // Store user address to FID mapping
