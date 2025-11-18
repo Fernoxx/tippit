@@ -1943,25 +1943,18 @@ app.post('/api/daily-checkin/signature', async (req, res) => {
     const wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY);
     
     // Create message hash matching contract: keccak256(abi.encodePacked(userAddress, dayNumber, fid, timestamp))
-    // Note: Contract will use block.timestamp, but we use current timestamp for signature
     const timestamp = Math.floor(Date.now() / 1000);
     
-    // Use solidityKeccak256 to match abi.encodePacked
+    // Use solidityPackedKeccak256 to match abi.encodePacked in Solidity
     const messageHash = ethers.solidityPackedKeccak256(
       ['address', 'uint8', 'uint256', 'uint256'],
       [userAddress, dayNumber, userData.fid, timestamp]
     );
     
-    // Create Ethereum signed message hash: keccak256("\x19Ethereum Signed Message:\n32" + messageHash)
-    const ethSignedMessageHash = ethers.keccak256(
-      ethers.concat([
-        ethers.toUtf8Bytes('\x19Ethereum Signed Message:\n32'),
-        ethers.getBytes(messageHash)
-      ])
-    );
-    
-    // Sign the message
-    const signature = await wallet.signMessage(ethers.getBytes(ethSignedMessageHash));
+    // Sign the message hash (ethers signMessage will add Ethereum message prefix automatically)
+    // Contract expects: keccak256("\x19Ethereum Signed Message:\n32" + messageHash)
+    // signMessage does exactly that for 32-byte messages
+    const signature = await wallet.signMessage(ethers.getBytes(messageHash));
     
     res.json({
       success: true,
