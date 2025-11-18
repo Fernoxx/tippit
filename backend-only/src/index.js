@@ -1814,6 +1814,63 @@ app.post('/api/daily-checkin/reset', async (req, res) => {
   }
 });
 
+// Ensure backend wallet has approved contract to spend tokens
+app.post('/api/daily-checkin/approve-contract', async (req, res) => {
+  try {
+    const contractAddress = req.body.contractAddress || process.env.DAILY_CHECKIN_CONTRACT_ADDRESS;
+    
+    if (!contractAddress) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Contract address is required' 
+      });
+    }
+    
+    const { getProvider } = require('./rpcProvider');
+    const { ethers } = require('ethers');
+    const provider = await getProvider();
+    const wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY, provider);
+    
+    // Check current allowance
+    const ecionTokenContract = new ethers.Contract(
+      ECION_TOKEN_ADDRESS,
+      [
+        'function allowance(address owner, address spender) view returns (uint256)',
+        'function approve(address spender, uint256 amount) returns (bool)'
+      ],
+      wallet
+    );
+    
+    const currentAllowance = await ecionTokenContract.allowance(wallet.address, contractAddress);
+    const maxUint256 = ethers.MaxUint256;
+    
+    if (currentAllowance < maxUint256 / 2n) {
+      // Approve contract to spend tokens
+      const approveTx = await ecionTokenContract.approve(contractAddress, maxUint256);
+      await approveTx.wait();
+      console.log(`✅ Approved DailyCheckIn contract to spend tokens`);
+      
+      res.json({
+        success: true,
+        message: 'Contract approved successfully',
+        transactionHash: approveTx.hash
+      });
+    } else {
+      res.json({
+        success: true,
+        message: 'Contract already approved',
+        alreadyApproved: true
+      });
+    }
+  } catch (error) {
+    console.error('Error approving contract:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to approve contract' 
+    });
+  }
+});
+
 // Generate signature for check-in contract verification
 app.post('/api/daily-checkin/signature', async (req, res) => {
   try {
