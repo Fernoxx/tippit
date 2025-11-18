@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useFarcasterWallet } from '@/hooks/useFarcasterWallet';
 import { Calendar } from 'lucide-react';
+import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { parseUnits } from 'viem';
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001').replace(/\/$/, '');
 
@@ -143,6 +145,14 @@ export default function Admin() {
   const [checkinLoading, setCheckinLoading] = useState(false);
   const [checkinError, setCheckinError] = useState<string | null>(null);
   const { address, isConnected, currentUser } = useFarcasterWallet();
+  
+  // Daily check-in contract address (set this when contract is deployed)
+  const DAILY_CHECKIN_CONTRACT = process.env.NEXT_PUBLIC_DAILY_CHECKIN_CONTRACT || '';
+  
+  const { writeContract, data: hash, isPending: isContractPending } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash,
+  });
 
   // Define fetchAdminData BEFORE it's used in useEffect and handleLogin
   const fetchAdminData = async () => {
@@ -286,7 +296,7 @@ export default function Admin() {
     }
   };
 
-  // Handle box click - combines check-in and claim
+  // Handle box click - user signs transaction with contract
   const handleBoxClick = async (dayNumber: number) => {
     if (!address || !isConnected) {
       setCheckinError('Please connect your wallet first');
@@ -298,88 +308,55 @@ export default function Admin() {
       return;
     }
 
-    // If already checked in today, just claim
-    if (checkinStatus.checkedInToday) {
-      // Check if already claimed
-      if (checkinStatus.claimedDays?.includes(dayNumber)) {
-        setCheckinError('Reward already claimed today');
-        return;
-      }
+    // Check if already claimed
+    if (checkinStatus.claimedDays?.includes(dayNumber)) {
+      setCheckinError('Reward already claimed today');
+      return;
+    }
 
-      // Claim reward
-      try {
-        setCheckinLoading(true);
-        setCheckinError(null);
-        const response = await fetch(`${BACKEND_URL}/api/daily-checkin/claim`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ address, dayNumber }),
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-          await fetchCheckinStatus();
-          alert(`🎉 Success! You received ${data.rewardAmount} ECION tokens!`);
-        } else {
-          setCheckinError(data.error || 'Failed to claim reward');
-        }
-      } catch (err: any) {
-        console.error('Error claiming reward:', err);
-        setCheckinError(err.message || 'Failed to claim reward');
-      } finally {
-        setCheckinLoading(false);
-      }
-    } else {
-      // Check in first, then claim
-      try {
-        setCheckinLoading(true);
-        setCheckinError(null);
-        
-        // Step 1: Check in
-        const checkinResponse = await fetch(`${BACKEND_URL}/api/daily-checkin/checkin`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ address }),
-        });
-        
-        const checkinData = await checkinResponse.json();
-        
-        if (!checkinData.success) {
-          setCheckinError(checkinData.error || 'Failed to check in');
-          return;
-        }
+    if (!DAILY_CHECKIN_CONTRACT) {
+      setCheckinError('Contract not configured. Please set NEXT_PUBLIC_DAILY_CHECKIN_CONTRACT');
+      return;
+    }
 
-        // Step 2: Claim reward
-        const claimResponse = await fetch(`${BACKEND_URL}/api/daily-checkin/claim`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ address, dayNumber: checkinData.dayNumber }),
-        });
-        
-        const claimData = await claimResponse.json();
-        
-        if (claimData.success) {
-          await fetchCheckinStatus();
-          alert(`🎉 Check-in successful! You received ${claimData.rewardAmount} ECION tokens!`);
-        } else {
-          await fetchCheckinStatus();
-          setCheckinError(claimData.error || 'Check-in successful but failed to claim reward');
-        }
-      } catch (err: any) {
-        console.error('Error:', err);
-        setCheckinError(err.message || 'Failed to process');
-      } finally {
-        setCheckinLoading(false);
-      }
+    try {
+      setCheckinLoading(true);
+      setCheckinError(null);
+
+      // User signs transaction to claim reward
+      // Contract will verify FID via backend and send tokens
+      writeContract({
+        address: DAILY_CHECKIN_CONTRACT as `0x${string}`,
+        abi: [
+          {
+            name: 'claimDailyReward',
+            type: 'function',
+            stateMutability: 'nonpayable',
+            inputs: [
+              { name: 'dayNumber', type: 'uint8' }
+            ],
+            outputs: []
+          }
+        ],
+        functionName: 'claimDailyReward',
+        args: [dayNumber as any],
+      });
+    } catch (err: any) {
+      console.error('Error initiating claim:', err);
+      setCheckinError(err.message || 'Failed to initiate claim');
+      setCheckinLoading(false);
     }
   };
+
+  // Handle transaction confirmation
+  useEffect(() => {
+    if (isConfirmed && hash) {
+      // Transaction confirmed, refresh status
+      fetchCheckinStatus();
+      setCheckinLoading(false);
+      alert('🎉 Success! Your reward has been claimed!');
+    }
+  }, [isConfirmed, hash]);
 
   // Fetch check-in status when modal opens
   useEffect(() => {
@@ -480,8 +457,7 @@ export default function Admin() {
                   <>
                     {/* Streak Count */}
                     <div className="text-center mb-6">
-                      <p className="text-sm text-gray-600 mb-1">Current Streak</p>
-                      <p className="text-3xl font-bold text-yellow-600">{checkinStatus.streak} days</p>
+                      <p className="text-xs text-gray-500">Streak: <span className="font-bold text-yellow-600">{checkinStatus.streak}</span></p>
                     </div>
                     
                     {/* 7 Gift Boxes */}
@@ -496,7 +472,7 @@ export default function Admin() {
                         return (
                           <div
                             key={day}
-                            className={`relative flex flex-col items-center p-3 rounded-xl border-2 transition-all ${
+                            className={`relative flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${
                               isClaimed
                                 ? 'bg-gradient-to-br from-yellow-200 to-yellow-300 border-yellow-400 shadow-md'
                                 : isCurrentDay
@@ -505,7 +481,7 @@ export default function Admin() {
                                 ? 'bg-gradient-to-br from-gray-100 to-gray-200 border-gray-300 opacity-70'
                                 : 'bg-gray-50 border-gray-200 opacity-40'
                             }`}
-                            onClick={canClick ? () => handleBoxClick(day) : undefined}
+                            onClick={canClick && !isContractPending && !isConfirming ? () => handleBoxClick(day) : undefined}
                           >
                             {/* Shine effect for current day */}
                             {isCurrentDay && !isClaimed && (
@@ -513,7 +489,7 @@ export default function Admin() {
                             )}
                             
                             {/* Gift Box Icon */}
-                            <div className={`w-12 h-12 flex items-center justify-center mb-2 relative z-10 ${
+                            <div className={`w-16 h-16 flex items-center justify-center relative z-10 ${
                               isClaimed ? 'text-yellow-800' : isCurrentDay ? 'text-white' : 'text-gray-400'
                             }`}>
                               <svg className="w-full h-full" fill="currentColor" viewBox="0 0 24 24">
@@ -527,28 +503,22 @@ export default function Admin() {
                                 </div>
                               )}
                             </div>
-                            
-                            {/* Day Number */}
-                            <span className={`text-xs font-bold mb-1 ${
-                              isClaimed ? 'text-yellow-900' : isCurrentDay ? 'text-white' : 'text-gray-500'
-                            }`}>
-                              Day {day}
-                            </span>
-                            
-                            {/* Reward Amount */}
-                            <span className={`text-xs font-extrabold ${
-                              isClaimed ? 'text-yellow-900' : isCurrentDay ? 'text-white' : 'text-gray-400'
-                            }`}>
-                              {DAILY_REWARDS[day as keyof typeof DAILY_REWARDS]}
-                            </span>
                           </div>
                         );
                       })}
                     </div>
                     
-                    {checkinError && (
+                    {(checkinError || isContractPending || isConfirming) && (
                       <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-3 text-center">
-                        <p className="text-sm text-red-800">{checkinError}</p>
+                        {isContractPending && (
+                          <p className="text-sm text-yellow-800">⏳ Please confirm transaction in your wallet...</p>
+                        )}
+                        {isConfirming && (
+                          <p className="text-sm text-yellow-800">⏳ Waiting for transaction confirmation...</p>
+                        )}
+                        {checkinError && !isContractPending && !isConfirming && (
+                          <p className="text-sm text-red-800">{checkinError}</p>
+                        )}
                       </div>
                     )}
                   </>
