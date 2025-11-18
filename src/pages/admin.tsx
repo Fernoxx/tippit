@@ -456,54 +456,56 @@ export default function Admin() {
                 ) : checkinStatus ? (
                   <>
                     {/* Streak Count */}
-                    <div className="text-center mb-6">
+                    <div className="text-center mb-4">
                       <p className="text-xs text-gray-500">Streak: <span className="font-bold text-yellow-600">{checkinStatus.streak}</span></p>
                     </div>
                     
-                    {/* 7 Gift Boxes */}
-                    <div className="grid grid-cols-7 gap-2 max-w-xl mx-auto">
-                      {[1, 2, 3, 4, 5, 6, 7].map((day) => {
-                        const isCurrentDay = checkinStatus.streak === day;
-                        const isClaimed = checkinStatus.claimedDays?.includes(day) || false;
-                        const isPast = checkinStatus.streak > day;
-                        const isFuture = checkinStatus.streak < day;
-                        const canClick = isCurrentDay && !isClaimed;
-                        
-                        return (
-                          <div
-                            key={day}
-                            className={`relative aspect-square flex items-center justify-center rounded-xl transition-all duration-300 ${
-                              isClaimed
-                                ? 'bg-yellow-200/60 border border-yellow-400/50'
-                                : isCurrentDay
-                                ? 'bg-yellow-200/60 border border-yellow-400/50 shadow-[0_0_20px_rgba(250,204,21,0.6)] cursor-pointer hover:scale-105'
-                                : isPast
-                                ? 'bg-yellow-200/40 border border-yellow-300/30 opacity-60'
-                                : 'bg-yellow-200/30 border border-yellow-300/20 opacity-40'
-                            }`}
-                            onClick={canClick && !isContractPending && !isConfirming ? () => handleBoxClick(day) : undefined}
-                          >
-                            {/* Glow effect ONLY for current day */}
-                            {isCurrentDay && !isClaimed && (
-                              <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-transparent via-yellow-300/50 to-transparent animate-shimmer"></div>
-                            )}
-                            
-                            {/* Gift Box Icon */}
-                            <div className={`relative z-10 ${isClaimed ? 'text-yellow-700' : isCurrentDay ? 'text-yellow-600' : 'text-yellow-500/60'}`}>
-                              <svg className="w-14 h-14" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M20 6h-2.18c.11-.31.18-.65.18-1a2.996 2.996 0 0 0-5.5-1.65l-.5.67-.5-.68C10.96 2.54 10 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/>
-                              </svg>
-                              {isClaimed && (
-                                <div className="absolute -top-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center border-2 border-white shadow-md">
-                                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                  </svg>
-                                </div>
+                    {/* Container Box with 7 Gift Boxes Inside */}
+                    <div className="bg-white/80 border-2 border-yellow-300/50 rounded-2xl p-3 shadow-lg">
+                      <div className="grid grid-cols-7 gap-1.5">
+                        {[1, 2, 3, 4, 5, 6, 7].map((day) => {
+                          const isCurrentDay = checkinStatus.streak === day;
+                          const isClaimed = checkinStatus.claimedDays?.includes(day) || false;
+                          const isPast = checkinStatus.streak > day;
+                          const isFuture = checkinStatus.streak < day;
+                          const canClick = isCurrentDay && !isClaimed;
+                          
+                          return (
+                            <div
+                              key={day}
+                              className={`relative aspect-square flex items-center justify-center rounded-lg transition-all duration-300 ${
+                                isClaimed
+                                  ? 'bg-yellow-200/70 border border-yellow-400/60'
+                                  : isCurrentDay
+                                  ? 'bg-yellow-200/70 border border-yellow-400/60 shadow-[0_0_15px_rgba(250,204,21,0.7)] cursor-pointer hover:scale-105'
+                                  : isPast
+                                  ? 'bg-yellow-200/50 border border-yellow-300/40 opacity-70'
+                                  : 'bg-yellow-200/40 border border-yellow-300/30 opacity-50'
+                              }`}
+                              onClick={canClick && !isContractPending && !isConfirming ? () => handleBoxClick(day) : undefined}
+                            >
+                              {/* Glow effect ONLY for current day */}
+                              {isCurrentDay && !isClaimed && (
+                                <div className="absolute inset-0 rounded-lg bg-gradient-to-r from-transparent via-yellow-300/60 to-transparent animate-shimmer"></div>
                               )}
+                              
+                              {/* Gift Box Icon - Smaller */}
+                              <div className={`relative z-10 ${isClaimed ? 'text-yellow-700' : isCurrentDay ? 'text-yellow-600' : 'text-yellow-500/70'}`}>
+                                <svg className="w-10 h-10" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M20 6h-2.18c.11-.31.18-.65.18-1a2.996 2.996 0 0 0-5.5-1.65l-.5.67-.5-.68C10.96 2.54 10 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm11 15H4v-2h16v2zm0-5H4V8h5.08L7 10.83 8.62 12 11 8.76l1-1.36 1 1.36L15.38 12 17 10.83 14.92 8H20v6z"/>
+                                </svg>
+                                {isClaimed && (
+                                  <div className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center border border-white shadow-sm">
+                                    <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
                     
                     {/* Reset button for testing */}
