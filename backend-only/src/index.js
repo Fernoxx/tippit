@@ -1814,6 +1814,105 @@ app.post('/api/daily-checkin/reset', async (req, res) => {
   }
 });
 
+// Generate signature for check-in contract verification
+app.post('/api/daily-checkin/signature', async (req, res) => {
+  try {
+    const userAddress = req.body.address || req.headers['x-user-address'];
+    const dayNumber = parseInt(req.body.dayNumber, 10);
+    
+    if (!userAddress) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'User address is required' 
+      });
+    }
+    
+    if (!dayNumber || dayNumber < 1 || dayNumber > 7) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Valid day number (1-7) is required' 
+      });
+    }
+    
+    // CRITICAL: Verify FID exists via Neynar
+    const userData = await getUserDataByAddress(userAddress);
+    if (!userData || !userData.fid) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Access denied. Only verified Farcaster users can check in.' 
+      });
+    }
+    
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Check if user has checked in today and has the correct streak
+    const checkinResult = await database.pool.query(
+      'SELECT * FROM daily_checkins WHERE fid = $1 AND checkin_date = $2',
+      [userData.fid, today]
+    );
+    
+    if (checkinResult.rows.length === 0) {
+      // Process check-in first
+      const checkinData = await database.processDailyCheckin(userData.fid, userAddress);
+      if (!checkinData.success) {
+        return res.status(400).json({ 
+          success: false, 
+          error: checkinData.alreadyCheckedIn ? 'Already checked in today' : 'Failed to check in' 
+        });
+      }
+    }
+    
+    const checkin = checkinResult.rows[0] || { streak_count: dayNumber };
+    
+    // Verify the day number matches the streak
+    if (checkin.streak_count !== dayNumber) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Day number mismatch. Your current streak is ${checkin.streak_count}, not ${dayNumber}` 
+      });
+    }
+    
+    // Check if reward already claimed
+    if (checkin.reward_claimed) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Reward for this day has already been claimed',
+        alreadyClaimed: true
+      });
+    }
+    
+    // Generate signature for contract verification
+    const { ethers } = require('ethers');
+    const wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY);
+    
+    // Create message hash: userAddress + dayNumber + fid + timestamp
+    const timestamp = Math.floor(Date.now() / 1000);
+    const messageHash = ethers.keccak256(
+      ethers.AbiCoder.defaultAbiCoder().encode(
+        ['address', 'uint8', 'uint256', 'uint256'],
+        [userAddress, dayNumber, userData.fid, timestamp]
+      )
+    );
+    
+    // Sign the message
+    const signature = await wallet.signMessage(ethers.getBytes(messageHash));
+    
+    res.json({
+      success: true,
+      signature: signature,
+      fid: userData.fid,
+      timestamp: timestamp,
+      messageHash: messageHash
+    });
+  } catch (error) {
+    console.error('Error generating signature:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to generate signature' 
+    });
+  }
+});
+
 // ===== DYNAMIC FID MANAGEMENT SYSTEM =====
 
 // Store user address to FID mapping

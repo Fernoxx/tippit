@@ -323,27 +323,46 @@ export default function Admin() {
       setCheckinLoading(true);
       setCheckinError(null);
 
-      // User signs transaction to claim reward
-      // Contract will verify FID via backend and send tokens
+      // Step 1: Get signature from backend (backend verifies FID via Neynar)
+      const sigResponse = await fetch(`${BACKEND_URL}/api/daily-checkin/signature`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ address, dayNumber }),
+      });
+      
+      const sigData = await sigResponse.json();
+      
+      if (!sigData.success) {
+        setCheckinError(sigData.error || 'Failed to get verification signature');
+        setCheckinLoading(false);
+        return;
+      }
+
+      // Step 2: User signs transaction to check in
+      // Contract will verify signature and transfer tokens from backend wallet
       writeContract({
         address: DAILY_CHECKIN_CONTRACT as `0x${string}`,
         abi: [
           {
-            name: 'claimDailyReward',
+            name: 'checkIn',
             type: 'function',
             stateMutability: 'nonpayable',
             inputs: [
-              { name: 'dayNumber', type: 'uint8' }
+              { name: 'dayNumber', type: 'uint8' },
+              { name: 'fid', type: 'uint256' },
+              { name: 'signature', type: 'bytes' }
             ],
             outputs: []
           }
         ],
-        functionName: 'claimDailyReward',
-        args: [dayNumber as any],
+        functionName: 'checkIn',
+        args: [dayNumber, BigInt(sigData.fid), sigData.signature as `0x${string}`],
       });
     } catch (err: any) {
-      console.error('Error initiating claim:', err);
-      setCheckinError(err.message || 'Failed to initiate claim');
+      console.error('Error initiating check-in:', err);
+      setCheckinError(err.message || 'Failed to initiate check-in');
       setCheckinLoading(false);
     }
   };
