@@ -51,14 +51,16 @@ contract DailyCheckIn is Ownable, ReentrancyGuard {
      * @dev Check in for a specific day
      * @param dayNumber Day number (1-7)
      * @param fid Farcaster FID (verified by backend)
+     * @param timestamp Timestamp used in signature
      * @param signature Backend signature verifying the check-in
      */
-    function checkIn(uint8 dayNumber, uint256 fid, bytes memory signature) external nonReentrant {
+    function checkIn(uint8 dayNumber, uint256 fid, uint256 timestamp, bytes memory signature) external nonReentrant {
         require(dayNumber >= 1 && dayNumber <= 7, "Invalid day number");
         require(!checkIns[msg.sender][dayNumber], "Already checked in for this day");
+        require(block.timestamp >= timestamp && block.timestamp <= timestamp + 300, "Signature expired"); // 5 min window
         
         // Verify signature from backend
-        bytes32 messageHash = keccak256(abi.encodePacked(msg.sender, dayNumber, fid, block.timestamp));
+        bytes32 messageHash = keccak256(abi.encodePacked(msg.sender, dayNumber, fid, timestamp));
         bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
         address signer = recoverSigner(ethSignedMessageHash, signature);
         require(signer == backendVerifier, "Invalid signature from backend");

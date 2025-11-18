@@ -352,13 +352,14 @@ export default function Admin() {
             inputs: [
               { name: 'dayNumber', type: 'uint8' },
               { name: 'fid', type: 'uint256' },
+              { name: 'timestamp', type: 'uint256' },
               { name: 'signature', type: 'bytes' }
             ],
             outputs: []
           }
         ],
         functionName: 'checkIn',
-        args: [dayNumber, BigInt(sigData.fid), sigData.signature as `0x${string}`],
+        args: [dayNumber, BigInt(sigData.fid), BigInt(sigData.timestamp), sigData.signature as `0x${string}`],
       });
     } catch (err: any) {
       console.error('Error initiating check-in:', err);

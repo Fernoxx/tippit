@@ -1885,24 +1885,32 @@ app.post('/api/daily-checkin/signature', async (req, res) => {
     const { ethers } = require('ethers');
     const wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY);
     
-    // Create message hash: userAddress + dayNumber + fid + timestamp
+    // Create message hash matching contract: keccak256(abi.encodePacked(userAddress, dayNumber, fid, timestamp))
+    // Note: Contract will use block.timestamp, but we use current timestamp for signature
     const timestamp = Math.floor(Date.now() / 1000);
-    const messageHash = ethers.keccak256(
-      ethers.AbiCoder.defaultAbiCoder().encode(
-        ['address', 'uint8', 'uint256', 'uint256'],
-        [userAddress, dayNumber, userData.fid, timestamp]
-      )
+    
+    // Use solidityKeccak256 to match abi.encodePacked
+    const messageHash = ethers.solidityPackedKeccak256(
+      ['address', 'uint8', 'uint256', 'uint256'],
+      [userAddress, dayNumber, userData.fid, timestamp]
+    );
+    
+    // Create Ethereum signed message hash: keccak256("\x19Ethereum Signed Message:\n32" + messageHash)
+    const ethSignedMessageHash = ethers.keccak256(
+      ethers.concat([
+        ethers.toUtf8Bytes('\x19Ethereum Signed Message:\n32'),
+        ethers.getBytes(messageHash)
+      ])
     );
     
     // Sign the message
-    const signature = await wallet.signMessage(ethers.getBytes(messageHash));
+    const signature = await wallet.signMessage(ethers.getBytes(ethSignedMessageHash));
     
     res.json({
       success: true,
       signature: signature,
       fid: userData.fid,
-      timestamp: timestamp,
-      messageHash: messageHash
+      timestamp: timestamp
     });
   } catch (error) {
     console.error('Error generating signature:', error);
