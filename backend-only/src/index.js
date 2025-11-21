@@ -827,9 +827,9 @@ app.post('/api/config', async (req, res) => {
             minTip: computeMinTipFromConfig(savedConfig)
           });
         }
+      } catch (cacheError) {
+        console.log(`⚠️ Unable to refresh active cast cache after config update for ${userAddress}: ${cacheError.message}`);
       }
-    } catch (cacheError) {
-      console.log(`⚠️ Unable to refresh active cast cache after config update for ${userAddress}: ${cacheError.message}`);
     }
     
     // Automatically add user's FID to webhook filter
