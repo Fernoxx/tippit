@@ -190,16 +190,29 @@ async function webhookHandler(req, res) {
     }
     
     // Check if author has tipping config
-    console.log(`🔍 Checking config for author ${interaction.authorAddress} (FID: ${interaction.authorFid})...`);
-    const authorConfig = await database.getUserConfig(interaction.authorAddress);
+    // Use FID-based lookup to get config from most recent approval address
+    console.log(`🔍 Checking config for author FID ${interaction.authorFid} (address: ${interaction.authorAddress})...`);
+    let authorConfig = await database.getUserConfigByFid(interaction.authorFid);
+    
+    // Fallback to address-based lookup if FID lookup fails (backward compatibility)
+    if (!authorConfig) {
+      console.log(`⚠️ No config found by FID, trying address-based lookup...`);
+      authorConfig = await database.getUserConfig(interaction.authorAddress);
+    }
     
     if (!authorConfig) {
-      console.log(`❌ Author ${interaction.authorAddress} has no tipping config`);
+      console.log(`❌ Author ${interaction.authorAddress} (FID: ${interaction.authorFid}) has no tipping config`);
       return res.status(200).json({
         success: true,
         processed: false,
         reason: 'Author has no tipping config - please configure settings first'
       });
+    }
+    
+    // Log which address's config is being used
+    const configAddress = await database.getMostRecentApprovalAddress(interaction.authorFid);
+    if (configAddress) {
+      console.log(`✅ Using config from most recent approval address: ${configAddress} (FID: ${interaction.authorFid})`);
     }
     
     console.log(`✅ Author has config: ${JSON.stringify({

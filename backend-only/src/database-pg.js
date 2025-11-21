@@ -21,6 +21,17 @@ class PostgresDatabase {
           updated_at TIMESTAMP DEFAULT NOW()
         )
       `);
+      
+      // Add fid column to user_configs if it doesn't exist (for tracking which FID owns this config)
+      await this.pool.query(`
+        ALTER TABLE user_configs 
+        ADD COLUMN IF NOT EXISTS fid BIGINT
+      `);
+      
+      // Create index on fid for faster lookups
+      await this.pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_user_configs_fid ON user_configs(fid)
+      `);
 
       // Create user profiles table to store Farcaster user data
       await this.pool.query(`
@@ -95,6 +106,28 @@ class PostgresDatabase {
           transaction_hash TEXT,
           processed_at TIMESTAMP DEFAULT NOW()
         )
+      `);
+      
+      // Create user_approvals table to track approval events
+      // This tracks which address was used for the most recent approval per FID
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS user_approvals (
+          id SERIAL PRIMARY KEY,
+          user_address TEXT NOT NULL,
+          fid BIGINT,
+          token_address TEXT NOT NULL,
+          approved_at TIMESTAMP DEFAULT NOW(),
+          UNIQUE(user_address, token_address)
+        )
+      `);
+      
+      // Create indexes for faster lookups
+      await this.pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_user_approvals_fid ON user_approvals(fid, approved_at DESC)
+      `);
+      
+      await this.pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_user_approvals_address ON user_approvals(user_address)
       `);
 
       // Create user_earnings table for leaderboard optimization
@@ -578,21 +611,95 @@ class PostgresDatabase {
     }
   }
 
-  async setUserConfig(userAddress, config) {
+  async setUserConfig(userAddress, config, fid = null) {
     try {
       await this.pool.query(`
-        INSERT INTO user_configs (user_address, config, updated_at) 
-        VALUES ($1, $2, NOW())
+        INSERT INTO user_configs (user_address, config, fid, updated_at) 
+        VALUES ($1, $2, $3, NOW())
         ON CONFLICT (user_address) 
-        DO UPDATE SET config = $2, updated_at = NOW()
+        DO UPDATE SET config = $2, fid = COALESCE($3, user_configs.fid), updated_at = NOW()
       `, [userAddress.toLowerCase(), JSON.stringify({
         ...config,
         updatedAt: Date.now()
-      })]);
-      console.log(`💾 Saved config for ${userAddress}`);
+      }), fid]);
+      console.log(`💾 Saved config for ${userAddress}${fid ? ` (FID: ${fid})` : ''}`);
     } catch (error) {
       console.error('💾 Error saving user config:', error.message);
       throw error;
+    }
+  }
+  
+  // Record an approval event (when user approves token)
+  async recordApproval(userAddress, tokenAddress, fid = null) {
+    try {
+      await this.pool.query(`
+        INSERT INTO user_approvals (user_address, fid, token_address, approved_at)
+        VALUES ($1, $2, $3, NOW())
+        ON CONFLICT (user_address, token_address)
+        DO UPDATE SET 
+          fid = COALESCE($2, user_approvals.fid),
+          approved_at = NOW()
+      `, [userAddress.toLowerCase(), fid, tokenAddress.toLowerCase()]);
+      console.log(`✅ Recorded approval: ${userAddress} approved ${tokenAddress}${fid ? ` (FID: ${fid})` : ''}`);
+    } catch (error) {
+      console.error('❌ Error recording approval:', error.message);
+      throw error;
+    }
+  }
+  
+  // Get the most recent approval address for a FID
+  // This tells us which address was used for the latest approval
+  async getMostRecentApprovalAddress(fid) {
+    try {
+      const result = await this.pool.query(`
+        SELECT user_address, token_address, approved_at
+        FROM user_approvals
+        WHERE fid = $1
+        ORDER BY approved_at DESC
+        LIMIT 1
+      `, [fid]);
+      
+      if (result.rows.length > 0) {
+        return result.rows[0].user_address;
+      }
+      return null;
+    } catch (error) {
+      console.error('❌ Error getting most recent approval address:', error.message);
+      return null;
+    }
+  }
+  
+  // Get config by FID (using most recent approval address)
+  async getUserConfigByFid(fid) {
+    try {
+      // First, get the most recent approval address for this FID
+      const approvalAddress = await this.getMostRecentApprovalAddress(fid);
+      
+      if (approvalAddress) {
+        // Use config from the most recent approval address
+        return await this.getUserConfig(approvalAddress);
+      }
+      
+      // Fallback: try to find any config with this FID
+      const result = await this.pool.query(`
+        SELECT config FROM user_configs 
+        WHERE fid = $1 
+        ORDER BY updated_at DESC 
+        LIMIT 1
+      `, [fid]);
+      
+      if (result.rows.length > 0) {
+        let config = result.rows[0].config;
+        if (typeof config === 'string') {
+          config = JSON.parse(config);
+        }
+        return config;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('❌ Error getting config by FID:', error.message);
+      return null;
     }
   }
 

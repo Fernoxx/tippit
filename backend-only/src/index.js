@@ -800,11 +800,21 @@ app.post('/api/config', async (req, res) => {
       followEnabled: savedConfig.followEnabled
     });
     
-    await database.setUserConfig(userAddress, savedConfig);
-    
+    // Get FID for this address to link config to FID
+    let fid = null;
     try {
-      const fid = await getUserFid(userAddress);
+      fid = await getUserFid(userAddress);
       if (fid) {
+        console.log(`✅ Found FID ${fid} for ${userAddress} - linking config to FID`);
+      }
+    } catch (error) {
+      console.log(`⚠️ Could not get FID for ${userAddress}: ${error.message}`);
+    }
+    
+    await database.setUserConfig(userAddress, savedConfig, fid);
+    
+    if (fid) {
+      try {
         const trackedFids = await database.getTrackedFids();
         if (trackedFids.includes(parseInt(fid))) {
           await refreshActiveCastEntry({
@@ -1347,10 +1357,14 @@ app.post('/api/approve', async (req, res) => {
     
     // IMMEDIATELY get FID and store user data in database when they approve USDC
     // This ensures FID + address + details are stored for future lookups
+    let fid = null;
     try {
-      const fid = await getUserFid(userAddress);
+      fid = await getUserFid(userAddress);
       if (fid) {
         console.log(`✅ Found FID ${fid} for ${userAddress} - user data stored in database`);
+        
+        // Record this approval event (which address + FID + token)
+        await database.recordApproval(userAddress, tokenAddress, fid);
         
         // getUserFid already stores user data, but ensure it's complete
         // For new users, update-allowance-simple.js will create default config and add to webhook
@@ -1365,9 +1379,17 @@ app.post('/api/approve', async (req, res) => {
         }
       } else {
         console.log(`⚠️ No FID found for ${userAddress} - user needs to verify address on Farcaster`);
+        // Still record approval even without FID (for Base app users without Farcaster)
+        await database.recordApproval(userAddress, tokenAddress, null);
       }
     } catch (error) {
       console.error(`⚠️ Error processing approval for ${userAddress}: ${error.message}`);
+      // Still try to record approval even if FID lookup failed
+      try {
+        await database.recordApproval(userAddress, tokenAddress, fid);
+      } catch (recordError) {
+        console.error(`⚠️ Error recording approval: ${recordError.message}`);
+      }
     }
     
     // Also verify allowance/balance after blockchain update (async, non-blocking)
@@ -8778,6 +8800,105 @@ app.post('/api/admin/reconcile-active-users', adminAuth, async (req, res) => {
   } catch (error) {
     console.error('❌ Error reconciling active users:', error);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// API endpoint to check Base app user configs and approvals
+// This endpoint helps identify if a Base app user (by address) has any previous configs/tokens approved
+app.get('/api/base-app-user/:address', async (req, res) => {
+  try {
+    const address = req.params.address.toLowerCase();
+    
+    // Check if this address has a config
+    const config = await database.getUserConfig(address);
+    
+    // Check if this address has any approval records
+    const approvalResult = await database.pool.query(`
+      SELECT fid, token_address, approved_at
+      FROM user_approvals
+      WHERE user_address = $1
+      ORDER BY approved_at DESC
+    `, [address]);
+    
+    const approvals = approvalResult.rows;
+    
+    // If address has FID, get all configs for that FID
+    let fid = null;
+    let allConfigsForFid = [];
+    
+    if (approvals.length > 0 && approvals[0].fid) {
+      fid = approvals[0].fid;
+      
+      // Get all addresses linked to this FID
+      const fidAddressesResult = await database.pool.query(`
+        SELECT DISTINCT user_address
+        FROM user_approvals
+        WHERE fid = $1
+      `, [fid]);
+      
+      // Get configs for all addresses linked to this FID
+      for (const row of fidAddressesResult.rows) {
+        const addrConfig = await database.getUserConfig(row.user_address);
+        if (addrConfig) {
+          allConfigsForFid.push({
+            address: row.user_address,
+            config: addrConfig
+          });
+        }
+      }
+    } else {
+      // Try to get FID from user_profiles
+      const fidResult = await database.pool.query(`
+        SELECT fid FROM user_profiles WHERE user_address = $1 LIMIT 1
+      `, [address]);
+      
+      if (fidResult.rows.length > 0) {
+        fid = fidResult.rows[0].fid;
+        
+        // Get all configs for this FID
+        const fidConfigsResult = await database.pool.query(`
+          SELECT user_address, config FROM user_configs WHERE fid = $1
+        `, [fid]);
+        
+        for (const row of fidConfigsResult.rows) {
+          let cfg = row.config;
+          if (typeof cfg === 'string') {
+            cfg = JSON.parse(cfg);
+          }
+          allConfigsForFid.push({
+            address: row.user_address,
+            config: cfg
+          });
+        }
+      }
+    }
+    
+    res.json({
+      success: true,
+      address: address,
+      hasConfig: !!config,
+      config: config || null,
+      fid: fid,
+      approvals: approvals.map(a => ({
+        tokenAddress: a.token_address,
+        approvedAt: a.approved_at,
+        fid: a.fid
+      })),
+      allConfigsForFid: allConfigsForFid.length > 0 ? allConfigsForFid : null,
+      message: config 
+        ? `Found config for this address` 
+        : fid 
+          ? `No config for this address, but FID ${fid} has ${allConfigsForFid.length} config(s)`
+          : `No config or FID found for this address`
+    });
+    
+  } catch (error) {
+    console.error('❌ Error checking Base app user:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to check Base app user',
+      details: error.message 
+    });
   }
 });
 
