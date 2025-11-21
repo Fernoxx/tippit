@@ -4862,14 +4862,20 @@ app.get('/api/leaderboard', async (req, res) => {
     const TEAM_FIDS = [1351395, 242597];
     
     // Get user addresses for team FIDs to filter them out early
+    // Check both user_profiles and user_approvals to catch all addresses linked to team FIDs
     const teamAddressesResult = await database.pool.query(`
-      SELECT LOWER(user_address) as user_address 
-      FROM user_profiles 
-      WHERE fid = ANY($1::bigint[])
+      SELECT DISTINCT LOWER(user_address) as user_address 
+      FROM (
+        SELECT user_address FROM user_profiles WHERE fid = ANY($1::bigint[])
+        UNION
+        SELECT user_address FROM user_approvals WHERE fid = ANY($1::bigint[])
+        UNION
+        SELECT user_address FROM user_configs WHERE fid = ANY($1::bigint[])
+      ) AS team_addresses
     `, [TEAM_FIDS]);
     
     const teamAddresses = new Set(teamAddressesResult.rows.map(row => row.user_address));
-    console.log(`🚫 Filtering out ${teamAddresses.size} team addresses from leaderboard`);
+    console.log(`🚫 Filtering out ${teamAddresses.size} team addresses from leaderboard (FIDs: ${TEAM_FIDS.join(', ')})`);
     
     // Get top tippers and earners with amounts
     const topTippers = await database.getTopTippers(timeFilter);
@@ -4975,14 +4981,26 @@ app.get('/api/leaderboard', async (req, res) => {
         
         if (userResult.rows.length > 0) {
           const userAddress = userResult.rows[0].user_address;
-          console.log(`🔍 User address: ${userAddress}`);
+          console.log(`🔍 User address from user_profiles: ${userAddress}`);
+          
+          // Get the most recent approval address for this FID (the address that actually approved tokens)
+          // This ensures "you" section shows earnings for the correct wallet
+          const mostRecentApprovalAddress = await database.getMostRecentApprovalAddress(parseInt(userFid));
+          const addressForStats = mostRecentApprovalAddress || userAddress;
+          
+          if (mostRecentApprovalAddress && mostRecentApprovalAddress.toLowerCase() !== userAddress.toLowerCase()) {
+            console.log(`✅ Using most recent approval address for stats: ${mostRecentApprovalAddress} (instead of ${userAddress})`);
+          }
           
           // Find user in original data (includes team FIDs for "you" section stats)
           // Use original topTippers/topEarners so team FIDs can see their stats
+          // Check both addresses to find the user
           const userAsTipper = topTippers.find(tipper => 
+            tipper.userAddress.toLowerCase() === addressForStats.toLowerCase() ||
             tipper.userAddress.toLowerCase() === userAddress.toLowerCase()
           );
           const userAsEarner = topEarners.find(earner => 
+            earner.userAddress.toLowerCase() === addressForStats.toLowerCase() ||
             earner.userAddress.toLowerCase() === userAddress.toLowerCase()
           );
           
@@ -4995,6 +5013,7 @@ app.get('/api/leaderboard', async (req, res) => {
           
           // Calculate ALL time periods (not just current filter) for accurate leaderboard display
           // Get all time periods directly from tip_history
+          // Use the most recent approval address for accurate stats
           const allTimeStatsResult = await database.pool.query(`
             SELECT 
               SUM(CASE WHEN LOWER(from_address) = LOWER($1) THEN CAST(amount AS DECIMAL) ELSE 0 END) as total_tippings,
@@ -5005,9 +5024,9 @@ app.get('/api/leaderboard', async (req, res) => {
               SUM(CASE WHEN LOWER(to_address) = LOWER($1) AND processed_at >= NOW() - INTERVAL '7 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as earnings_7d,
               SUM(CASE WHEN LOWER(from_address) = LOWER($1) AND processed_at >= NOW() - INTERVAL '30 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as tippings_30d,
               SUM(CASE WHEN LOWER(to_address) = LOWER($1) AND processed_at >= NOW() - INTERVAL '30 days' THEN CAST(amount AS DECIMAL) ELSE 0 END) as earnings_30d
-            FROM tip_history 
+            FROM tip_history
             WHERE LOWER(token_address) = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
-          `, [userAddress]);
+          `, [addressForStats]);
           
           const stats = allTimeStatsResult.rows[0];
           
@@ -8800,6 +8819,65 @@ app.post('/api/admin/reconcile-active-users', adminAuth, async (req, res) => {
   } catch (error) {
     console.error('❌ Error reconciling active users:', error);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// API endpoint to get most recent approval address for a FID (for configs page)
+app.get('/api/user-last-approved-address/:fid', async (req, res) => {
+  try {
+    const fid = parseInt(req.params.fid);
+    
+    if (!fid || isNaN(fid)) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Invalid FID' 
+      });
+    }
+    
+    // Get most recent approval address
+    const mostRecentApprovalAddress = await database.getMostRecentApprovalAddress(fid);
+    
+    // Get all addresses linked to this FID
+    const allAddressesResult = await database.pool.query(`
+      SELECT DISTINCT user_address, approved_at, token_address
+      FROM user_approvals
+      WHERE fid = $1
+      ORDER BY approved_at DESC
+    `, [fid]);
+    
+    // Also get addresses from user_configs
+    const configAddressesResult = await database.pool.query(`
+      SELECT DISTINCT user_address, updated_at
+      FROM user_configs
+      WHERE fid = $1
+      ORDER BY updated_at DESC
+    `, [fid]);
+    
+    res.json({
+      success: true,
+      fid: fid,
+      mostRecentApprovalAddress: mostRecentApprovalAddress || null,
+      allApprovalAddresses: allAddressesResult.rows.map(row => ({
+        address: row.user_address,
+        tokenAddress: row.token_address,
+        approvedAt: row.approved_at
+      })),
+      allConfigAddresses: configAddressesResult.rows.map(row => ({
+        address: row.user_address,
+        updatedAt: row.updated_at
+      })),
+      message: mostRecentApprovalAddress 
+        ? `Most recent approval address: ${mostRecentApprovalAddress}`
+        : `No approval records found for FID ${fid}`
+    });
+    
+  } catch (error) {
+    console.error('❌ Error getting last approved address:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to get last approved address',
+      details: error.message 
+    });
   }
 });
 

@@ -421,13 +421,23 @@ class PostgresDatabase {
       }
       
       const userAddress = userResult.rows[0].user_address;
-      console.log(`🔍 User address: ${userAddress}`);
+      console.log(`🔍 User address from user_profiles: ${userAddress}`);
+      
+      // Get the most recent approval address for this FID (the address that actually approved tokens)
+      // This ensures earnings are calculated for the correct wallet
+      const mostRecentApprovalAddress = await this.getMostRecentApprovalAddress(fid);
+      const addressForEarnings = mostRecentApprovalAddress || userAddress;
+      
+      if (mostRecentApprovalAddress && mostRecentApprovalAddress.toLowerCase() !== userAddress.toLowerCase()) {
+        console.log(`✅ Using most recent approval address for earnings: ${mostRecentApprovalAddress} (instead of ${userAddress})`);
+      }
       
       // Calculate all time periods from tip_history directly
-      const totalEarnings = await this.calculateUserEarnings(userAddress, 'total');
-      const earnings24h = await this.calculateUserEarnings(userAddress, '24h');
-      const earnings7d = await this.calculateUserEarnings(userAddress, '7d');
-      const earnings30d = await this.calculateUserEarnings(userAddress, '30d');
+      // Use the most recent approval address for accurate earnings calculation
+      const totalEarnings = await this.calculateUserEarnings(addressForEarnings, 'total');
+      const earnings24h = await this.calculateUserEarnings(addressForEarnings, '24h');
+      const earnings7d = await this.calculateUserEarnings(addressForEarnings, '7d');
+      const earnings30d = await this.calculateUserEarnings(addressForEarnings, '30d');
       
       return {
         fid,

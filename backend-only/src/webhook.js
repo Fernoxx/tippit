@@ -209,10 +209,19 @@ async function webhookHandler(req, res) {
       });
     }
     
-    // Log which address's config is being used
-    const configAddress = await database.getMostRecentApprovalAddress(interaction.authorFid);
-    if (configAddress) {
-      console.log(`✅ Using config from most recent approval address: ${configAddress} (FID: ${interaction.authorFid})`);
+    // Get the most recent approval address for this FID (the address that actually approved tokens)
+    const mostRecentApprovalAddress = await database.getMostRecentApprovalAddress(interaction.authorFid);
+    // Use most recent approval address if available, otherwise fallback to webhook address
+    const authorAddressForChecks = mostRecentApprovalAddress || interaction.authorAddress;
+    
+    if (mostRecentApprovalAddress && mostRecentApprovalAddress.toLowerCase() !== interaction.authorAddress.toLowerCase()) {
+      console.log(`✅ Using most recent approval address: ${mostRecentApprovalAddress} (instead of webhook address: ${interaction.authorAddress})`);
+      // Update interaction to use the most recent approval address for tip sending
+      interaction.authorAddress = mostRecentApprovalAddress.toLowerCase();
+    } else if (mostRecentApprovalAddress) {
+      console.log(`✅ Using most recent approval address: ${mostRecentApprovalAddress} (matches webhook address)`);
+    } else {
+      console.log(`⚠️ No approval record found, using webhook address: ${interaction.authorAddress}`);
     }
     
     console.log(`✅ Author has config: ${JSON.stringify({
@@ -234,9 +243,10 @@ async function webhookHandler(req, res) {
     // If user has config but not in webhook, check allowance/balance BEFORE adding
     // This prevents adding users who don't have sufficient funds (which causes remove/add loop)
     if (!isInWebhook && authorConfig) {
-      console.log(`⚠️ Author ${interaction.authorAddress} (FID: ${authorFid}) has config but not in webhook - checking allowance/balance before adding`);
+      console.log(`⚠️ Author ${authorAddressForChecks} (FID: ${authorFid}) has config but not in webhook - checking allowance/balance before adding`);
       
       // Check if user has sufficient allowance and balance before adding to webhook
+      // Use the most recent approval address for checks (the wallet that actually has the allowance)
       const { ethers } = require('ethers');
       const { getProvider } = require('./rpcProvider');
       const provider = await getProvider();
@@ -250,8 +260,8 @@ async function webhookHandler(req, res) {
         ], provider);
         
         const [allowance, balance] = await Promise.all([
-          tokenContract.allowance(interaction.authorAddress, ecionBatchAddress),
-          tokenContract.balanceOf(interaction.authorAddress)
+          tokenContract.allowance(authorAddressForChecks, ecionBatchAddress),
+          tokenContract.balanceOf(authorAddressForChecks)
         ]);
         
         const tokenLower = (tokenAddress || '').toLowerCase();
@@ -267,7 +277,7 @@ async function webhookHandler(req, res) {
         const hasSufficientAllowance = allowanceAmount >= minTipAmount;
         const hasSufficientBalance = balanceAmount >= minTipAmount;
         
-        console.log(`💰 Allowance check for ${interaction.authorAddress}: allowance=${allowanceAmount}, balance=${balanceAmount}, minTip=${minTipAmount}`);
+        console.log(`💰 Allowance check for ${authorAddressForChecks}: allowance=${allowanceAmount}, balance=${balanceAmount}, minTip=${minTipAmount}`);
         
         // Only add to webhook if user has BOTH sufficient allowance AND balance
         if (hasSufficientAllowance && hasSufficientBalance) {
@@ -282,17 +292,17 @@ async function webhookHandler(req, res) {
             console.log(`❌ Failed to add FID ${authorFid} to webhook - addFidToWebhook returned false`);
           }
         } else {
-          console.log(`❌ User ${interaction.authorAddress} has insufficient funds (allowance: ${allowanceAmount}, balance: ${balanceAmount}, required: ${minTipAmount}) - NOT adding to webhook to prevent loop`);
+          console.log(`❌ User ${authorAddressForChecks} has insufficient funds (allowance: ${allowanceAmount}, balance: ${balanceAmount}, required: ${minTipAmount}) - NOT adding to webhook to prevent loop`);
           // Don't add to webhook - user needs to top up allowance/balance first
         }
       } catch (error) {
-        console.log(`❌ Error checking allowance/balance for ${interaction.authorAddress}: ${error.message}`);
+        console.log(`❌ Error checking allowance/balance for ${authorAddressForChecks}: ${error.message}`);
         // On error, don't add to webhook to prevent issues
       }
     }
     
     if (!isInWebhook) {
-      console.log(`❌ Author ${interaction.authorAddress} (FID: ${authorFid}) is not in webhook follow.created (not an active user)`);
+      console.log(`❌ Author ${authorAddressForChecks} (FID: ${authorFid}) is not in webhook follow.created (not an active user)`);
       console.log(`📋 Current tracked FIDs: ${trackedFids.slice(0, 20).join(', ')}${trackedFids.length > 20 ? '...' : ''}`);
       return res.status(200).json({
         success: true,
