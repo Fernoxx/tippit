@@ -2037,7 +2037,9 @@ async function getUserFid(userAddress) {
       } else if (result && result.result && result.result.user) {
         user = result.result.user;
       } else if (result && result[userAddress.toLowerCase()]) {
-        user = result[userAddress.toLowerCase()];
+        // Neynar API returns an array for each address, so take the first element
+        const addressData = result[userAddress.toLowerCase()];
+        user = Array.isArray(addressData) ? addressData[0] : addressData;
       }
       
       if (user && user.fid) {
