@@ -143,7 +143,7 @@ export default function Home() {
             Tip Your Audience
           </h2>
           <p className="text-lg text-gray-600 mb-4 max-w-2xl mx-auto">
-            With Ecion you can boost your casts by tipping engagers for their interactions easily.
+            show love to your audience and earn $ecion for every genuine interaction. both tippers and engagers grow their rewards with their holdings.
           </p>
           {!isConnected && (
             <button 
