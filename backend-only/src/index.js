@@ -2291,15 +2291,26 @@ async function refreshActiveCastEntry({
   }
 }
 
-async function updateLatestCastHash(userAddress, castHash, castTimestamp) {
+async function updateLatestCastHash(userAddressOrFid, castHash, castTimestamp) {
   try {
-    await database.pool.query(`
-      UPDATE user_profiles 
-      SET latest_cast_hash = $1, latest_cast_timestamp = $2, updated_at = NOW()
-      WHERE user_address = $3
-    `, [castHash, castTimestamp, userAddress.toLowerCase()]);
-    
-    console.log(`💾 Updated latest cast for ${userAddress}: ${castHash}`);
+    // Can accept either address or FID
+    // If FID is provided, update by FID (more reliable)
+    if (typeof userAddressOrFid === 'number') {
+      await database.pool.query(`
+        UPDATE user_profiles 
+        SET latest_cast_hash = $1, latest_cast_timestamp = $2, updated_at = NOW()
+        WHERE fid = $3
+      `, [castHash, castTimestamp, userAddressOrFid]);
+      console.log(`💾 Updated latest cast for FID ${userAddressOrFid}: ${castHash}`);
+    } else {
+      // Update by address (backward compatibility)
+      await database.pool.query(`
+        UPDATE user_profiles 
+        SET latest_cast_hash = $1, latest_cast_timestamp = $2, updated_at = NOW()
+        WHERE user_address = $3
+      `, [castHash, castTimestamp, userAddressOrFid.toLowerCase()]);
+      console.log(`💾 Updated latest cast for ${userAddressOrFid}: ${castHash}`);
+    }
   } catch (error) {
     console.log(`❌ Error updating latest cast: ${error.message}`);
   }
@@ -2573,7 +2584,8 @@ async function pollLatestCasts() {
         // Check if this is a new cast
         if (user.latest_cast_hash !== latestCast.hash) {
           console.log(`🆕 New cast detected for ${user.user_address}: ${latestCast.hash}`);
-          await updateLatestCastHash(user.user_address, latestCast.hash, latestCast.timestamp);
+          // Update by FID (not address) to ensure it works for all addresses linked to this FID
+          await updateLatestCastHash(user.fid, latestCast.hash, latestCast.timestamp);
           updatedCount++;
         } else {
           console.log(`✅ Latest cast for ${user.user_address} is still ${latestCast.hash}`);
@@ -3057,28 +3069,35 @@ async function addFidToWebhook(fid) {
         latestCasts.push(newUserLatestCast.hash);
         console.log(`✅ Added latest cast ${newUserLatestCast.hash} for FID ${fid} to webhook tracking`);
         
-        // Also update database with this cast hash for the user
+        // Update database with this cast hash for the user (by FID, not address)
+        await updateLatestCastHash(fidInt, newUserLatestCast.hash, newUserLatestCast.timestamp);
+        console.log(`💾 Updated database with latest cast hash for FID ${fid}`);
+        
+        // Get user address for config lookup (use most recent approval address if available)
+        const mostRecentApprovalAddress = await database.getMostRecentApprovalAddress(fidInt);
         const userAddressResult = await database.pool.query(`
           SELECT user_address FROM user_profiles WHERE fid = $1
         `, [fidInt]);
         
-        if (userAddressResult.rows.length > 0 && userAddressResult.rows[0].user_address) {
-          const userAddress = userAddressResult.rows[0].user_address;
-          await updateLatestCastHash(userAddress, newUserLatestCast.hash, newUserLatestCast.timestamp);
-          console.log(`💾 Updated database with latest cast hash for FID ${fid}`);
+        const userAddress = mostRecentApprovalAddress || (userAddressResult.rows.length > 0 ? userAddressResult.rows[0].user_address : null);
+        
+        if (userAddress) {
           try {
-            const userConfig = await database.getUserConfig(userAddress);
-            const allowanceValue = Number(userConfig?.lastAllowance) || 0;
-            await refreshActiveCastEntry({
-              fid: fidInt,
-              userAddress,
-              config: userConfig,
-              tokenAddress: userConfig?.tokenAddress || BASE_USDC_ADDRESS,
-              allowance: allowanceValue,
-              balance: allowanceValue,
-              minTip: computeMinTipFromConfig(userConfig),
-              castData: newUserLatestCast
-            });
+            // Get config from the address that has it (most recent approval address or fallback)
+            const userConfig = await database.getUserConfigByFid(fidInt) || await database.getUserConfig(userAddress);
+            if (userConfig) {
+              const allowanceValue = Number(userConfig?.lastAllowance) || 0;
+              await refreshActiveCastEntry({
+                fid: fidInt,
+                userAddress: userAddress,
+                config: userConfig,
+                tokenAddress: userConfig?.tokenAddress || BASE_USDC_ADDRESS,
+                allowance: allowanceValue,
+                balance: allowanceValue,
+                minTip: computeMinTipFromConfig(userConfig),
+                castData: newUserLatestCast
+              });
+            }
           } catch (cacheError) {
             console.log(`⚠️ Unable to refresh active cast cache for fid ${fid}: ${cacheError.message}`);
           }
@@ -8828,9 +8847,38 @@ app.post('/api/admin/reconcile-active-users', adminAuth, async (req, res) => {
         try {
           const added = await addFidToWebhook(fid);
           if (added) {
+            // addFidToWebhook already fetches and stores latest cast, but let's also ensure it's updated here
+            // Fetch latest cast to ensure it's in database and homepage
+            try {
+              const latestCast = await getLatestCast(fid);
+              if (latestCast && latestCast.hash) {
+                await updateLatestCastHash(fid, latestCast.hash, latestCast.timestamp);
+                console.log(`✅ Fetched and stored latest cast ${latestCast.hash} for FID ${fid}`);
+                
+                // Also refresh active cast entry for homepage
+                try {
+                  await refreshActiveCastEntry({
+                    fid: fid,
+                    userAddress: addressForCheck,
+                    config: userConfig,
+                    tokenAddress: tokenAddress,
+                    allowance: allowanceAmount,
+                    balance: balanceAmount,
+                    minTip: minTipAmount,
+                    castData: latestCast
+                  });
+                } catch (cacheError) {
+                  console.log(`⚠️ Unable to refresh active cast cache: ${cacheError.message}`);
+                }
+              }
+            } catch (castError) {
+              console.log(`⚠️ Error fetching latest cast for FID ${fid}: ${castError.message}`);
+            }
+            
             summary.added.push({
               fid,
               userAddress,
+              addressChecked: addressForCheck,
               allowance: allowanceAmount,
               balance: balanceAmount,
               minTipAmount
@@ -8838,7 +8886,7 @@ app.post('/api/admin/reconcile-active-users', adminAuth, async (req, res) => {
             trackedSet.add(fid);
 
             userConfig.isActive = true;
-            await database.setUserConfig(userAddress, userConfig);
+            await database.setUserConfig(addressForCheck, userConfig);
 
             await database.pool.query(`
               UPDATE user_profiles 
@@ -8853,7 +8901,8 @@ app.post('/api/admin/reconcile-active-users', adminAuth, async (req, res) => {
         }
       }
 
-      // Fetch and update latest cast hash for this user
+      // Fetch and update latest cast hash for this user (by FID, not address)
+      // This ensures casts are stored correctly even if user has multiple addresses
       try {
         const latestCast = await getLatestCast(fid);
         if (latestCast && latestCast.hash) {
@@ -8862,10 +8911,29 @@ app.post('/api/admin/reconcile-active-users', adminAuth, async (req, res) => {
           `, [fid]);
           
           if (existingCast.rows.length === 0 || existingCast.rows[0].latest_cast_hash !== latestCast.hash) {
-            await updateLatestCastHash(userAddress, latestCast.hash, latestCast.timestamp);
+            // Update by FID (not address) to ensure it works for all addresses linked to this FID
+            await updateLatestCastHash(fid, latestCast.hash, latestCast.timestamp);
+            
+            // Also refresh active cast entry for homepage
+            try {
+              await refreshActiveCastEntry({
+                fid: fid,
+                userAddress: addressForCheck,
+                config: userConfig,
+                tokenAddress: tokenAddress,
+                allowance: allowanceAmount,
+                balance: balanceAmount,
+                minTip: minTipAmount,
+                castData: latestCast
+              });
+            } catch (cacheError) {
+              console.log(`⚠️ Unable to refresh active cast cache: ${cacheError.message}`);
+            }
+            
             summary.castUpdates.push({
               fid,
               userAddress,
+              addressChecked: addressForCheck,
               castHash: latestCast.hash,
               updated: true
             });
@@ -8873,6 +8941,7 @@ app.post('/api/admin/reconcile-active-users', adminAuth, async (req, res) => {
             summary.castUpdates.push({
               fid,
               userAddress,
+              addressChecked: addressForCheck,
               castHash: latestCast.hash,
               updated: false,
               reason: 'already_latest'
@@ -8882,12 +8951,13 @@ app.post('/api/admin/reconcile-active-users', adminAuth, async (req, res) => {
           summary.castUpdates.push({
             fid,
             userAddress,
+            addressChecked: addressForCheck,
             updated: false,
             reason: 'no_cast_found'
           });
         }
       } catch (error) {
-        summary.errors.push({ fid, userAddress, reason: 'cast_fetch_error', error: error.message });
+        summary.errors.push({ fid, userAddress, addressChecked: addressForCheck, reason: 'cast_fetch_error', error: error.message });
       }
     }
 
