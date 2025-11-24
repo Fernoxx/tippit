@@ -1399,14 +1399,7 @@ app.post('/api/approve', async (req, res) => {
         console.log(`⏳ Waiting 8 seconds for blockchain to update after approval...`);
         await new Promise(resolve => setTimeout(resolve, 8000));
         
-        // Clear cache for this user to force fresh check after blockchain update
-        const cacheKey = `${userAddress.toLowerCase()}-${tokenAddress.toLowerCase()}`;
-        allowanceCache.delete(cacheKey);
-        
-        // Use cached allowance check function (will make fresh call after cache clear)
-        const hasSufficientAllowance = await checkUserAllowanceForWebhook(userAddress);
-        
-        // Get user's FID
+        // Get user's FID first
         console.log(`🔍 Getting FID for user ${userAddress}...`);
         const fid = await getUserFid(userAddress);
         if (!fid) {
@@ -1417,8 +1410,23 @@ app.post('/api/approve', async (req, res) => {
         
         console.log(`✅ Found FID ${fid} for user ${userAddress}`);
         
+        // Get most recent approval address for this FID (the wallet that actually approved tokens)
+        const mostRecentApprovalAddress = await database.getMostRecentApprovalAddress(fid);
+        const addressForCheck = mostRecentApprovalAddress || userAddress;
+        
+        if (mostRecentApprovalAddress && mostRecentApprovalAddress.toLowerCase() !== userAddress.toLowerCase()) {
+          console.log(`✅ Using most recent approval address for allowance check: ${mostRecentApprovalAddress} (instead of ${userAddress})`);
+        }
+        
+        // Clear cache for the address we're actually checking
+        const cacheKey = `${addressForCheck.toLowerCase()}-${tokenAddress.toLowerCase()}`;
+        allowanceCache.delete(cacheKey);
+        
+        // Use cached allowance check function with FID (will use most recent approval address)
+        const hasSufficientAllowance = await checkUserAllowanceForWebhook(fid);
+        
         if (hasSufficientAllowance) {
-          console.log(`✅ User ${userAddress} has sufficient allowance and balance - adding to webhook`);
+          console.log(`✅ User ${addressForCheck} (FID: ${fid}) has sufficient allowance and balance - adding to webhook`);
           const added = await addFidToWebhook(fid);
           if (added) {
             console.log(`✅ FID ${fid} added to webhook`);
@@ -1426,7 +1434,7 @@ app.post('/api/approve', async (req, res) => {
             console.log(`ℹ️ FID ${fid} already in webhook or failed to add`);
           }
         } else {
-          console.log(`❌ User ${userAddress} has insufficient allowance or balance - not adding to webhook`);
+          console.log(`❌ User ${addressForCheck} (FID: ${fid}) has insufficient allowance or balance - not adding to webhook`);
         }
       } catch (error) {
         console.error(`❌ Error checking allowance and updating webhook for ${userAddress}:`, error);
@@ -1464,24 +1472,32 @@ app.post('/api/revoke', async (req, res) => {
         console.log(`⏳ Waiting 8 seconds for blockchain to update after revocation...`);
         await new Promise(resolve => setTimeout(resolve, 8000));
         
-        // Use cached allowance check function (will make fresh call after 8 seconds)
-        const hasSufficientAllowance = await checkUserAllowanceForWebhook(userAddress);
-        
-        // Get user's FID
+        // Get user's FID first
         const fid = await getUserFid(userAddress);
         if (!fid) {
           console.log(`⚠️ No FID found for user ${userAddress}`);
           return;
         }
         
+        // Get most recent approval address for this FID (the wallet that actually approved tokens)
+        const mostRecentApprovalAddress = await database.getMostRecentApprovalAddress(fid);
+        const addressForCheck = mostRecentApprovalAddress || userAddress;
+        
+        if (mostRecentApprovalAddress && mostRecentApprovalAddress.toLowerCase() !== userAddress.toLowerCase()) {
+          console.log(`✅ Using most recent approval address for allowance check: ${mostRecentApprovalAddress} (instead of ${userAddress})`);
+        }
+        
+        // Use cached allowance check function with FID (will use most recent approval address)
+        const hasSufficientAllowance = await checkUserAllowanceForWebhook(fid);
+        
         if (!hasSufficientAllowance) {
-          console.log(`✅ User ${userAddress} has insufficient allowance - removing from webhook`);
+          console.log(`✅ User ${addressForCheck} (FID: ${fid}) has insufficient allowance - removing from webhook`);
           const removed = await removeFidFromWebhook(fid);
           if (removed) {
             console.log(`✅ Removed FID ${fid} from webhook after revocation`);
           }
         } else {
-          console.log(`✅ User ${userAddress} still has sufficient allowance - keeping in webhook`);
+          console.log(`✅ User ${addressForCheck} (FID: ${fid}) still has sufficient allowance - keeping in webhook`);
         }
       } catch (error) {
         console.error(`❌ Error checking allowance and updating webhook for ${userAddress}:`, error.message);
@@ -2838,17 +2854,54 @@ async function getUserAddressFromFid(fid) {
 
 // Check if user has sufficient allowance for at least one tip
 // Uses cache to avoid excessive RPC calls
-async function checkUserAllowanceForWebhook(userAddress) {
+// Can accept either userAddress (string) or fid (number)
+// If fid is provided, will use most recent approval address for that FID
+async function checkUserAllowanceForWebhook(userAddressOrFid) {
   try {
+    let userAddress = null;
+    let fid = null;
+    
+    // Determine if input is FID (number) or address (string)
+    if (typeof userAddressOrFid === 'number') {
+      fid = userAddressOrFid;
+      // Get most recent approval address for this FID
+      userAddress = await database.getMostRecentApprovalAddress(fid);
+      if (!userAddress) {
+        // Fallback: try to get address from user_profiles
+        const result = await database.pool.query(
+          'SELECT user_address FROM user_profiles WHERE fid = $1 LIMIT 1',
+          [fid]
+        );
+        if (result.rows.length > 0) {
+          userAddress = result.rows[0].user_address;
+        }
+      }
+      if (!userAddress) {
+        console.log(`⚠️ No address found for FID ${fid} - skipping`);
+        return false;
+      }
+      console.log(`🔍 Checking allowance for FID ${fid} using most recent approval address: ${userAddress}`);
+    } else {
+      userAddress = userAddressOrFid;
+    }
+    
     // Validate address format
     if (!userAddress || !userAddress.startsWith('0x') || userAddress.length !== 42) {
       console.log(`⚠️ Invalid address format: ${userAddress} - skipping`);
       return false;
     }
     
-    const userConfig = await database.getUserConfig(userAddress);
+    // Get config - if we have FID, use getUserConfigByFid to get config from most recent approval address
+    // Otherwise, use getUserConfig with the address directly
+    let userConfig = null;
+    if (fid) {
+      userConfig = await database.getUserConfigByFid(fid);
+    } else {
+      userConfig = await database.getUserConfig(userAddress);
+    }
+    
     if (!userConfig || !userConfig.isActive) {
-      console.log(`⚠️ No active config found for ${userAddress} - skipping`);
+      console.log(`⚠️ No active config found for ${fid ? `FID ${fid}` : userAddress} - skipping`);
       return false;
     }
     
@@ -3213,23 +3266,33 @@ async function updateUserWebhookStatus(userAddress) {
       return false;
     }
     
-    // Check current allowance and balance from blockchain
-    // Use checkUserAllowanceForWebhook which has caching built in
-    const canAfford = await checkUserAllowanceForWebhook(userAddress);
-    
-    // Get allowance and balance from cache for logging/notifications
-    const tokenAddress = userConfig.tokenAddress || BASE_USDC_ADDRESS;
-    const cacheKey = `${userAddress.toLowerCase()}-${tokenAddress.toLowerCase()}`;
-    const cacheEntry = allowanceCache.get(cacheKey);
-    const allowanceAmount = cacheEntry ? parseFloat(cacheEntry.allowance) : 0;
-    const balanceAmount = cacheEntry ? parseFloat(cacheEntry.balance || '0') : 0;
-    const hasSufficientBalance = balanceAmount >= minTipAmount;
-    
+    // Get FID first to find most recent approval address
     const fid = await getUserFid(userAddress);
     if (!fid) {
       console.log(`⚠️ No FID found for address: ${userAddress} - skipping webhook update`);
       return false;
     }
+    
+    // Get most recent approval address for this FID (the wallet that actually approved tokens)
+    const mostRecentApprovalAddress = await database.getMostRecentApprovalAddress(fid);
+    const addressForCheck = mostRecentApprovalAddress || userAddress;
+    
+    if (mostRecentApprovalAddress && mostRecentApprovalAddress.toLowerCase() !== userAddress.toLowerCase()) {
+      console.log(`✅ Using most recent approval address for allowance check: ${mostRecentApprovalAddress} (instead of ${userAddress})`);
+    }
+    
+    // Check current allowance and balance from blockchain
+    // Use checkUserAllowanceForWebhook with FID (will use most recent approval address)
+    const canAfford = await checkUserAllowanceForWebhook(fid);
+    
+    // Get allowance and balance from cache for logging/notifications
+    // Use the address we actually checked (most recent approval address)
+    const tokenAddress = userConfig.tokenAddress || BASE_USDC_ADDRESS;
+    const cacheKey = `${addressForCheck.toLowerCase()}-${tokenAddress.toLowerCase()}`;
+    const cacheEntry = allowanceCache.get(cacheKey);
+    const allowanceAmount = cacheEntry ? parseFloat(cacheEntry.allowance) : 0;
+    const balanceAmount = cacheEntry ? parseFloat(cacheEntry.balance || '0') : 0;
+    const hasSufficientBalance = balanceAmount >= minTipAmount;
     
     if (!canAfford) {
       console.log(`❌ User ${userAddress} has insufficient funds - removing from webhook`);
