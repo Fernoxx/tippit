@@ -3266,27 +3266,33 @@ async function updateUserWebhookStatus(userAddress) {
       return false;
     }
     
-    // Get FID first to find most recent approval address
+    // Get FID for webhook removal if needed
     const fid = await getUserFid(userAddress);
     if (!fid) {
       console.log(`⚠️ No FID found for address: ${userAddress} - skipping webhook update`);
       return false;
     }
     
-    // Get most recent approval address for this FID (the wallet that actually approved tokens)
+    // For webhook status updates, check allowance for the address that has the config
+    // (This is the address the user configured - may differ from most recent approval)
+    // Only use most recent approval address if it also has an active config
+    let addressForCheck = userAddress;
     const mostRecentApprovalAddress = await database.getMostRecentApprovalAddress(fid);
-    const addressForCheck = mostRecentApprovalAddress || userAddress;
     
     if (mostRecentApprovalAddress && mostRecentApprovalAddress.toLowerCase() !== userAddress.toLowerCase()) {
-      console.log(`✅ Using most recent approval address for allowance check: ${mostRecentApprovalAddress} (instead of ${userAddress})`);
+      // Check if most recent approval address also has an active config
+      const recentAddressConfig = await database.getUserConfig(mostRecentApprovalAddress);
+      if (recentAddressConfig && recentAddressConfig.isActive) {
+        addressForCheck = mostRecentApprovalAddress;
+        console.log(`✅ Using most recent approval address for allowance check: ${mostRecentApprovalAddress} (instead of ${userAddress})`);
+      }
     }
     
     // Check current allowance and balance from blockchain
-    // Use checkUserAllowanceForWebhook with FID (will use most recent approval address)
-    const canAfford = await checkUserAllowanceForWebhook(fid);
+    // Use the address that has the active config (not FID, to avoid issues with missing approval records)
+    const canAfford = await checkUserAllowanceForWebhook(addressForCheck);
     
     // Get allowance and balance from cache for logging/notifications
-    // Use the address we actually checked (most recent approval address)
     const tokenAddress = userConfig.tokenAddress || BASE_USDC_ADDRESS;
     const cacheKey = `${addressForCheck.toLowerCase()}-${tokenAddress.toLowerCase()}`;
     const cacheEntry = allowanceCache.get(cacheKey);
@@ -3295,15 +3301,15 @@ async function updateUserWebhookStatus(userAddress) {
     const hasSufficientBalance = balanceAmount >= minTipAmount;
     
     if (!canAfford) {
-      console.log(`❌ User ${userAddress} has insufficient funds - removing from webhook`);
+      console.log(`❌ User ${addressForCheck} (FID: ${fid}) has insufficient funds - removing from webhook`);
       await removeFidFromWebhook(fid, 'insufficient_allowance');
       
       // If balance is insufficient, auto-revoke allowance
       if (!hasSufficientBalance) {
-        console.log(`🔄 Auto-revoking allowance for ${userAddress} due to insufficient balance`);
+        console.log(`🔄 Auto-revoking allowance for ${addressForCheck} due to insufficient balance`);
         try {
-          await autoRevokeAllowance(userAddress, tokenAddress);
-          console.log(`✅ Auto-revoked allowance for ${userAddress}`);
+          await autoRevokeAllowance(addressForCheck, tokenAddress);
+          console.log(`✅ Auto-revoked allowance for ${addressForCheck}`);
         } catch (revokeError) {
           console.error(`❌ Failed to auto-revoke allowance for ${userAddress}:`, revokeError);
         }
@@ -3331,7 +3337,7 @@ async function updateUserWebhookStatus(userAddress) {
       // 2. User has BOTH sufficient allowance AND balance (they topped up)
       // This prevents re-adding users who were just removed due to insufficient balance but still have allowance
       if (!userConfig.isActive && !hasSufficientBalance) {
-        console.log(`⚠️ User ${userAddress} has sufficient allowance (${allowanceAmount}) but insufficient balance (${balanceAmount}) and isActive=false - not adding back to webhook (user was recently removed due to insufficient balance)`);
+        console.log(`⚠️ User ${addressForCheck} has sufficient allowance (${allowanceAmount}) but insufficient balance (${balanceAmount}) and isActive=false - not adding back to webhook (user was recently removed due to insufficient balance)`);
         // Don't add back - user needs to top up balance first
         return false;
       }
@@ -3350,14 +3356,14 @@ async function updateUserWebhookStatus(userAddress) {
       // Reset notification flag if they have sufficient funds again
       if (userConfig.allowanceEmptyNotificationSent) {
         userConfig.allowanceEmptyNotificationSent = false;
-        await database.setUserConfig(userAddress, userConfig);
+        await database.setUserConfig(addressForCheck, userConfig);
       }
     }
     
     // Update last allowance check
     userConfig.lastAllowance = allowanceAmount;
     userConfig.lastAllowanceCheck = Date.now();
-    await database.setUserConfig(userAddress, userConfig);
+    await database.setUserConfig(addressForCheck, userConfig);
     
     return true;
   } catch (error) {
@@ -4177,8 +4183,8 @@ app.post('/api/remove-unverified-users', async (req, res) => {
         if (!fid) {
           console.log(`❌ No verified address found for ${userAddress} - removing from webhook`);
           
-          // Remove from webhook filters
-          await removeFidFromWebhook(fid, 'No verified address');
+          // Skip removal if no FID (can't remove what's not there)
+          // Just mark as inactive in database
           
           // Update database to mark as inactive
           await db.query(`
@@ -8771,10 +8777,19 @@ app.post('/api/admin/reconcile-active-users', adminAuth, async (req, res) => {
             "function balanceOf(address owner) view returns (uint256)"
           ], provider);
           
+          // Get most recent approval address for this FID (the wallet that actually approved tokens)
+          const mostRecentApprovalAddress = await database.getMostRecentApprovalAddress(fid);
+          const addressForCheck = mostRecentApprovalAddress || userAddress;
+          
+          if (mostRecentApprovalAddress && mostRecentApprovalAddress.toLowerCase() !== userAddress.toLowerCase()) {
+            console.log(`✅ Using most recent approval address for allowance check: ${mostRecentApprovalAddress} (instead of ${userAddress})`);
+          }
+          
           // Use safe contract calls with timeout protection
+          // Check allowance for the address that actually approved tokens
           return Promise.all([
-            safeContractCall(tokenContract, 'allowance', userAddress, ecionBatchAddress),
-            safeContractCall(tokenContract, 'balanceOf', userAddress)
+            safeContractCall(tokenContract, 'allowance', addressForCheck, ecionBatchAddress),
+            safeContractCall(tokenContract, 'balanceOf', addressForCheck)
           ]);
         }, 4);
 
@@ -8789,6 +8804,7 @@ app.post('/api/admin/reconcile-active-users', adminAuth, async (req, res) => {
         summary.skipped.push({
           fid,
           userAddress,
+          addressChecked: addressForCheck,
           reason: 'insufficient_allowance_or_balance',
           allowance: allowanceAmount,
           balance: balanceAmount,
