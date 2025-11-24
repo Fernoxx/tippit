@@ -8834,10 +8834,66 @@ app.post('/api/admin/reconcile-active-users', adminAuth, async (req, res) => {
         continue;
       }
 
+      // For ALL users (whether already tracked or newly added), refresh homepage cache
+      // This ensures homepage shows latest casts for all users with sufficient allowance
+      try {
+        const latestCast = await getLatestCast(fid);
+        if (latestCast && latestCast.hash) {
+          // Update latest cast hash in database (by FID)
+          await updateLatestCastHash(fid, latestCast.hash, latestCast.timestamp);
+          
+          // Refresh active cast entry for homepage (ONLY if user has sufficient allowance)
+          // Homepage should only show users whose latest approved address has allowance
+          if (allowanceAmount >= minTipAmount && balanceAmount >= minTipAmount) {
+            try {
+              await refreshActiveCastEntry({
+                fid: fid,
+                userAddress: addressForCheck,
+                config: userConfig,
+                tokenAddress: tokenAddress,
+                allowance: allowanceAmount,
+                balance: balanceAmount,
+                minTip: minTipAmount,
+                castData: latestCast
+              });
+              console.log(`✅ Refreshed homepage cache for FID ${fid} (address: ${addressForCheck})`);
+            } catch (cacheError) {
+              console.log(`⚠️ Unable to refresh active cast cache for FID ${fid}: ${cacheError.message}`);
+            }
+          } else {
+            // Remove from homepage if insufficient allowance/balance
+            await database.removeActiveCast(fid);
+            console.log(`🚫 Removed FID ${fid} from homepage (insufficient allowance/balance)`);
+          }
+          
+          summary.castUpdates.push({
+            fid,
+            userAddress,
+            addressChecked: addressForCheck,
+            castHash: latestCast.hash,
+            updated: true,
+            homepageRefreshed: allowanceAmount >= minTipAmount && balanceAmount >= minTipAmount
+          });
+        } else {
+          // No cast found - remove from homepage
+          await database.removeActiveCast(fid);
+          summary.castUpdates.push({
+            fid,
+            userAddress,
+            addressChecked: addressForCheck,
+            updated: false,
+            reason: 'no_cast_found'
+          });
+        }
+      } catch (error) {
+        summary.errors.push({ fid, userAddress, addressChecked: addressForCheck, reason: 'cast_fetch_error', error: error.message });
+      }
+
       if (trackedSet.has(fid)) {
         summary.skipped.push({
           fid,
           userAddress,
+          addressChecked: addressForCheck,
           reason: 'already_tracked',
           allowance: allowanceAmount,
           balance: balanceAmount,
@@ -8847,34 +8903,6 @@ app.post('/api/admin/reconcile-active-users', adminAuth, async (req, res) => {
         try {
           const added = await addFidToWebhook(fid);
           if (added) {
-            // addFidToWebhook already fetches and stores latest cast, but let's also ensure it's updated here
-            // Fetch latest cast to ensure it's in database and homepage
-            try {
-              const latestCast = await getLatestCast(fid);
-              if (latestCast && latestCast.hash) {
-                await updateLatestCastHash(fid, latestCast.hash, latestCast.timestamp);
-                console.log(`✅ Fetched and stored latest cast ${latestCast.hash} for FID ${fid}`);
-                
-                // Also refresh active cast entry for homepage
-                try {
-                  await refreshActiveCastEntry({
-                    fid: fid,
-                    userAddress: addressForCheck,
-                    config: userConfig,
-                    tokenAddress: tokenAddress,
-                    allowance: allowanceAmount,
-                    balance: balanceAmount,
-                    minTip: minTipAmount,
-                    castData: latestCast
-                  });
-                } catch (cacheError) {
-                  console.log(`⚠️ Unable to refresh active cast cache: ${cacheError.message}`);
-                }
-              }
-            } catch (castError) {
-              console.log(`⚠️ Error fetching latest cast for FID ${fid}: ${castError.message}`);
-            }
-            
             summary.added.push({
               fid,
               userAddress,
@@ -8899,65 +8927,6 @@ app.post('/api/admin/reconcile-active-users', adminAuth, async (req, res) => {
         } catch (error) {
           summary.errors.push({ fid, userAddress, reason: 'webhook_error', error: error.message });
         }
-      }
-
-      // Fetch and update latest cast hash for this user (by FID, not address)
-      // This ensures casts are stored correctly even if user has multiple addresses
-      try {
-        const latestCast = await getLatestCast(fid);
-        if (latestCast && latestCast.hash) {
-          const existingCast = await database.pool.query(`
-            SELECT latest_cast_hash FROM user_profiles WHERE fid = $1
-          `, [fid]);
-          
-          if (existingCast.rows.length === 0 || existingCast.rows[0].latest_cast_hash !== latestCast.hash) {
-            // Update by FID (not address) to ensure it works for all addresses linked to this FID
-            await updateLatestCastHash(fid, latestCast.hash, latestCast.timestamp);
-            
-            // Also refresh active cast entry for homepage
-            try {
-              await refreshActiveCastEntry({
-                fid: fid,
-                userAddress: addressForCheck,
-                config: userConfig,
-                tokenAddress: tokenAddress,
-                allowance: allowanceAmount,
-                balance: balanceAmount,
-                minTip: minTipAmount,
-                castData: latestCast
-              });
-            } catch (cacheError) {
-              console.log(`⚠️ Unable to refresh active cast cache: ${cacheError.message}`);
-            }
-            
-            summary.castUpdates.push({
-              fid,
-              userAddress,
-              addressChecked: addressForCheck,
-              castHash: latestCast.hash,
-              updated: true
-            });
-          } else {
-            summary.castUpdates.push({
-              fid,
-              userAddress,
-              addressChecked: addressForCheck,
-              castHash: latestCast.hash,
-              updated: false,
-              reason: 'already_latest'
-            });
-          }
-        } else {
-          summary.castUpdates.push({
-            fid,
-            userAddress,
-            addressChecked: addressForCheck,
-            updated: false,
-            reason: 'no_cast_found'
-          });
-        }
-      } catch (error) {
-        summary.errors.push({ fid, userAddress, addressChecked: addressForCheck, reason: 'cast_fetch_error', error: error.message });
       }
     }
 
