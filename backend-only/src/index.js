@@ -8768,6 +8768,15 @@ app.post('/api/admin/reconcile-active-users', adminAuth, async (req, res) => {
       const tokenAddress = (userConfig.tokenAddress || BASE_USDC_ADDRESS).toLowerCase();
       let allowanceAmount = 0;
       let balanceAmount = 0;
+      
+      // Get most recent approval address for this FID (the wallet that actually approved tokens)
+      // This ensures we check allowance for the correct wallet
+      const mostRecentApprovalAddress = await database.getMostRecentApprovalAddress(fid);
+      const addressForCheck = mostRecentApprovalAddress || userAddress;
+      
+      if (mostRecentApprovalAddress && mostRecentApprovalAddress.toLowerCase() !== userAddress.toLowerCase()) {
+        console.log(`✅ Using most recent approval address for allowance check: ${mostRecentApprovalAddress} (instead of ${userAddress})`);
+      }
 
       try {
         const tokenDecimals = await getTokenDecimals(tokenAddress);
@@ -8776,14 +8785,6 @@ app.post('/api/admin/reconcile-active-users', adminAuth, async (req, res) => {
             "function allowance(address owner, address spender) view returns (uint256)",
             "function balanceOf(address owner) view returns (uint256)"
           ], provider);
-          
-          // Get most recent approval address for this FID (the wallet that actually approved tokens)
-          const mostRecentApprovalAddress = await database.getMostRecentApprovalAddress(fid);
-          const addressForCheck = mostRecentApprovalAddress || userAddress;
-          
-          if (mostRecentApprovalAddress && mostRecentApprovalAddress.toLowerCase() !== userAddress.toLowerCase()) {
-            console.log(`✅ Using most recent approval address for allowance check: ${mostRecentApprovalAddress} (instead of ${userAddress})`);
-          }
           
           // Use safe contract calls with timeout protection
           // Check allowance for the address that actually approved tokens
@@ -8796,10 +8797,11 @@ app.post('/api/admin/reconcile-active-users', adminAuth, async (req, res) => {
         allowanceAmount = parseFloat(ethers.formatUnits(allowanceRaw, tokenDecimals));
         balanceAmount = parseFloat(ethers.formatUnits(balanceRaw, tokenDecimals));
       } catch (error) {
-        summary.errors.push({ fid, userAddress, reason: 'rpc_error', error: error.message });
+        summary.errors.push({ fid, userAddress, addressChecked: addressForCheck, reason: 'rpc_error', error: error.message });
         continue;
       }
 
+      // Check if user has sufficient allowance AND balance (both must be >= minTipAmount)
       if (allowanceAmount < minTipAmount || balanceAmount < minTipAmount) {
         summary.skipped.push({
           fid,
