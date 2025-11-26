@@ -679,6 +679,32 @@ class PostgresDatabase {
     }
   }
   
+  // Get the most recent approval (both address AND token)
+  // Returns { address, tokenAddress } or null
+  async getMostRecentApproval(fid) {
+    try {
+      const result = await this.pool.query(`
+        SELECT user_address, token_address, approved_at
+        FROM user_approvals
+        WHERE fid = $1
+        ORDER BY approved_at DESC
+        LIMIT 1
+      `, [fid]);
+      
+      if (result.rows.length > 0) {
+        return {
+          address: result.rows[0].user_address,
+          tokenAddress: result.rows[0].token_address,
+          approvedAt: result.rows[0].approved_at
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('❌ Error getting most recent approval:', error.message);
+      return null;
+    }
+  }
+  
   // Get config by FID (using most recent approval address)
   async getUserConfigByFid(fid) {
     try {
