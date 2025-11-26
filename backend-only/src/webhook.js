@@ -246,12 +246,19 @@ async function webhookHandler(req, res) {
       console.log(`⚠️ Author ${authorAddressForChecks} (FID: ${authorFid}) has config but not in webhook - checking allowance/balance before adding`);
       
       // Check if user has sufficient allowance and balance before adding to webhook
-      // Use the most recent approval address for checks (the wallet that actually has the allowance)
+      // Use the most recent approval address AND token for checks (the wallet and token that were actually approved)
       const { ethers } = require('ethers');
       const { getProvider } = require('./rpcProvider');
       const provider = await getProvider();
       const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
-      const tokenAddress = authorConfig.tokenAddress || BASE_USDC_ADDRESS;
+      
+      // Get most recent approval (address AND token) to use the correct token
+      const mostRecentApproval = await database.getMostRecentApproval(interaction.authorFid);
+      const tokenAddress = mostRecentApproval?.tokenAddress || authorConfig.tokenAddress || BASE_USDC_ADDRESS;
+      
+      if (mostRecentApproval && mostRecentApproval.tokenAddress.toLowerCase() !== (authorConfig.tokenAddress || '').toLowerCase()) {
+        console.log(`✅ Using token from most recent approval: ${mostRecentApproval.tokenAddress} (instead of config token: ${authorConfig.tokenAddress || 'none'})`);
+      }
       
       try {
         const tokenContract = new ethers.Contract(tokenAddress, [
