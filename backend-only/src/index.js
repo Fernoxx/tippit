@@ -1246,7 +1246,11 @@ app.get('/api/allowance/:userAddress/:tokenAddress', async (req, res) => {
   const cacheEntry = allowanceCache.get(cacheKey);
   const now = Date.now();
 
-  if (!forceRefresh && cacheEntry && now - cacheEntry.timestamp <= ALLOWANCE_CACHE_TTL_MS) {
+  // Always refresh if force=true, or if cache is older than 30 seconds (for frontend display accuracy)
+  // Reduced cache time for frontend to ensure users see accurate data
+  const FRONTEND_CACHE_TTL_MS = 30 * 1000; // 30 seconds for frontend
+  
+  if (!forceRefresh && cacheEntry && now - cacheEntry.timestamp <= FRONTEND_CACHE_TTL_MS) {
     return res.json({
       allowance: cacheEntry.allowance,
       tokenAddress: cacheEntry.tokenAddress,
@@ -3316,28 +3320,67 @@ async function updateUserWebhookStatus(userAddress) {
       console.log(`✅ Using token configured for approval address: ${configForAddress.tokenAddress} (instead of config token: ${userConfig.tokenAddress || 'none'})`);
     }
     
-    // Check current allowance and balance from blockchain
-    // Use FID to check allowance (will use most recent approval address + configured token)
-    const canAfford = await checkUserAllowanceForWebhook(fid);
+    // Check current allowance and balance from blockchain directly (don't rely on cache for removal decisions)
+    // Use the correct address and token configured for that address
+    const { ethers } = require('ethers');
+    const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
     
-    // Get allowance and balance from cache for logging/notifications
-    // Use the token configured for the approval address
-    const tokenAddress = tokenAddressForCheck;
-    const cacheKey = `${addressForCheck.toLowerCase()}-${tokenAddress.toLowerCase()}`;
-    const cacheEntry = allowanceCache.get(cacheKey);
-    const allowanceAmount = cacheEntry ? parseFloat(cacheEntry.allowance) : 0;
-    const balanceAmount = cacheEntry ? parseFloat(cacheEntry.balance || '0') : 0;
+    let allowanceAmount = 0;
+    let balanceAmount = 0;
+    
+    try {
+      const tokenDecimals = await getTokenDecimals(tokenAddressForCheck);
+      const [allowanceRaw, balanceRaw] = await executeWithFallback(async (provider) => {
+        const tokenContract = new ethers.Contract(tokenAddressForCheck, [
+          "function allowance(address owner, address spender) view returns (uint256)",
+          "function balanceOf(address owner) view returns (uint256)"
+        ], provider);
+        
+        return Promise.all([
+          safeContractCall(tokenContract, 'allowance', addressForCheck, ecionBatchAddress),
+          safeContractCall(tokenContract, 'balanceOf', addressForCheck)
+        ]);
+      }, 4);
+      
+      allowanceAmount = parseFloat(ethers.formatUnits(allowanceRaw, tokenDecimals));
+      balanceAmount = parseFloat(ethers.formatUnits(balanceRaw, tokenDecimals));
+      
+      // Update cache with fresh data
+      const cacheKey = `${addressForCheck.toLowerCase()}-${tokenAddressForCheck.toLowerCase()}`;
+      allowanceCache.set(cacheKey, {
+        allowance: allowanceAmount.toString(),
+        balance: balanceAmount.toString(),
+        tokenAddress: tokenAddressForCheck,
+        decimals: tokenDecimals,
+        timestamp: Date.now()
+      });
+    } catch (error) {
+      console.log(`⚠️ Error checking allowance/balance for ${addressForCheck}: ${error.message} - using cache if available`);
+      // Fallback to cache if blockchain call fails
+      const cacheKey = `${addressForCheck.toLowerCase()}-${tokenAddressForCheck.toLowerCase()}`;
+      const cacheEntry = allowanceCache.get(cacheKey);
+      if (cacheEntry) {
+        allowanceAmount = parseFloat(cacheEntry.allowance);
+        balanceAmount = parseFloat(cacheEntry.balance || '0');
+      }
+    }
+    
+    const hasSufficientAllowance = allowanceAmount >= minTipAmount;
     const hasSufficientBalance = balanceAmount >= minTipAmount;
+    const canAfford = hasSufficientAllowance && hasSufficientBalance;
     
+    console.log(`🔍 Allowance check for ${addressForCheck} (FID: ${fid}): allowance=${allowanceAmount}, balance=${balanceAmount}, minTip=${minTipAmount}, token=${tokenAddressForCheck}`);
+    
+    // Only remove if BOTH allowance AND balance are insufficient
     if (!canAfford) {
-      console.log(`❌ User ${addressForCheck} (FID: ${fid}) has insufficient funds - removing from webhook`);
-      await removeFidFromWebhook(fid, 'insufficient_allowance');
+      console.log(`❌ User ${addressForCheck} (FID: ${fid}) has insufficient funds (allowance: ${allowanceAmount} < ${minTipAmount} OR balance: ${balanceAmount} < ${minTipAmount}) - removing from webhook`);
+      await removeFidFromWebhook(fid, 'insufficient_funds');
       
       // If balance is insufficient, auto-revoke allowance
       if (!hasSufficientBalance) {
         console.log(`🔄 Auto-revoking allowance for ${addressForCheck} due to insufficient balance`);
         try {
-          await autoRevokeAllowance(addressForCheck, tokenAddress);
+          await autoRevokeAllowance(addressForCheck, tokenAddressForCheck);
           console.log(`✅ Auto-revoked allowance for ${addressForCheck}`);
         } catch (revokeError) {
           console.error(`❌ Failed to auto-revoke allowance for ${userAddress}:`, revokeError);
