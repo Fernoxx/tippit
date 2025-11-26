@@ -485,10 +485,9 @@ async function webhookHandler(req, res) {
 
     // Webhook filtering handles allowance/balance checks automatically
 
-    // Get most recent approval address (the wallet that approved tokens)
+    // Use the most recent approval address that was already fetched above
     // Then get the config for that address to get the configured token
     // This ensures tips are sent using the token configured for the wallet that approved
-    const mostRecentApprovalAddress = await database.getMostRecentApprovalAddress(interaction.authorFid);
     if (mostRecentApprovalAddress) {
       // Get config for the most recent approval address (this gives us the token configured for that wallet)
       const configForAddress = await database.getUserConfig(mostRecentApprovalAddress);
@@ -499,7 +498,7 @@ async function webhookHandler(req, res) {
           console.log(`✅ Using token configured for approval address: ${configForAddress.tokenAddress} (instead of config token: ${authorConfig.tokenAddress || 'none'})`);
           authorConfig.tokenAddress = configForAddress.tokenAddress;
         }
-        // Update authorAddress to use address from most recent approval
+        // Update authorAddress to use address from most recent approval (if not already updated)
         if (mostRecentApprovalAddress.toLowerCase() !== interaction.authorAddress.toLowerCase()) {
           console.log(`✅ Using address from most recent approval for tip: ${mostRecentApprovalAddress} (instead of ${interaction.authorAddress})`);
           interaction.authorAddress = mostRecentApprovalAddress;
