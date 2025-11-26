@@ -2874,14 +2874,14 @@ async function checkUserAllowanceForWebhook(userAddressOrFid) {
     let fid = null;
     
     // Determine if input is FID (number) or address (string)
-    let mostRecentApproval = null;
+    let mostRecentApprovalAddress = null;
     if (typeof userAddressOrFid === 'number') {
       fid = userAddressOrFid;
-      // Get most recent approval (address AND token) for this FID
-      mostRecentApproval = await database.getMostRecentApproval(fid);
-      if (mostRecentApproval) {
-        userAddress = mostRecentApproval.address;
-        console.log(`🔍 Checking allowance for FID ${fid} using most recent approval: address=${userAddress}, token=${mostRecentApproval.tokenAddress}`);
+      // Get most recent approval address for this FID (the wallet that approved tokens)
+      mostRecentApprovalAddress = await database.getMostRecentApprovalAddress(fid);
+      if (mostRecentApprovalAddress) {
+        userAddress = mostRecentApprovalAddress;
+        console.log(`🔍 Checking allowance for FID ${fid} using most recent approval address: ${userAddress}`);
       } else {
         // Fallback: try to get address from user_profiles
         const result = await database.pool.query(
@@ -2906,7 +2906,8 @@ async function checkUserAllowanceForWebhook(userAddressOrFid) {
       return false;
     }
     
-    // Get config - if we have FID, use getUserConfigByFid to get config from most recent approval address
+    // Get config for the wallet address (this gives us the token configured for this wallet)
+    // If we have FID, use getUserConfigByFid to get config from most recent approval address
     // Otherwise, use getUserConfig with the address directly
     let userConfig = null;
     if (fid) {
@@ -2931,13 +2932,11 @@ async function checkUserAllowanceForWebhook(userAddressOrFid) {
       return false;
     }
     
-    // Use token from most recent approval if available, otherwise use token from config
-    // This ensures we check the correct token that was actually approved
-    const tokenAddress = mostRecentApproval?.tokenAddress || userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+    // Use token from config (the token configured for this wallet)
+    // This is the token the user chose for this wallet, which may differ from the token they approved
+    const tokenAddress = userConfig.tokenAddress || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
     
-    if (mostRecentApproval && mostRecentApproval.tokenAddress.toLowerCase() !== (userConfig.tokenAddress || '').toLowerCase()) {
-      console.log(`✅ Using token from most recent approval: ${mostRecentApproval.tokenAddress} (instead of config token: ${userConfig.tokenAddress || 'none'})`);
-    }
+    console.log(`✅ Checking allowance for wallet ${userAddress} with configured token: ${tokenAddress}`);
     const cacheKey = `${userAddress.toLowerCase()}-${tokenAddress.toLowerCase()}`;
     const cacheEntry = allowanceCache.get(cacheKey);
     const now = Date.now();
@@ -3300,27 +3299,29 @@ async function updateUserWebhookStatus(userAddress) {
       return false;
     }
     
-    // Get most recent approval (address AND token) for this FID
-    // This ensures we check the correct token that was actually approved
-    const mostRecentApproval = await database.getMostRecentApproval(fid);
-    const addressForCheck = mostRecentApproval?.address || userAddress;
-    const tokenAddressForCheck = mostRecentApproval?.tokenAddress || userConfig.tokenAddress || BASE_USDC_ADDRESS;
+    // Get most recent approval address for this FID (the wallet that approved tokens)
+    // Then get the config for that wallet to get the configured token
+    const mostRecentApprovalAddress = await database.getMostRecentApprovalAddress(fid);
+    const addressForCheck = mostRecentApprovalAddress || userAddress;
     
-    if (mostRecentApproval) {
-      if (mostRecentApproval.address.toLowerCase() !== userAddress.toLowerCase()) {
-        console.log(`✅ Using most recent approval address for allowance check: ${mostRecentApproval.address} (instead of ${userAddress})`);
-      }
-      if (mostRecentApproval.tokenAddress.toLowerCase() !== (userConfig.tokenAddress || '').toLowerCase()) {
-        console.log(`✅ Using token from most recent approval: ${mostRecentApproval.tokenAddress} (instead of config token: ${userConfig.tokenAddress || 'none'})`);
-      }
+    // Get config for the most recent approval address (this gives us the token configured for that wallet)
+    const configForAddress = await database.getUserConfig(addressForCheck);
+    const tokenAddressForCheck = configForAddress?.tokenAddress || userConfig.tokenAddress || BASE_USDC_ADDRESS;
+    
+    if (mostRecentApprovalAddress && mostRecentApprovalAddress.toLowerCase() !== userAddress.toLowerCase()) {
+      console.log(`✅ Using most recent approval address for allowance check: ${mostRecentApprovalAddress} (instead of ${userAddress})`);
+    }
+    
+    if (configForAddress && configForAddress.tokenAddress.toLowerCase() !== (userConfig.tokenAddress || '').toLowerCase()) {
+      console.log(`✅ Using token configured for approval address: ${configForAddress.tokenAddress} (instead of config token: ${userConfig.tokenAddress || 'none'})`);
     }
     
     // Check current allowance and balance from blockchain
-    // Use FID to check allowance (will use most recent approval address + token)
+    // Use FID to check allowance (will use most recent approval address + configured token)
     const canAfford = await checkUserAllowanceForWebhook(fid);
     
     // Get allowance and balance from cache for logging/notifications
-    // Use the token from most recent approval
+    // Use the token configured for the approval address
     const tokenAddress = tokenAddressForCheck;
     const cacheKey = `${addressForCheck.toLowerCase()}-${tokenAddress.toLowerCase()}`;
     const cacheEntry = allowanceCache.get(cacheKey);
@@ -8793,20 +8794,22 @@ app.post('/api/admin/reconcile-active-users', adminAuth, async (req, res) => {
         continue;
       }
 
-      // Get most recent approval (address AND token) for this FID
-      // This ensures we check the correct token that was actually approved from the correct address
-      const mostRecentApproval = await database.getMostRecentApproval(fid);
-      const addressForCheck = mostRecentApproval?.address || userAddress;
-      const tokenAddressForCheck = mostRecentApproval?.tokenAddress || userConfig.tokenAddress || BASE_USDC_ADDRESS;
+      // Get most recent approval address for this FID (the wallet that approved tokens)
+      // Then get the config for that wallet to get the configured token
+      const mostRecentApprovalAddress = await database.getMostRecentApprovalAddress(fid);
+      const addressForCheck = mostRecentApprovalAddress || userAddress;
+      
+      // Get config for the most recent approval address (this gives us the token configured for that wallet)
+      const configForAddress = await database.getUserConfig(addressForCheck);
+      const tokenAddressForCheck = configForAddress?.tokenAddress || userConfig.tokenAddress || BASE_USDC_ADDRESS;
       const tokenAddress = tokenAddressForCheck.toLowerCase();
       
-      if (mostRecentApproval) {
-        if (mostRecentApproval.address.toLowerCase() !== userAddress.toLowerCase()) {
-          console.log(`✅ Using most recent approval address for allowance check: ${mostRecentApproval.address} (instead of ${userAddress})`);
-        }
-        if (mostRecentApproval.tokenAddress.toLowerCase() !== (userConfig.tokenAddress || '').toLowerCase()) {
-          console.log(`✅ Using token from most recent approval: ${mostRecentApproval.tokenAddress} (instead of config token: ${userConfig.tokenAddress || 'none'})`);
-        }
+      if (mostRecentApprovalAddress && mostRecentApprovalAddress.toLowerCase() !== userAddress.toLowerCase()) {
+        console.log(`✅ Using most recent approval address for allowance check: ${mostRecentApprovalAddress} (instead of ${userAddress})`);
+      }
+      
+      if (configForAddress && configForAddress.tokenAddress.toLowerCase() !== (userConfig.tokenAddress || '').toLowerCase()) {
+        console.log(`✅ Using token configured for approval address: ${configForAddress.tokenAddress} (instead of config token: ${userConfig.tokenAddress || 'none'})`);
       }
       
       let allowanceAmount = 0;
