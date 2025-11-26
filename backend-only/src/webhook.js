@@ -481,6 +481,22 @@ async function webhookHandler(req, res) {
 
     // Webhook filtering handles allowance/balance checks automatically
 
+    // Get most recent approval (address AND token) to ensure we use the correct token
+    // This ensures tips are sent using the token that was actually approved
+    const mostRecentApproval = await database.getMostRecentApproval(interaction.authorFid);
+    if (mostRecentApproval) {
+      // Update authorConfig to use token from most recent approval
+      if (mostRecentApproval.tokenAddress.toLowerCase() !== (authorConfig.tokenAddress || '').toLowerCase()) {
+        console.log(`✅ Using token from most recent approval for tip: ${mostRecentApproval.tokenAddress} (instead of config token: ${authorConfig.tokenAddress || 'none'})`);
+        authorConfig.tokenAddress = mostRecentApproval.tokenAddress;
+      }
+      // Update authorAddress to use address from most recent approval
+      if (mostRecentApproval.address.toLowerCase() !== interaction.authorAddress.toLowerCase()) {
+        console.log(`✅ Using address from most recent approval for tip: ${mostRecentApproval.address} (instead of ${interaction.authorAddress})`);
+        interaction.authorAddress = mostRecentApproval.address;
+      }
+    }
+    
     // Process tip through batch system (like Noice - 1 minute batches for gas efficiency)
     console.log(`🚀 Adding tip to batch: ${interaction.interactionType} | ${interaction.interactorFid}→${interaction.authorFid}`);
     console.log(`📊 Interaction details:`, {
@@ -489,7 +505,8 @@ async function webhookHandler(req, res) {
       interactorFid: interaction.interactorFid,
       castHash: interaction.castHash,
       authorAddress: interaction.authorAddress,
-      interactorAddress: interaction.interactorAddress
+      interactorAddress: interaction.interactorAddress,
+      tokenAddress: authorConfig.tokenAddress
     });
     
     const result = await batchTransferManager.addTipToBatch(interaction, authorConfig);
