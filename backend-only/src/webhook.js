@@ -501,8 +501,6 @@ async function webhookHandler(req, res) {
         console.log(`✅ Using address from most recent approval for tip: ${mostRecentApproval.address} (instead of ${interaction.authorAddress})`);
         interaction.authorAddress = mostRecentApproval.address;
       }
-    } else {
-      console.log(`⚠️ No approval record found, using config token and address`);
     }
     
     // Process tip through batch system (like Noice - 1 minute batches for gas efficiency)
