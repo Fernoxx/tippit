@@ -252,8 +252,7 @@ async function webhookHandler(req, res) {
       const provider = await getProvider();
       const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
       
-      // Get most recent approval address (the wallet that approved tokens)
-      const mostRecentApprovalAddress = await database.getMostRecentApprovalAddress(interaction.authorFid);
+      // Use the most recent approval address already fetched above (line 213)
       const addressForCheck = mostRecentApprovalAddress || authorAddressForChecks;
       
       // Get config for the most recent approval address (this gives us the token configured for that wallet)
