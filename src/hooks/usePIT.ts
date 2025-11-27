@@ -225,10 +225,12 @@ export const useEcion = () => {
         return;
       }
       
+      // Check user's balance before approval (with timeout to prevent hanging)
       let balanceAmount: number;
       
       try {
-        const balance = await publicClient.readContract({
+        // Add timeout to balance check (3 seconds max) to prevent hanging on slow RPC
+        const balancePromise = publicClient.readContract({
           address: tokenAddress as `0x${string}`,
           abi: [
             {
@@ -241,13 +243,18 @@ export const useEcion = () => {
           ],
           functionName: 'balanceOf',
           args: [address as `0x${string}`]
-        }) as bigint;
+        }) as Promise<bigint>;
         
+        const timeoutPromise = new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Balance check timeout')), 3000)
+        );
+        
+        const balance = await Promise.race([balancePromise, timeoutPromise]);
         balanceAmount = parseFloat(formatUnits(balance, tokenDecimals));
       } catch (balanceError: any) {
-        // If balance check fails (e.g., RPC error on mobile), skip balance check and proceed with approval
+        // If balance check fails or times out (e.g., RPC error on mobile), skip balance check and proceed with approval
         // The wallet will reject the transaction if balance is insufficient anyway
-        console.warn('Balance check failed (RPC error), proceeding with approval:', balanceError.message);
+        console.warn('Balance check failed/timed out, proceeding with approval:', balanceError.message);
         balanceAmount = Infinity; // Set to infinity so balance check passes
       }
       
