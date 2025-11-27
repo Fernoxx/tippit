@@ -640,17 +640,23 @@ class PostgresDatabase {
   }
   
   // Record an approval event (when user approves token)
+  // Always creates a NEW record (never updates old ones) so we can track the most recent approval
   async recordApproval(userAddress, tokenAddress, fid = null) {
     try {
+      // Delete any existing approval for this user_address + token_address combination first
+      // Then insert new record to ensure approved_at is always updated
+      await this.pool.query(`
+        DELETE FROM user_approvals 
+        WHERE user_address = $1 AND token_address = $2
+      `, [userAddress.toLowerCase(), tokenAddress.toLowerCase()]);
+      
+      // Insert new record with current timestamp
       await this.pool.query(`
         INSERT INTO user_approvals (user_address, fid, token_address, approved_at)
         VALUES ($1, $2, $3, NOW())
-        ON CONFLICT (user_address, token_address)
-        DO UPDATE SET 
-          fid = COALESCE($2, user_approvals.fid),
-          approved_at = NOW()
       `, [userAddress.toLowerCase(), fid, tokenAddress.toLowerCase()]);
-      console.log(`✅ Recorded approval: ${userAddress} approved ${tokenAddress}${fid ? ` (FID: ${fid})` : ''}`);
+      
+      console.log(`✅ Recorded approval: ${userAddress} approved ${tokenAddress}${fid ? ` (FID: ${fid})` : ''} at ${new Date().toISOString()}`);
     } catch (error) {
       console.error('❌ Error recording approval:', error.message);
       throw error;
