@@ -218,29 +218,39 @@ export const useEcion = () => {
         tokenDecimals = 6; // USDC
       }
       
-      // Check user's balance before approval
+      // Check user's balance before approval (with error handling for mobile RPC issues)
       if (!publicClient) {
         toast.error('Wallet not connected. Please connect your wallet first.', { duration: 2000 });
         setIsApproving(false);
         return;
       }
       
-      const balance = await publicClient.readContract({
-        address: tokenAddress as `0x${string}`,
-        abi: [
-          {
-            "constant": true,
-            "inputs": [{"name": "_owner", "type": "address"}],
-            "name": "balanceOf",
-            "outputs": [{"name": "", "type": "uint256"}],
-            "type": "function"
-          }
-        ],
-        functionName: 'balanceOf',
-        args: [address as `0x${string}`]
-      });
+      let balance: bigint;
+      let balanceAmount: number;
       
-      const balanceAmount = parseFloat(formatUnits(balance as bigint, tokenDecimals));
+      try {
+        balance = await publicClient.readContract({
+          address: tokenAddress as `0x${string}`,
+          abi: [
+            {
+              "constant": true,
+              "inputs": [{"name": "_owner", "type": "address"}],
+              "name": "balanceOf",
+              "outputs": [{"name": "", "type": "uint256"}],
+              "type": "function"
+            }
+          ],
+          functionName: 'balanceOf',
+          args: [address as `0x${string}`]
+        });
+        
+        balanceAmount = parseFloat(formatUnits(balance as bigint, tokenDecimals));
+      } catch (balanceError: any) {
+        // If balance check fails (e.g., RPC error on mobile), skip balance check and proceed with approval
+        // The wallet will reject the transaction if balance is insufficient anyway
+        console.warn('Balance check failed (RPC error), proceeding with approval:', balanceError.message);
+        balanceAmount = Infinity; // Set to infinity so balance check passes
+      }
       
       if (amountNum > balanceAmount) {
         toast.error(`Insufficient funds. You have ${balanceAmount.toFixed(tokenDecimals === 6 ? 6 : 18)} tokens but trying to approve ${amount}.`, { duration: 4000 });
