@@ -225,11 +225,10 @@ export const useEcion = () => {
         return;
       }
       
-      let balance: bigint;
       let balanceAmount: number;
       
       try {
-        balance = await publicClient.readContract({
+        const balance = await publicClient.readContract({
           address: tokenAddress as `0x${string}`,
           abi: [
             {
@@ -242,9 +241,9 @@ export const useEcion = () => {
           ],
           functionName: 'balanceOf',
           args: [address as `0x${string}`]
-        });
+        }) as bigint;
         
-        balanceAmount = parseFloat(formatUnits(balance as bigint, tokenDecimals));
+        balanceAmount = parseFloat(formatUnits(balance, tokenDecimals));
       } catch (balanceError: any) {
         // If balance check fails (e.g., RPC error on mobile), skip balance check and proceed with approval
         // The wallet will reject the transaction if balance is insufficient anyway
