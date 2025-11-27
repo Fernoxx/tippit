@@ -252,15 +252,17 @@ async function webhookHandler(req, res) {
       const provider = await getProvider();
       const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
       
-      // Use the most recent approval address already fetched above (line 213)
-      const addressForCheck = mostRecentApprovalAddress || authorAddressForChecks;
+      // Get most recent approval record (address AND token) - use the token that was actually approved
+      const mostRecentApproval = await database.getMostRecentApproval(interaction.authorFid);
+      const addressForCheck = mostRecentApproval?.address || mostRecentApprovalAddress || authorAddressForChecks;
+      const tokenAddress = mostRecentApproval?.tokenAddress || authorConfig.tokenAddress || BASE_USDC_ADDRESS;
       
-      // Get config for the most recent approval address (this gives us the token configured for that wallet)
-      const configForAddress = await database.getUserConfig(addressForCheck);
-      const tokenAddress = configForAddress?.tokenAddress || authorConfig.tokenAddress || BASE_USDC_ADDRESS;
-      
-      if (configForAddress && configForAddress.tokenAddress.toLowerCase() !== (authorConfig.tokenAddress || '').toLowerCase()) {
-        console.log(`✅ Using token configured for approval address: ${configForAddress.tokenAddress} (instead of config token: ${authorConfig.tokenAddress || 'none'})`);
+      if (mostRecentApproval) {
+        if (mostRecentApproval.tokenAddress.toLowerCase() !== (authorConfig.tokenAddress || '').toLowerCase()) {
+          console.log(`✅ Using token from most recent approval record: ${mostRecentApproval.tokenAddress} (instead of config token: ${authorConfig.tokenAddress || 'none'})`);
+        }
+      } else {
+        console.log(`⚠️ No approval record found, using config token: ${authorConfig.tokenAddress || 'none'}`);
       }
       
       try {
@@ -484,25 +486,23 @@ async function webhookHandler(req, res) {
 
     // Webhook filtering handles allowance/balance checks automatically
 
-    // Use the most recent approval address that was already fetched above
-    // Then get the config for that address to get the configured token
-    // This ensures tips are sent using the token configured for the wallet that approved
-    if (mostRecentApprovalAddress) {
-      // Get config for the most recent approval address (this gives us the token configured for that wallet)
-      const configForAddress = await database.getUserConfig(mostRecentApprovalAddress);
-      
-      if (configForAddress) {
-        // Update authorConfig to use token configured for the approval address
-        if (configForAddress.tokenAddress.toLowerCase() !== (authorConfig.tokenAddress || '').toLowerCase()) {
-          console.log(`✅ Using token configured for approval address: ${configForAddress.tokenAddress} (instead of config token: ${authorConfig.tokenAddress || 'none'})`);
-          authorConfig.tokenAddress = configForAddress.tokenAddress;
-        }
-        // Update authorAddress to use address from most recent approval (if not already updated)
-        if (mostRecentApprovalAddress.toLowerCase() !== interaction.authorAddress.toLowerCase()) {
-          console.log(`✅ Using address from most recent approval for tip: ${mostRecentApprovalAddress} (instead of ${interaction.authorAddress})`);
-          interaction.authorAddress = mostRecentApprovalAddress;
-        }
+    // Get most recent approval record (address AND token) - use the token that was actually approved
+    // This ensures tips are sent using the token from the approval record, NOT from config
+    const mostRecentApproval = await database.getMostRecentApproval(interaction.authorFid);
+    
+    if (mostRecentApproval) {
+      // Update authorConfig to use token from the approval record
+      if (mostRecentApproval.tokenAddress.toLowerCase() !== (authorConfig.tokenAddress || '').toLowerCase()) {
+        console.log(`✅ Using token from most recent approval record: ${mostRecentApproval.tokenAddress} (instead of config token: ${authorConfig.tokenAddress || 'none'})`);
+        authorConfig.tokenAddress = mostRecentApproval.tokenAddress;
       }
+      // Update authorAddress to use address from most recent approval
+      if (mostRecentApproval.address.toLowerCase() !== interaction.authorAddress.toLowerCase()) {
+        console.log(`✅ Using address from most recent approval for tip: ${mostRecentApproval.address} (instead of ${interaction.authorAddress})`);
+        interaction.authorAddress = mostRecentApproval.address;
+      }
+    } else {
+      console.log(`⚠️ No approval record found, using config token and address`);
     }
     
     // Process tip through batch system (like Noice - 1 minute batches for gas efficiency)
