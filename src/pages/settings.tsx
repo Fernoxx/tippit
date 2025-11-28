@@ -254,7 +254,7 @@ const [criteria, setCriteria] = useState({
     
     // No cache found, set to 0 (will be fetched by the other useEffect if on allowance tab)
     setDisplayAllowance('0');
-  }, [userConfig?.lastAllowance, userConfig?.tokenAddress, selectedToken, tokenAllowance]);
+  }, [userConfig?.lastAllowance, userConfig?.tokenAddress, selectedToken]); // Removed tokenAllowance to prevent loop
 
   // Fetch allowance when user visits allowance tab (for display only)
   useEffect(() => {
@@ -274,14 +274,16 @@ const [criteria, setCriteria] = useState({
           return;
         }
       }
-      // Fetch from blockchain
-      console.log(`🔍 Fetching allowance for token ${selectedToken} on allowance tab`);
-      fetchTokenAllowance(selectedToken);
+      // Fetch from blockchain (only if not already loading)
+      if (!isAllowanceLoading) {
+        console.log(`🔍 Fetching allowance for token ${selectedToken} on allowance tab`);
+        fetchTokenAllowance(selectedToken);
+      }
     } else {
       // Use cached value
       setDisplayAllowance(cached);
     }
-  }, [activeTab, selectedToken, address, isAllowanceLoading]);
+  }, [activeTab, selectedToken, address]); // Removed isAllowanceLoading and fetchTokenAllowance from deps to prevent loop
 
   const lookupTokenName = async (
     tokenAddress: string,

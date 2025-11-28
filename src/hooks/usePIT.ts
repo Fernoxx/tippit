@@ -107,8 +107,11 @@ export const useEcion = () => {
       const tokenToRefresh = userConfig?.tokenAddress;
       if (tokenToRefresh) {
         console.log('🔄 Refreshing allowance immediately after confirmation');
-        fetchTokenAllowance(tokenToRefresh, { force: true });
-        updateAllowanceAndWebhooks(tokenToRefresh);
+        // Use setTimeout to prevent immediate re-fetch loops
+        setTimeout(() => {
+          fetchTokenAllowance(tokenToRefresh, { force: true });
+          updateAllowanceAndWebhooks(tokenToRefresh);
+        }, 1000);
       }
 
       setPendingTxHash(null);
@@ -119,7 +122,7 @@ export const useEcion = () => {
       setPendingTxHash(null);
       toast.error('Transaction failed', { duration: 2000 });
     }
-  }, [isTxSuccess, isTxError, pendingTxHash, userConfig?.tokenAddress]);
+  }, [isTxSuccess, isTxError, pendingTxHash]); // Removed userConfig?.tokenAddress to prevent loop
 
   useEffect(() => {
     if (address) {
