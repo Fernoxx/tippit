@@ -39,21 +39,9 @@ if (hasValidProjectId) {
       })
     ],
     transports: {
-      [base.id]: http(`https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`, {
-        fetchOptions: {
-          timeout: 10000
-        }
-      }),
-      [mainnet.id]: http(`https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`, {
-        fetchOptions: {
-          timeout: 10000
-        }
-      }),
-      [arbitrum.id]: http(`https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`, {
-        fetchOptions: {
-          timeout: 10000
-        }
-      })
+      [base.id]: http(`https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`),
+      [mainnet.id]: http(`https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`),
+      [arbitrum.id]: http(`https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`)
     }
   })
 

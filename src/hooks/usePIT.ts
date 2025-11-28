@@ -119,7 +119,7 @@ export const useEcion = () => {
       setPendingTxHash(null);
       toast.error('Transaction failed', { duration: 2000 });
     }
-  }, [isTxSuccess, isTxError, pendingTxHash]); // Removed userConfig?.tokenAddress to prevent loop
+  }, [isTxSuccess, isTxError, pendingTxHash, userConfig?.tokenAddress]);
 
   useEffect(() => {
     if (address) {
@@ -225,42 +225,27 @@ export const useEcion = () => {
         return;
       }
       
-      // Check user's balance before approval (with timeout to prevent hanging)
-      let balanceAmount: number;
-      try {
-        const balancePromise = publicClient.readContract({
-          address: tokenAddress as `0x${string}`,
-          abi: [
-            {
-              "constant": true,
-              "inputs": [{"name": "_owner", "type": "address"}],
-              "name": "balanceOf",
-              "outputs": [{"name": "", "type": "uint256"}],
-              "type": "function"
-            }
-          ],
-          functionName: 'balanceOf',
-          args: [address as `0x${string}`]
-        }) as Promise<bigint>;
-        
-        // Add 5 second timeout to prevent hanging
-        const timeoutPromise = new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('Balance check timeout')), 5000)
-        );
-        
-        const balance = await Promise.race([balancePromise, timeoutPromise]);
-        balanceAmount = parseFloat(formatUnits(balance, tokenDecimals));
-        
-        if (amountNum > balanceAmount) {
-          toast.error(`Insufficient funds. You have ${balanceAmount.toFixed(tokenDecimals === 6 ? 6 : 18)} tokens but trying to approve ${amount}.`, { duration: 4000 });
-          setIsApproving(false);
-          return;
-        }
-      } catch (balanceError: any) {
-        // If balance check fails or times out (RPC error), skip balance check and proceed
-        // Wallet will reject if insufficient balance anyway
-        console.warn('Balance check failed/timed out, proceeding with approval:', balanceError.message);
-        balanceAmount = Infinity; // Skip balance check
+      const balance = await publicClient.readContract({
+        address: tokenAddress as `0x${string}`,
+        abi: [
+          {
+            "constant": true,
+            "inputs": [{"name": "_owner", "type": "address"}],
+            "name": "balanceOf",
+            "outputs": [{"name": "", "type": "uint256"}],
+            "type": "function"
+          }
+        ],
+        functionName: 'balanceOf',
+        args: [address as `0x${string}`]
+      });
+      
+      const balanceAmount = parseFloat(formatUnits(balance as bigint, tokenDecimals));
+      
+      if (amountNum > balanceAmount) {
+        toast.error(`Insufficient funds. You have ${balanceAmount.toFixed(tokenDecimals === 6 ? 6 : 18)} tokens but trying to approve ${amount}.`, { duration: 4000 });
+        setIsApproving(false);
+        return;
       }
       
       console.log('Approving EXACT amount:', amount, 'tokens to EcionBatch contract');
@@ -344,8 +329,8 @@ export const useEcion = () => {
       
       console.log('Revoke transaction submitted');
       
-      // Don't await - let transaction proceed, update will happen after confirmation
-      // updateAllowanceAndWebhooks(tokenAddress, 'revocation');
+      // Update allowance and webhooks after successful revocation
+      await updateAllowanceAndWebhooks(tokenAddress, 'revocation');
       
     } catch (error: any) {
       console.error('Revocation failed:', error);
