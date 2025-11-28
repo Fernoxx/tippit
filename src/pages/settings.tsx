@@ -121,9 +121,11 @@ const [criteria, setCriteria] = useState({
   const allowanceValue = Number(displayAllowance ?? '0');
   const hasAllowanceValue = !Number.isNaN(allowanceValue);
 
-  // Handle transaction success - redirect to amounts tab
+  // Handle transaction success - redirect to amounts tab and reset loading state
   useEffect(() => {
     if (isTxSuccess && !isTxConfirming && activeTab === 'allowance') {
+      // Reset approval loading state
+      setIsApprovingLocal(false);
       // Wait a bit then smoothly switch to amounts tab
       setTimeout(() => {
         setActiveTab('amounts');
