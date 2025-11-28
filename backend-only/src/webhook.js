@@ -209,19 +209,11 @@ async function webhookHandler(req, res) {
       });
     }
     
-    // Get the most recent approval address for this FID (the address that actually approved tokens)
-    const mostRecentApprovalAddress = await database.getMostRecentApprovalAddress(interaction.authorFid);
-    // Use most recent approval address if available, otherwise fallback to webhook address
-    const authorAddressForChecks = mostRecentApprovalAddress || interaction.authorAddress;
-    
-    if (mostRecentApprovalAddress && mostRecentApprovalAddress.toLowerCase() !== interaction.authorAddress.toLowerCase()) {
-      console.log(`✅ Using most recent approval address: ${mostRecentApprovalAddress} (instead of webhook address: ${interaction.authorAddress})`);
-      // Update interaction to use the most recent approval address for tip sending
-      interaction.authorAddress = mostRecentApprovalAddress.toLowerCase();
-    } else if (mostRecentApprovalAddress) {
-      console.log(`✅ Using most recent approval address: ${mostRecentApprovalAddress} (matches webhook address)`);
-    } else {
-      console.log(`⚠️ No approval record found, using webhook address: ${interaction.authorAddress}`);
+    // authorAddressForChecks already set above from mostRecentApproval
+    // Update interaction to use the correct address
+    if (mostRecentApproval && mostRecentApproval.address.toLowerCase() !== interaction.authorAddress.toLowerCase()) {
+      console.log(`✅ Using most recent approval address: ${mostRecentApproval.address} (instead of webhook address: ${interaction.authorAddress})`);
+      interaction.authorAddress = mostRecentApproval.address.toLowerCase();
     }
     
     console.log(`✅ Author has config: ${JSON.stringify({
@@ -486,21 +478,18 @@ async function webhookHandler(req, res) {
 
     // Webhook filtering handles allowance/balance checks automatically
 
-    // Get most recent approval record (address AND token) - use the token that was actually approved
-    // This ensures tips are sent using the token from the approval record, NOT from config
-    const mostRecentApproval = await database.getMostRecentApproval(interaction.authorFid);
-    
+    // mostRecentApproval already fetched above
+    // Use token and address from most recent approval record (ALWAYS)
     if (mostRecentApproval) {
-      // Update authorConfig to use token from the approval record
-      if (mostRecentApproval.tokenAddress.toLowerCase() !== (authorConfig.tokenAddress || '').toLowerCase()) {
-        console.log(`✅ Using token from most recent approval record: ${mostRecentApproval.tokenAddress} (instead of config token: ${authorConfig.tokenAddress || 'none'})`);
-        authorConfig.tokenAddress = mostRecentApproval.tokenAddress;
-      }
-      // Update authorAddress to use address from most recent approval
-      if (mostRecentApproval.address.toLowerCase() !== interaction.authorAddress.toLowerCase()) {
-        console.log(`✅ Using address from most recent approval for tip: ${mostRecentApproval.address} (instead of ${interaction.authorAddress})`);
-        interaction.authorAddress = mostRecentApproval.address;
-      }
+      // ALWAYS use token from approval record
+      authorConfig.tokenAddress = mostRecentApproval.tokenAddress;
+      console.log(`✅ Using token from most recent approval record: ${mostRecentApproval.tokenAddress}`);
+      
+      // ALWAYS use address from approval record
+      interaction.authorAddress = mostRecentApproval.address;
+      console.log(`✅ Using address from most recent approval: ${mostRecentApproval.address}`);
+    } else {
+      console.log(`⚠️ No approval record found - using config token and webhook address`);
     }
     
     // Process tip through batch system (like Noice - 1 minute batches for gas efficiency)
