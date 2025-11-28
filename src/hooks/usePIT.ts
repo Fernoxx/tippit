@@ -243,9 +243,9 @@ export const useEcion = () => {
           args: [address as `0x${string}`]
         }) as Promise<bigint>;
         
-        // Add 5 second timeout to prevent hanging
+        // Add 8 second timeout to prevent hanging (increased for fallback RPCs)
         const timeoutPromise = new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('Balance check timeout')), 5000)
+          setTimeout(() => reject(new Error('Balance check timeout - network may be slow')), 8000)
         );
         
         const balance = await Promise.race([balancePromise, timeoutPromise]);
@@ -259,8 +259,21 @@ export const useEcion = () => {
       } catch (balanceError: any) {
         // If balance check fails or times out (RPC error), skip balance check and proceed
         // Wallet will reject if insufficient balance anyway
-        console.warn('Balance check failed/timed out, proceeding with approval:', balanceError.message);
-        balanceAmount = Infinity; // Skip balance check
+        const errorMessage = balanceError?.message || 'Unknown error';
+        const isNetworkError = errorMessage.includes('Failed to fetch') || 
+                              errorMessage.includes('timeout') ||
+                              errorMessage.includes('network') ||
+                              errorMessage.includes('ECONNREFUSED') ||
+                              errorMessage.includes('ENOTFOUND');
+        
+        if (isNetworkError) {
+          console.warn('⚠️ Balance check failed due to network/RPC issue, proceeding with approval. Wallet will validate balance:', errorMessage);
+          // Don't show error to user - network issues are handled by fallback RPCs
+          // The wallet itself will reject if there's insufficient balance
+        } else {
+          console.warn('⚠️ Balance check failed, proceeding with approval:', errorMessage);
+        }
+        balanceAmount = Infinity; // Skip balance check - let wallet handle validation
       }
       
       console.log('Approving EXACT amount:', amount, 'tokens to EcionBatch contract');
@@ -293,12 +306,24 @@ export const useEcion = () => {
       
     } catch (error: any) {
       console.error('Approval failed:', error);
-      if (error.message?.includes('User rejected')) {
+      const errorMessage = error?.message || 'Unknown error';
+      
+      if (errorMessage.includes('User rejected') || errorMessage.includes('user rejected')) {
         toast.error('Transaction cancelled by user', { duration: 2000 });
-      } else if (error.message?.includes('zero address')) {
+      } else if (errorMessage.includes('zero address')) {
         toast.error('EcionBatch contract address not configured. Please contact support.', { duration: 2000 });
+      } else if (errorMessage.includes('Failed to fetch') || errorMessage.includes('network') || errorMessage.includes('ECONNREFUSED')) {
+        // Network/RPC errors - provide helpful message
+        toast.error('Network connection issue. Please check your internet connection and try again.', { duration: 3000 });
+      } else if (errorMessage.includes('insufficient funds') || errorMessage.includes('insufficient balance')) {
+        toast.error('Insufficient balance. Please ensure you have enough tokens.', { duration: 3000 });
       } else {
-        toast.error('Failed to approve tokens: ' + error.message, { duration: 2000 });
+        // Generic error - show simplified message
+        const shortMessage = errorMessage.length > 100 
+          ? errorMessage.substring(0, 100) + '...' 
+          : errorMessage;
+        toast.error('Failed to approve tokens. Please try again.', { duration: 3000 });
+        console.error('Full error details:', error);
       }
     }
     setIsApproving(false);
