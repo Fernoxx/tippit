@@ -107,11 +107,8 @@ export const useEcion = () => {
       const tokenToRefresh = userConfig?.tokenAddress;
       if (tokenToRefresh) {
         console.log('🔄 Refreshing allowance immediately after confirmation');
-        // Use setTimeout to prevent immediate re-fetch loops
-        setTimeout(() => {
-          fetchTokenAllowance(tokenToRefresh, { force: true });
-          updateAllowanceAndWebhooks(tokenToRefresh);
-        }, 1000);
+        fetchTokenAllowance(tokenToRefresh, { force: true });
+        updateAllowanceAndWebhooks(tokenToRefresh);
       }
 
       setPendingTxHash(null);
@@ -340,8 +337,8 @@ export const useEcion = () => {
       
       console.log('Revoke transaction submitted');
       
-      // Update allowance and webhooks after successful revocation
-      await updateAllowanceAndWebhooks(tokenAddress, 'revocation');
+      // Don't await - let transaction proceed, update will happen after confirmation
+      // updateAllowanceAndWebhooks(tokenAddress, 'revocation');
       
     } catch (error: any) {
       console.error('Revocation failed:', error);
