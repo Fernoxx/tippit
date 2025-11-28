@@ -244,15 +244,13 @@ async function webhookHandler(req, res) {
       const provider = await getProvider();
       const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
       
-      // Get most recent approval record (address AND token) - use the token that was actually approved
-      const mostRecentApproval = await database.getMostRecentApproval(interaction.authorFid);
-      const addressForCheck = mostRecentApproval?.address || mostRecentApprovalAddress || authorAddressForChecks;
+      // mostRecentApproval already fetched above
+      // Use address and token from most recent approval record
+      const addressForCheck = authorAddressForChecks; // Already set from mostRecentApproval above
       const tokenAddress = mostRecentApproval?.tokenAddress || authorConfig.tokenAddress || BASE_USDC_ADDRESS;
       
       if (mostRecentApproval) {
-        if (mostRecentApproval.tokenAddress.toLowerCase() !== (authorConfig.tokenAddress || '').toLowerCase()) {
-          console.log(`✅ Using token from most recent approval record: ${mostRecentApproval.tokenAddress} (instead of config token: ${authorConfig.tokenAddress || 'none'})`);
-        }
+        console.log(`✅ Using token from most recent approval record: ${mostRecentApproval.tokenAddress} (address: ${addressForCheck})`);
       } else {
         console.log(`⚠️ No approval record found, using config token: ${authorConfig.tokenAddress || 'none'}`);
       }
@@ -478,16 +476,15 @@ async function webhookHandler(req, res) {
 
     // Webhook filtering handles allowance/balance checks automatically
 
-    // mostRecentApproval already fetched above
-    // Use token and address from most recent approval record (ALWAYS)
+    // mostRecentApproval already fetched above at the top
+    // ALWAYS use token and address from most recent approval record (never switch)
     if (mostRecentApproval) {
       // ALWAYS use token from approval record
       authorConfig.tokenAddress = mostRecentApproval.tokenAddress;
       console.log(`✅ Using token from most recent approval record: ${mostRecentApproval.tokenAddress}`);
       
-      // ALWAYS use address from approval record
-      interaction.authorAddress = mostRecentApproval.address;
-      console.log(`✅ Using address from most recent approval: ${mostRecentApproval.address}`);
+      // ALWAYS use address from approval record (already set above)
+      console.log(`✅ Using address from most recent approval: ${interaction.authorAddress}`);
     } else {
       console.log(`⚠️ No approval record found - using config token and webhook address`);
     }
