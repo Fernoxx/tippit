@@ -26,6 +26,7 @@ let appKitInstance: any = null
 
 if (hasValidProjectId) {
   // Use Reown AppKit adapter if we have a valid project ID
+  // But configure transports to use direct RPC instead of WalletConnect
   const wagmiAdapter = new WagmiAdapter({
     projectId,
     networks: [base, mainnet, arbitrum],
@@ -36,7 +37,24 @@ if (hasValidProjectId) {
         appName: 'Ecion',
         preference: 'smartWalletOnly'
       })
-    ]
+    ],
+    transports: {
+      [base.id]: http(`https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`, {
+        fetchOptions: {
+          timeout: 10000
+        }
+      }),
+      [mainnet.id]: http(`https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`, {
+        fetchOptions: {
+          timeout: 10000
+        }
+      }),
+      [arbitrum.id]: http(`https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`, {
+        fetchOptions: {
+          timeout: 10000
+        }
+      })
+    }
   })
 
   // Define metadata
@@ -79,6 +97,7 @@ if (hasValidProjectId) {
   // Fallback to regular wagmi config if no Reown project ID
   console.warn('⚠️ Reown Project ID not configured. Using fallback wagmi configuration.')
   
+  // Use direct RPC endpoints instead of WalletConnect
   wagmiConfig = createConfig({
     chains: [base, mainnet, arbitrum],
     connectors: [
@@ -90,9 +109,21 @@ if (hasValidProjectId) {
       })
     ],
     transports: {
-      [base.id]: http(`https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`),
-      [mainnet.id]: http(`https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`),
-      [arbitrum.id]: http(`https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`)
+      [base.id]: http(`https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`, {
+        fetchOptions: {
+          timeout: 10000 // 10 second timeout
+        }
+      }),
+      [mainnet.id]: http(`https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`, {
+        fetchOptions: {
+          timeout: 10000
+        }
+      }),
+      [arbitrum.id]: http(`https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`, {
+        fetchOptions: {
+          timeout: 10000
+        }
+      })
     }
   })
 }
