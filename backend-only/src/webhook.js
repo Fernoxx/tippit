@@ -190,30 +190,35 @@ async function webhookHandler(req, res) {
     }
     
     // Check if author has tipping config
-    // Use FID-based lookup to get config from most recent approval address
-    console.log(`🔍 Checking config for author FID ${interaction.authorFid} (address: ${interaction.authorAddress})...`);
-    let authorConfig = await database.getUserConfigByFid(interaction.authorFid);
+    // Get most recent approval record FIRST - this is the source of truth
+    // Then get config for that specific address (not any other address)
+    const mostRecentApproval = await database.getMostRecentApproval(interaction.authorFid);
     
-    // Fallback to address-based lookup if FID lookup fails (backward compatibility)
-    if (!authorConfig) {
-      console.log(`⚠️ No config found by FID, trying address-based lookup...`);
+    let authorConfig = null;
+    let authorAddressForChecks = interaction.authorAddress;
+    
+    if (mostRecentApproval) {
+      // Use the address from most recent approval
+      authorAddressForChecks = mostRecentApproval.address;
+      // Get config for THIS specific address (the one that approved)
+      authorConfig = await database.getUserConfig(authorAddressForChecks);
+      console.log(`✅ Using most recent approval: address=${authorAddressForChecks}, token=${mostRecentApproval.tokenAddress}`);
+      
+      // Update interaction to use the correct address
+      interaction.authorAddress = mostRecentApproval.address.toLowerCase();
+    } else {
+      // No approval record - fallback to webhook address
+      console.log(`⚠️ No approval record found for FID ${interaction.authorFid}, using webhook address`);
       authorConfig = await database.getUserConfig(interaction.authorAddress);
     }
     
     if (!authorConfig) {
-      console.log(`❌ Author ${interaction.authorAddress} (FID: ${interaction.authorFid}) has no tipping config`);
+      console.log(`❌ Author ${authorAddressForChecks} (FID: ${interaction.authorFid}) has no tipping config`);
       return res.status(200).json({
         success: true,
         processed: false,
         reason: 'Author has no tipping config - please configure settings first'
       });
-    }
-    
-    // authorAddressForChecks already set above from mostRecentApproval
-    // Update interaction to use the correct address
-    if (mostRecentApproval && mostRecentApproval.address.toLowerCase() !== interaction.authorAddress.toLowerCase()) {
-      console.log(`✅ Using most recent approval address: ${mostRecentApproval.address} (instead of webhook address: ${interaction.authorAddress})`);
-      interaction.authorAddress = mostRecentApproval.address.toLowerCase();
     }
     
     console.log(`✅ Author has config: ${JSON.stringify({
