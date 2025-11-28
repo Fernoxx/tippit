@@ -1,7 +1,7 @@
 import { createAppKit } from '@reown/appkit'
 import { base, mainnet, arbitrum } from '@reown/appkit/networks'
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
-import { createConfig, http, type Config } from 'wagmi'
+import { createConfig, http, fallback, type Config } from 'wagmi'
 import { injected, coinbaseWallet } from 'wagmi/connectors'
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector'
 
@@ -20,12 +20,46 @@ console.log('🔧 Reown Configuration:', {
   mode: hasValidProjectId ? 'Reown AppKit' : 'Fallback wagmi'
 })
 
+// Create fallback RPC transports with Alchemy as primary fallback
+const createFallbackTransports = () => {
+  const alchemyBase = ALCHEMY_API_KEY && ALCHEMY_API_KEY !== 'your-alchemy-key'
+    ? http(`https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`)
+    : null
+  
+  const alchemyMainnet = ALCHEMY_API_KEY && ALCHEMY_API_KEY !== 'your-alchemy-key'
+    ? http(`https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`)
+    : null
+  
+  const alchemyArbitrum = ALCHEMY_API_KEY && ALCHEMY_API_KEY !== 'your-alchemy-key'
+    ? http(`https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`)
+    : null
+
+  // Public RPC endpoints as additional fallbacks
+  const publicBase = http('https://mainnet.base.org')
+  const publicMainnet = http('https://eth.llamarpc.com')
+  const publicArbitrum = http('https://arb1.arbitrum.io/rpc')
+
+  return {
+    [base.id]: alchemyBase 
+      ? fallback([alchemyBase, publicBase])
+      : publicBase,
+    [mainnet.id]: alchemyMainnet
+      ? fallback([alchemyMainnet, publicMainnet])
+      : publicMainnet,
+    [arbitrum.id]: alchemyArbitrum
+      ? fallback([alchemyArbitrum, publicArbitrum])
+      : publicArbitrum,
+  }
+}
+
 // Create wagmi configuration
 let wagmiConfig: Config
 let appKitInstance: any = null
 
 if (hasValidProjectId) {
   // Use Reown AppKit adapter if we have a valid project ID
+  const fallbackTransports = createFallbackTransports()
+  
   const wagmiAdapter = new WagmiAdapter({
     projectId,
     networks: [base, mainnet, arbitrum],
@@ -36,7 +70,9 @@ if (hasValidProjectId) {
         appName: 'Ecion',
         preference: 'smartWalletOnly'
       })
-    ]
+    ],
+    // Add fallback transports to handle RPC failures
+    transports: fallbackTransports
   })
 
   // Define metadata
@@ -79,6 +115,8 @@ if (hasValidProjectId) {
   // Fallback to regular wagmi config if no Reown project ID
   console.warn('⚠️ Reown Project ID not configured. Using fallback wagmi configuration.')
   
+  const fallbackTransports = createFallbackTransports()
+  
   wagmiConfig = createConfig({
     chains: [base, mainnet, arbitrum],
     connectors: [
@@ -89,11 +127,7 @@ if (hasValidProjectId) {
         preference: 'smartWalletOnly'
       })
     ],
-    transports: {
-      [base.id]: http(`https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`),
-      [mainnet.id]: http(`https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`),
-      [arbitrum.id]: http(`https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`)
-    }
+    transports: fallbackTransports
   })
 }
 
