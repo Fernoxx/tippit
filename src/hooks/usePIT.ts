@@ -102,7 +102,8 @@ export const useEcion = () => {
     if (isTxSuccess && pendingTxHash) {
       console.log('✅ Transaction confirmed, updating allowance and webhooks...');
       
-      toast.success('Transaction confirmed successfully!', { duration: 2000 });
+      // Show success message only once when transaction confirms
+      toast.success('Approval successful! Moving to config...', { duration: 2000 });
       
       const tokenToRefresh = userConfig?.tokenAddress;
       if (tokenToRefresh) {

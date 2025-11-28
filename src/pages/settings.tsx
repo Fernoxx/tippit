@@ -490,7 +490,13 @@ const [criteria, setCriteria] = useState({
           totalSpent: userConfig?.totalSpent || '0',
           tokenHistory: historyToPersist,
       });
-      toast.success('Tipping configuration saved! Moving to criteria...', { duration: 2000 });
+      
+      // Show different message based on which tab is active
+      if (activeTab === 'criteria') {
+        toast.success('Tipping criteria saved!', { duration: 2000 });
+      } else {
+        toast.success('Tipping configuration saved! Moving to criteria...', { duration: 2000 });
+      }
     } catch (error: any) {
       toast.error('Failed to save configuration: ' + error.message, { duration: 2000 });
     }
@@ -510,12 +516,13 @@ const [criteria, setCriteria] = useState({
     try {
       setIsApprovingLocal(true);
       await approveToken(selectedToken, allowanceAmount);
-      toast.success('Approval successful! Moving to config...', { duration: 2000 });
+      // Don't show success message here - wait for transaction confirmation
+      // Success message will be shown in usePIT.ts useEffect when transaction confirms
     } catch (error: any) {
       toast.error('Failed to approve allowance: ' + error.message, { duration: 2000 });
-    } finally {
       setIsApprovingLocal(false);
     }
+    // Note: setIsApprovingLocal(false) will be handled by transaction confirmation
   };
 
   const handleRevokeAllowance = async () => {
