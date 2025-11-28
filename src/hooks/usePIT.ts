@@ -225,27 +225,35 @@ export const useEcion = () => {
         return;
       }
       
-      const balance = await publicClient.readContract({
-        address: tokenAddress as `0x${string}`,
-        abi: [
-          {
-            "constant": true,
-            "inputs": [{"name": "_owner", "type": "address"}],
-            "name": "balanceOf",
-            "outputs": [{"name": "", "type": "uint256"}],
-            "type": "function"
-          }
-        ],
-        functionName: 'balanceOf',
-        args: [address as `0x${string}`]
-      });
-      
-      const balanceAmount = parseFloat(formatUnits(balance as bigint, tokenDecimals));
-      
-      if (amountNum > balanceAmount) {
-        toast.error(`Insufficient funds. You have ${balanceAmount.toFixed(tokenDecimals === 6 ? 6 : 18)} tokens but trying to approve ${amount}.`, { duration: 4000 });
-        setIsApproving(false);
-        return;
+      let balanceAmount: number;
+      try {
+        const balance = await publicClient.readContract({
+          address: tokenAddress as `0x${string}`,
+          abi: [
+            {
+              "constant": true,
+              "inputs": [{"name": "_owner", "type": "address"}],
+              "name": "balanceOf",
+              "outputs": [{"name": "", "type": "uint256"}],
+              "type": "function"
+            }
+          ],
+          functionName: 'balanceOf',
+          args: [address as `0x${string}`]
+        });
+        
+        balanceAmount = parseFloat(formatUnits(balance as bigint, tokenDecimals));
+        
+        if (amountNum > balanceAmount) {
+          toast.error(`Insufficient funds. You have ${balanceAmount.toFixed(tokenDecimals === 6 ? 6 : 18)} tokens but trying to approve ${amount}.`, { duration: 4000 });
+          setIsApproving(false);
+          return;
+        }
+      } catch (balanceError: any) {
+        // If balance check fails (RPC error), skip balance check and proceed
+        // Wallet will reject if insufficient balance anyway
+        console.warn('Balance check failed, proceeding with approval:', balanceError.message);
+        balanceAmount = Infinity; // Skip balance check
       }
       
       console.log('Approving EXACT amount:', amount, 'tokens to EcionBatch contract');
