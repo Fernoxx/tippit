@@ -257,11 +257,21 @@ const [criteria, setCriteria] = useState({
   }, [userConfig?.lastAllowance, userConfig?.tokenAddress, selectedToken]); // Removed tokenAllowance to prevent loop
 
   // Fetch allowance when user visits allowance tab (for display only)
+  const [hasFetchedAllowance, setHasFetchedAllowance] = useState<Record<string, boolean>>({});
+  
   useEffect(() => {
     if (activeTab !== 'allowance' || !selectedToken || !address || isAllowanceLoading) return;
     
     const cacheKey = selectedToken.toLowerCase();
     const cached = allowanceCache[cacheKey];
+    
+    // Prevent multiple fetches for the same token
+    if (hasFetchedAllowance[cacheKey]) {
+      if (cached) {
+        setDisplayAllowance(cached);
+      }
+      return;
+    }
     
     // Only fetch if we don't have a cached value (or it's 0 and we're not sure)
     if (!cached || cached === '0') {
@@ -271,19 +281,20 @@ const [criteria, setCriteria] = useState({
         if (configAllowance !== '0') {
           setDisplayAllowance(configAllowance);
           setAllowanceCache(prev => ({ ...prev, [cacheKey]: configAllowance }));
+          setHasFetchedAllowance(prev => ({ ...prev, [cacheKey]: true }));
           return;
         }
       }
-      // Fetch from blockchain (only if not already loading)
-      if (!isAllowanceLoading) {
-        console.log(`🔍 Fetching allowance for token ${selectedToken} on allowance tab`);
-        fetchTokenAllowance(selectedToken);
-      }
+      // Fetch from blockchain (only once per token)
+      console.log(`🔍 Fetching allowance for token ${selectedToken} on allowance tab`);
+      setHasFetchedAllowance(prev => ({ ...prev, [cacheKey]: true }));
+      fetchTokenAllowance(selectedToken);
     } else {
       // Use cached value
       setDisplayAllowance(cached);
+      setHasFetchedAllowance(prev => ({ ...prev, [cacheKey]: true }));
     }
-  }, [activeTab, selectedToken, address]); // Removed isAllowanceLoading and fetchTokenAllowance from deps to prevent loop
+  }, [activeTab, selectedToken, address]);
 
   const lookupTokenName = async (
     tokenAddress: string,
