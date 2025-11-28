@@ -218,14 +218,13 @@ export const useEcion = () => {
         tokenDecimals = 6; // USDC
       }
       
-      // Check user's balance before approval (with error handling for mobile RPC issues)
+      // Check user's balance before approval
       if (!publicClient) {
         toast.error('Wallet not connected. Please connect your wallet first.', { duration: 2000 });
         setIsApproving(false);
         return;
       }
       
-      // Check user's balance before approval
       const balance = await publicClient.readContract({
         address: tokenAddress as `0x${string}`,
         abi: [
