@@ -191,18 +191,16 @@ async function webhookHandler(req, res) {
     
     // Check if author has tipping config
     // PRIMARY: Check config for primary wallet address (original behavior)
-    // FALLBACK: If not found, check approval address from user_approvals table using FID
     let authorConfig = null;
     let authorAddressForChecks = interaction.authorAddress; // Start with primary wallet
     let approvalTokenAddress = null;
     const primaryWalletAddress = interaction.authorAddress;
-    let configSource = 'primary wallet'; // Track where config came from
     
     // FIRST: Check config for primary wallet address (original behavior - works for existing users)
     authorConfig = await database.getUserConfig(primaryWalletAddress);
     console.log(`🔍 Checking config for primary wallet address ${primaryWalletAddress} (FID: ${interaction.authorFid})`);
     
-    // Get approval address from user_approvals table using FID (for fallback config check and operations)
+    // Get approval address from user_approvals table using FID (for operations - allowance checks, transfers)
     let approvalAddress = null;
     try {
       // Use the helper function that handles FID type mismatches properly
@@ -218,10 +216,18 @@ async function webhookHandler(req, res) {
       console.error(`❌ Error getting approval address for FID ${interaction.authorFid}: ${error.message}`);
     }
     
-    // FALLBACK: If no config found for primary wallet, check all verified addresses from Neynar API
+    // If config found for primary wallet but approval address exists, use approval address for operations
+    // This ensures we check allowance/balance for the wallet that actually approved tokens
+    if (authorConfig && approvalAddress) {
+      authorAddressForChecks = approvalAddress;
+      interaction.authorAddress = approvalAddress.toLowerCase();
+      console.log(`✅ Using config from primary wallet ${primaryWalletAddress}, but using approval address ${approvalAddress} for operations`);
+    }
+    
+    // FALLBACK: Only if primary wallet has no config, check all verified addresses from Neynar API
     // This handles old users who saved configs with their approval wallet (not primary wallet)
     if (!authorConfig) {
-      console.log(`⚠️ No config found for primary wallet ${primaryWalletAddress}, checking all verified addresses for FID ${interaction.authorFid}...`);
+      console.log(`❌ Author ${primaryWalletAddress} (FID: ${interaction.authorFid}) has no tipping config - checking all verified addresses as fallback...`);
       
       try {
         // Get all verified addresses from Neynar API
@@ -250,10 +256,9 @@ async function webhookHandler(req, res) {
             const config = await database.getUserConfig(address);
             if (config) {
               authorConfig = config;
-              configSource = 'verified address';
               authorAddressForChecks = address;
               interaction.authorAddress = address.toLowerCase();
-              console.log(`✅ Found config for FID ${interaction.authorFid} at verified address ${address}`);
+              console.log(`✅ Found config for FID ${interaction.authorFid} at verified address ${address} - using this as config address`);
               break;
             }
           }
@@ -269,14 +274,7 @@ async function webhookHandler(req, res) {
       }
     }
     
-    // If config found for primary wallet but approval address exists, use approval address for operations
-    // This ensures we check allowance/balance for the wallet that actually approved tokens
-    if (authorConfig && approvalAddress && configSource === 'primary wallet') {
-      authorAddressForChecks = approvalAddress;
-      interaction.authorAddress = approvalAddress.toLowerCase();
-      console.log(`✅ Using config from primary wallet ${primaryWalletAddress}, but using approval address ${approvalAddress} for operations`);
-    }
-    
+    // Final check - if still no config found, return error
     if (!authorConfig) {
       console.log(`❌ Author ${authorAddressForChecks} (FID: ${interaction.authorFid}) has no tipping config`);
       return res.status(200).json({
