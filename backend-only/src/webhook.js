@@ -190,92 +190,51 @@ async function webhookHandler(req, res) {
     }
     
     // Check if author has tipping config
-    // Get most recent approval record FIRST - this is the source of truth
-    // Then get config for that specific address (not any other address)
-    const mostRecentApproval = await database.getMostRecentApproval(interaction.authorFid);
-    
+    // CRITICAL: ALWAYS use the approval wallet address from user_approvals table
+    // NEVER fall back to primary wallet from webhook - only use addresses that actually approved tokens
     let authorConfig = null;
-    let authorAddressForChecks = interaction.authorAddress;
+    let authorAddressForChecks = null;
+    let approvalTokenAddress = null;
     
-    if (mostRecentApproval) {
-      // Use the address from most recent approval
-      authorAddressForChecks = mostRecentApproval.address;
-      // Get config for THIS specific address (the one that approved)
-      authorConfig = await database.getUserConfig(authorAddressForChecks);
-      console.log(`✅ Using most recent approval: address=${authorAddressForChecks}, token=${mostRecentApproval.tokenAddress}`);
+    try {
+      // ALWAYS query user_approvals table FIRST to get the wallet address that actually approved tokens
+      // This is the source of truth - we only check configs for addresses that have approved tokens
+      const approvalRecord = await database.pool.query(`
+        SELECT user_address, token_address, fid, approved_at
+        FROM user_approvals
+        WHERE fid = $1 OR fid::text = $2 OR (fid IS NOT NULL AND fid::text = $2)
+        ORDER BY approved_at DESC
+        LIMIT 1
+      `, [interaction.authorFid, String(interaction.authorFid)]);
       
-      // If config not found for approval address, try to find config by FID (for users who saved config with primary wallet but approved with different wallet)
-      if (!authorConfig) {
-        console.log(`⚠️ No config found for approval address ${authorAddressForChecks}, checking for config by FID ${interaction.authorFid}...`);
-        authorConfig = await database.getUserConfigByFid(interaction.authorFid);
+      if (approvalRecord.rows.length > 0) {
+        const approval = approvalRecord.rows[0];
+        authorAddressForChecks = approval.user_address;
+        approvalTokenAddress = approval.token_address;
+        console.log(`✅ Found approval record for FID ${interaction.authorFid}: approval address=${authorAddressForChecks}, token=${approvalTokenAddress}`);
         
-        if (authorConfig) {
-          // Found config for this FID (from primary wallet or another address) - copy it to approval address
-          console.log(`✅ Found config for FID ${interaction.authorFid} - copying to approval address ${authorAddressForChecks}`);
-          await database.setUserConfig(authorAddressForChecks, authorConfig, interaction.authorFid);
-          console.log(`💾 Copied config from FID ${interaction.authorFid} to approval address ${authorAddressForChecks}`);
-        }
+        // Get config for the APPROVAL address (the wallet that actually approved tokens)
+        authorConfig = await database.getUserConfig(authorAddressForChecks);
+        console.log(`🔍 Checking config for approval address ${authorAddressForChecks} (FID: ${interaction.authorFid})`);
+        
+        // Update interaction to use the approval address (not primary wallet)
+        interaction.authorAddress = authorAddressForChecks.toLowerCase();
+      } else {
+        // No approval record found - user hasn't approved tokens yet
+        console.log(`❌ No approval record found for FID ${interaction.authorFid} in user_approvals table - user must approve tokens first`);
+        return res.status(200).json({
+          success: true,
+          processed: false,
+          reason: 'User has not approved tokens yet - please approve tokens first'
+        });
       }
-      
-      // Update interaction to use the correct address
-      interaction.authorAddress = mostRecentApproval.address.toLowerCase();
-    } else {
-      // No approval record found by FID - query user_approvals table directly for this FID
-      // This is a backup check in case getMostRecentApproval didn't find it
-      console.log(`⚠️ No approval record found for FID ${interaction.authorFid}, checking user_approvals table directly...`);
-      
-      try {
-        // Query user_approvals table directly for this FID to get the approved wallet address
-        const approvalRecord = await database.pool.query(`
-          SELECT user_address, token_address, fid, approved_at
-          FROM user_approvals
-          WHERE fid = $1 OR fid::text = $2
-          ORDER BY approved_at DESC
-          LIMIT 1
-        `, [interaction.authorFid, String(interaction.authorFid)]);
-        
-        if (approvalRecord.rows.length > 0) {
-          const approval = approvalRecord.rows[0];
-          authorAddressForChecks = approval.user_address;
-          authorConfig = await database.getUserConfig(authorAddressForChecks);
-          console.log(`✅ Found approval address for FID ${interaction.authorFid}: ${authorAddressForChecks}, token=${approval.token_address}, checking config for this address`);
-          
-          // If config not found for approval address, try to find config by FID
-          if (!authorConfig) {
-            console.log(`⚠️ No config found for approval address ${authorAddressForChecks}, checking for config by FID ${interaction.authorFid}...`);
-            authorConfig = await database.getUserConfigByFid(interaction.authorFid);
-            
-            if (authorConfig) {
-              // Found config for this FID - copy it to approval address
-              console.log(`✅ Found config for FID ${interaction.authorFid} - copying to approval address ${authorAddressForChecks}`);
-              await database.setUserConfig(authorAddressForChecks, authorConfig, interaction.authorFid);
-              console.log(`💾 Copied config from FID ${interaction.authorFid} to approval address ${authorAddressForChecks}`);
-            }
-          }
-          
-          interaction.authorAddress = authorAddressForChecks.toLowerCase();
-        } else {
-          // No approval record found - fallback to webhook address
-          console.log(`⚠️ No approval record found for FID ${interaction.authorFid} in user_approvals table, using webhook address for config lookup`);
-          authorConfig = await database.getUserConfig(interaction.authorAddress);
-          
-          // If still no config, try by FID
-          if (!authorConfig) {
-            console.log(`⚠️ No config found for webhook address ${interaction.authorAddress}, checking for config by FID ${interaction.authorFid}...`);
-            authorConfig = await database.getUserConfigByFid(interaction.authorFid);
-          }
-        }
-      } catch (error) {
-        console.error(`❌ Error querying user_approvals: ${error.message}`);
-        // Fallback to webhook address
-        authorConfig = await database.getUserConfig(interaction.authorAddress);
-        
-        // If still no config, try by FID
-        if (!authorConfig) {
-          console.log(`⚠️ No config found for webhook address ${interaction.authorAddress}, checking for config by FID ${interaction.authorFid}...`);
-          authorConfig = await database.getUserConfigByFid(interaction.authorFid);
-        }
-      }
+    } catch (error) {
+      console.error(`❌ Error querying user_approvals for FID ${interaction.authorFid}: ${error.message}`);
+      return res.status(200).json({
+        success: true,
+        processed: false,
+        reason: 'Error checking approval records - please try again'
+      });
     }
     
     if (!authorConfig) {
@@ -309,21 +268,20 @@ async function webhookHandler(req, res) {
       console.log(`⚠️ Author ${authorAddressForChecks} (FID: ${authorFid}) has config but not in webhook - checking allowance/balance before adding`);
       
       // Check if user has sufficient allowance and balance before adding to webhook
-      // Use the most recent approval address, then get the token configured for that address
+      // Use the approval address and token from user_approvals table
       const { ethers } = require('ethers');
       const { getProvider } = require('./rpcProvider');
       const provider = await getProvider();
       const ecionBatchAddress = process.env.ECION_BATCH_CONTRACT_ADDRESS || '0x2f47bcc17665663d1b63e8d882faa0a366907bb8';
       
-      // mostRecentApproval already fetched above
-      // Use address and token from most recent approval record
-      const addressForCheck = authorAddressForChecks; // Already set from mostRecentApproval above
-      const tokenAddress = mostRecentApproval?.tokenAddress || authorConfig.tokenAddress || BASE_USDC_ADDRESS;
+      // Use address and token from approval record (already fetched above)
+      const addressForCheck = authorAddressForChecks; // Approval address from user_approvals table
+      const tokenAddress = approvalTokenAddress || authorConfig.tokenAddress || BASE_USDC_ADDRESS;
       
-      if (mostRecentApproval) {
-        console.log(`✅ Using token from most recent approval record: ${mostRecentApproval.tokenAddress} (address: ${addressForCheck})`);
+      if (approvalTokenAddress) {
+        console.log(`✅ Using token from approval record: ${approvalTokenAddress} (address: ${addressForCheck})`);
       } else {
-        console.log(`⚠️ No approval record found, using config token: ${authorConfig.tokenAddress || 'none'}`);
+        console.log(`⚠️ No token from approval record, using config token: ${authorConfig.tokenAddress || 'none'}`);
       }
       
       try {
@@ -547,17 +505,16 @@ async function webhookHandler(req, res) {
 
     // Webhook filtering handles allowance/balance checks automatically
 
-    // mostRecentApproval already fetched above at the top
-    // ALWAYS use token and address from most recent approval record (never switch)
-    if (mostRecentApproval) {
+    // ALWAYS use token and address from approval record (already fetched above from user_approvals table)
+    if (approvalTokenAddress) {
       // ALWAYS use token from approval record
-      authorConfig.tokenAddress = mostRecentApproval.tokenAddress;
-      console.log(`✅ Using token from most recent approval record: ${mostRecentApproval.tokenAddress}`);
+      authorConfig.tokenAddress = approvalTokenAddress;
+      console.log(`✅ Using token from approval record: ${approvalTokenAddress}`);
       
       // ALWAYS use address from approval record (already set above)
-      console.log(`✅ Using address from most recent approval: ${interaction.authorAddress}`);
+      console.log(`✅ Using address from approval record: ${interaction.authorAddress}`);
     } else {
-      console.log(`⚠️ No approval record found - using config token and webhook address`);
+      console.log(`⚠️ No token from approval record - using config token: ${authorConfig.tokenAddress || 'none'}`);
     }
     
     // Process tip through batch system (like Noice - 1 minute batches for gas efficiency)
