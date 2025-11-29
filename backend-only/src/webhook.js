@@ -218,21 +218,54 @@ async function webhookHandler(req, res) {
       console.error(`❌ Error getting approval address for FID ${interaction.authorFid}: ${error.message}`);
     }
     
-    // FALLBACK: If no config found for primary wallet, check approval address
+    // FALLBACK: If no config found for primary wallet, check all verified addresses from Neynar API
     // This handles old users who saved configs with their approval wallet (not primary wallet)
-    if (!authorConfig && approvalAddress) {
-      console.log(`⚠️ No config found for primary wallet ${primaryWalletAddress}, checking approval address ${approvalAddress} as fallback...`);
-      authorConfig = await database.getUserConfig(approvalAddress);
-      console.log(`🔍 Checking config for approval address ${approvalAddress} (FID: ${interaction.authorFid})`);
+    if (!authorConfig) {
+      console.log(`⚠️ No config found for primary wallet ${primaryWalletAddress}, checking all verified addresses for FID ${interaction.authorFid}...`);
       
-      if (authorConfig) {
-        // Found config for approval address - use it and update interaction
-        configSource = 'approval address';
-        authorAddressForChecks = approvalAddress;
-        interaction.authorAddress = approvalAddress.toLowerCase();
-        console.log(`✅ Using config from approval address ${approvalAddress}`);
-      } else {
-        console.log(`❌ No config found for approval address ${approvalAddress} either`);
+      try {
+        // Get all verified addresses from Neynar API
+        const { getUserByFid } = require('./neynar');
+        const farcasterUser = await getUserByFid(interaction.authorFid);
+        
+        if (farcasterUser && farcasterUser.verified_addresses) {
+          // Get all verified addresses (primary + all eth_addresses)
+          const allAddresses = [];
+          if (farcasterUser.verified_addresses.primary?.eth_address) {
+            allAddresses.push(farcasterUser.verified_addresses.primary.eth_address.toLowerCase());
+          }
+          if (farcasterUser.verified_addresses.eth_addresses) {
+            farcasterUser.verified_addresses.eth_addresses.forEach(addr => {
+              const addrLower = addr.toLowerCase();
+              if (!allAddresses.includes(addrLower)) {
+                allAddresses.push(addrLower);
+              }
+            });
+          }
+          
+          console.log(`📋 Checking ${allAddresses.length} verified addresses for FID ${interaction.authorFid}: ${allAddresses.join(', ')}`);
+          
+          // Check each address for config
+          for (const address of allAddresses) {
+            const config = await database.getUserConfig(address);
+            if (config) {
+              authorConfig = config;
+              configSource = 'verified address';
+              authorAddressForChecks = address;
+              interaction.authorAddress = address.toLowerCase();
+              console.log(`✅ Found config for FID ${interaction.authorFid} at verified address ${address}`);
+              break;
+            }
+          }
+          
+          if (!authorConfig) {
+            console.log(`❌ No config found for any verified address of FID ${interaction.authorFid}`);
+          }
+        } else {
+          console.log(`⚠️ Could not get verified addresses from Neynar API for FID ${interaction.authorFid}`);
+        }
+      } catch (error) {
+        console.error(`❌ Error checking verified addresses for FID ${interaction.authorFid}: ${error.message}`);
       }
     }
     

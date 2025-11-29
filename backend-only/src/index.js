@@ -1632,6 +1632,26 @@ const ecionRewardSystem = require('./ecionRewardSystem');
 const ECION_TOKEN_ADDRESS = process.env.ECION_TOKEN_ADDRESS || '0xdcc17f9429f8fd30e31315e1d33e2ef33ae38b07';
 
 // Get daily check-in status
+// Endpoint to find and link configs for homepage users who have allowance but no config
+app.post('/api/fix-homepage-configs', async (req, res) => {
+  try {
+    console.log('🔧 Starting homepage config fix process...');
+    const result = await database.findAndLinkConfigsForHomepageUsers();
+    res.json({
+      success: true,
+      message: `Fixed ${result.fixed} out of ${result.total} users`,
+      fixed: result.fixed,
+      total: result.total
+    });
+  } catch (error) {
+    console.error('❌ Error fixing homepage configs:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 app.get('/api/daily-checkin/status', async (req, res) => {
   try {
     const userAddress = req.query.address || req.headers['x-user-address'];

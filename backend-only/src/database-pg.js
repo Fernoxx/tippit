@@ -1697,6 +1697,97 @@ class PostgresDatabase {
       return [];
     }
   }
+
+  // Find homepage users with allowance but no config, and link their config from other verified addresses
+  async findAndLinkConfigsForHomepageUsers() {
+    try {
+      console.log('🔍 Finding homepage users with allowance but no config...');
+      
+      // Find users in active_casts who have allowance but no config
+      const usersWithoutConfig = await this.pool.query(`
+        SELECT fid, user_address, allowance, balance, token_address
+        FROM active_casts
+        WHERE allowance > 0 
+        AND (config IS NULL OR config = '{}'::jsonb OR config::text = 'null')
+        AND fid IS NOT NULL
+      `);
+      
+      console.log(`📊 Found ${usersWithoutConfig.rows.length} users with allowance but no config`);
+      
+      const { getUserByFid } = require('./neynar');
+      let fixedCount = 0;
+      
+      for (const user of usersWithoutConfig.rows) {
+        try {
+          const fid = user.fid;
+          const currentAddress = user.user_address;
+          
+          console.log(`🔍 Checking FID ${fid} (current address: ${currentAddress})...`);
+          
+          // Get all verified addresses from Neynar API
+          const farcasterUser = await getUserByFid(fid);
+          if (!farcasterUser || !farcasterUser.verified_addresses) {
+            console.log(`⚠️ No verified addresses found for FID ${fid}`);
+            continue;
+          }
+          
+          // Get all verified addresses (primary + all eth_addresses)
+          const allAddresses = [];
+          if (farcasterUser.verified_addresses.primary?.eth_address) {
+            allAddresses.push(farcasterUser.verified_addresses.primary.eth_address.toLowerCase());
+          }
+          if (farcasterUser.verified_addresses.eth_addresses) {
+            farcasterUser.verified_addresses.eth_addresses.forEach(addr => {
+              const addrLower = addr.toLowerCase();
+              if (!allAddresses.includes(addrLower)) {
+                allAddresses.push(addrLower);
+              }
+            });
+          }
+          
+          console.log(`📋 Found ${allAddresses.length} verified addresses for FID ${fid}: ${allAddresses.join(', ')}`);
+          
+          // Check each address for config
+          let foundConfig = null;
+          let configAddress = null;
+          
+          for (const address of allAddresses) {
+            const config = await this.getUserConfig(address);
+            if (config) {
+              foundConfig = config;
+              configAddress = address;
+              console.log(`✅ Found config for FID ${fid} at address ${address}`);
+              break;
+            }
+          }
+          
+          if (foundConfig && configAddress) {
+            // Update active_casts with the found config and config address
+            await this.pool.query(`
+              UPDATE active_casts
+              SET config = $1,
+                  user_address = $2,
+                  last_refreshed = NOW()
+              WHERE fid = $3
+            `, [JSON.stringify(foundConfig), configAddress.toLowerCase(), fid]);
+            
+            console.log(`💾 Updated active_casts for FID ${fid}: linked config from address ${configAddress}`);
+            fixedCount++;
+          } else {
+            console.log(`❌ No config found for any verified address of FID ${fid}`);
+          }
+        } catch (error) {
+          console.error(`❌ Error processing FID ${user.fid}: ${error.message}`);
+        }
+      }
+      
+      console.log(`✅ Fixed ${fixedCount} out of ${usersWithoutConfig.rows.length} users`);
+      return { fixed: fixedCount, total: usersWithoutConfig.rows.length };
+    } catch (error) {
+      console.error('❌ Error finding and linking configs:', error.message);
+      throw error;
+    }
+  }
 }
 
 module.exports = new PostgresDatabase();
