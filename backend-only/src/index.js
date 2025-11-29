@@ -2291,7 +2291,94 @@ async function refreshActiveCastEntry({
     }
     
     const normalizedAddress = userAddress.toLowerCase();
-    const parsedConfig = typeof config === 'string' ? JSON.parse(config) : (config || null);
+    
+    // First, check if config already exists in active_casts (preserve it if found)
+    let existingConfig = null;
+    let existingUserAddress = null;
+    try {
+      const existingCast = await database.pool.query(`
+        SELECT config, user_address FROM active_casts WHERE fid = $1
+      `, [fid]);
+      
+      if (existingCast.rows.length > 0) {
+        if (existingCast.rows[0].config) {
+          existingConfig = typeof existingCast.rows[0].config === 'string' 
+            ? JSON.parse(existingCast.rows[0].config) 
+            : existingCast.rows[0].config;
+          console.log(`✅ Found existing config in active_casts for FID ${fid}`);
+        }
+        if (existingCast.rows[0].user_address) {
+          existingUserAddress = existingCast.rows[0].user_address.toLowerCase();
+          console.log(`✅ Found existing user_address in active_casts for FID ${fid}: ${existingUserAddress}`);
+        }
+      }
+    } catch (error) {
+      console.log(`⚠️ Could not check existing config: ${error.message}`);
+    }
+    
+    // Use provided config if available, otherwise use existing config, otherwise try to find config
+    let parsedConfig = typeof config === 'string' ? JSON.parse(config) : (config || null);
+    let configAddress = normalizedAddress; // Default to provided address
+    
+    // If no config provided and no existing config, try to find config using fallback logic
+    if (!parsedConfig && !existingConfig) {
+      console.log(`⚠️ No config provided for FID ${fid}, trying to find config using fallback...`);
+      
+      // Try to get config for the provided address first
+      parsedConfig = await database.getUserConfig(normalizedAddress);
+      if (parsedConfig) {
+        configAddress = normalizedAddress;
+        console.log(`✅ Found config for provided address ${normalizedAddress}`);
+      }
+      
+      // If not found, check all verified addresses from Neynar API
+      if (!parsedConfig) {
+        try {
+          const { getUserByFid } = require('./neynar');
+          const farcasterUser = await getUserByFid(fid);
+          
+          if (farcasterUser && farcasterUser.verified_addresses) {
+            const allAddresses = [];
+            if (farcasterUser.verified_addresses.primary?.eth_address) {
+              allAddresses.push(farcasterUser.verified_addresses.primary.eth_address.toLowerCase());
+            }
+            if (farcasterUser.verified_addresses.eth_addresses) {
+              farcasterUser.verified_addresses.eth_addresses.forEach(addr => {
+                const addrLower = addr.toLowerCase();
+                if (!allAddresses.includes(addrLower)) {
+                  allAddresses.push(addrLower);
+                }
+              });
+            }
+            
+            for (const address of allAddresses) {
+              const foundConfig = await database.getUserConfig(address);
+              if (foundConfig) {
+                parsedConfig = foundConfig;
+                configAddress = address; // Use the address that has the config
+                console.log(`✅ Found config for FID ${fid} at verified address ${address} during refresh - using this as config address`);
+                break;
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`❌ Error finding config during refresh: ${error.message}`);
+        }
+      }
+    }
+    
+    // Use existing config if no new config found
+    if (!parsedConfig && existingConfig) {
+      parsedConfig = existingConfig;
+      // Use existing user_address if it exists (the address that has the config)
+      if (existingUserAddress) {
+        configAddress = existingUserAddress;
+        console.log(`✅ Using existing config and user_address from active_casts for FID ${fid}: ${configAddress}`);
+      } else {
+        console.log(`✅ Using existing config from active_casts for FID ${fid}`);
+      }
+    }
+    
     const effectiveMinTip = minTip !== null ? minTip : computeMinTipFromConfig(parsedConfig);
     const normalizedToken = (tokenAddress || parsedConfig?.tokenAddress || BASE_USDC_ADDRESS || '').toLowerCase();
     
@@ -2323,7 +2410,7 @@ async function refreshActiveCastEntry({
     
     await database.upsertActiveCast({
       fid,
-      userAddress: normalizedAddress,
+      userAddress: configAddress, // Use config address (the address that has the config)
       castHash: latestCast.hash,
       cast: latestCast,
       castText,
