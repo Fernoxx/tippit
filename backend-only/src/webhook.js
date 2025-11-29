@@ -207,9 +207,36 @@ async function webhookHandler(req, res) {
       // Update interaction to use the correct address
       interaction.authorAddress = mostRecentApproval.address.toLowerCase();
     } else {
-      // No approval record - fallback to webhook address
-      console.log(`⚠️ No approval record found for FID ${interaction.authorFid}, using webhook address`);
-      authorConfig = await database.getUserConfig(interaction.authorAddress);
+      // No approval record found by FID - try to find by webhook address as fallback
+      // This handles cases where approval was recorded but FID wasn't saved correctly
+      console.log(`⚠️ No approval record found for FID ${interaction.authorFid}, trying to find approval by webhook address ${interaction.authorAddress}...`);
+      
+      try {
+        // Try to find approval record by webhook address (in case approval was recorded without FID or FID mismatch)
+        const approvalByAddress = await database.pool.query(`
+          SELECT user_address, token_address, fid, approved_at
+          FROM user_approvals
+          WHERE user_address = $1
+          ORDER BY approved_at DESC
+          LIMIT 1
+        `, [interaction.authorAddress.toLowerCase()]);
+        
+        if (approvalByAddress.rows.length > 0) {
+          const approvalRecord = approvalByAddress.rows[0];
+          authorAddressForChecks = approvalRecord.user_address;
+          authorConfig = await database.getUserConfig(authorAddressForChecks);
+          console.log(`✅ Found approval by webhook address: ${authorAddressForChecks}, token=${approvalRecord.token_address}, using this for config lookup`);
+          interaction.authorAddress = authorAddressForChecks.toLowerCase();
+        } else {
+          // No approval record found - fallback to webhook address for config lookup
+          console.log(`⚠️ No approval record found for FID ${interaction.authorFid} or address ${interaction.authorAddress}, using webhook address for config lookup`);
+          authorConfig = await database.getUserConfig(interaction.authorAddress);
+        }
+      } catch (error) {
+        console.error(`❌ Error finding approval by address: ${error.message}`);
+        // Fallback to webhook address
+        authorConfig = await database.getUserConfig(interaction.authorAddress);
+      }
     }
     
     if (!authorConfig) {

@@ -689,13 +689,14 @@ class PostgresDatabase {
   // Returns { address, tokenAddress } or null
   async getMostRecentApproval(fid) {
     try {
+      // Handle both numeric and string FID types, and also try NULL-safe comparison
       const result = await this.pool.query(`
         SELECT user_address, token_address, approved_at
         FROM user_approvals
-        WHERE fid = $1
+        WHERE fid = $1 OR (fid IS NOT NULL AND fid::text = $2)
         ORDER BY approved_at DESC
         LIMIT 1
-      `, [fid]);
+      `, [fid, String(fid)]);
       
       if (result.rows.length > 0) {
         return {
