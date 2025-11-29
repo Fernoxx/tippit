@@ -191,78 +191,57 @@ async function webhookHandler(req, res) {
     
     // Check if author has tipping config
     // PRIMARY: Check config for primary wallet address (original behavior)
-    // FALLBACK: If not found, check approval address from user_approvals table
+    // FALLBACK: If not found, check approval address from user_approvals table using FID
     let authorConfig = null;
     let authorAddressForChecks = interaction.authorAddress; // Start with primary wallet
     let approvalTokenAddress = null;
     const primaryWalletAddress = interaction.authorAddress;
+    let configSource = 'primary wallet'; // Track where config came from
     
     // FIRST: Check config for primary wallet address (original behavior - works for existing users)
     authorConfig = await database.getUserConfig(primaryWalletAddress);
     console.log(`🔍 Checking config for primary wallet address ${primaryWalletAddress} (FID: ${interaction.authorFid})`);
     
+    // Get approval address from user_approvals table using FID (for fallback config check and operations)
+    let approvalAddress = null;
+    try {
+      // Use the helper function that handles FID type mismatches properly
+      const mostRecentApproval = await database.getMostRecentApproval(interaction.authorFid);
+      if (mostRecentApproval) {
+        approvalAddress = mostRecentApproval.address;
+        approvalTokenAddress = mostRecentApproval.tokenAddress;
+        console.log(`✅ Found approval record for FID ${interaction.authorFid}: approval address=${approvalAddress}, token=${approvalTokenAddress}`);
+      } else {
+        console.log(`⚠️ No approval record found for FID ${interaction.authorFid} in user_approvals table`);
+      }
+    } catch (error) {
+      console.error(`❌ Error getting approval address for FID ${interaction.authorFid}: ${error.message}`);
+    }
+    
     // FALLBACK: If no config found for primary wallet, check approval address
-    if (!authorConfig) {
-      console.log(`⚠️ No config found for primary wallet ${primaryWalletAddress}, checking approval address as fallback...`);
+    // This handles old users who saved configs with their approval wallet (not primary wallet)
+    if (!authorConfig && approvalAddress) {
+      console.log(`⚠️ No config found for primary wallet ${primaryWalletAddress}, checking approval address ${approvalAddress} as fallback...`);
+      authorConfig = await database.getUserConfig(approvalAddress);
+      console.log(`🔍 Checking config for approval address ${approvalAddress} (FID: ${interaction.authorFid})`);
       
-      try {
-        // Try to get approval address from user_approvals table
-        const approvalRecord = await database.pool.query(`
-          SELECT user_address, token_address, fid, approved_at
-          FROM user_approvals
-          WHERE fid = $1 OR fid::text = $2 OR (fid IS NOT NULL AND fid::text = $2)
-          ORDER BY approved_at DESC
-          LIMIT 1
-        `, [interaction.authorFid, String(interaction.authorFid)]);
-        
-        if (approvalRecord.rows.length > 0) {
-          const approval = approvalRecord.rows[0];
-          const approvalAddress = approval.user_address;
-          approvalTokenAddress = approval.token_address;
-          console.log(`✅ Found approval record for FID ${interaction.authorFid}: approval address=${approvalAddress}, token=${approvalTokenAddress}`);
-          
-          // Check config for approval address
-          authorConfig = await database.getUserConfig(approvalAddress);
-          console.log(`🔍 Checking config for approval address ${approvalAddress} (FID: ${interaction.authorFid})`);
-          
-          if (authorConfig) {
-            // Found config for approval address - use it and update interaction
-            authorAddressForChecks = approvalAddress;
-            interaction.authorAddress = approvalAddress.toLowerCase();
-            console.log(`✅ Using config from approval address ${approvalAddress}`);
-          } else {
-            console.log(`❌ No config found for approval address ${approvalAddress} either`);
-          }
-        } else {
-          console.log(`⚠️ No approval record found for FID ${interaction.authorFid} - using primary wallet ${primaryWalletAddress}`);
-        }
-      } catch (error) {
-        console.error(`❌ Error querying user_approvals for FID ${interaction.authorFid}: ${error.message}`);
-        // Continue with primary wallet if query fails
+      if (authorConfig) {
+        // Found config for approval address - use it and update interaction
+        configSource = 'approval address';
+        authorAddressForChecks = approvalAddress;
+        interaction.authorAddress = approvalAddress.toLowerCase();
+        console.log(`✅ Using config from approval address ${approvalAddress}`);
+      } else {
+        console.log(`❌ No config found for approval address ${approvalAddress} either`);
       }
-    } else {
-      // Config found for primary wallet - check if we should use approval address for operations
-      try {
-        const approvalRecord = await database.pool.query(`
-          SELECT user_address, token_address, fid, approved_at
-          FROM user_approvals
-          WHERE fid = $1 OR fid::text = $2 OR (fid IS NOT NULL AND fid::text = $2)
-          ORDER BY approved_at DESC
-          LIMIT 1
-        `, [interaction.authorFid, String(interaction.authorFid)]);
-        
-        if (approvalRecord.rows.length > 0) {
-          const approval = approvalRecord.rows[0];
-          approvalTokenAddress = approval.token_address;
-          // Use approval address for operations (allowance checks, transfers) but keep config from primary wallet
-          authorAddressForChecks = approval.user_address;
-          interaction.authorAddress = approval.user_address.toLowerCase();
-          console.log(`✅ Using config from primary wallet ${primaryWalletAddress}, but using approval address ${authorAddressForChecks} for operations`);
-        }
-      } catch (error) {
-        console.error(`❌ Error querying user_approvals: ${error.message}`);
-        // Continue with primary wallet if query fails
-      }
+    }
+    
+    // If config found for primary wallet but approval address exists, use approval address for operations
+    // This ensures we check allowance/balance for the wallet that actually approved tokens
+    if (authorConfig && approvalAddress && configSource === 'primary wallet') {
+      authorAddressForChecks = approvalAddress;
+      interaction.authorAddress = approvalAddress.toLowerCase();
+      console.log(`✅ Using config from primary wallet ${primaryWalletAddress}, but using approval address ${approvalAddress} for operations`);
     }
     
     if (!authorConfig) {
