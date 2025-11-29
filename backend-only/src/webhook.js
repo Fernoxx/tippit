@@ -207,33 +207,66 @@ async function webhookHandler(req, res) {
       // Update interaction to use the correct address
       interaction.authorAddress = mostRecentApproval.address.toLowerCase();
     } else {
-      // No approval record found by FID - try to find by webhook address as fallback
-      // This handles cases where approval was recorded but FID wasn't saved correctly
-      console.log(`⚠️ No approval record found for FID ${interaction.authorFid}, trying to find approval by webhook address ${interaction.authorAddress}...`);
+      // No approval record found by FID - try alternative lookups
+      console.log(`⚠️ No approval record found for FID ${interaction.authorFid}, trying alternative lookups...`);
       
       try {
-        // Try to find approval record by webhook address (in case approval was recorded without FID or FID mismatch)
-        const approvalByAddress = await database.pool.query(`
-          SELECT user_address, token_address, fid, approved_at
-          FROM user_approvals
-          WHERE user_address = $1
-          ORDER BY approved_at DESC
-          LIMIT 1
-        `, [interaction.authorAddress.toLowerCase()]);
+        // First, try to find all addresses associated with this FID from user_profiles
+        // Then check if any of those addresses have approval records
+        const userProfiles = await database.pool.query(`
+          SELECT DISTINCT user_address
+          FROM user_profiles
+          WHERE fid = $1 AND user_address IS NOT NULL
+        `, [interaction.authorFid]);
         
-        if (approvalByAddress.rows.length > 0) {
-          const approvalRecord = approvalByAddress.rows[0];
-          authorAddressForChecks = approvalRecord.user_address;
-          authorConfig = await database.getUserConfig(authorAddressForChecks);
-          console.log(`✅ Found approval by webhook address: ${authorAddressForChecks}, token=${approvalRecord.token_address}, using this for config lookup`);
-          interaction.authorAddress = authorAddressForChecks.toLowerCase();
-        } else {
-          // No approval record found - fallback to webhook address for config lookup
-          console.log(`⚠️ No approval record found for FID ${interaction.authorFid} or address ${interaction.authorAddress}, using webhook address for config lookup`);
-          authorConfig = await database.getUserConfig(interaction.authorAddress);
+        let foundApproval = false;
+        
+        // Check each address associated with this FID for approval records
+        for (const profile of userProfiles.rows) {
+          const profileAddress = profile.user_address.toLowerCase();
+          const approvalByAddress = await database.pool.query(`
+            SELECT user_address, token_address, fid, approved_at
+            FROM user_approvals
+            WHERE user_address = $1
+            ORDER BY approved_at DESC
+            LIMIT 1
+          `, [profileAddress]);
+          
+          if (approvalByAddress.rows.length > 0) {
+            const approvalRecord = approvalByAddress.rows[0];
+            authorAddressForChecks = approvalRecord.user_address;
+            authorConfig = await database.getUserConfig(authorAddressForChecks);
+            console.log(`✅ Found approval for FID ${interaction.authorFid} via associated address ${authorAddressForChecks}, token=${approvalRecord.token_address}`);
+            interaction.authorAddress = authorAddressForChecks.toLowerCase();
+            foundApproval = true;
+            break;
+          }
+        }
+        
+        // If still not found, try webhook address as last resort
+        if (!foundApproval) {
+          const approvalByAddress = await database.pool.query(`
+            SELECT user_address, token_address, fid, approved_at
+            FROM user_approvals
+            WHERE user_address = $1
+            ORDER BY approved_at DESC
+            LIMIT 1
+          `, [interaction.authorAddress.toLowerCase()]);
+          
+          if (approvalByAddress.rows.length > 0) {
+            const approvalRecord = approvalByAddress.rows[0];
+            authorAddressForChecks = approvalRecord.user_address;
+            authorConfig = await database.getUserConfig(authorAddressForChecks);
+            console.log(`✅ Found approval by webhook address: ${authorAddressForChecks}, token=${approvalRecord.token_address}`);
+            interaction.authorAddress = authorAddressForChecks.toLowerCase();
+          } else {
+            // No approval record found - fallback to webhook address for config lookup
+            console.log(`⚠️ No approval record found for FID ${interaction.authorFid} or any associated addresses, using webhook address for config lookup`);
+            authorConfig = await database.getUserConfig(interaction.authorAddress);
+          }
         }
       } catch (error) {
-        console.error(`❌ Error finding approval by address: ${error.message}`);
+        console.error(`❌ Error finding approval: ${error.message}`);
         // Fallback to webhook address
         authorConfig = await database.getUserConfig(interaction.authorAddress);
       }
