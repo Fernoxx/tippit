@@ -204,6 +204,19 @@ async function webhookHandler(req, res) {
       authorConfig = await database.getUserConfig(authorAddressForChecks);
       console.log(`✅ Using most recent approval: address=${authorAddressForChecks}, token=${mostRecentApproval.tokenAddress}`);
       
+      // If config not found for approval address, try to find config by FID (for users who saved config with primary wallet but approved with different wallet)
+      if (!authorConfig) {
+        console.log(`⚠️ No config found for approval address ${authorAddressForChecks}, checking for config by FID ${interaction.authorFid}...`);
+        authorConfig = await database.getUserConfigByFid(interaction.authorFid);
+        
+        if (authorConfig) {
+          // Found config for this FID (from primary wallet or another address) - copy it to approval address
+          console.log(`✅ Found config for FID ${interaction.authorFid} - copying to approval address ${authorAddressForChecks}`);
+          await database.setUserConfig(authorAddressForChecks, authorConfig, interaction.authorFid);
+          console.log(`💾 Copied config from FID ${interaction.authorFid} to approval address ${authorAddressForChecks}`);
+        }
+      }
+      
       // Update interaction to use the correct address
       interaction.authorAddress = mostRecentApproval.address.toLowerCase();
     } else {
@@ -226,16 +239,42 @@ async function webhookHandler(req, res) {
           authorAddressForChecks = approval.user_address;
           authorConfig = await database.getUserConfig(authorAddressForChecks);
           console.log(`✅ Found approval address for FID ${interaction.authorFid}: ${authorAddressForChecks}, token=${approval.token_address}, checking config for this address`);
+          
+          // If config not found for approval address, try to find config by FID
+          if (!authorConfig) {
+            console.log(`⚠️ No config found for approval address ${authorAddressForChecks}, checking for config by FID ${interaction.authorFid}...`);
+            authorConfig = await database.getUserConfigByFid(interaction.authorFid);
+            
+            if (authorConfig) {
+              // Found config for this FID - copy it to approval address
+              console.log(`✅ Found config for FID ${interaction.authorFid} - copying to approval address ${authorAddressForChecks}`);
+              await database.setUserConfig(authorAddressForChecks, authorConfig, interaction.authorFid);
+              console.log(`💾 Copied config from FID ${interaction.authorFid} to approval address ${authorAddressForChecks}`);
+            }
+          }
+          
           interaction.authorAddress = authorAddressForChecks.toLowerCase();
         } else {
           // No approval record found - fallback to webhook address
           console.log(`⚠️ No approval record found for FID ${interaction.authorFid} in user_approvals table, using webhook address for config lookup`);
           authorConfig = await database.getUserConfig(interaction.authorAddress);
+          
+          // If still no config, try by FID
+          if (!authorConfig) {
+            console.log(`⚠️ No config found for webhook address ${interaction.authorAddress}, checking for config by FID ${interaction.authorFid}...`);
+            authorConfig = await database.getUserConfigByFid(interaction.authorFid);
+          }
         }
       } catch (error) {
         console.error(`❌ Error querying user_approvals: ${error.message}`);
         // Fallback to webhook address
         authorConfig = await database.getUserConfig(interaction.authorAddress);
+        
+        // If still no config, try by FID
+        if (!authorConfig) {
+          console.log(`⚠️ No config found for webhook address ${interaction.authorAddress}, checking for config by FID ${interaction.authorFid}...`);
+          authorConfig = await database.getUserConfigByFid(interaction.authorFid);
+        }
       }
     }
     
