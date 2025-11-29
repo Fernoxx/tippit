@@ -190,11 +190,14 @@ async function webhookHandler(req, res) {
     }
     
     // Check if author has tipping config
-    // CRITICAL: ALWAYS use the approval wallet address from user_approvals table
-    // NEVER fall back to primary wallet from webhook - only use addresses that actually approved tokens
+    // CRITICAL: ALWAYS use the approval wallet address from user_approvals table FIRST
+    // If no config found for approval address, fallback to primary wallet address
     let authorConfig = null;
     let authorAddressForChecks = null;
     let approvalTokenAddress = null;
+    
+    // Save the original primary wallet address from webhook (before we potentially overwrite it)
+    const primaryWalletAddress = interaction.authorAddress;
     
     try {
       // ALWAYS query user_approvals table FIRST to get the wallet address that actually approved tokens
@@ -213,11 +216,27 @@ async function webhookHandler(req, res) {
         approvalTokenAddress = approval.token_address;
         console.log(`✅ Found approval record for FID ${interaction.authorFid}: approval address=${authorAddressForChecks}, token=${approvalTokenAddress}`);
         
-        // Get config for the APPROVAL address (the wallet that actually approved tokens)
+        // FIRST: Get config for the APPROVAL address (the wallet that actually approved tokens)
         authorConfig = await database.getUserConfig(authorAddressForChecks);
         console.log(`🔍 Checking config for approval address ${authorAddressForChecks} (FID: ${interaction.authorFid})`);
         
-        // Update interaction to use the approval address (not primary wallet)
+        // FALLBACK: If no config found for approval address, check primary wallet address
+        // This handles cases where user saved config with primary wallet but approved with different wallet
+        if (!authorConfig) {
+          console.log(`⚠️ No config found for approval address ${authorAddressForChecks}, checking primary wallet address ${primaryWalletAddress} as fallback...`);
+          authorConfig = await database.getUserConfig(primaryWalletAddress);
+          
+          if (authorConfig) {
+            console.log(`✅ Found config for primary wallet address ${primaryWalletAddress} - copying to approval address ${authorAddressForChecks}`);
+            // Copy config from primary wallet to approval address for future use
+            await database.setUserConfig(authorAddressForChecks, authorConfig, interaction.authorFid);
+            console.log(`💾 Copied config from primary wallet ${primaryWalletAddress} to approval address ${authorAddressForChecks}`);
+          } else {
+            console.log(`❌ No config found for either approval address ${authorAddressForChecks} or primary wallet ${primaryWalletAddress}`);
+          }
+        }
+        
+        // Update interaction to use the approval address (for allowance checks and transfers)
         interaction.authorAddress = authorAddressForChecks.toLowerCase();
       } else {
         // No approval record found - user hasn't approved tokens yet
