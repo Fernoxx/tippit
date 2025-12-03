@@ -1625,7 +1625,161 @@ app.get('/api/neynar/user/score/:fid', async (req, res) => {
   }
 });
 
-// ===== DAILY CHECK-IN SYSTEM =====
+// ===== CHECK IF USER FOLLOWS @doteth =====
+// FID 242597 is @doteth
+
+app.get('/api/neynar/check-follow/:userFid', async (req, res) => {
+  try {
+    const { userFid } = req.params;
+    const targetFid = 242597; // @doteth FID
+    
+    if (!userFid) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'User FID is required' 
+      });
+    }
+    
+    // Use Neynar API to check if userFid follows targetFid
+    // We use the bulk endpoint with viewer_fid to get follower context
+    const response = await fetch(
+      `https://api.neynar.com/v2/farcaster/user/bulk?fids=${targetFid}&viewer_fid=${userFid}`,
+      {
+        headers: { 'x-api-key': process.env.NEYNAR_API_KEY }
+      }
+    );
+    
+    if (!response.ok) {
+      console.error(`Failed to check follow status: ${response.status}`);
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Failed to check follow status' 
+      });
+    }
+    
+    const data = await response.json();
+    const targetUser = data.users?.[0];
+    
+    if (!targetUser) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Target user not found' 
+      });
+    }
+    
+    // viewer_context.followed_by tells us if the viewer (userFid) follows the target
+    // However, we want to check if userFid follows targetFid
+    // So we need to check viewer_context.following which tells us if target follows viewer
+    // Actually, we need the opposite - check if userFid follows targetFid
+    // Let's flip the query: get user info for userFid with viewer_fid = targetFid
+    const reverseResponse = await fetch(
+      `https://api.neynar.com/v2/farcaster/user/bulk?fids=${userFid}&viewer_fid=${targetFid}`,
+      {
+        headers: { 'x-api-key': process.env.NEYNAR_API_KEY }
+      }
+    );
+    
+    if (!reverseResponse.ok) {
+      console.error(`Failed to check follow status (reverse): ${reverseResponse.status}`);
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Failed to check follow status' 
+      });
+    }
+    
+    const reverseData = await reverseResponse.json();
+    const user = reverseData.users?.[0];
+    
+    // viewer_context.followed_by = true means the viewer (targetFid) is followed by the user (userFid)
+    // This tells us if userFid follows targetFid
+    const isFollowing = user?.viewer_context?.followed_by || false;
+    
+    console.log(`🔍 Follow check: FID ${userFid} ${isFollowing ? 'FOLLOWS' : 'does NOT follow'} @doteth (FID ${targetFid})`);
+    
+    res.json({
+      success: true,
+      isFollowing: isFollowing,
+      userFid: parseInt(userFid),
+      targetFid: targetFid,
+      targetUsername: 'doteth'
+    });
+  } catch (error) {
+    console.error('Error checking follow status:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to check follow status' 
+    });
+  }
+});
+
+// Check follow by address (convenience endpoint)
+app.get('/api/neynar/check-follow-by-address/:address', async (req, res) => {
+  try {
+    const { address } = req.params;
+    const targetFid = 242597; // @doteth FID
+    
+    if (!address) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'User address is required' 
+      });
+    }
+    
+    // First get the FID for this address
+    const { getUserDataByAddress } = require('./neynar');
+    const userData = await getUserDataByAddress(address);
+    
+    if (!userData || !userData.fid) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'No Farcaster account found for this address' 
+      });
+    }
+    
+    const userFid = userData.fid;
+    
+    // Now check if this FID follows @doteth
+    const response = await fetch(
+      `https://api.neynar.com/v2/farcaster/user/bulk?fids=${userFid}&viewer_fid=${targetFid}`,
+      {
+        headers: { 'x-api-key': process.env.NEYNAR_API_KEY }
+      }
+    );
+    
+    if (!response.ok) {
+      console.error(`Failed to check follow status: ${response.status}`);
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Failed to check follow status' 
+      });
+    }
+    
+    const data = await response.json();
+    const user = data.users?.[0];
+    
+    // viewer_context.followed_by = true means the viewer (targetFid) is followed by the user (userFid)
+    const isFollowing = user?.viewer_context?.followed_by || false;
+    
+    console.log(`🔍 Follow check: ${address} (FID ${userFid}) ${isFollowing ? 'FOLLOWS' : 'does NOT follow'} @doteth`);
+    
+    res.json({
+      success: true,
+      isFollowing: isFollowing,
+      userFid: userFid,
+      username: userData.username,
+      targetFid: targetFid,
+      targetUsername: 'doteth'
+    });
+  } catch (error) {
+    console.error('Error checking follow status by address:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to check follow status' 
+    });
+  }
+});
+
+// ===== DAILY CHECK-IN SYSTEM (REWARD BOXES) =====
 
 const { getUserDataByAddress } = require('./neynar');
 const ecionRewardSystem = require('./ecionRewardSystem');
