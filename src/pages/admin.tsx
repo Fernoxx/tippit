@@ -115,15 +115,15 @@ const timeframeCards: TimeframeCardConfig[] = [
   },
 ];
 
-// Reward amounts for each box (ECION tokens)
+// Reward ranges for each box (random amounts within range)
 const BOX_REWARDS = {
-  1: { ecion: '69', usdc: '0.69' },
-  2: { ecion: '1000', usdc: '1' },
-  3: { ecion: '5000', usdc: '2' },
-  4: { ecion: '10000', usdc: '3' },
-  5: { ecion: '20000', usdc: '5' },
-  6: { ecion: '30000', usdc: '7' },
-  7: { ecion: '100000', usdc: '10' }
+  1: { ecionMin: 1, ecionMax: 69, usdcMin: 0.01, usdcMax: 0.2, hasUsdc: true },
+  2: { ecionMin: 69, ecionMax: 1000, usdcMin: 0, usdcMax: 0, hasUsdc: false },
+  3: { ecionMin: 1000, ecionMax: 5000, usdcMin: 0.01, usdcMax: 0.2, hasUsdc: true },
+  4: { ecionMin: 5000, ecionMax: 10000, usdcMin: 0, usdcMax: 0, hasUsdc: false },
+  5: { ecionMin: 5000, ecionMax: 10000, usdcMin: 0.01, usdcMax: 0.2, hasUsdc: true },
+  6: { ecionMin: 10000, ecionMax: 20000, usdcMin: 0, usdcMax: 0, hasUsdc: false },
+  7: { ecionMin: 10000, ecionMax: 20000, usdcMin: 0.01, usdcMax: 0.2, hasUsdc: true }
 };
 
 interface BoxStatus {
