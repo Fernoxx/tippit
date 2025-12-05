@@ -116,7 +116,7 @@ const timeframeCards: TimeframeCardConfig[] = [
 ];
 
 // Reward ranges for each box (random amounts within range)
-const BOX_REWARDS = {
+const BOX_REWARDS: Record<number, { ecionMin: number; ecionMax: number; usdcMin: number; usdcMax: number; hasUsdc: boolean }> = {
   1: { ecionMin: 1, ecionMax: 69, usdcMin: 0.01, usdcMax: 0.2, hasUsdc: true },
   2: { ecionMin: 69, ecionMax: 1000, usdcMin: 0, usdcMax: 0, hasUsdc: false },
   3: { ecionMin: 1000, ecionMax: 5000, usdcMin: 0.01, usdcMax: 0.2, hasUsdc: true },
@@ -124,6 +124,22 @@ const BOX_REWARDS = {
   5: { ecionMin: 5000, ecionMax: 10000, usdcMin: 0.01, usdcMax: 0.2, hasUsdc: true },
   6: { ecionMin: 10000, ecionMax: 20000, usdcMin: 0, usdcMax: 0, hasUsdc: false },
   7: { ecionMin: 10000, ecionMax: 20000, usdcMin: 0.01, usdcMax: 0.2, hasUsdc: true }
+};
+
+// Format reward range for display
+const formatRewardRange = (day: number) => {
+  const reward = BOX_REWARDS[day];
+  if (!reward) return { ecion: '0', usdc: null };
+  
+  const ecionRange = reward.ecionMin === reward.ecionMax 
+    ? reward.ecionMin.toLocaleString()
+    : `${reward.ecionMin.toLocaleString()} - ${reward.ecionMax.toLocaleString()}`;
+  
+  const usdcRange = reward.hasUsdc 
+    ? `$${reward.usdcMin.toFixed(2)} - $${reward.usdcMax.toFixed(2)}`
+    : null;
+  
+  return { ecion: ecionRange, usdc: usdcRange };
 };
 
 interface BoxStatus {
