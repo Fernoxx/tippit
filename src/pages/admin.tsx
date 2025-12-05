@@ -651,7 +651,7 @@ export default function Admin() {
                       </div>
                       <h4 className="text-xl font-bold text-gray-900 mb-2">Reward Claimed! 🎉</h4>
                       <p className="text-gray-600 mb-4">
-                        You received {BOX_REWARDS[selectedBox as keyof typeof BOX_REWARDS]?.ecion} ECION + ${BOX_REWARDS[selectedBox as keyof typeof BOX_REWARDS]?.usdc} USDC
+                        Your random rewards have been sent to your wallet!
                       </p>
                       {claimTxHash && (
                         <a
