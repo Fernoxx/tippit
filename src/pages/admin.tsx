@@ -736,6 +736,14 @@ export default function Admin() {
                         )}
                       </div>
                       
+                      {/* Streak Info */}
+                      {boxStatus && (
+                        <div className="mb-4 bg-purple-50 rounded-lg p-3 border border-purple-200 flex items-center justify-between">
+                          <span className="text-sm text-purple-700">Your Current Streak</span>
+                          <span className="font-bold text-purple-800 text-lg">🔥 {boxStatus.streak > 0 ? boxStatus.streak : 0} days</span>
+                        </div>
+                      )}
+                      
                       {/* Reward Details Section */}
                       <div className="mb-6">
                         <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
@@ -745,15 +753,37 @@ export default function Admin() {
                         
                         <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-lg p-4 border border-yellow-200">
                           <div className="space-y-3">
+                            {/* ECION Range */}
                             <div className="flex justify-between items-center">
                               <span className="text-gray-600">ECION Tokens</span>
-                              <span className="font-bold text-yellow-700">{BOX_REWARDS[selectedBox as keyof typeof BOX_REWARDS]?.ecion} ECION</span>
+                              <span className="font-bold text-yellow-700">
+                                {formatRewardRange(selectedBox).ecion} ECION
+                              </span>
                             </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-gray-600">USDC</span>
-                              <span className="font-bold text-green-600">${BOX_REWARDS[selectedBox as keyof typeof BOX_REWARDS]?.usdc}</span>
-                            </div>
+                            
+                            {/* USDC Range (only for odd days) */}
+                            {formatRewardRange(selectedBox).hasUsdc && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-gray-600">USDC Bonus</span>
+                                <span className="font-bold text-green-600">
+                                  {formatRewardRange(selectedBox).usdc}
+                                </span>
+                              </div>
+                            )}
+                            
+                            {!formatRewardRange(selectedBox).hasUsdc && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-gray-600">USDC Bonus</span>
+                                <span className="text-gray-400 text-sm">Not available on Day {selectedBox}</span>
+                              </div>
+                            )}
+                            
                             <hr className="border-yellow-200" />
+                            
+                            <p className="text-xs text-gray-500 italic">
+                              ✨ You'll receive a random amount within these ranges!
+                            </p>
+                            
                             <div className="text-xs text-gray-500">
                               <p>ECION Contract:</p>
                               <code className="bg-white/50 px-2 py-1 rounded text-[10px] break-all block mt-1">{ECION_TOKEN_ADDRESS}</code>
