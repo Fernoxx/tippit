@@ -5,8 +5,8 @@ import { Gift, X, Check, Loader2, ExternalLink } from 'lucide-react';
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001').replace(/\/$/, '');
 
-// Token logos
-const ECION_LOGO = 'https://imagedelivery.net/BXluQx4ige9GuW0Ia56BHw/26f0f5b4-a342-40a7-63a3-5fdca78a7300/rectcrop3';
+// Token logos - ECION from public folder, USDC from coingecko
+const ECION_LOGO = '/ecion.png';
 const USDC_LOGO = 'https://assets.coingecko.com/coins/images/6319/small/USD_Coin_icon.png';
 
 interface PeriodStats {
@@ -28,16 +28,6 @@ interface AdminStats {
   timestamp?: string;
 }
 
-// Task types
-type TaskType = 'follow' | 'like' | 'recast' | 'channel';
-
-interface Task {
-  type: TaskType;
-  target: string;
-  label: string;
-  link?: string;
-}
-
 interface TokenReward {
   id: string;
   token: 'ecion' | 'usdc';
@@ -45,39 +35,38 @@ interface TokenReward {
   logo: string;
   minAmount: number;
   maxAmount: number;
-  task: Task;
 }
 
 // Reward config per day
 const DAY_REWARDS: Record<number, TokenReward[]> = {
   1: [
-    { id: 'ecion-1', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 1, maxAmount: 69, task: { type: 'follow', target: '242597', label: 'Follow @doteth', link: 'https://warpcast.com/doteth' } },
-    { id: 'usdc-1', token: 'usdc', name: 'USDC', logo: USDC_LOGO, minAmount: 0.01, maxAmount: 0.20, task: { type: 'follow', target: '242597', label: 'Follow @doteth', link: 'https://warpcast.com/doteth' } }
+    { id: 'ecion-1', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 1, maxAmount: 69 },
+    { id: 'usdc-1', token: 'usdc', name: 'USDC', logo: USDC_LOGO, minAmount: 0.01, maxAmount: 0.20 }
   ],
   2: [
-    { id: 'ecion-2', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 69, maxAmount: 1000, task: { type: 'follow', target: '242597', label: 'Follow @doteth', link: 'https://warpcast.com/doteth' } }
+    { id: 'ecion-2', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 69, maxAmount: 1000 }
   ],
   3: [
-    { id: 'ecion-3', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 1000, maxAmount: 5000, task: { type: 'follow', target: '242597', label: 'Follow @doteth', link: 'https://warpcast.com/doteth' } },
-    { id: 'usdc-3', token: 'usdc', name: 'USDC', logo: USDC_LOGO, minAmount: 0.01, maxAmount: 0.20, task: { type: 'follow', target: '242597', label: 'Follow @doteth', link: 'https://warpcast.com/doteth' } }
+    { id: 'ecion-3', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 1000, maxAmount: 5000 },
+    { id: 'usdc-3', token: 'usdc', name: 'USDC', logo: USDC_LOGO, minAmount: 0.01, maxAmount: 0.20 }
   ],
   4: [
-    { id: 'ecion-4', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 5000, maxAmount: 10000, task: { type: 'follow', target: '242597', label: 'Follow @doteth', link: 'https://warpcast.com/doteth' } }
+    { id: 'ecion-4', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 5000, maxAmount: 10000 }
   ],
   5: [
-    { id: 'ecion-5', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 5000, maxAmount: 10000, task: { type: 'follow', target: '242597', label: 'Follow @doteth', link: 'https://warpcast.com/doteth' } },
-    { id: 'usdc-5', token: 'usdc', name: 'USDC', logo: USDC_LOGO, minAmount: 0.01, maxAmount: 0.20, task: { type: 'follow', target: '242597', label: 'Follow @doteth', link: 'https://warpcast.com/doteth' } }
+    { id: 'ecion-5', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 5000, maxAmount: 10000 },
+    { id: 'usdc-5', token: 'usdc', name: 'USDC', logo: USDC_LOGO, minAmount: 0.01, maxAmount: 0.20 }
   ],
   6: [
-    { id: 'ecion-6', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 10000, maxAmount: 20000, task: { type: 'follow', target: '242597', label: 'Follow @doteth', link: 'https://warpcast.com/doteth' } }
+    { id: 'ecion-6', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 10000, maxAmount: 20000 }
   ],
   7: [
-    { id: 'ecion-7', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 10000, maxAmount: 20000, task: { type: 'follow', target: '242597', label: 'Follow @doteth', link: 'https://warpcast.com/doteth' } },
-    { id: 'usdc-7', token: 'usdc', name: 'USDC', logo: USDC_LOGO, minAmount: 0.01, maxAmount: 0.20, task: { type: 'follow', target: '242597', label: 'Follow @doteth', link: 'https://warpcast.com/doteth' } }
+    { id: 'ecion-7', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 10000, maxAmount: 20000 },
+    { id: 'usdc-7', token: 'usdc', name: 'USDC', logo: USDC_LOGO, minAmount: 0.01, maxAmount: 0.20 }
   ]
 };
 
-// Seeded random - gives consistent result for same address + day
+// Seeded random - consistent result for same address + day
 const seededRandom = (seed: string) => {
   let hash = 0;
   for (let i = 0; i < seed.length; i++) {
@@ -104,8 +93,7 @@ interface BoxStatus {
 
 interface RewardState {
   amount: number;
-  verified: boolean;
-  verifying: boolean;
+  needsVerify: boolean; // true if user clicked claim but doesn't follow
   claiming: boolean;
   claimed: boolean;
   error: string | null;
@@ -190,12 +178,10 @@ export default function Admin() {
     
     rewards.forEach(reward => {
       const decimals = reward.token === 'usdc' ? 2 : 0;
-      // Use consistent seeded random based on address + day
       const amount = getConsistentAmount(address, day, reward.id, reward.minAmount, reward.maxAmount, decimals);
       initialStates[reward.id] = {
         amount,
-        verified: false,
-        verifying: false,
+        needsVerify: false,
         claiming: false,
         claimed: false,
         error: null
@@ -206,46 +192,12 @@ export default function Admin() {
     setSelectedBox(day);
   }, [address, boxStatus]);
 
-  const verifyTask = async (rewardId: string, task: Task) => {
-    if (!address) return;
-    
-    setRewardStates(prev => ({
-      ...prev,
-      [rewardId]: { ...prev[rewardId], verifying: true, error: null }
-    }));
-    
-    try {
-      let verified = false;
-      
-      if (task.type === 'follow') {
-        const response = await fetch(`${BACKEND_URL}/api/neynar/check-follow-by-address/${address}`);
-        const data = await response.json();
-        verified = data.success && data.isFollowing;
-      }
-      
-      setRewardStates(prev => ({
-        ...prev,
-        [rewardId]: { ...prev[rewardId], verified, verifying: false, error: verified ? null : 'Complete task first' }
-      }));
-    } catch {
-      setRewardStates(prev => ({
-        ...prev,
-        [rewardId]: { ...prev[rewardId], verifying: false, error: 'Verification failed' }
-      }));
-    }
-  };
-
+  // Claim reward - checks follow status first
   const claimReward = async (rewardId: string, token: string) => {
     if (!address || !selectedBox) return;
     
     const state = rewardStates[rewardId];
-    if (!state?.verified) {
-      setRewardStates(prev => ({
-        ...prev,
-        [rewardId]: { ...prev[rewardId], error: 'Verify first' }
-      }));
-      return;
-    }
+    if (!state) return;
     
     setRewardStates(prev => ({
       ...prev,
@@ -253,6 +205,20 @@ export default function Admin() {
     }));
     
     try {
+      // First check if user follows @doteth
+      const followCheck = await fetch(`${BACKEND_URL}/api/neynar/check-follow-by-address/${address}`);
+      const followData = await followCheck.json();
+      
+      if (!followData.success || !followData.isFollowing) {
+        // User doesn't follow - show verify button
+        setRewardStates(prev => ({
+          ...prev,
+          [rewardId]: { ...prev[rewardId], claiming: false, needsVerify: true, error: null }
+        }));
+        return;
+      }
+      
+      // User follows - proceed with claim
       await fetch(`${BACKEND_URL}/api/daily-checkin/checkin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -283,6 +249,43 @@ export default function Admin() {
       setRewardStates(prev => ({
         ...prev,
         [rewardId]: { ...prev[rewardId], claiming: false, error: err.message }
+      }));
+    }
+  };
+
+  // Verify follow and retry claim
+  const verifyAndClaim = async (rewardId: string, token: string) => {
+    if (!address) return;
+    
+    setRewardStates(prev => ({
+      ...prev,
+      [rewardId]: { ...prev[rewardId], claiming: true, error: null }
+    }));
+    
+    try {
+      const followCheck = await fetch(`${BACKEND_URL}/api/neynar/check-follow-by-address/${address}`);
+      const followData = await followCheck.json();
+      
+      if (!followData.success || !followData.isFollowing) {
+        setRewardStates(prev => ({
+          ...prev,
+          [rewardId]: { ...prev[rewardId], claiming: false, error: 'Still not following' }
+        }));
+        return;
+      }
+      
+      // Now user follows - hide verify and claim
+      setRewardStates(prev => ({
+        ...prev,
+        [rewardId]: { ...prev[rewardId], needsVerify: false }
+      }));
+      
+      // Proceed with claim
+      await claimReward(rewardId, token);
+    } catch {
+      setRewardStates(prev => ({
+        ...prev,
+        [rewardId]: { ...prev[rewardId], claiming: false, error: 'Verification failed' }
       }));
     }
   };
@@ -360,7 +363,7 @@ export default function Admin() {
       <div className="max-w-5xl mx-auto px-4">
         <h1 className="text-3xl font-bold text-gray-900 text-center mb-6">Admin Dashboard</h1>
 
-        {/* Reward Boxes - Smaller and cleaner */}
+        {/* Reward Boxes */}
         {isConnected && (
           <div className="flex justify-center mb-8">
             <div className="inline-flex gap-1.5 p-2 bg-white/80 rounded-xl shadow-sm">
@@ -413,23 +416,23 @@ export default function Admin() {
                 onClick={(e) => e.stopPropagation()}
                 className="bg-white rounded-2xl shadow-xl w-full max-w-xs overflow-hidden"
               >
-                <div className="flex justify-between items-center px-4 py-3 border-b">
+                <div className="flex justify-between items-center px-4 py-3">
                   <span className="font-semibold text-gray-900 text-sm">Claimable Tokens</span>
                   <button onClick={() => setSelectedBox(null)} className="text-gray-400 hover:text-gray-600">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
                 
-                <div className="p-3 space-y-3">
-                  {currentDayRewards.map((reward, index) => {
+                <div className="px-4 pb-4 space-y-3">
+                  {currentDayRewards.map((reward) => {
                     const state = rewardStates[reward.id];
                     if (!state) return null;
                     
                     return (
-                      <div key={reward.id} className={index > 0 ? 'border-t pt-3' : ''}>
+                      <div key={reward.id}>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <img src={reward.logo} alt={reward.name} className="w-6 h-6 rounded-full" />
+                            <img src={reward.logo} alt={reward.name} className="w-6 h-6 rounded-full bg-gray-100" />
                             <div className="text-sm">
                               <span className="font-medium text-gray-900">{reward.name}</span>
                               <span className="ml-1.5 text-gray-600">
@@ -443,41 +446,37 @@ export default function Admin() {
                               <span className="text-green-600 text-xs font-medium flex items-center gap-1">
                                 <Check className="w-3 h-3" /> Done
                               </span>
+                            ) : state.needsVerify ? (
+                              // Show verify button only after user clicked claim and doesn't follow
+                              <button
+                                onClick={() => verifyAndClaim(reward.id, reward.token)}
+                                disabled={state.claiming}
+                                className="px-2.5 py-1 text-[10px] font-medium rounded border border-green-400 text-green-600 hover:bg-green-50 transition-all"
+                              >
+                                {state.claiming ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : 'Verify'}
+                              </button>
                             ) : (
-                              <>
-                                <button
-                                  onClick={() => verifyTask(reward.id, reward.task)}
-                                  disabled={state.verifying || state.verified}
-                                  className={`px-2 py-0.5 text-[10px] font-medium rounded border transition-all
-                                    ${state.verified 
-                                      ? 'border-green-400 text-green-600 bg-green-50' 
-                                      : 'border-gray-300 text-gray-500 hover:border-gray-400'}`}
-                                >
-                                  {state.verifying ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : state.verified ? <Check className="w-2.5 h-2.5" /> : 'Verify'}
-                                </button>
-                                <button
-                                  onClick={() => claimReward(reward.id, reward.token)}
-                                  disabled={!state.verified || state.claiming}
-                                  className={`px-2 py-0.5 text-[10px] font-medium rounded border-2 transition-all
-                                    ${state.verified 
-                                      ? 'border-green-400 text-green-600 hover:bg-green-50' 
-                                      : 'border-gray-200 text-gray-400 cursor-not-allowed'}`}
-                                >
-                                  {state.claiming ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : 'Claim'}
-                                </button>
-                              </>
+                              // Show claim button - will check follow on click
+                              <button
+                                onClick={() => claimReward(reward.id, reward.token)}
+                                disabled={state.claiming}
+                                className="px-2.5 py-1 text-[10px] font-medium rounded border-2 border-green-400 text-green-600 hover:bg-green-50 transition-all"
+                              >
+                                {state.claiming ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : 'Claim'}
+                              </button>
                             )}
                           </div>
                         </div>
                         
-                        {!state.verified && !state.claimed && (
+                        {/* Show follow link only when verify is needed */}
+                        {state.needsVerify && !state.claimed && (
                           <a 
-                            href={reward.task.link} 
+                            href="https://warpcast.com/doteth"
                             target="_blank" 
                             rel="noopener noreferrer" 
                             className="text-[10px] text-blue-500 hover:underline flex items-center gap-0.5 mt-1 ml-8"
                           >
-                            {reward.task.label} <ExternalLink className="w-2.5 h-2.5" />
+                            Follow @doteth <ExternalLink className="w-2.5 h-2.5" />
                           </a>
                         )}
                         
