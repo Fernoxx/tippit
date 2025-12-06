@@ -256,14 +256,7 @@ export default function Admin() {
         }
       }
       
-      // Check in first
-      await fetch(`${BACKEND_URL}/api/daily-checkin/checkin`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address, dayNumber: selectedBox }),
-      });
-      
-      // Get signature from backend
+      // Get signature from backend (don't mark as claimed yet)
       const response = await fetch(`${BACKEND_URL}/api/daily-checkin/claim`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -295,10 +288,31 @@ export default function Admin() {
         await publicClient.waitForTransactionReceipt({ hash });
       }
       
-      setRewardStates(prev => ({
-        ...prev,
-        [rewardId]: { ...prev[rewardId], claiming: false, claimed: true }
-      }));
+      // Mark this token as claimed locally
+      setRewardStates(prev => {
+        const newStates = {
+          ...prev,
+          [rewardId]: { ...prev[rewardId], claiming: false, claimed: true }
+        };
+        
+        // Check if ALL rewards for this day are now claimed
+        const dayRewards = DAY_REWARDS[selectedBox] || [];
+        const allClaimed = dayRewards.every(r => 
+          r.id === rewardId ? true : newStates[r.id]?.claimed
+        );
+        
+        // Only update box status (streak) after ALL tokens claimed
+        if (allClaimed) {
+          // Mark day as complete in backend
+          fetch(`${BACKEND_URL}/api/daily-checkin/complete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ address, dayNumber: selectedBox }),
+          }).then(() => fetchBoxStatus());
+        }
+        
+        return newStates;
+      });
       
       console.log(`✅ Claimed ${data.ecionAmount} ECION + $${data.usdcAmount} USDC - tx: ${hash}`);
     } catch (err: any) {

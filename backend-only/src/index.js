@@ -2296,8 +2296,7 @@ app.post('/api/daily-checkin/claim', async (req, res) => {
       
       console.log(`✅ Generated signature for ${userAddress} - ${rewards.ecionAmount} ECION + $${rewards.usdcAmount} USDC (Day ${dayNumber})`);
       
-      // Mark reward as claimed in database
-      await database.markRewardClaimed(userData.fid, today, rewards.ecionAmount.toString());
+      // Don't mark as claimed here - wait for /complete endpoint after all tokens claimed
       
       res.json({
         success: true,
@@ -2365,6 +2364,48 @@ app.post('/api/daily-checkin/reset', async (req, res) => {
     res.status(500).json({ 
       success: false, 
       error: 'Failed to reset check-in' 
+    });
+  }
+});
+
+// Complete daily check-in (called after ALL tokens claimed for a day)
+app.post('/api/daily-checkin/complete', async (req, res) => {
+  try {
+    const userAddress = req.body.address || req.headers['x-user-address'];
+    const dayNumber = parseInt(req.body.dayNumber, 10);
+    
+    if (!userAddress || !dayNumber) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Address and dayNumber are required' 
+      });
+    }
+    
+    const userData = await getUserDataByAddress(userAddress);
+    if (!userData || !userData.fid) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'FID not found for this address' 
+      });
+    }
+    
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Mark as claimed and update streak
+    await database.markRewardClaimed(userData.fid, today, dayNumber.toString());
+    
+    console.log(`✅ Completed day ${dayNumber} for FID ${userData.fid}`);
+    
+    res.json({
+      success: true,
+      dayNumber: dayNumber,
+      message: 'Day completed successfully'
+    });
+  } catch (error) {
+    console.error('Error completing daily check-in:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to complete check-in' 
     });
   }
 });
