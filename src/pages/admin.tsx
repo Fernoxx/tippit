@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFarcasterWallet } from '@/hooks/useFarcasterWallet';
-import { Gift, X, Check, Loader2, ExternalLink } from 'lucide-react';
+import { useFarcasterEmbed } from '@/hooks/useFarcasterEmbed';
+import { Gift, X, Check, Loader2, ExternalLink, Share2 } from 'lucide-react';
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001').replace(/\/$/, '');
 
-// Token logos - ECION from public folder, USDC from coingecko
+// Token logos
 const ECION_LOGO = '/ecion.png';
 const USDC_LOGO = 'https://assets.coingecko.com/coins/images/6319/small/USD_Coin_icon.png';
 
@@ -37,32 +38,32 @@ interface TokenReward {
   maxAmount: number;
 }
 
-// Reward config per day
+// Reward config per day - Updated USDC ranges
 const DAY_REWARDS: Record<number, TokenReward[]> = {
   1: [
     { id: 'ecion-1', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 1, maxAmount: 69 },
-    { id: 'usdc-1', token: 'usdc', name: 'USDC', logo: USDC_LOGO, minAmount: 0.01, maxAmount: 0.20 }
+    { id: 'usdc-1', token: 'usdc', name: 'USDC', logo: USDC_LOGO, minAmount: 0.02, maxAmount: 0.06 }
   ],
   2: [
     { id: 'ecion-2', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 69, maxAmount: 1000 }
   ],
   3: [
     { id: 'ecion-3', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 1000, maxAmount: 5000 },
-    { id: 'usdc-3', token: 'usdc', name: 'USDC', logo: USDC_LOGO, minAmount: 0.01, maxAmount: 0.20 }
+    { id: 'usdc-3', token: 'usdc', name: 'USDC', logo: USDC_LOGO, minAmount: 0.02, maxAmount: 0.12 }
   ],
   4: [
     { id: 'ecion-4', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 5000, maxAmount: 10000 }
   ],
   5: [
     { id: 'ecion-5', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 5000, maxAmount: 10000 },
-    { id: 'usdc-5', token: 'usdc', name: 'USDC', logo: USDC_LOGO, minAmount: 0.01, maxAmount: 0.20 }
+    { id: 'usdc-5', token: 'usdc', name: 'USDC', logo: USDC_LOGO, minAmount: 0.02, maxAmount: 0.16 }
   ],
   6: [
     { id: 'ecion-6', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 10000, maxAmount: 20000 }
   ],
   7: [
     { id: 'ecion-7', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 10000, maxAmount: 20000 },
-    { id: 'usdc-7', token: 'usdc', name: 'USDC', logo: USDC_LOGO, minAmount: 0.01, maxAmount: 0.20 }
+    { id: 'usdc-7', token: 'usdc', name: 'USDC', logo: USDC_LOGO, minAmount: 0.02, maxAmount: 0.20 }
   ]
 };
 
@@ -93,7 +94,7 @@ interface BoxStatus {
 
 interface RewardState {
   amount: number;
-  needsVerify: boolean; // true if user clicked claim but doesn't follow
+  needsVerify: boolean;
   claiming: boolean;
   claimed: boolean;
   error: string | null;
@@ -112,6 +113,7 @@ export default function Admin() {
   const [rewardStates, setRewardStates] = useState<Record<string, RewardState>>({});
   
   const { address, isConnected } = useFarcasterWallet();
+  const { handleShare } = useFarcasterEmbed();
 
   const fetchAdminData = async () => {
     try {
@@ -238,10 +240,6 @@ export default function Admin() {
           ...prev,
           [rewardId]: { ...prev[rewardId], claiming: false, claimed: true }
         }));
-        
-        const dayRewards = DAY_REWARDS[selectedBox] || [];
-        const allClaimed = dayRewards.every(r => rewardStates[r.id]?.claimed || r.id === rewardId);
-        if (allClaimed) await fetchBoxStatus();
       } else {
         throw new Error(data.error || 'Claim failed');
       }
@@ -288,6 +286,40 @@ export default function Admin() {
         [rewardId]: { ...prev[rewardId], claiming: false, error: 'Verification failed' }
       }));
     }
+  };
+
+  // Check if all rewards are claimed
+  const allRewardsClaimed = useCallback(() => {
+    if (!selectedBox) return false;
+    const dayRewards = DAY_REWARDS[selectedBox] || [];
+    return dayRewards.every(r => rewardStates[r.id]?.claimed);
+  }, [selectedBox, rewardStates]);
+
+  // Share claimed rewards
+  const shareRewards = async () => {
+    if (!selectedBox) return;
+    
+    const dayRewards = DAY_REWARDS[selectedBox] || [];
+    const ecionReward = dayRewards.find(r => r.token === 'ecion');
+    const usdcReward = dayRewards.find(r => r.token === 'usdc');
+    
+    const ecionAmount = ecionReward ? rewardStates[ecionReward.id]?.amount : 0;
+    const usdcAmount = usdcReward ? rewardStates[usdcReward.id]?.amount : 0;
+    
+    // Build share text
+    let rewardText = '';
+    if (ecionAmount && usdcAmount) {
+      rewardText = `${ecionAmount.toLocaleString()} $ECION and $${usdcAmount} USDC`;
+    } else if (ecionAmount) {
+      rewardText = `${ecionAmount.toLocaleString()} $ECION`;
+    } else if (usdcAmount) {
+      rewardText = `$${usdcAmount} USDC`;
+    }
+    
+    const shareText = `🎁 Opened today's daily reward box and claimed ${rewardText} from @ecion`;
+    const shareUrl = 'https://ecion.vercel.app';
+    
+    await handleShare(shareText, shareUrl);
   };
 
   useEffect(() => {
@@ -447,7 +479,6 @@ export default function Admin() {
                                 <Check className="w-3 h-3" /> Done
                               </span>
                             ) : state.needsVerify ? (
-                              // Show verify button only after user clicked claim and doesn't follow
                               <button
                                 onClick={() => verifyAndClaim(reward.id, reward.token)}
                                 disabled={state.claiming}
@@ -456,7 +487,6 @@ export default function Admin() {
                                 {state.claiming ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : 'Verify'}
                               </button>
                             ) : (
-                              // Show claim button - will check follow on click
                               <button
                                 onClick={() => claimReward(reward.id, reward.token)}
                                 disabled={state.claiming}
@@ -468,7 +498,6 @@ export default function Admin() {
                           </div>
                         </div>
                         
-                        {/* Show follow link only when verify is needed */}
                         {state.needsVerify && !state.claimed && (
                           <a 
                             href="https://warpcast.com/doteth"
@@ -486,6 +515,19 @@ export default function Admin() {
                       </div>
                     );
                   })}
+                  
+                  {/* Share Button - Shows after all rewards claimed */}
+                  {allRewardsClaimed() && (
+                    <div className="pt-3 border-t border-gray-100">
+                      <button
+                        onClick={shareRewards}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-medium transition-all"
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                        Share
+                      </button>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             </motion.div>

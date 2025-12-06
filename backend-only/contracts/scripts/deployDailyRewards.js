@@ -42,13 +42,13 @@ async function main() {
   
   // Log reward structure
   console.log("\n📦 Reward Structure:");
-  console.log("Day 1: 1-69 ECION + $0.01-$0.20 USDC");
+  console.log("Day 1: 1-69 ECION + $0.02-$0.06 USDC");
   console.log("Day 2: 69-1000 ECION only");
-  console.log("Day 3: 1000-5000 ECION + $0.01-$0.20 USDC");
+  console.log("Day 3: 1000-5000 ECION + $0.02-$0.12 USDC");
   console.log("Day 4: 5000-10000 ECION only");
-  console.log("Day 5: 5000-10000 ECION + $0.01-$0.20 USDC");
+  console.log("Day 5: 5000-10000 ECION + $0.02-$0.16 USDC");
   console.log("Day 6: 10000-20000 ECION only");
-  console.log("Day 7: 10000-20000 ECION + $0.01-$0.20 USDC");
+  console.log("Day 7: 10000-20000 ECION + $0.02-$0.20 USDC");
 }
 
 main()

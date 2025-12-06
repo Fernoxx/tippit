@@ -13,13 +13,13 @@ import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
  * @notice Users must follow @doteth (verified by backend) to claim rewards
  * 
  * Reward Structure:
- * Day 1: 1-69 ECION + $0.01-$0.20 USDC
+ * Day 1: 1-69 ECION + $0.02-$0.06 USDC
  * Day 2: 69-1000 ECION only
- * Day 3: 1000-5000 ECION + $0.01-$0.20 USDC
+ * Day 3: 1000-5000 ECION + $0.02-$0.12 USDC
  * Day 4: 5000-10000 ECION only
- * Day 5: 5000-10000 ECION + $0.01-$0.20 USDC
+ * Day 5: 5000-10000 ECION + $0.02-$0.16 USDC
  * Day 6: 10000-20000 ECION only
- * Day 7: 10000-20000 ECION + $0.01-$0.20 USDC
+ * Day 7: 10000-20000 ECION + $0.02-$0.20 USDC
  */
 contract EcionDailyRewards is Ownable, ReentrancyGuard {
     using ECDSA for bytes32;
@@ -91,12 +91,12 @@ contract EcionDailyRewards is Ownable, ReentrancyGuard {
         backendSigner = _backendSigner;
         
         // Initialize reward ranges (ECION has 18 decimals, USDC has 6 decimals)
-        // Day 1: 1-69 ECION + $0.01-$0.20 USDC
+        // Day 1: 1-69 ECION + $0.02-$0.06 USDC
         dayRewards[1] = RewardRange({
             ecionMin: 1 * 1e18,
             ecionMax: 69 * 1e18,
-            usdcMin: 0.01 * 1e6,  // 10000 = $0.01
-            usdcMax: 0.20 * 1e6   // 200000 = $0.20
+            usdcMin: 20000,   // $0.02
+            usdcMax: 60000    // $0.06
         });
         
         // Day 2: 69-1000 ECION only
@@ -107,12 +107,12 @@ contract EcionDailyRewards is Ownable, ReentrancyGuard {
             usdcMax: 0
         });
         
-        // Day 3: 1000-5000 ECION + $0.01-$0.20 USDC
+        // Day 3: 1000-5000 ECION + $0.02-$0.12 USDC
         dayRewards[3] = RewardRange({
             ecionMin: 1000 * 1e18,
             ecionMax: 5000 * 1e18,
-            usdcMin: 0.01 * 1e6,
-            usdcMax: 0.20 * 1e6
+            usdcMin: 20000,   // $0.02
+            usdcMax: 120000   // $0.12
         });
         
         // Day 4: 5000-10000 ECION only
@@ -123,12 +123,12 @@ contract EcionDailyRewards is Ownable, ReentrancyGuard {
             usdcMax: 0
         });
         
-        // Day 5: 5000-10000 ECION + $0.01-$0.20 USDC
+        // Day 5: 5000-10000 ECION + $0.02-$0.16 USDC
         dayRewards[5] = RewardRange({
             ecionMin: 5000 * 1e18,
             ecionMax: 10000 * 1e18,
-            usdcMin: 0.01 * 1e6,
-            usdcMax: 0.20 * 1e6
+            usdcMin: 20000,   // $0.02
+            usdcMax: 160000   // $0.16
         });
         
         // Day 6: 10000-20000 ECION only
@@ -139,12 +139,12 @@ contract EcionDailyRewards is Ownable, ReentrancyGuard {
             usdcMax: 0
         });
         
-        // Day 7: 10000-20000 ECION + $0.01-$0.20 USDC
+        // Day 7: 10000-20000 ECION + $0.02-$0.20 USDC
         dayRewards[7] = RewardRange({
             ecionMin: 10000 * 1e18,
             ecionMax: 20000 * 1e18,
-            usdcMin: 0.01 * 1e6,
-            usdcMax: 0.20 * 1e6
+            usdcMin: 20000,   // $0.02
+            usdcMax: 200000   // $0.20
         });
     }
     
