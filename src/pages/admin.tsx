@@ -395,41 +395,39 @@ export default function Admin() {
       <div className="max-w-5xl mx-auto px-4">
         <h1 className="text-3xl font-bold text-gray-900 text-center mb-6">Admin Dashboard</h1>
 
-        {/* Reward Boxes */}
-        {isConnected && (
-          <div className="flex justify-center mb-8">
-            <div className="inline-flex gap-1.5 p-2 bg-white/80 rounded-xl shadow-sm">
-              {[1, 2, 3, 4, 5, 6, 7].map((day) => {
-                const state = getBoxState(day);
-                const isClaimed = state === 'claimed';
-                const isAvailable = state === 'available';
-                
-                return (
-                  <button
-                    key={day}
-                    onClick={() => handleBoxClick(day)}
-                    disabled={!isAvailable}
-                    className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all relative
-                      ${isClaimed 
-                        ? 'bg-gray-100' 
-                        : isAvailable 
-                          ? 'bg-gradient-to-br from-amber-300 to-orange-300 shadow hover:scale-105' 
-                          : 'bg-amber-100/60'}
-                    `}
-                  >
-                    {isAvailable && <div className="absolute inset-0 rounded-lg animate-soft-pulse" />}
-                    <Gift className={`w-4 h-4 ${isClaimed ? 'text-gray-400' : isAvailable ? 'text-white' : 'text-amber-200'}`} />
-                    {isClaimed && (
-                      <div className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full flex items-center justify-center">
-                        <Check className="w-2 h-2 text-white" />
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+        {/* Reward Boxes - Always visible */}
+        <div className="flex justify-center mb-8">
+          <div className="inline-flex gap-1.5 p-2 bg-white/80 rounded-xl shadow-sm">
+            {[1, 2, 3, 4, 5, 6, 7].map((day) => {
+              const state = getBoxState(day);
+              const isClaimed = state === 'claimed';
+              const isAvailable = state === 'available' && isConnected;
+              
+              return (
+                <button
+                  key={day}
+                  onClick={() => handleBoxClick(day)}
+                  disabled={!isAvailable}
+                  className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all relative
+                    ${isClaimed 
+                      ? 'bg-gray-100' 
+                      : isAvailable 
+                        ? 'bg-gradient-to-br from-amber-300 to-orange-300 shadow hover:scale-105' 
+                        : 'bg-amber-100/60'}
+                  `}
+                >
+                  {isAvailable && <div className="absolute inset-0 rounded-lg animate-soft-pulse" />}
+                  <Gift className={`w-4 h-4 ${isClaimed ? 'text-gray-400' : isAvailable ? 'text-white' : 'text-amber-200'}`} />
+                  {isClaimed && (
+                    <div className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full flex items-center justify-center">
+                      <Check className="w-2 h-2 text-white" />
+                    </div>
+                  )}
+                </button>
+              );
+            })}
           </div>
-        )}
+        </div>
 
         {/* Claim Modal */}
         <AnimatePresence>
