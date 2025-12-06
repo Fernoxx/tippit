@@ -2,7 +2,26 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFarcasterWallet } from '@/hooks/useFarcasterWallet';
 import { useFarcasterEmbed } from '@/hooks/useFarcasterEmbed';
+import { useWalletClient, usePublicClient } from 'wagmi';
 import { Gift, X, Check, Loader2, ExternalLink, Share2 } from 'lucide-react';
+
+const DAILY_REWARDS_CONTRACT = '0x8e4f21A66E8F99FbF1A6FfBEc757547C11E8653E';
+
+const CONTRACT_ABI = [
+  {
+    name: 'checkIn',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'ecionAmount', type: 'uint256' },
+      { name: 'usdcAmount', type: 'uint256' },
+      { name: 'isFollowing', type: 'bool' },
+      { name: 'expiry', type: 'uint256' },
+      { name: 'signature', type: 'bytes' }
+    ],
+    outputs: []
+  }
+] as const;
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001').replace(/\/$/, '');
 
@@ -114,6 +133,8 @@ export default function Admin() {
   
   const { address, isConnected } = useFarcasterWallet();
   const { handleShare } = useFarcasterEmbed();
+  const { data: walletClient } = useWalletClient();
+  const publicClient = usePublicClient();
 
   const fetchAdminData = async () => {
     try {
@@ -194,9 +215,9 @@ export default function Admin() {
     setSelectedBox(day);
   }, [address, boxStatus]);
 
-  // Claim reward - checks follow status first
+  // Claim reward - checks follow status, gets signature, calls contract
   const claimReward = async (rewardId: string, token: string) => {
-    if (!address || !selectedBox) return;
+    if (!address || !selectedBox || !walletClient) return;
     
     const state = rewardStates[rewardId];
     if (!state) return;
@@ -212,7 +233,6 @@ export default function Admin() {
       const followData = await followCheck.json();
       
       if (!followData.success || !followData.isFollowing) {
-        // User doesn't follow - show verify button
         setRewardStates(prev => ({
           ...prev,
           [rewardId]: { ...prev[rewardId], claiming: false, needsVerify: true, error: null }
@@ -220,13 +240,14 @@ export default function Admin() {
         return;
       }
       
-      // User follows - proceed with claim
+      // Check in first
       await fetch(`${BACKEND_URL}/api/daily-checkin/checkin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ address, dayNumber: selectedBox }),
       });
       
+      // Get signature from backend
       const response = await fetch(`${BACKEND_URL}/api/daily-checkin/claim`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -235,25 +256,47 @@ export default function Admin() {
       
       const data = await response.json();
       
-      if (data.success) {
-        setRewardStates(prev => ({
-          ...prev,
-          [rewardId]: { ...prev[rewardId], claiming: false, claimed: true }
-        }));
-      } else {
-        throw new Error(data.error || 'Claim failed');
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to get claim signature');
       }
-    } catch (err: any) {
+      
+      // Call the contract with the signature
+      const hash = await walletClient.writeContract({
+        address: DAILY_REWARDS_CONTRACT as `0x${string}`,
+        abi: CONTRACT_ABI,
+        functionName: 'checkIn',
+        args: [
+          BigInt(data.ecionAmountWei),
+          BigInt(data.usdcAmountWei),
+          data.isFollowing,
+          BigInt(data.expiry),
+          data.signature as `0x${string}`
+        ]
+      });
+      
+      // Wait for transaction
+      if (publicClient) {
+        await publicClient.waitForTransactionReceipt({ hash });
+      }
+      
       setRewardStates(prev => ({
         ...prev,
-        [rewardId]: { ...prev[rewardId], claiming: false, error: err.message }
+        [rewardId]: { ...prev[rewardId], claiming: false, claimed: true }
+      }));
+      
+      console.log(`✅ Claimed ${data.ecionAmount} ECION + $${data.usdcAmount} USDC - tx: ${hash}`);
+    } catch (err: any) {
+      console.error('Claim error:', err);
+      setRewardStates(prev => ({
+        ...prev,
+        [rewardId]: { ...prev[rewardId], claiming: false, error: err.message || 'Claim failed' }
       }));
     }
   };
 
   // Verify follow and retry claim
   const verifyAndClaim = async (rewardId: string, token: string) => {
-    if (!address) return;
+    if (!address || !walletClient) return;
     
     setRewardStates(prev => ({
       ...prev,
@@ -272,13 +315,13 @@ export default function Admin() {
         return;
       }
       
-      // Now user follows - hide verify and claim
+      // Now user follows - hide verify and proceed
       setRewardStates(prev => ({
         ...prev,
         [rewardId]: { ...prev[rewardId], needsVerify: false }
       }));
       
-      // Proceed with claim
+      // Proceed with contract claim
       await claimReward(rewardId, token);
     } catch {
       setRewardStates(prev => ({

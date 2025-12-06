@@ -2261,43 +2261,38 @@ app.post('/api/daily-checkin/claim', async (req, res) => {
     }
     
     try {
-      // Get provider and wallet for transfers
-      const { getProvider } = require('./rpcProvider');
       const { ethers } = require('ethers');
+      
+      // Get user's nonce from contract
+      const { getProvider } = require('./rpcProvider');
       const provider = await getProvider();
-      const wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY, provider);
+      const DAILY_REWARDS_CONTRACT = process.env.DAILY_REWARDS_CONTRACT || '0x8e4f21A66E8F99FbF1A6FfBEc757547C11E8653E';
       
-      const txHashes = [];
+      const contractAbi = ['function nonces(address) view returns (uint256)'];
+      const contract = new ethers.Contract(DAILY_REWARDS_CONTRACT, contractAbi, provider);
+      const nonce = await contract.nonces(userAddress);
       
-      // Transfer ECION tokens (18 decimals)
-      if (rewards.ecionAmount > 0) {
-        const ecionAmountWei = ethers.parseUnits(rewards.ecionAmount.toString(), 18);
-        const ecionTokenContract = new ethers.Contract(
-          ECION_TOKEN_ADDRESS,
-          ['function transfer(address to, uint256 amount) returns (bool)'],
-          wallet
-        );
-        
-        const ecionTx = await ecionTokenContract.transfer(userAddress, ecionAmountWei);
-        await ecionTx.wait();
-        txHashes.push(ecionTx.hash);
-        console.log(`✅ Transferred ${rewards.ecionAmount} ECION to ${userAddress} (Day ${dayNumber}, FID: ${userData.fid})`);
-      }
+      // Prepare amounts in wei
+      const ecionAmountWei = ethers.parseUnits(rewards.ecionAmount.toString(), 18);
+      const usdcAmountWei = rewards.hasUsdc 
+        ? ethers.parseUnits(rewards.usdcAmount.toString(), 6)
+        : BigInt(0);
       
-      // Transfer USDC tokens (6 decimals) if applicable
-      if (rewards.hasUsdc && rewards.usdcAmount > 0) {
-        const usdcAmountWei = ethers.parseUnits(rewards.usdcAmount.toString(), 6);
-        const usdcTokenContract = new ethers.Contract(
-          BASE_USDC_ADDRESS,
-          ['function transfer(address to, uint256 amount) returns (bool)'],
-          wallet
-        );
-        
-        const usdcTx = await usdcTokenContract.transfer(userAddress, usdcAmountWei);
-        await usdcTx.wait();
-        txHashes.push(usdcTx.hash);
-        console.log(`✅ Transferred $${rewards.usdcAmount} USDC to ${userAddress} (Day ${dayNumber}, FID: ${userData.fid})`);
-      }
+      // Signature expires in 5 minutes
+      const expiry = Math.floor(Date.now() / 1000) + 300;
+      const chainId = 8453; // Base mainnet
+      
+      // Create message hash (must match contract exactly)
+      const messageHash = ethers.solidityPackedKeccak256(
+        ['address', 'uint256', 'uint256', 'bool', 'uint256', 'uint256', 'uint256'],
+        [userAddress, ecionAmountWei, usdcAmountWei, true, nonce, expiry, chainId]
+      );
+      
+      // Sign the message
+      const wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY);
+      const signature = await wallet.signMessage(ethers.getBytes(messageHash));
+      
+      console.log(`✅ Generated signature for ${userAddress} - ${rewards.ecionAmount} ECION + $${rewards.usdcAmount} USDC (Day ${dayNumber})`);
       
       // Mark reward as claimed in database
       await database.markRewardClaimed(userData.fid, today, rewards.ecionAmount.toString());
@@ -2307,13 +2302,18 @@ app.post('/api/daily-checkin/claim', async (req, res) => {
         dayNumber: dayNumber,
         ecionAmount: rewards.ecionAmount,
         usdcAmount: rewards.usdcAmount,
-        transactionHashes: txHashes
+        ecionAmountWei: ecionAmountWei.toString(),
+        usdcAmountWei: usdcAmountWei.toString(),
+        isFollowing: true,
+        expiry: expiry,
+        signature: signature,
+        contractAddress: DAILY_REWARDS_CONTRACT
       });
-    } catch (transferError) {
-      console.error('❌ Error transferring reward:', transferError);
+    } catch (signError) {
+      console.error('❌ Error generating signature:', signError);
       res.status(500).json({ 
         success: false, 
-        error: 'Failed to transfer reward. Please try again.' 
+        error: 'Failed to generate claim signature. Please try again.' 
       });
     }
   } catch (error) {
