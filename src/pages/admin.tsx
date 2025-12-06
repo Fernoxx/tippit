@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFarcasterWallet } from '@/hooks/useFarcasterWallet';
-import { Gift, X } from 'lucide-react';
+import { Gift, X, Check, Loader2, ExternalLink } from 'lucide-react';
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001').replace(/\/$/, '');
 
@@ -21,8 +21,6 @@ interface AdminStats {
     totalTransactions: number;
     uniqueTippers: number;
     uniqueEarners: number;
-    firstTipDate: string | null;
-    lastTipDate: string | null;
   };
   last24h: PeriodStats;
   last7d: PeriodStats;
@@ -30,122 +28,162 @@ interface AdminStats {
   timestamp?: string;
 }
 
-interface MetricCardConfig {
-  key: string;
+// Task types that can be verified via Neynar
+type TaskType = 'follow' | 'like' | 'recast' | 'channel';
+
+interface Task {
+  type: TaskType;
+  target: string; // FID for follow, cast hash for like/recast, channel ID for channel
   label: string;
-  bgClass: string;
-  textClass: string;
-  icon: JSX.Element;
-  getValue: (stats: AdminStats) => string;
+  link?: string;
 }
 
-interface TimeframeCardConfig {
-  label: string;
-  getTips: (stats: AdminStats) => string;
-  getUsdc: (stats: AdminStats) => string;
+// Token reward with its own task requirement
+interface TokenReward {
+  id: string;
+  token: 'ecion' | 'usdc';
+  name: string;
+  logo: string;
+  minAmount: number;
+  maxAmount: number;
+  task: Task;
 }
 
-const metricCards: MetricCardConfig[] = [
-  {
-    key: 'totalTips',
-    label: 'Total Tips',
-    bgClass: 'bg-blue-100',
-    textClass: 'text-blue-600',
-    icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-      </svg>
-    ),
-    getValue: (stats) => stats.allTime.totalTips.toLocaleString(),
-  },
-  {
-    key: 'totalUsdcTipped',
-    label: 'Total USDC Tipped',
-    bgClass: 'bg-green-100',
-    textClass: 'text-green-600',
-    icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-      </svg>
-    ),
-    getValue: (stats) => `${stats.allTime.totalUsdcTipped.toFixed(2)} USDC`,
-  },
-  {
-    key: 'totalTransactions',
-    label: 'Total Transactions',
-    bgClass: 'bg-orange-100',
-    textClass: 'text-orange-600',
-    icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-      </svg>
-    ),
-    getValue: (stats) => stats.allTime.totalTransactions.toLocaleString(),
-  },
-  {
-    key: 'uniqueTippers',
-    label: 'Unique Tippers',
-    bgClass: 'bg-purple-100',
-    textClass: 'text-purple-600',
-    icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-      </svg>
-    ),
-    getValue: (stats) => stats.allTime.uniqueTippers.toLocaleString(),
-  },
-];
-
-const timeframeCards: TimeframeCardConfig[] = [
-  {
-    label: 'Last 24h',
-    getTips: (stats) => stats.last24h.tips.toLocaleString(),
-    getUsdc: (stats) => stats.last24h.usdc.toFixed(2),
-  },
-  {
-    label: 'Last 7d',
-    getTips: (stats) => stats.last7d.tips.toLocaleString(),
-    getUsdc: (stats) => stats.last7d.usdc.toFixed(2),
-  },
-  {
-    label: 'Last 30d',
-    getTips: (stats) => stats.last30d.tips.toLocaleString(),
-    getUsdc: (stats) => stats.last30d.usdc.toFixed(2),
-  },
-];
-
-// Reward ranges - backend generates random amounts
-const BOX_REWARDS: Record<number, { ecionMin: number; ecionMax: number; usdcMin: number; usdcMax: number; hasUsdc: boolean }> = {
-  1: { ecionMin: 1, ecionMax: 69, usdcMin: 0.01, usdcMax: 0.20, hasUsdc: true },
-  2: { ecionMin: 69, ecionMax: 1000, usdcMin: 0, usdcMax: 0, hasUsdc: false },
-  3: { ecionMin: 1000, ecionMax: 5000, usdcMin: 0.01, usdcMax: 0.20, hasUsdc: true },
-  4: { ecionMin: 5000, ecionMax: 10000, usdcMin: 0, usdcMax: 0, hasUsdc: false },
-  5: { ecionMin: 5000, ecionMax: 10000, usdcMin: 0.01, usdcMax: 0.20, hasUsdc: true },
-  6: { ecionMin: 10000, ecionMax: 20000, usdcMin: 0, usdcMax: 0, hasUsdc: false },
-  7: { ecionMin: 10000, ecionMax: 20000, usdcMin: 0.01, usdcMax: 0.20, hasUsdc: true }
+// Define rewards for each day - each token has its own task
+const DAY_REWARDS: Record<number, TokenReward[]> = {
+  1: [
+    {
+      id: 'ecion-1',
+      token: 'ecion',
+      name: 'Ecion',
+      logo: ECION_LOGO,
+      minAmount: 1,
+      maxAmount: 69,
+      task: { type: 'follow', target: '242597', label: 'Follow @doteth', link: 'https://warpcast.com/doteth' }
+    },
+    {
+      id: 'usdc-1',
+      token: 'usdc',
+      name: 'USDC',
+      logo: USDC_LOGO,
+      minAmount: 0.01,
+      maxAmount: 0.20,
+      task: { type: 'follow', target: '242597', label: 'Follow @doteth', link: 'https://warpcast.com/doteth' }
+    }
+  ],
+  2: [
+    {
+      id: 'ecion-2',
+      token: 'ecion',
+      name: 'Ecion',
+      logo: ECION_LOGO,
+      minAmount: 69,
+      maxAmount: 1000,
+      task: { type: 'follow', target: '242597', label: 'Follow @doteth', link: 'https://warpcast.com/doteth' }
+    }
+  ],
+  3: [
+    {
+      id: 'ecion-3',
+      token: 'ecion',
+      name: 'Ecion',
+      logo: ECION_LOGO,
+      minAmount: 1000,
+      maxAmount: 5000,
+      task: { type: 'follow', target: '242597', label: 'Follow @doteth', link: 'https://warpcast.com/doteth' }
+    },
+    {
+      id: 'usdc-3',
+      token: 'usdc',
+      name: 'USDC',
+      logo: USDC_LOGO,
+      minAmount: 0.01,
+      maxAmount: 0.20,
+      task: { type: 'follow', target: '242597', label: 'Follow @doteth', link: 'https://warpcast.com/doteth' }
+    }
+  ],
+  4: [
+    {
+      id: 'ecion-4',
+      token: 'ecion',
+      name: 'Ecion',
+      logo: ECION_LOGO,
+      minAmount: 5000,
+      maxAmount: 10000,
+      task: { type: 'follow', target: '242597', label: 'Follow @doteth', link: 'https://warpcast.com/doteth' }
+    }
+  ],
+  5: [
+    {
+      id: 'ecion-5',
+      token: 'ecion',
+      name: 'Ecion',
+      logo: ECION_LOGO,
+      minAmount: 5000,
+      maxAmount: 10000,
+      task: { type: 'follow', target: '242597', label: 'Follow @doteth', link: 'https://warpcast.com/doteth' }
+    },
+    {
+      id: 'usdc-5',
+      token: 'usdc',
+      name: 'USDC',
+      logo: USDC_LOGO,
+      minAmount: 0.01,
+      maxAmount: 0.20,
+      task: { type: 'follow', target: '242597', label: 'Follow @doteth', link: 'https://warpcast.com/doteth' }
+    }
+  ],
+  6: [
+    {
+      id: 'ecion-6',
+      token: 'ecion',
+      name: 'Ecion',
+      logo: ECION_LOGO,
+      minAmount: 10000,
+      maxAmount: 20000,
+      task: { type: 'follow', target: '242597', label: 'Follow @doteth', link: 'https://warpcast.com/doteth' }
+    }
+  ],
+  7: [
+    {
+      id: 'ecion-7',
+      token: 'ecion',
+      name: 'Ecion',
+      logo: ECION_LOGO,
+      minAmount: 10000,
+      maxAmount: 20000,
+      task: { type: 'follow', target: '242597', label: 'Follow @doteth', link: 'https://warpcast.com/doteth' }
+    },
+    {
+      id: 'usdc-7',
+      token: 'usdc',
+      name: 'USDC',
+      logo: USDC_LOGO,
+      minAmount: 0.01,
+      maxAmount: 0.20,
+      task: { type: 'follow', target: '242597', label: 'Follow @doteth', link: 'https://warpcast.com/doteth' }
+    }
+  ]
 };
 
-// Generate random amount within range (for display)
-const getRandomAmount = (min: number, max: number) => {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-};
-
-const getRandomUsdc = (min: number, max: number) => {
-  return (Math.random() * (max - min) + min).toFixed(2);
+const getRandomAmount = (min: number, max: number, decimals: number = 0) => {
+  const value = Math.random() * (max - min) + min;
+  return decimals > 0 ? parseFloat(value.toFixed(decimals)) : Math.floor(value);
 };
 
 interface BoxStatus {
   streak: number;
   claimedDays: number[];
-  currentDayUTC: string;
-  lastCheckinDate: string | null;
   fid?: number;
 }
 
-interface ClaimableReward {
-  ecion: number;
-  usdc: string;
-  hasUsdc: boolean;
+interface RewardState {
+  amount: number;
+  verified: boolean;
+  verifying: boolean;
+  claiming: boolean;
+  claimed: boolean;
+  error: string | null;
 }
 
 export default function Admin() {
@@ -156,217 +194,245 @@ export default function Admin() {
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   
-  // Reward box states
   const [boxStatus, setBoxStatus] = useState<BoxStatus | null>(null);
   const [boxLoading, setBoxLoading] = useState(false);
   const [selectedBox, setSelectedBox] = useState<number | null>(null);
-  const [claimableReward, setClaimableReward] = useState<ClaimableReward | null>(null);
-  const [claimLoading, setClaimLoading] = useState(false);
-  const [claimError, setClaimError] = useState<string | null>(null);
-  const [claimSuccess, setClaimSuccess] = useState(false);
+  
+  // State for each reward's claim progress
+  const [rewardStates, setRewardStates] = useState<Record<string, RewardState>>({});
   
   const { address, isConnected } = useFarcasterWallet();
 
-  // Fetch admin data
   const fetchAdminData = async () => {
     try {
       setIsLoading(true);
-      setError(null);
-
       const storedPassword = sessionStorage.getItem('admin_password');
       if (!storedPassword) {
         setIsAuthenticated(false);
-        sessionStorage.removeItem('admin_authenticated');
-        setError('Session expired. Please login again.');
         return;
       }
       
-      const headers = { 'x-admin-password': storedPassword };
-      const statsResponse = await fetch(`${BACKEND_URL}/api/admin/total-stats`, { headers });
+      const response = await fetch(`${BACKEND_URL}/api/admin/total-stats`, {
+        headers: { 'x-admin-password': storedPassword }
+      });
       
-      if (!statsResponse.ok) {
-        if (statsResponse.status === 401) {
-          setIsAuthenticated(false);
-          sessionStorage.removeItem('admin_authenticated');
-          sessionStorage.removeItem('admin_password');
-          setError('Authentication failed. Please login again.');
-          return;
-        }
-        throw new Error(`Stats request failed`);
+      if (!response.ok) {
+        if (response.status === 401) setIsAuthenticated(false);
+        return;
       }
       
-      const statsData = await statsResponse.json();
-      const payload = statsData.stats ?? statsData.data ?? statsData;
-      
-      if (payload && (payload.allTime || payload.last24h)) {
-        setStats({
-          ...payload,
-          timestamp: statsData.timestamp ?? payload.timestamp ?? new Date().toISOString(),
-        });
-      }
+      const data = await response.json();
+      setStats(data.stats ?? data.data ?? data);
     } catch (err) {
-      console.error('Error fetching admin data:', err);
-      setError('Failed to fetch admin data');
+      setError('Failed to fetch data');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Fetch box status
   const fetchBoxStatus = async () => {
-    if (!address || !isConnected) return;
-
+    if (!address) return;
     try {
       setBoxLoading(true);
       const response = await fetch(`${BACKEND_URL}/api/daily-checkin/status?address=${address}`);
       const data = await response.json();
-      
       if (data.success) {
         setBoxStatus({
           streak: data.streak || 1,
           claimedDays: data.claimedDays || [],
-          currentDayUTC: data.currentDayUTC,
-          lastCheckinDate: data.lastCheckinDate,
           fid: data.fid
         });
       }
     } catch (err) {
-      console.error('Error fetching box status:', err);
+      console.error(err);
     } finally {
       setBoxLoading(false);
     }
   };
 
-  // Get current day for claiming
-  const getCurrentDay = () => {
-    if (!boxStatus) return 1;
-    if (boxStatus.streak === 0) return 1;
-    return boxStatus.streak;
-  };
-
-  // Get box state
+  const getCurrentDay = () => boxStatus?.streak || 1;
+  
   const getBoxState = (day: number) => {
     if (!boxStatus) return 'locked';
-    const isClaimed = boxStatus.claimedDays?.includes(day);
-    const currentDay = getCurrentDay();
-    
-    if (isClaimed) return 'claimed';
-    if (day === currentDay) return 'available';
-    if (day < currentDay) return 'missed';
+    if (boxStatus.claimedDays?.includes(day)) return 'claimed';
+    if (day === getCurrentDay()) return 'available';
+    if (day < getCurrentDay()) return 'missed';
     return 'locked';
   };
 
-  // Handle box click - generate random reward and show modal
   const handleBoxClick = (day: number) => {
-    const state = getBoxState(day);
-    if (state !== 'available') return;
+    if (getBoxState(day) !== 'available') return;
     
-    const reward = BOX_REWARDS[day];
-    const randomEcion = getRandomAmount(reward.ecionMin, reward.ecionMax);
-    const randomUsdc = reward.hasUsdc ? getRandomUsdc(reward.usdcMin, reward.usdcMax) : '0';
+    // Initialize reward states with random amounts
+    const rewards = DAY_REWARDS[day] || [];
+    const initialStates: Record<string, RewardState> = {};
     
-    setClaimableReward({
-      ecion: randomEcion,
-      usdc: randomUsdc,
-      hasUsdc: reward.hasUsdc
+    rewards.forEach(reward => {
+      const decimals = reward.token === 'usdc' ? 2 : 0;
+      initialStates[reward.id] = {
+        amount: getRandomAmount(reward.minAmount, reward.maxAmount, decimals),
+        verified: false,
+        verifying: false,
+        claiming: false,
+        claimed: false,
+        error: null
+      };
     });
+    
+    setRewardStates(initialStates);
     setSelectedBox(day);
-    setClaimError(null);
-    setClaimSuccess(false);
   };
 
-  // Handle claim - check follow status and claim
-  const handleClaim = async () => {
-    if (!address || !selectedBox || !claimableReward) return;
-
+  // Verify task completion for a specific reward
+  const verifyTask = async (rewardId: string, task: Task) => {
+    if (!address) return;
+    
+    setRewardStates(prev => ({
+      ...prev,
+      [rewardId]: { ...prev[rewardId], verifying: true, error: null }
+    }));
+    
     try {
-      setClaimLoading(true);
-      setClaimError(null);
-
-      // Check if user follows @doteth
-      const followResponse = await fetch(`${BACKEND_URL}/api/neynar/check-follow-by-address/${address}`);
-      const followData = await followResponse.json();
-
-      if (!followData.success || !followData.isFollowing) {
-        setClaimError('You must follow @doteth to claim rewards.');
-        setClaimLoading(false);
-        return;
+      let verified = false;
+      
+      switch (task.type) {
+        case 'follow': {
+          const response = await fetch(`${BACKEND_URL}/api/neynar/check-follow-by-address/${address}`);
+          const data = await response.json();
+          verified = data.success && data.isFollowing;
+          break;
+        }
+        case 'like': {
+          // First get user FID, then check like
+          const fidResponse = await fetch(`${BACKEND_URL}/api/neynar/check-follow-by-address/${address}`);
+          const fidData = await fidResponse.json();
+          if (fidData.userFid) {
+            const likeResponse = await fetch(`${BACKEND_URL}/api/neynar/check-like/${task.target}/${fidData.userFid}`);
+            const likeData = await likeResponse.json();
+            verified = likeData.success && likeData.hasLiked;
+          }
+          break;
+        }
+        case 'recast': {
+          const fidResponse = await fetch(`${BACKEND_URL}/api/neynar/check-follow-by-address/${address}`);
+          const fidData = await fidResponse.json();
+          if (fidData.userFid) {
+            const recastResponse = await fetch(`${BACKEND_URL}/api/neynar/check-recast/${task.target}/${fidData.userFid}`);
+            const recastData = await recastResponse.json();
+            verified = recastData.success && recastData.hasRecasted;
+          }
+          break;
+        }
+        case 'channel': {
+          const fidResponse = await fetch(`${BACKEND_URL}/api/neynar/check-follow-by-address/${address}`);
+          const fidData = await fidResponse.json();
+          if (fidData.userFid) {
+            const channelResponse = await fetch(`${BACKEND_URL}/api/neynar/check-channel/${task.target}/${fidData.userFid}`);
+            const channelData = await channelResponse.json();
+            verified = channelData.success && channelData.isMember;
+          }
+          break;
+        }
       }
+      
+      setRewardStates(prev => ({
+        ...prev,
+        [rewardId]: { ...prev[rewardId], verified, verifying: false, error: verified ? null : 'Complete task first' }
+      }));
+    } catch (err) {
+      setRewardStates(prev => ({
+        ...prev,
+        [rewardId]: { ...prev[rewardId], verifying: false, error: 'Verification failed' }
+      }));
+    }
+  };
 
-      // Process check-in
-      const checkinResponse = await fetch(`${BACKEND_URL}/api/daily-checkin/checkin`, {
+  // Claim a specific token reward
+  const claimReward = async (rewardId: string, token: string) => {
+    if (!address || !selectedBox) return;
+    
+    const state = rewardStates[rewardId];
+    if (!state?.verified) {
+      setRewardStates(prev => ({
+        ...prev,
+        [rewardId]: { ...prev[rewardId], error: 'Verify first' }
+      }));
+      return;
+    }
+    
+    setRewardStates(prev => ({
+      ...prev,
+      [rewardId]: { ...prev[rewardId], claiming: true, error: null }
+    }));
+    
+    try {
+      // Check in first
+      await fetch(`${BACKEND_URL}/api/daily-checkin/checkin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ address, dayNumber: selectedBox }),
       });
       
-      const checkinData = await checkinResponse.json();
-      if (!checkinData.success && !checkinData.alreadyCheckedIn) {
-        throw new Error(checkinData.error || 'Failed to check in');
-      }
-
-      // Claim reward
-      const claimResponse = await fetch(`${BACKEND_URL}/api/daily-checkin/claim`, {
+      // Claim
+      const response = await fetch(`${BACKEND_URL}/api/daily-checkin/claim`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address, dayNumber: selectedBox }),
+        body: JSON.stringify({ 
+          address, 
+          dayNumber: selectedBox, 
+          token,
+          amount: state.amount
+        }),
       });
       
-      const claimData = await claimResponse.json();
-      if (claimData.success) {
-        setClaimSuccess(true);
-        await fetchBoxStatus();
+      const data = await response.json();
+      
+      if (data.success) {
+        setRewardStates(prev => ({
+          ...prev,
+          [rewardId]: { ...prev[rewardId], claiming: false, claimed: true }
+        }));
+        
+        // Check if all rewards for this day are claimed
+        const dayRewards = DAY_REWARDS[selectedBox] || [];
+        const allClaimed = dayRewards.every(r => 
+          rewardStates[r.id]?.claimed || r.id === rewardId
+        );
+        if (allClaimed) {
+          await fetchBoxStatus();
+        }
       } else {
-        throw new Error(claimData.error || 'Failed to claim');
+        throw new Error(data.error || 'Claim failed');
       }
     } catch (err: any) {
-      setClaimError(err.message || 'Failed to claim reward');
-    } finally {
-      setClaimLoading(false);
+      setRewardStates(prev => ({
+        ...prev,
+        [rewardId]: { ...prev[rewardId], claiming: false, error: err.message }
+      }));
     }
   };
 
   useEffect(() => {
-    const authStatus = sessionStorage.getItem('admin_authenticated');
-    const storedPassword = sessionStorage.getItem('admin_password');
-    
-    if (authStatus === 'true' && storedPassword) {
+    const auth = sessionStorage.getItem('admin_authenticated');
+    const pwd = sessionStorage.getItem('admin_password');
+    if (auth === 'true' && pwd) {
       setIsAuthenticated(true);
       fetchAdminData();
-      const interval = setInterval(fetchAdminData, 30000);
-      return () => clearInterval(interval);
-    } else {
-      sessionStorage.removeItem('admin_authenticated');
-      sessionStorage.removeItem('admin_password');
-      setIsAuthenticated(false);
     }
   }, []);
 
   useEffect(() => {
-    if (isConnected && address && isAuthenticated) {
-      fetchBoxStatus();
-    }
+    if (isConnected && address && isAuthenticated) fetchBoxStatus();
   }, [isConnected, address, isAuthenticated]);
-
-  useEffect(() => {
-    if (selectedBox === null) {
-      setClaimableReward(null);
-      setClaimError(null);
-      setClaimSuccess(false);
-    }
-  }, [selectedBox]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setAuthError(null);
-    
     try {
       const response = await fetch(`${BACKEND_URL}/api/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password }),
       });
-
       if (response.ok) {
         setIsAuthenticated(true);
         sessionStorage.setItem('admin_authenticated', 'true');
@@ -374,48 +440,28 @@ export default function Admin() {
         fetchAdminData();
       } else {
         setAuthError('Incorrect password');
-        setPassword('');
       }
-    } catch (error) {
-      setAuthError('Failed to connect to server');
-      setPassword('');
+    } catch {
+      setAuthError('Connection failed');
     }
   };
 
-  const lastUpdated = useMemo(() => {
-    if (!stats?.timestamp) return null;
-    return new Date(stats.timestamp).toLocaleString();
-  }, [stats?.timestamp]);
-
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-yellow-50 flex items-center justify-center">
-        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full">
-          <h1 className="text-3xl font-bold text-gray-900 mb-6 text-center">Admin Login</h1>
+      <div className="min-h-screen bg-yellow-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-sm">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4 text-center">Admin Login</h1>
           <form onSubmit={handleLogin}>
-            <div className="mb-4">
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                Password
-              </label>
-              <input
-                type="password"
-                id="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-                placeholder="Enter admin password"
-                autoFocus
-              />
-            </div>
-            {authError && (
-              <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded text-sm">
-                {authError}
-              </div>
-            )}
-            <button
-              type="submit"
-              className="w-full bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-medium py-2 px-4 rounded-lg transition-colors"
-            >
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg mb-3 focus:ring-2 focus:ring-yellow-400 outline-none"
+              placeholder="Password"
+              autoFocus
+            />
+            {authError && <p className="text-red-500 text-sm mb-3">{authError}</p>}
+            <button className="w-full bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-medium py-2 rounded-lg">
               Login
             </button>
           </form>
@@ -427,74 +473,53 @@ export default function Admin() {
   if (isLoading && !stats) {
     return (
       <div className="min-h-screen bg-yellow-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-yellow-400 border-t-transparent mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
+        <Loader2 className="w-8 h-8 animate-spin text-yellow-500" />
       </div>
     );
   }
 
+  const currentDayRewards = selectedBox ? DAY_REWARDS[selectedBox] || [] : [];
+
   return (
     <div className="min-h-screen bg-yellow-50 py-8">
-      <div className="max-w-6xl mx-auto px-4">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
-          <p className="text-gray-600">Live tipping statistics for Ecion</p>
-          {lastUpdated && (
-            <p className="text-sm text-gray-500 mt-2">Last updated: {lastUpdated}</p>
-          )}
-        </div>
+      <div className="max-w-5xl mx-auto px-4">
+        <h1 className="text-3xl font-bold text-gray-900 text-center mb-6">Admin Dashboard</h1>
 
-        {/* Daily Reward Boxes - Clean minimal design */}
+        {/* Reward Boxes */}
         {isConnected && (
-          <div className="mb-8 flex justify-center">
-            <div className="inline-flex gap-2 p-3 bg-white rounded-2xl shadow-sm border border-gray-100">
+          <div className="flex justify-center mb-8">
+            <div className="inline-flex gap-2 p-3 bg-white rounded-2xl shadow-sm">
               {[1, 2, 3, 4, 5, 6, 7].map((day) => {
                 const state = getBoxState(day);
                 const isClaimed = state === 'claimed';
                 const isAvailable = state === 'available';
                 
                 return (
-                  <motion.button
+                  <button
                     key={day}
-                    whileHover={isAvailable ? { scale: 1.08 } : {}}
-                    whileTap={isAvailable ? { scale: 0.95 } : {}}
                     onClick={() => handleBoxClick(day)}
                     disabled={!isAvailable}
-                    className={`
-                      w-12 h-12 rounded-xl flex items-center justify-center transition-all relative
-                      ${isClaimed 
-                        ? 'bg-gray-100 cursor-default' 
-                        : isAvailable 
-                          ? 'bg-gradient-to-br from-amber-400 to-orange-400 cursor-pointer shadow-md hover:shadow-lg' 
-                          : 'bg-amber-50 cursor-default opacity-50'
-                      }
+                    className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all relative
+                      ${isClaimed ? 'bg-gray-100' : isAvailable ? 'bg-gradient-to-br from-amber-400 to-orange-400 shadow-md hover:scale-105' : 'bg-amber-50 opacity-50'}
                     `}
                   >
-                    {isAvailable && (
-                      <div className="absolute inset-0 rounded-xl animate-pulse-ring"></div>
-                    )}
-                    <Gift 
-                      className={`w-5 h-5 ${isClaimed ? 'text-gray-400' : isAvailable ? 'text-white' : 'text-amber-300'}`} 
-                    />
+                    {isAvailable && <div className="absolute inset-0 rounded-xl animate-pulse-ring" />}
+                    <Gift className={`w-5 h-5 ${isClaimed ? 'text-gray-400' : isAvailable ? 'text-white' : 'text-amber-300'}`} />
                     {isClaimed && (
                       <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
-                        <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
+                        <Check className="w-2.5 h-2.5 text-white" />
                       </div>
                     )}
-                  </motion.button>
+                  </button>
                 );
               })}
             </div>
           </div>
         )}
 
-        {/* Claim Modal - Simple and clean */}
+        {/* Claim Modal */}
         <AnimatePresence>
-          {selectedBox !== null && claimableReward && (
+          {selectedBox !== null && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -503,158 +528,130 @@ export default function Admin() {
               onClick={() => setSelectedBox(null)}
             >
               <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
+                initial={{ scale: 0.95 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0.95 }}
                 onClick={(e) => e.stopPropagation()}
-                className="bg-white rounded-2xl shadow-xl w-full max-w-xs overflow-hidden"
+                className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden"
               >
-                {/* Header */}
-                <div className="flex justify-between items-center px-4 py-3 border-b border-gray-100">
+                <div className="flex justify-between items-center px-4 py-3 border-b">
                   <span className="font-semibold text-gray-900">Claimable Tokens</span>
-                  <button
-                    onClick={() => setSelectedBox(null)}
-                    className="text-gray-400 hover:text-gray-600 transition-colors"
-                  >
+                  <button onClick={() => setSelectedBox(null)} className="text-gray-400 hover:text-gray-600">
                     <X className="w-5 h-5" />
                   </button>
                 </div>
                 
-                {/* Content */}
-                <div className="p-4">
-                  {claimSuccess ? (
-                    <div className="text-center py-4">
-                      <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <svg className="w-6 h-6 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                      <p className="text-gray-900 font-medium">Claimed!</p>
-                    </div>
-                  ) : (
-                    <>
-                      {/* Token list */}
-                      <div className="space-y-3 mb-4">
-                        {/* ECION */}
+                <div className="p-4 space-y-4">
+                  {currentDayRewards.map((reward, index) => {
+                    const state = rewardStates[reward.id];
+                    if (!state) return null;
+                    
+                    return (
+                      <div key={reward.id} className={index > 0 ? 'border-t pt-4' : ''}>
+                        {/* Token info row */}
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <img src={ECION_LOGO} alt="ECION" className="w-6 h-6 rounded-full" />
-                            <span className="text-gray-700">Ecion</span>
+                            <img src={reward.logo} alt={reward.name} className="w-7 h-7 rounded-full" />
+                            <div>
+                              <span className="font-medium text-gray-900">{reward.name}</span>
+                              <span className="ml-2 text-gray-600">
+                                {reward.token === 'usdc' ? `$${state.amount}` : state.amount.toLocaleString()}
+                              </span>
+                            </div>
                           </div>
-                          <span className="font-semibold text-gray-900">{claimableReward.ecion.toLocaleString()}</span>
+                          
+                          {/* Verify + Claim buttons */}
+                          <div className="flex items-center gap-2">
+                            {state.claimed ? (
+                              <span className="text-green-600 text-sm font-medium flex items-center gap-1">
+                                <Check className="w-4 h-4" /> Claimed
+                              </span>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => verifyTask(reward.id, reward.task)}
+                                  disabled={state.verifying || state.verified}
+                                  className={`px-3 py-1 text-xs font-medium rounded-lg border transition-all
+                                    ${state.verified 
+                                      ? 'border-green-500 text-green-600 bg-green-50' 
+                                      : 'border-gray-300 text-gray-600 hover:border-gray-400'}`}
+                                >
+                                  {state.verifying ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  ) : state.verified ? (
+                                    <Check className="w-3 h-3" />
+                                  ) : (
+                                    'Verify'
+                                  )}
+                                </button>
+                                <button
+                                  onClick={() => claimReward(reward.id, reward.token)}
+                                  disabled={!state.verified || state.claiming}
+                                  className={`px-3 py-1 text-xs font-medium rounded-lg border-2 transition-all
+                                    ${state.verified 
+                                      ? 'border-green-500 text-green-600 hover:bg-green-50' 
+                                      : 'border-gray-200 text-gray-400 cursor-not-allowed'}`}
+                                >
+                                  {state.claiming ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Claim'}
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
                         
-                        {/* USDC - only if applicable */}
-                        {claimableReward.hasUsdc && (
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <img src={USDC_LOGO} alt="USDC" className="w-6 h-6 rounded-full" />
-                              <span className="text-gray-700">USDC</span>
-                            </div>
-                            <span className="font-semibold text-gray-900">${claimableReward.usdc}</span>
-                          </div>
+                        {/* Task hint */}
+                        {!state.verified && !state.claimed && (
+                          <p className="text-xs text-gray-500 mt-2 pl-9 flex items-center gap-1">
+                            <span className="text-gray-400">Task:</span>
+                            <a 
+                              href={reward.task.link} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="text-blue-500 hover:underline flex items-center gap-1"
+                            >
+                              {reward.task.label}
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </p>
+                        )}
+                        
+                        {/* Error */}
+                        {state.error && !state.claimed && (
+                          <p className="text-xs text-red-500 mt-1 pl-9">{state.error}</p>
                         )}
                       </div>
-
-                      {/* Error message */}
-                      {claimError && (
-                        <p className="text-red-500 text-sm mb-3 text-center">
-                          {claimError.includes('@doteth') ? (
-                            <>
-                              You must follow{' '}
-                              <a 
-                                href="https://warpcast.com/doteth" 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="text-blue-500 hover:underline"
-                              >
-                                @doteth
-                              </a>
-                              {' '}to claim rewards.
-                            </>
-                          ) : claimError}
-                        </p>
-                      )}
-
-                      {/* Claim button - simple outline */}
-                      <button
-                        onClick={handleClaim}
-                        disabled={claimLoading}
-                        className="w-full py-2.5 border-2 border-green-500 text-green-600 font-medium rounded-xl hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {claimLoading ? 'Claiming...' : 'Claim'}
-                      </button>
-                    </>
-                  )}
+                    );
+                  })}
                 </div>
               </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6 text-center text-sm">
-            {error}
+        {/* Stats */}
+        {stats && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            {[
+              { label: 'Total Tips', value: stats.allTime?.totalTips?.toLocaleString() || '0' },
+              { label: 'USDC Tipped', value: `$${stats.allTime?.totalUsdcTipped?.toFixed(2) || '0'}` },
+              { label: 'Transactions', value: stats.allTime?.totalTransactions?.toLocaleString() || '0' },
+              { label: 'Tippers', value: stats.allTime?.uniqueTippers?.toLocaleString() || '0' },
+            ].map((stat) => (
+              <div key={stat.label} className="bg-white rounded-lg p-4 shadow-sm text-center">
+                <p className="text-sm text-gray-500">{stat.label}</p>
+                <p className="text-xl font-bold text-gray-900">{stat.value}</p>
+              </div>
+            ))}
           </div>
         )}
 
-        {stats ? (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              {metricCards.map((card, index) => (
-                <motion.div
-                  key={card.key}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="bg-white rounded-lg p-6 shadow-sm border border-gray-200"
-                >
-                  <div className="flex items-center">
-                    <div className={`p-2 rounded-lg ${card.bgClass}`}>
-                      <span className={card.textClass}>{card.icon}</span>
-                    </div>
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-600">{card.label}</p>
-                      <p className="text-2xl font-bold text-gray-900">{card.getValue(stats)}</p>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="bg-white rounded-lg shadow-sm border border-gray-200 mb-8"
-            >
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-xl font-semibold text-gray-900">Recent Activity</h2>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x">
-                {timeframeCards.map((card) => (
-                  <div key={card.label} className="p-6 text-center">
-                    <p className="text-sm font-medium text-gray-500">{card.label}</p>
-                    <p className="text-2xl font-semibold text-gray-900 mt-2">{card.getTips(stats)} tips</p>
-                    <p className="text-sm text-gray-600 mt-1">{card.getUsdc(stats)} USDC</p>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          </>
-        ) : (
-          <div className="bg-white border border-gray-200 text-gray-600 px-4 py-3 rounded mb-8 text-center text-sm">
-            No statistics available yet.
-          </div>
-        )}
-
-        <div className="mt-6 text-center">
+        <div className="text-center">
           <button
             onClick={fetchAdminData}
             disabled={isLoading}
-            className="bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
+            className="bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-medium py-2 px-4 rounded-lg"
           >
-            {isLoading ? 'Refreshing...' : 'Refresh Data'}
+            {isLoading ? 'Loading...' : 'Refresh'}
           </button>
         </div>
       </div>
@@ -662,12 +659,10 @@ export default function Admin() {
       <style jsx>{`
         @keyframes pulse-ring {
           0% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.6); }
-          70% { box-shadow: 0 0 0 8px rgba(251, 191, 36, 0); }
+          70% { box-shadow: 0 0 0 6px rgba(251, 191, 36, 0); }
           100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); }
         }
-        .animate-pulse-ring {
-          animation: pulse-ring 1.5s ease-out infinite;
-        }
+        .animate-pulse-ring { animation: pulse-ring 1.5s ease-out infinite; }
       `}</style>
     </div>
   );

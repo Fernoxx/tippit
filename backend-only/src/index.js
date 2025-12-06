@@ -1779,6 +1779,254 @@ app.get('/api/neynar/check-follow-by-address/:address', async (req, res) => {
   }
 });
 
+// Generic follow check for any FID
+app.get('/api/neynar/check-follow/:userFid/:targetFid', async (req, res) => {
+  try {
+    const { userFid, targetFid } = req.params;
+    
+    if (!userFid || !targetFid) {
+      return res.status(400).json({ success: false, error: 'User FID and Target FID are required' });
+    }
+    
+    const response = await fetch(
+      `https://api.neynar.com/v2/farcaster/user/bulk?fids=${userFid}&viewer_fid=${targetFid}`,
+      { headers: { 'x-api-key': process.env.NEYNAR_API_KEY } }
+    );
+    
+    if (!response.ok) {
+      return res.status(500).json({ success: false, error: 'Failed to check follow status' });
+    }
+    
+    const data = await response.json();
+    const user = data.users?.[0];
+    const isFollowing = user?.viewer_context?.followed_by || false;
+    
+    console.log(`🔍 Follow check: FID ${userFid} ${isFollowing ? 'FOLLOWS' : 'does NOT follow'} FID ${targetFid}`);
+    
+    res.json({ success: true, isFollowing, userFid: parseInt(userFid), targetFid: parseInt(targetFid) });
+  } catch (error) {
+    console.error('Error checking follow status:', error);
+    res.status(500).json({ success: false, error: 'Failed to check follow status' });
+  }
+});
+
+// Check if user liked a specific cast
+app.get('/api/neynar/check-like/:castHash/:userFid', async (req, res) => {
+  try {
+    const { castHash, userFid } = req.params;
+    
+    if (!castHash || !userFid) {
+      return res.status(400).json({ success: false, error: 'Cast hash and user FID are required' });
+    }
+    
+    // Get cast reactions (likes)
+    const response = await fetch(
+      `https://api.neynar.com/v2/farcaster/reactions/cast?hash=${castHash}&types=likes&limit=100`,
+      { headers: { 'x-api-key': process.env.NEYNAR_API_KEY } }
+    );
+    
+    if (!response.ok) {
+      return res.status(500).json({ success: false, error: 'Failed to check like status' });
+    }
+    
+    const data = await response.json();
+    const hasLiked = data.reactions?.some(r => r.user?.fid === parseInt(userFid)) || false;
+    
+    console.log(`🔍 Like check: FID ${userFid} ${hasLiked ? 'HAS LIKED' : 'has NOT liked'} cast ${castHash}`);
+    
+    res.json({ success: true, hasLiked, userFid: parseInt(userFid), castHash });
+  } catch (error) {
+    console.error('Error checking like status:', error);
+    res.status(500).json({ success: false, error: 'Failed to check like status' });
+  }
+});
+
+// Check if user recasted a specific cast
+app.get('/api/neynar/check-recast/:castHash/:userFid', async (req, res) => {
+  try {
+    const { castHash, userFid } = req.params;
+    
+    if (!castHash || !userFid) {
+      return res.status(400).json({ success: false, error: 'Cast hash and user FID are required' });
+    }
+    
+    // Get cast reactions (recasts)
+    const response = await fetch(
+      `https://api.neynar.com/v2/farcaster/reactions/cast?hash=${castHash}&types=recasts&limit=100`,
+      { headers: { 'x-api-key': process.env.NEYNAR_API_KEY } }
+    );
+    
+    if (!response.ok) {
+      return res.status(500).json({ success: false, error: 'Failed to check recast status' });
+    }
+    
+    const data = await response.json();
+    const hasRecasted = data.reactions?.some(r => r.user?.fid === parseInt(userFid)) || false;
+    
+    console.log(`🔍 Recast check: FID ${userFid} ${hasRecasted ? 'HAS RECASTED' : 'has NOT recasted'} cast ${castHash}`);
+    
+    res.json({ success: true, hasRecasted, userFid: parseInt(userFid), castHash });
+  } catch (error) {
+    console.error('Error checking recast status:', error);
+    res.status(500).json({ success: false, error: 'Failed to check recast status' });
+  }
+});
+
+// Check if user is a member of a channel
+app.get('/api/neynar/check-channel/:channelId/:userFid', async (req, res) => {
+  try {
+    const { channelId, userFid } = req.params;
+    
+    if (!channelId || !userFid) {
+      return res.status(400).json({ success: false, error: 'Channel ID and user FID are required' });
+    }
+    
+    // Get channel members
+    const response = await fetch(
+      `https://api.neynar.com/v2/farcaster/channel/member/list?channel_id=${channelId}&fid=${userFid}`,
+      { headers: { 'x-api-key': process.env.NEYNAR_API_KEY } }
+    );
+    
+    if (!response.ok) {
+      // Try alternate method - check if user is following the channel
+      const followResponse = await fetch(
+        `https://api.neynar.com/v2/farcaster/user/channels?fid=${userFid}&limit=100`,
+        { headers: { 'x-api-key': process.env.NEYNAR_API_KEY } }
+      );
+      
+      if (!followResponse.ok) {
+        return res.status(500).json({ success: false, error: 'Failed to check channel membership' });
+      }
+      
+      const followData = await followResponse.json();
+      const isMember = followData.channels?.some(c => c.id === channelId) || false;
+      
+      console.log(`🔍 Channel check: FID ${userFid} ${isMember ? 'IS MEMBER OF' : 'is NOT member of'} /${channelId}`);
+      
+      return res.json({ success: true, isMember, userFid: parseInt(userFid), channelId });
+    }
+    
+    const data = await response.json();
+    const isMember = data.members?.some(m => m.user?.fid === parseInt(userFid)) || false;
+    
+    console.log(`🔍 Channel check: FID ${userFid} ${isMember ? 'IS MEMBER OF' : 'is NOT member of'} /${channelId}`);
+    
+    res.json({ success: true, isMember, userFid: parseInt(userFid), channelId });
+  } catch (error) {
+    console.error('Error checking channel membership:', error);
+    res.status(500).json({ success: false, error: 'Failed to check channel membership' });
+  }
+});
+
+// Check user's power badge status
+app.get('/api/neynar/check-power-badge/:userFid', async (req, res) => {
+  try {
+    const { userFid } = req.params;
+    
+    if (!userFid) {
+      return res.status(400).json({ success: false, error: 'User FID is required' });
+    }
+    
+    const response = await fetch(
+      `https://api.neynar.com/v2/farcaster/user/bulk?fids=${userFid}`,
+      { headers: { 'x-api-key': process.env.NEYNAR_API_KEY } }
+    );
+    
+    if (!response.ok) {
+      return res.status(500).json({ success: false, error: 'Failed to check power badge' });
+    }
+    
+    const data = await response.json();
+    const user = data.users?.[0];
+    const hasPowerBadge = user?.power_badge || false;
+    
+    console.log(`🔍 Power badge check: FID ${userFid} ${hasPowerBadge ? 'HAS' : 'does NOT have'} power badge`);
+    
+    res.json({ success: true, hasPowerBadge, userFid: parseInt(userFid) });
+  } catch (error) {
+    console.error('Error checking power badge:', error);
+    res.status(500).json({ success: false, error: 'Failed to check power badge' });
+  }
+});
+
+// Multi-task verification endpoint - verify multiple tasks at once
+app.post('/api/neynar/verify-tasks', async (req, res) => {
+  try {
+    const { address, tasks } = req.body;
+    
+    if (!address || !tasks || !Array.isArray(tasks)) {
+      return res.status(400).json({ success: false, error: 'Address and tasks array are required' });
+    }
+    
+    // Get user FID from address
+    const { getUserDataByAddress } = require('./neynar');
+    const userData = await getUserDataByAddress(address);
+    
+    if (!userData || !userData.fid) {
+      return res.status(404).json({ success: false, error: 'No Farcaster account found for this address' });
+    }
+    
+    const userFid = userData.fid;
+    const results = {};
+    
+    for (const task of tasks) {
+      const { id, type, target } = task;
+      
+      try {
+        switch (type) {
+          case 'follow': {
+            const response = await fetch(
+              `https://api.neynar.com/v2/farcaster/user/bulk?fids=${userFid}&viewer_fid=${target}`,
+              { headers: { 'x-api-key': process.env.NEYNAR_API_KEY } }
+            );
+            const data = await response.json();
+            results[id] = { completed: data.users?.[0]?.viewer_context?.followed_by || false };
+            break;
+          }
+          case 'like': {
+            const response = await fetch(
+              `https://api.neynar.com/v2/farcaster/reactions/cast?hash=${target}&types=likes&limit=100`,
+              { headers: { 'x-api-key': process.env.NEYNAR_API_KEY } }
+            );
+            const data = await response.json();
+            results[id] = { completed: data.reactions?.some(r => r.user?.fid === userFid) || false };
+            break;
+          }
+          case 'recast': {
+            const response = await fetch(
+              `https://api.neynar.com/v2/farcaster/reactions/cast?hash=${target}&types=recasts&limit=100`,
+              { headers: { 'x-api-key': process.env.NEYNAR_API_KEY } }
+            );
+            const data = await response.json();
+            results[id] = { completed: data.reactions?.some(r => r.user?.fid === userFid) || false };
+            break;
+          }
+          case 'channel': {
+            const response = await fetch(
+              `https://api.neynar.com/v2/farcaster/user/channels?fid=${userFid}&limit=100`,
+              { headers: { 'x-api-key': process.env.NEYNAR_API_KEY } }
+            );
+            const data = await response.json();
+            results[id] = { completed: data.channels?.some(c => c.id === target) || false };
+            break;
+          }
+          default:
+            results[id] = { completed: false, error: 'Unknown task type' };
+        }
+      } catch (e) {
+        results[id] = { completed: false, error: e.message };
+      }
+    }
+    
+    console.log(`🔍 Multi-task verification for ${address}:`, results);
+    
+    res.json({ success: true, userFid, results });
+  } catch (error) {
+    console.error('Error verifying tasks:', error);
+    res.status(500).json({ success: false, error: 'Failed to verify tasks' });
+  }
+});
+
 // ===== DAILY CHECK-IN SYSTEM (REWARD BOXES) =====
 
 const { getUserDataByAddress } = require('./neynar');
