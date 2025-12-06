@@ -1,14 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFarcasterWallet } from '@/hooks/useFarcasterWallet';
-import { Gift, X, ExternalLink, CheckCircle, AlertCircle } from 'lucide-react';
-import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { parseUnits } from 'viem';
+import { Gift, X } from 'lucide-react';
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001').replace(/\/$/, '');
 
-// ECION Token contract address
-const ECION_TOKEN_ADDRESS = '0xdcc17f9429f8fd30e31315e1d33e2ef33ae38b07';
+// Token logos
+const ECION_LOGO = 'https://imagedelivery.net/BXluQx4ige9GuW0Ia56BHw/26f0f5b4-a342-40a7-63a3-5fdca78a7300/rectcrop3';
+const USDC_LOGO = 'https://assets.coingecko.com/coins/images/6319/small/USD_Coin_icon.png';
 
 interface PeriodStats {
   tips: number;
@@ -115,14 +114,7 @@ const timeframeCards: TimeframeCardConfig[] = [
   },
 ];
 
-// Reward ranges for each box (random amounts within range)
-// Day 1: 1-69 ECION + $0.01-$0.20 USDC
-// Day 2: 69-1000 ECION only
-// Day 3: 1000-5000 ECION + $0.01-$0.20 USDC
-// Day 4: 5000-10000 ECION only
-// Day 5: 5000-10000 ECION + $0.01-$0.20 USDC
-// Day 6: 10000-20000 ECION only
-// Day 7: 10000-20000 ECION + $0.01-$0.20 USDC
+// Reward ranges - backend generates random amounts
 const BOX_REWARDS: Record<number, { ecionMin: number; ecionMax: number; usdcMin: number; usdcMax: number; hasUsdc: boolean }> = {
   1: { ecionMin: 1, ecionMax: 69, usdcMin: 0.01, usdcMax: 0.20, hasUsdc: true },
   2: { ecionMin: 69, ecionMax: 1000, usdcMin: 0, usdcMax: 0, hasUsdc: false },
@@ -133,18 +125,13 @@ const BOX_REWARDS: Record<number, { ecionMin: number; ecionMax: number; usdcMin:
   7: { ecionMin: 10000, ecionMax: 20000, usdcMin: 0.01, usdcMax: 0.20, hasUsdc: true }
 };
 
-// Format reward range for display
-const formatRewardRange = (day: number) => {
-  const reward = BOX_REWARDS[day];
-  if (!reward) return { ecion: '0', usdc: null, hasUsdc: false };
-  
-  const ecionRange = `${reward.ecionMin.toLocaleString()} - ${reward.ecionMax.toLocaleString()}`;
-  
-  const usdcRange = reward.hasUsdc 
-    ? `$${reward.usdcMin.toFixed(2)} - $${reward.usdcMax.toFixed(2)}`
-    : null;
-  
-  return { ecion: ecionRange, usdc: usdcRange, hasUsdc: reward.hasUsdc };
+// Generate random amount within range (for display)
+const getRandomAmount = (min: number, max: number) => {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+};
+
+const getRandomUsdc = (min: number, max: number) => {
+  return (Math.random() * (max - min) + min).toFixed(2);
 };
 
 interface BoxStatus {
@@ -153,6 +140,12 @@ interface BoxStatus {
   currentDayUTC: string;
   lastCheckinDate: string | null;
   fid?: number;
+}
+
+interface ClaimableReward {
+  ecion: number;
+  usdc: string;
+  hasUsdc: boolean;
 }
 
 export default function Admin() {
@@ -166,24 +159,13 @@ export default function Admin() {
   // Reward box states
   const [boxStatus, setBoxStatus] = useState<BoxStatus | null>(null);
   const [boxLoading, setBoxLoading] = useState(false);
-  const [boxError, setBoxError] = useState<string | null>(null);
   const [selectedBox, setSelectedBox] = useState<number | null>(null);
-  const [isFollowingDoteth, setIsFollowingDoteth] = useState<boolean | null>(null);
-  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [claimableReward, setClaimableReward] = useState<ClaimableReward | null>(null);
   const [claimLoading, setClaimLoading] = useState(false);
+  const [claimError, setClaimError] = useState<string | null>(null);
   const [claimSuccess, setClaimSuccess] = useState(false);
-  const [claimTxHash, setClaimTxHash] = useState<string | null>(null);
   
-  const { address, isConnected, currentUser } = useFarcasterWallet();
-  
-  // Check if current time is after 5:30 AM IST (00:00 UTC) for current day
-  const isBoxUnlockTime = useMemo(() => {
-    const now = new Date();
-    const utcHours = now.getUTCHours();
-    const utcMinutes = now.getUTCMinutes();
-    // 5:30 AM IST = 00:00 UTC
-    return utcHours >= 0; // After midnight UTC
-  }, []);
+  const { address, isConnected } = useFarcasterWallet();
 
   // Fetch admin data
   const fetchAdminData = async () => {
@@ -199,11 +181,9 @@ export default function Admin() {
         return;
       }
       
-      const headers = {
-        'x-admin-password': storedPassword
-      };
-
+      const headers = { 'x-admin-password': storedPassword };
       const statsResponse = await fetch(`${BACKEND_URL}/api/admin/total-stats`, { headers });
+      
       if (!statsResponse.ok) {
         if (statsResponse.status === 401) {
           setIsAuthenticated(false);
@@ -212,19 +192,17 @@ export default function Admin() {
           setError('Authentication failed. Please login again.');
           return;
         }
-        throw new Error(`Stats request failed with status ${statsResponse.status}`);
+        throw new Error(`Stats request failed`);
       }
-      const statsData = await statsResponse.json();
       
-      const payload = (statsData.stats as AdminStats | undefined) ?? (statsData.data as AdminStats | undefined) ?? statsData;
-
+      const statsData = await statsResponse.json();
+      const payload = statsData.stats ?? statsData.data ?? statsData;
+      
       if (payload && (payload.allTime || payload.last24h)) {
         setStats({
           ...payload,
           timestamp: statsData.timestamp ?? payload.timestamp ?? new Date().toISOString(),
         });
-      } else {
-        setStats(null);
       }
     } catch (err) {
       console.error('Error fetching admin data:', err);
@@ -236,14 +214,10 @@ export default function Admin() {
 
   // Fetch box status
   const fetchBoxStatus = async () => {
-    if (!address || !isConnected) {
-      setBoxError('Please connect your wallet first');
-      return;
-    }
+    if (!address || !isConnected) return;
 
     try {
       setBoxLoading(true);
-      setBoxError(null);
       const response = await fetch(`${BACKEND_URL}/api/daily-checkin/status?address=${address}`);
       const data = await response.json();
       
@@ -255,88 +229,98 @@ export default function Admin() {
           lastCheckinDate: data.lastCheckinDate,
           fid: data.fid
         });
-      } else {
-        setBoxError(data.error || 'Failed to fetch box status');
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error fetching box status:', err);
-      setBoxError(err.message || 'Failed to fetch box status');
     } finally {
       setBoxLoading(false);
     }
   };
 
-  // Verify if user follows @doteth
-  const verifyFollow = async () => {
-    if (!address) return;
-    
-    try {
-      setVerifyLoading(true);
-      const response = await fetch(`${BACKEND_URL}/api/neynar/check-follow-by-address/${address}`);
-      const data = await response.json();
-      
-      if (data.success) {
-        setIsFollowingDoteth(data.isFollowing);
-      } else {
-        setIsFollowingDoteth(false);
-      }
-    } catch (err) {
-      console.error('Error verifying follow:', err);
-      setIsFollowingDoteth(false);
-    } finally {
-      setVerifyLoading(false);
-    }
+  // Get current day for claiming
+  const getCurrentDay = () => {
+    if (!boxStatus) return 1;
+    if (boxStatus.streak === 0) return 1;
+    return boxStatus.streak;
   };
 
-  // Claim reward for a box
-  const claimReward = async (dayNumber: number) => {
-    if (!address || !isConnected) {
-      setBoxError('Please connect your wallet first');
-      return;
-    }
+  // Get box state
+  const getBoxState = (day: number) => {
+    if (!boxStatus) return 'locked';
+    const isClaimed = boxStatus.claimedDays?.includes(day);
+    const currentDay = getCurrentDay();
+    
+    if (isClaimed) return 'claimed';
+    if (day === currentDay) return 'available';
+    if (day < currentDay) return 'missed';
+    return 'locked';
+  };
 
-    if (!isFollowingDoteth) {
-      setBoxError('You must follow @doteth to claim rewards');
-      return;
-    }
+  // Handle box click - generate random reward and show modal
+  const handleBoxClick = (day: number) => {
+    const state = getBoxState(day);
+    if (state !== 'available') return;
+    
+    const reward = BOX_REWARDS[day];
+    const randomEcion = getRandomAmount(reward.ecionMin, reward.ecionMax);
+    const randomUsdc = reward.hasUsdc ? getRandomUsdc(reward.usdcMin, reward.usdcMax) : '0';
+    
+    setClaimableReward({
+      ecion: randomEcion,
+      usdc: randomUsdc,
+      hasUsdc: reward.hasUsdc
+    });
+    setSelectedBox(day);
+    setClaimError(null);
+    setClaimSuccess(false);
+  };
+
+  // Handle claim - check follow status and claim
+  const handleClaim = async () => {
+    if (!address || !selectedBox || !claimableReward) return;
 
     try {
       setClaimLoading(true);
-      setBoxError(null);
-      
-      // First check in
+      setClaimError(null);
+
+      // Check if user follows @doteth
+      const followResponse = await fetch(`${BACKEND_URL}/api/neynar/check-follow-by-address/${address}`);
+      const followData = await followResponse.json();
+
+      if (!followData.success || !followData.isFollowing) {
+        setClaimError('You must follow @doteth to claim rewards.');
+        setClaimLoading(false);
+        return;
+      }
+
+      // Process check-in
       const checkinResponse = await fetch(`${BACKEND_URL}/api/daily-checkin/checkin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address, dayNumber }),
+        body: JSON.stringify({ address, dayNumber: selectedBox }),
       });
       
       const checkinData = await checkinResponse.json();
-      
       if (!checkinData.success && !checkinData.alreadyCheckedIn) {
         throw new Error(checkinData.error || 'Failed to check in');
       }
-      
-      // Then claim reward
+
+      // Claim reward
       const claimResponse = await fetch(`${BACKEND_URL}/api/daily-checkin/claim`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address, dayNumber }),
+        body: JSON.stringify({ address, dayNumber: selectedBox }),
       });
       
       const claimData = await claimResponse.json();
-      
       if (claimData.success) {
         setClaimSuccess(true);
-        setClaimTxHash(claimData.transactionHash);
-        // Refresh box status
         await fetchBoxStatus();
       } else {
-        throw new Error(claimData.error || 'Failed to claim reward');
+        throw new Error(claimData.error || 'Failed to claim');
       }
     } catch (err: any) {
-      console.error('Error claiming reward:', err);
-      setBoxError(err.message || 'Failed to claim reward');
+      setClaimError(err.message || 'Failed to claim reward');
     } finally {
       setClaimLoading(false);
     }
@@ -358,20 +342,17 @@ export default function Admin() {
     }
   }, []);
 
-  // Fetch box status when connected
   useEffect(() => {
     if (isConnected && address && isAuthenticated) {
       fetchBoxStatus();
     }
   }, [isConnected, address, isAuthenticated]);
 
-  // Reset modal state when closed
   useEffect(() => {
     if (selectedBox === null) {
-      setIsFollowingDoteth(null);
+      setClaimableReward(null);
+      setClaimError(null);
       setClaimSuccess(false);
-      setClaimTxHash(null);
-      setBoxError(null);
     }
   }, [selectedBox]);
 
@@ -396,7 +377,6 @@ export default function Admin() {
         setPassword('');
       }
     } catch (error) {
-      console.error('Login error:', error);
       setAuthError('Failed to connect to server');
       setPassword('');
     }
@@ -406,35 +386,6 @@ export default function Admin() {
     if (!stats?.timestamp) return null;
     return new Date(stats.timestamp).toLocaleString();
   }, [stats?.timestamp]);
-
-  // Calculate the current available day based on streak and check-in status
-  const getCurrentDay = () => {
-    if (!boxStatus) return 1;
-    
-    // If streak is 0 (new user or broken streak), start at Day 1
-    if (boxStatus.streak === 0) return 1;
-    
-    // If already checked in today, current day is the streak value
-    // If not checked in today but streak exists, next day is available
-    // Note: streak represents the last successful check-in day count
-    return boxStatus.streak;
-  };
-
-  // Get box state for a given day
-  const getBoxState = (day: number) => {
-    if (!boxStatus) return 'locked';
-    
-    const isClaimed = boxStatus.claimedDays?.includes(day);
-    const currentDay = getCurrentDay();
-    const isCurrentDay = day === currentDay;
-    const isPast = day < currentDay;
-    const isFuture = day > currentDay;
-    
-    if (isClaimed) return 'claimed';
-    if (isCurrentDay && isBoxUnlockTime) return 'available';
-    if (isPast && !isClaimed) return 'missed';
-    return 'locked';
-  };
 
   if (!isAuthenticated) {
     return (
@@ -457,7 +408,7 @@ export default function Admin() {
               />
             </div>
             {authError && (
-              <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+              <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded text-sm">
                 {authError}
               </div>
             )}
@@ -478,7 +429,7 @@ export default function Admin() {
       <div className="min-h-screen bg-yellow-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-4 border-yellow-400 border-t-transparent mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading admin data...</p>
+          <p className="text-gray-600">Loading...</p>
         </div>
       </div>
     );
@@ -495,332 +446,143 @@ export default function Admin() {
           )}
         </div>
 
-        {/* Reward Boxes Section */}
-        <div className="mb-8">
-          <div className="bg-white rounded-2xl shadow-lg border border-yellow-200 overflow-hidden">
-            <div className="bg-gradient-to-r from-yellow-400 to-amber-500 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <Gift className="w-6 h-6 text-white" />
-                  <h2 className="text-xl font-bold text-white">Daily Reward Boxes</h2>
-                </div>
-                <div className="text-white/90 text-sm">
-                  Opens daily at 5:30 AM IST (00:00 UTC)
-                </div>
-              </div>
-            </div>
-            
-            <div className="p-6">
-              {!isConnected ? (
-                <div className="text-center py-8">
-                  <p className="text-gray-600 mb-2">Connect your wallet to claim daily rewards</p>
-                  <p className="text-sm text-gray-500">You must follow @doteth to be eligible</p>
-                </div>
-              ) : boxLoading ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-10 w-10 border-4 border-yellow-400 border-t-transparent mx-auto mb-3"></div>
-                  <p className="text-sm text-gray-600">Loading rewards...</p>
-                </div>
-              ) : (
-                <>
-                  {/* Box Progress Info */}
-                  {boxStatus && (
-                    <div className="text-center mb-6">
-                      <p className="text-sm text-gray-600">
-                        {boxStatus.streak === 0 ? (
-                          <>Start your streak! <span className="font-bold text-yellow-600">Day 1</span> is available</>
-                        ) : (
-                          <>Current Progress: <span className="font-bold text-yellow-600">Day {getCurrentDay()} of 7</span></>
-                        )}
-                      </p>
-                    </div>
-                  )}
-                  
-                  {/* 7 Reward Boxes */}
-                  <div className="grid grid-cols-7 gap-3">
-                    {[1, 2, 3, 4, 5, 6, 7].map((day) => {
-                      const state = getBoxState(day);
-                      const isClaimed = state === 'claimed';
-                      const isAvailable = state === 'available';
-                      const isLocked = state === 'locked';
-                      const isMissed = state === 'missed';
-                      
-                      return (
-                        <motion.div
-                          key={day}
-                          whileHover={isAvailable ? { scale: 1.05 } : {}}
-                          whileTap={isAvailable ? { scale: 0.95 } : {}}
-                          onClick={() => isAvailable && setSelectedBox(day)}
-                          className={`
-                            relative aspect-square rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all duration-300 border-2
-                            ${isClaimed 
-                              ? 'bg-gray-200 border-gray-300 opacity-60' 
-                              : isAvailable 
-                                ? 'bg-gradient-to-br from-yellow-300 to-amber-400 border-yellow-500 shadow-lg reward-box-glow cursor-pointer' 
-                                : isLocked
-                                  ? 'bg-yellow-100/50 border-yellow-200/50'
-                                  : 'bg-gray-100 border-gray-200 opacity-50'
-                            }
-                          `}
-                        >
-                          {/* Shimmer effect for available box */}
-                          {isAvailable && (
-                            <div className="absolute inset-0 rounded-xl overflow-hidden">
-                              <div className="shimmer-effect"></div>
-                            </div>
-                          )}
-                          
-                          {/* Box Icon */}
-                          <div className={`relative z-10 ${isClaimed ? 'text-gray-500' : isAvailable ? 'text-white' : 'text-yellow-600/50'}`}>
-                            {isClaimed ? (
-                              <CheckCircle className="w-8 h-8" />
-                            ) : (
-                              <Gift className={`w-8 h-8 ${isAvailable ? 'animate-bounce' : ''}`} />
-                            )}
-                          </div>
-                          
-                          {/* Day Label */}
-                          <span className={`text-xs font-bold mt-1 relative z-10 ${isClaimed ? 'text-gray-500' : isAvailable ? 'text-white' : 'text-yellow-700/50'}`}>
-                            Day {day}
-                          </span>
-                          
-                          {/* Claimed Badge */}
-                          {isClaimed && (
-                            <div className="absolute -top-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center shadow-md">
-                              <CheckCircle className="w-3 h-3 text-white" />
-                            </div>
-                          )}
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                  
-                  {/* Legend */}
-                  <div className="flex justify-center gap-6 mt-6 text-xs text-gray-600">
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-3 h-3 rounded bg-gradient-to-br from-yellow-300 to-amber-400"></div>
-                      <span>Available</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-3 h-3 rounded bg-yellow-100 border border-yellow-200"></div>
-                      <span>Upcoming</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-3 h-3 rounded bg-gray-200"></div>
-                      <span>Claimed</span>
-                    </div>
-                  </div>
-                </>
-              )}
+        {/* Daily Reward Boxes - Clean minimal design */}
+        {isConnected && (
+          <div className="mb-8 flex justify-center">
+            <div className="inline-flex gap-2 p-3 bg-white rounded-2xl shadow-sm border border-gray-100">
+              {[1, 2, 3, 4, 5, 6, 7].map((day) => {
+                const state = getBoxState(day);
+                const isClaimed = state === 'claimed';
+                const isAvailable = state === 'available';
+                
+                return (
+                  <motion.button
+                    key={day}
+                    whileHover={isAvailable ? { scale: 1.08 } : {}}
+                    whileTap={isAvailable ? { scale: 0.95 } : {}}
+                    onClick={() => handleBoxClick(day)}
+                    disabled={!isAvailable}
+                    className={`
+                      w-12 h-12 rounded-xl flex items-center justify-center transition-all relative
+                      ${isClaimed 
+                        ? 'bg-gray-100 cursor-default' 
+                        : isAvailable 
+                          ? 'bg-gradient-to-br from-amber-400 to-orange-400 cursor-pointer shadow-md hover:shadow-lg' 
+                          : 'bg-amber-50 cursor-default opacity-50'
+                      }
+                    `}
+                  >
+                    {isAvailable && (
+                      <div className="absolute inset-0 rounded-xl animate-pulse-ring"></div>
+                    )}
+                    <Gift 
+                      className={`w-5 h-5 ${isClaimed ? 'text-gray-400' : isAvailable ? 'text-white' : 'text-amber-300'}`} 
+                    />
+                    {isClaimed && (
+                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+                        <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                    )}
+                  </motion.button>
+                );
+              })}
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Claim Modal */}
+        {/* Claim Modal - Simple and clean */}
         <AnimatePresence>
-          {selectedBox !== null && (
+          {selectedBox !== null && claimableReward && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+              className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
               onClick={() => setSelectedBox(null)}
             >
               <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
+                initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
+                exit={{ scale: 0.95, opacity: 0 }}
                 onClick={(e) => e.stopPropagation()}
-                className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+                className="bg-white rounded-2xl shadow-xl w-full max-w-xs overflow-hidden"
               >
-                {/* Modal Header */}
-                <div className="bg-gradient-to-r from-yellow-400 to-amber-500 px-6 py-4 flex justify-between items-center">
-                  <div className="flex items-center space-x-2">
-                    <Gift className="w-6 h-6 text-white" />
-                    <h3 className="text-lg font-bold text-white">Day {selectedBox} Reward</h3>
-                  </div>
+                {/* Header */}
+                <div className="flex justify-between items-center px-4 py-3 border-b border-gray-100">
+                  <span className="font-semibold text-gray-900">Claimable Tokens</span>
                   <button
                     onClick={() => setSelectedBox(null)}
-                    className="text-white/80 hover:text-white transition-colors"
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
                   >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
                 
-                {/* Modal Content */}
-                <div className="p-6">
+                {/* Content */}
+                <div className="p-4">
                   {claimSuccess ? (
                     <div className="text-center py-4">
-                      <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <CheckCircle className="w-10 h-10 text-green-500" />
+                      <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <svg className="w-6 h-6 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
                       </div>
-                      <h4 className="text-xl font-bold text-gray-900 mb-2">Reward Claimed! 🎉</h4>
-                      <p className="text-gray-600 mb-4">
-                        Your random rewards have been sent to your wallet!
-                      </p>
-                      {claimTxHash && (
-                        <a
-                          href={`https://basescan.org/tx/${claimTxHash}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-sm"
-                        >
-                          View transaction <ExternalLink className="w-3 h-3" />
-                        </a>
-                      )}
+                      <p className="text-gray-900 font-medium">Claimed!</p>
                     </div>
                   ) : (
                     <>
-                      {/* Verification Section */}
-                      <div className="mb-6">
-                        <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                          <span className="w-5 h-5 rounded-full bg-yellow-100 text-yellow-700 flex items-center justify-center text-xs font-bold">1</span>
-                          Verify Eligibility
-                        </h4>
+                      {/* Token list */}
+                      <div className="space-y-3 mb-4">
+                        {/* ECION */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <img src={ECION_LOGO} alt="ECION" className="w-6 h-6 rounded-full" />
+                            <span className="text-gray-700">Ecion</span>
+                          </div>
+                          <span className="font-semibold text-gray-900">{claimableReward.ecion.toLocaleString()}</span>
+                        </div>
                         
-                        {isFollowingDoteth === null ? (
-                          <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                            <p className="text-sm text-gray-600 mb-3">
-                              You must follow <a href="https://warpcast.com/doteth" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-medium">@doteth</a> on Farcaster to claim rewards.
-                            </p>
-                            <button
-                              onClick={verifyFollow}
-                              disabled={verifyLoading}
-                              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                            >
-                              {verifyLoading ? (
-                                <>
-                                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                                  Checking...
-                                </>
-                              ) : (
-                                'Verify Follow'
-                              )}
-                            </button>
-                          </div>
-                        ) : isFollowingDoteth ? (
-                          <div className="bg-green-50 rounded-lg p-4 border border-green-200 flex items-center gap-3">
-                            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
-                            <div>
-                              <p className="font-medium text-green-800">Verified!</p>
-                              <p className="text-sm text-green-600">You're following @doteth ✓</p>
+                        {/* USDC - only if applicable */}
+                        {claimableReward.hasUsdc && (
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <img src={USDC_LOGO} alt="USDC" className="w-6 h-6 rounded-full" />
+                              <span className="text-gray-700">USDC</span>
                             </div>
+                            <span className="font-semibold text-gray-900">${claimableReward.usdc}</span>
                           </div>
-                        ) : (
-                          <div className="bg-red-50 rounded-lg p-4 border border-red-200">
-                            <div className="flex items-start gap-3 mb-3">
-                              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                              <div>
-                                <p className="font-medium text-red-800">Not Following</p>
-                                <p className="text-sm text-red-600">You need to follow @doteth to claim rewards</p>
-                              </div>
-                            </div>
-                            <div className="flex gap-2">
-                              <a
-                                href="https://warpcast.com/doteth"
-                                target="_blank"
+                        )}
+                      </div>
+
+                      {/* Error message */}
+                      {claimError && (
+                        <p className="text-red-500 text-sm mb-3 text-center">
+                          {claimError.includes('@doteth') ? (
+                            <>
+                              You must follow{' '}
+                              <a 
+                                href="https://warpcast.com/doteth" 
+                                target="_blank" 
                                 rel="noopener noreferrer"
-                                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm"
+                                className="text-blue-500 hover:underline"
                               >
-                                Follow @doteth <ExternalLink className="w-3 h-3" />
+                                @doteth
                               </a>
-                              <button
-                                onClick={verifyFollow}
-                                disabled={verifyLoading}
-                                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50 text-sm"
-                              >
-                                {verifyLoading ? 'Checking...' : 'Verify Again'}
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Streak Info */}
-                      {boxStatus && (
-                        <div className="mb-4 bg-purple-50 rounded-lg p-3 border border-purple-200 flex items-center justify-between">
-                          <span className="text-sm text-purple-700">Your Current Streak</span>
-                          <span className="font-bold text-purple-800 text-lg">🔥 {boxStatus.streak > 0 ? boxStatus.streak : 0} days</span>
-                        </div>
+                              {' '}to claim rewards.
+                            </>
+                          ) : claimError}
+                        </p>
                       )}
-                      
-                      {/* Reward Details Section */}
-                      <div className="mb-6">
-                        <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                          <span className="w-5 h-5 rounded-full bg-yellow-100 text-yellow-700 flex items-center justify-center text-xs font-bold">2</span>
-                          Reward Details
-                        </h4>
-                        
-                        <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-lg p-4 border border-yellow-200">
-                          <div className="space-y-3">
-                            {/* ECION Range */}
-                            <div className="flex justify-between items-center">
-                              <span className="text-gray-600">ECION Tokens</span>
-                              <span className="font-bold text-yellow-700">
-                                {formatRewardRange(selectedBox).ecion} ECION
-                              </span>
-                            </div>
-                            
-                            {/* USDC Range (only for odd days) */}
-                            {formatRewardRange(selectedBox).hasUsdc && (
-                              <div className="flex justify-between items-center">
-                                <span className="text-gray-600">USDC Bonus</span>
-                                <span className="font-bold text-green-600">
-                                  {formatRewardRange(selectedBox).usdc}
-                                </span>
-                              </div>
-                            )}
-                            
-                            {!formatRewardRange(selectedBox).hasUsdc && (
-                              <div className="flex justify-between items-center">
-                                <span className="text-gray-600">USDC Bonus</span>
-                                <span className="text-gray-400 text-sm">Not available on Day {selectedBox}</span>
-                              </div>
-                            )}
-                            
-                            <hr className="border-yellow-200" />
-                            
-                            <p className="text-xs text-gray-500 italic">
-                              ✨ You'll receive a random amount within these ranges!
-                            </p>
-                            
-                            <div className="text-xs text-gray-500">
-                              <p>ECION Contract:</p>
-                              <code className="bg-white/50 px-2 py-1 rounded text-[10px] break-all block mt-1">{ECION_TOKEN_ADDRESS}</code>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Error Message */}
-                      {boxError && (
-                        <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2 text-red-700 text-sm">
-                          <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                          {boxError}
-                        </div>
-                      )}
-                      
-                      {/* Claim Button */}
+
+                      {/* Claim button - simple outline */}
                       <button
-                        onClick={() => claimReward(selectedBox)}
-                        disabled={!isFollowingDoteth || claimLoading}
-                        className={`w-full font-bold py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 ${
-                          isFollowingDoteth 
-                            ? 'bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-500 hover:to-amber-600 text-white shadow-lg hover:shadow-xl' 
-                            : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                        }`}
+                        onClick={handleClaim}
+                        disabled={claimLoading}
+                        className="w-full py-2.5 border-2 border-green-500 text-green-600 font-medium rounded-xl hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {claimLoading ? (
-                          <>
-                            <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                            Claiming...
-                          </>
-                        ) : (
-                          <>
-                            <Gift className="w-5 h-5" />
-                            Claim Reward
-                          </>
-                        )}
+                        {claimLoading ? 'Claiming...' : 'Claim'}
                       </button>
                     </>
                   )}
@@ -831,7 +593,7 @@ export default function Admin() {
         </AnimatePresence>
 
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6 text-center">
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6 text-center text-sm">
             {error}
           </div>
         )}
@@ -867,8 +629,7 @@ export default function Admin() {
               className="bg-white rounded-lg shadow-sm border border-gray-200 mb-8"
             >
               <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-xl font-semibold text-gray-900">Recent Activity Snapshot</h2>
-                <p className="text-sm text-gray-600 mt-1">Rolling totals for key timeframes</p>
+                <h2 className="text-xl font-semibold text-gray-900">Recent Activity</h2>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x">
                 {timeframeCards.map((card) => (
@@ -882,8 +643,8 @@ export default function Admin() {
             </motion.div>
           </>
         ) : (
-          <div className="bg-white border border-yellow-200 text-yellow-800 px-4 py-3 rounded mb-8 text-center">
-            No statistics available yet. Tips will appear here once activity is tracked.
+          <div className="bg-white border border-gray-200 text-gray-600 px-4 py-3 rounded mb-8 text-center text-sm">
+            No statistics available yet.
           </div>
         )}
 
@@ -891,50 +652,21 @@ export default function Admin() {
           <button
             onClick={fetchAdminData}
             disabled={isLoading}
-            className="bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
           >
             {isLoading ? 'Refreshing...' : 'Refresh Data'}
           </button>
         </div>
       </div>
 
-      {/* Custom CSS for shimmer effect */}
       <style jsx>{`
-        .reward-box-glow {
-          animation: glow 2s ease-in-out infinite alternate;
+        @keyframes pulse-ring {
+          0% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.6); }
+          70% { box-shadow: 0 0 0 8px rgba(251, 191, 36, 0); }
+          100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); }
         }
-        
-        @keyframes glow {
-          from {
-            box-shadow: 0 0 10px rgba(251, 191, 36, 0.5), 0 0 20px rgba(251, 191, 36, 0.3);
-          }
-          to {
-            box-shadow: 0 0 20px rgba(251, 191, 36, 0.8), 0 0 40px rgba(251, 191, 36, 0.5);
-          }
-        }
-        
-        .shimmer-effect {
-          position: absolute;
-          top: 0;
-          left: -100%;
-          width: 100%;
-          height: 100%;
-          background: linear-gradient(
-            90deg,
-            transparent,
-            rgba(255, 255, 255, 0.4),
-            transparent
-          );
-          animation: shimmer 2s infinite;
-        }
-        
-        @keyframes shimmer {
-          0% {
-            left: -100%;
-          }
-          100% {
-            left: 100%;
-          }
+        .animate-pulse-ring {
+          animation: pulse-ring 1.5s ease-out infinite;
         }
       `}</style>
     </div>
