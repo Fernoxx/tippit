@@ -256,7 +256,14 @@ export default function Admin() {
         }
       }
       
-      // Get signature from backend (don't mark as claimed yet)
+      // Check in first (just records the check-in, doesn't complete the day)
+      await fetch(`${BACKEND_URL}/api/daily-checkin/checkin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address, dayNumber: selectedBox }),
+      });
+      
+      // Get signature from backend
       const response = await fetch(`${BACKEND_URL}/api/daily-checkin/claim`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
