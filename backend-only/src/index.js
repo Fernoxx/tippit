@@ -1759,12 +1759,14 @@ app.get('/api/neynar/check-follow-by-address/:address', async (req, res) => {
     
     // viewer_context.followed_by = true means the viewer (targetFid) is followed by the user (userFid)
     const isFollowing = user?.viewer_context?.followed_by || false;
+    const neynarScore = user?.experimental?.neynar_user_score || 0;
     
-    console.log(`🔍 Follow check: ${address} (FID ${userFid}) ${isFollowing ? 'FOLLOWS' : 'does NOT follow'} @doteth`);
+    console.log(`🔍 Follow check: ${address} (FID ${userFid}) ${isFollowing ? 'FOLLOWS' : 'does NOT follow'} @doteth, Neynar score: ${neynarScore}`);
     
     res.json({
       success: true,
       isFollowing: isFollowing,
+      neynarScore: neynarScore,
       userFid: userFid,
       username: userData.username,
       targetFid: targetFid,

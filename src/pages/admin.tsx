@@ -215,7 +215,7 @@ export default function Admin() {
     setSelectedBox(day);
   }, [address, boxStatus]);
 
-  // Claim reward - checks follow status, gets signature, calls contract
+  // Claim reward - different requirements for ECION vs USDC
   const claimReward = async (rewardId: string, token: string) => {
     if (!address || !selectedBox || !walletClient) return;
     
@@ -228,16 +228,32 @@ export default function Admin() {
     }));
     
     try {
-      // First check if user follows @doteth
-      const followCheck = await fetch(`${BACKEND_URL}/api/neynar/check-follow-by-address/${address}`);
-      const followData = await followCheck.json();
-      
-      if (!followData.success || !followData.isFollowing) {
-        setRewardStates(prev => ({
-          ...prev,
-          [rewardId]: { ...prev[rewardId], claiming: false, needsVerify: true, error: null }
-        }));
-        return;
+      // For USDC: need to follow @doteth AND have 0.5+ Neynar score
+      // For ECION: just be a Farcaster user (no special requirements)
+      if (token === 'usdc') {
+        const followCheck = await fetch(`${BACKEND_URL}/api/neynar/check-follow-by-address/${address}`);
+        const followData = await followCheck.json();
+        
+        const isFollowing = followData.success && followData.isFollowing;
+        const neynarScore = followData.neynarScore || 0;
+        const hasScore = neynarScore >= 0.5;
+        
+        if (!isFollowing || !hasScore) {
+          let errorMsg = '';
+          if (!isFollowing && !hasScore) {
+            errorMsg = 'Follow @doteth and have 0.5+ Neynar score';
+          } else if (!isFollowing) {
+            errorMsg = 'Follow @doteth';
+          } else {
+            errorMsg = 'Must have 0.5+ Neynar score';
+          }
+          
+          setRewardStates(prev => ({
+            ...prev,
+            [rewardId]: { ...prev[rewardId], claiming: false, needsVerify: true, error: errorMsg }
+          }));
+          return;
+        }
       }
       
       // Check in first
@@ -294,7 +310,7 @@ export default function Admin() {
     }
   };
 
-  // Verify follow and retry claim
+  // Verify follow/score and retry claim
   const verifyAndClaim = async (rewardId: string, token: string) => {
     if (!address || !walletClient) return;
     
@@ -304,21 +320,37 @@ export default function Admin() {
     }));
     
     try {
-      const followCheck = await fetch(`${BACKEND_URL}/api/neynar/check-follow-by-address/${address}`);
-      const followData = await followCheck.json();
-      
-      if (!followData.success || !followData.isFollowing) {
-        setRewardStates(prev => ({
-          ...prev,
-          [rewardId]: { ...prev[rewardId], claiming: false, error: 'Still not following' }
-        }));
-        return;
+      // For USDC: check both follow and neynar score
+      if (token === 'usdc') {
+        const followCheck = await fetch(`${BACKEND_URL}/api/neynar/check-follow-by-address/${address}`);
+        const followData = await followCheck.json();
+        
+        const isFollowing = followData.success && followData.isFollowing;
+        const neynarScore = followData.neynarScore || 0;
+        const hasScore = neynarScore >= 0.5;
+        
+        if (!isFollowing || !hasScore) {
+          let errorMsg = '';
+          if (!isFollowing && !hasScore) {
+            errorMsg = 'Follow @doteth and have 0.5+ Neynar score';
+          } else if (!isFollowing) {
+            errorMsg = 'Follow @doteth';
+          } else {
+            errorMsg = 'Must have 0.5+ Neynar score';
+          }
+          
+          setRewardStates(prev => ({
+            ...prev,
+            [rewardId]: { ...prev[rewardId], claiming: false, error: errorMsg }
+          }));
+          return;
+        }
       }
       
-      // Now user follows - hide verify and proceed
+      // Requirements met - hide verify and proceed
       setRewardStates(prev => ({
         ...prev,
-        [rewardId]: { ...prev[rewardId], needsVerify: false }
+        [rewardId]: { ...prev[rewardId], needsVerify: false, error: null }
       }));
       
       // Proceed with contract claim
