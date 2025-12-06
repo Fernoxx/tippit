@@ -7,7 +7,7 @@ import { Gift, X, Check, Loader2, ExternalLink, Share2 } from 'lucide-react';
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001').replace(/\/$/, '');
 
 // Token logos
-const ECION_LOGO = '/ecion.png';
+const ECION_LOGO = '/ecion.jpg';
 const USDC_LOGO = 'https://assets.coingecko.com/coins/images/6319/small/USD_Coin_icon.png';
 
 interface PeriodStats {
