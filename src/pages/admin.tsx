@@ -215,22 +215,25 @@ export default function Admin() {
     setSelectedBox(day);
   }, [address, boxStatus]);
 
-  // Claim reward - different requirements for ECION vs USDC
-  const claimReward = async (rewardId: string, token: string) => {
+  // Claim ALL rewards for the day in one contract call
+  const claimAllRewards = async () => {
     if (!address || !selectedBox || !walletClient) return;
     
-    const state = rewardStates[rewardId];
-    if (!state) return;
+    const dayRewards = DAY_REWARDS[selectedBox] || [];
+    const hasUsdc = dayRewards.some(r => r.token === 'usdc');
     
-    setRewardStates(prev => ({
-      ...prev,
-      [rewardId]: { ...prev[rewardId], claiming: true, error: null }
-    }));
+    // Mark all as claiming
+    setRewardStates(prev => {
+      const newStates = { ...prev };
+      dayRewards.forEach(r => {
+        newStates[r.id] = { ...newStates[r.id], claiming: true, error: null };
+      });
+      return newStates;
+    });
     
     try {
-      // For USDC: need to follow @doteth AND have 0.5+ Neynar score
-      // For ECION: just be a Farcaster user (no special requirements)
-      if (token === 'usdc') {
+      // For USDC days: need to follow @doteth AND have 0.5+ Neynar score
+      if (hasUsdc) {
         const followCheck = await fetch(`${BACKEND_URL}/api/neynar/check-follow-by-address/${address}`);
         const followData = await followCheck.json();
         
@@ -248,26 +251,34 @@ export default function Admin() {
             errorMsg = 'Must have 0.5+ Neynar score';
           }
           
-          setRewardStates(prev => ({
-            ...prev,
-            [rewardId]: { ...prev[rewardId], claiming: false, needsVerify: true, error: errorMsg }
-          }));
+          // Show error on USDC reward
+          const usdcReward = dayRewards.find(r => r.token === 'usdc');
+          setRewardStates(prev => {
+            const newStates = { ...prev };
+            dayRewards.forEach(r => {
+              newStates[r.id] = { ...newStates[r.id], claiming: false };
+            });
+            if (usdcReward) {
+              newStates[usdcReward.id] = { ...newStates[usdcReward.id], needsVerify: true, error: errorMsg };
+            }
+            return newStates;
+          });
           return;
         }
       }
       
-      // Check in first (just records the check-in, doesn't complete the day)
+      // Check in first
       await fetch(`${BACKEND_URL}/api/daily-checkin/checkin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ address, dayNumber: selectedBox }),
       });
       
-      // Get signature from backend
+      // Get signature from backend (includes both ECION and USDC amounts)
       const response = await fetch(`${BACKEND_URL}/api/daily-checkin/claim`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address, dayNumber: selectedBox, token, amount: state.amount }),
+        body: JSON.stringify({ address, dayNumber: selectedBox }),
       });
       
       const data = await response.json();
@@ -276,7 +287,7 @@ export default function Admin() {
         throw new Error(data.error || 'Failed to get claim signature');
       }
       
-      // Call the contract with the signature
+      // Call the contract - claims BOTH tokens in one tx
       const hash = await walletClient.writeContract({
         address: DAILY_REWARDS_CONTRACT as `0x${string}`,
         abi: CONTRACT_ABI,
@@ -295,37 +306,28 @@ export default function Admin() {
         await publicClient.waitForTransactionReceipt({ hash });
       }
       
-      // Mark this token as claimed locally
+      // Mark ALL rewards as claimed
       setRewardStates(prev => {
-        const newStates = {
-          ...prev,
-          [rewardId]: { ...prev[rewardId], claiming: false, claimed: true }
-        };
-        
-        // Check if ALL rewards for this day are now claimed
-        const dayRewards = DAY_REWARDS[selectedBox] || [];
-        const allClaimed = dayRewards.every(r => 
-          r.id === rewardId ? true : newStates[r.id]?.claimed
-        );
-        
-        // Only update box status (streak) after ALL tokens claimed
-        if (allClaimed) {
-          // Mark day as complete in backend
-          fetch(`${BACKEND_URL}/api/daily-checkin/complete`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ address, dayNumber: selectedBox }),
-          }).then(() => fetchBoxStatus());
-        }
-        
+        const newStates = { ...prev };
+        dayRewards.forEach(r => {
+          newStates[r.id] = { ...newStates[r.id], claiming: false, claimed: true };
+        });
         return newStates;
       });
+      
+      // Mark day as complete
+      await fetch(`${BACKEND_URL}/api/daily-checkin/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address, dayNumber: selectedBox }),
+      });
+      
+      await fetchBoxStatus();
       
       console.log(`✅ Claimed ${data.ecionAmount} ECION + $${data.usdcAmount} USDC - tx: ${hash}`);
     } catch (err: any) {
       console.error('Claim error:', err);
       
-      // Simplify error message for users
       let userError = 'Claim failed';
       if (err.message?.includes('rejected') || err.message?.includes('denied')) {
         userError = 'Transaction rejected';
@@ -333,65 +335,18 @@ export default function Admin() {
         userError = 'Contract has insufficient balance';
       }
       
-      setRewardStates(prev => ({
-        ...prev,
-        [rewardId]: { ...prev[rewardId], claiming: false, error: userError }
-      }));
+      // Show error on all rewards
+      setRewardStates(prev => {
+        const newStates = { ...prev };
+        dayRewards.forEach(r => {
+          newStates[r.id] = { ...newStates[r.id], claiming: false, error: userError };
+        });
+        return newStates;
+      });
     }
   };
+  
 
-  // Verify follow/score and retry claim
-  const verifyAndClaim = async (rewardId: string, token: string) => {
-    if (!address || !walletClient) return;
-    
-    setRewardStates(prev => ({
-      ...prev,
-      [rewardId]: { ...prev[rewardId], claiming: true, error: null }
-    }));
-    
-    try {
-      // For USDC: check both follow and neynar score
-      if (token === 'usdc') {
-        const followCheck = await fetch(`${BACKEND_URL}/api/neynar/check-follow-by-address/${address}`);
-        const followData = await followCheck.json();
-        
-        const isFollowing = followData.success && followData.isFollowing;
-        const neynarScore = followData.neynarScore || 0;
-        const hasScore = neynarScore >= 0.5;
-        
-        if (!isFollowing || !hasScore) {
-          let errorMsg = '';
-          if (!isFollowing && !hasScore) {
-            errorMsg = 'Follow @doteth and have 0.5+ Neynar score';
-          } else if (!isFollowing) {
-            errorMsg = 'Follow @doteth';
-          } else {
-            errorMsg = 'Must have 0.5+ Neynar score';
-          }
-          
-          setRewardStates(prev => ({
-            ...prev,
-            [rewardId]: { ...prev[rewardId], claiming: false, error: errorMsg }
-          }));
-          return;
-        }
-      }
-      
-      // Requirements met - hide verify and proceed
-      setRewardStates(prev => ({
-        ...prev,
-        [rewardId]: { ...prev[rewardId], needsVerify: false, error: null }
-      }));
-      
-      // Proceed with contract claim
-      await claimReward(rewardId, token);
-    } catch {
-      setRewardStates(prev => ({
-        ...prev,
-        [rewardId]: { ...prev[rewardId], claiming: false, error: 'Verification failed' }
-      }));
-    }
-  };
 
   // Check if all rewards are claimed
   const allRewardsClaimed = useCallback(() => {
@@ -559,65 +514,76 @@ export default function Admin() {
                 </div>
                 
                 <div className="px-4 pb-4 space-y-3">
+                  {/* Token List - shows what will be claimed */}
                   {currentDayRewards.map((reward) => {
                     const state = rewardStates[reward.id];
                     if (!state) return null;
                     
                     return (
-                      <div key={reward.id}>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <img src={reward.logo} alt={reward.name} className="w-6 h-6 rounded-full bg-gray-100" />
-                            <div className="text-sm">
-                              <span className="font-medium text-gray-900">{reward.name}</span>
-                              <span className="ml-1.5 text-gray-600">
-                                {reward.token === 'usdc' ? `$${state.amount}` : state.amount.toLocaleString()}
-                              </span>
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center gap-1.5">
-                            {state.claimed ? (
-                              <span className="text-green-600 text-xs font-medium flex items-center gap-1">
-                                <Check className="w-3 h-3" /> Done
-                              </span>
-                            ) : state.needsVerify ? (
-                              <button
-                                onClick={() => verifyAndClaim(reward.id, reward.token)}
-                                disabled={state.claiming}
-                                className="px-2.5 py-1 text-[10px] font-medium rounded border border-green-400 text-green-600 hover:bg-green-50 transition-all"
-                              >
-                                {state.claiming ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : 'Verify'}
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => claimReward(reward.id, reward.token)}
-                                disabled={state.claiming}
-                                className="px-2.5 py-1 text-[10px] font-medium rounded border-2 border-green-400 text-green-600 hover:bg-green-50 transition-all"
-                              >
-                                {state.claiming ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : 'Claim'}
-                              </button>
-                            )}
-                          </div>
+                      <div key={reward.id} className="flex items-center gap-2">
+                        <img src={reward.logo} alt={reward.name} className="w-6 h-6 rounded-full bg-gray-100" />
+                        <div className="text-sm flex-1">
+                          <span className="font-medium text-gray-900">{reward.name}</span>
+                          <span className="ml-1.5 text-gray-600">
+                            {reward.token === 'usdc' ? `$${state.amount}` : state.amount.toLocaleString()}
+                          </span>
                         </div>
-                        
-                        {state.needsVerify && !state.claimed && (
-                          <a 
-                            href="https://warpcast.com/doteth"
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="text-[10px] text-blue-500 hover:underline flex items-center gap-0.5 mt-1 ml-8"
-                          >
-                            Follow @doteth <ExternalLink className="w-2.5 h-2.5" />
-                          </a>
-                        )}
-                        
-                        {state.error && !state.claimed && (
-                          <p className="text-[10px] text-red-500 mt-1 ml-8">{state.error}</p>
+                        {state.claimed && (
+                          <span className="text-green-600 text-xs font-medium flex items-center gap-1">
+                            <Check className="w-3 h-3" /> Done
+                          </span>
                         )}
                       </div>
                     );
                   })}
+                  
+                  {/* Single Claim All Button */}
+                  {!allRewardsClaimed() && (
+                    <div className="pt-3">
+                      {/* Error Message */}
+                      {Object.values(rewardStates).some(s => s.error) && (
+                        <p className="text-[10px] text-red-500 mb-2">
+                          {Object.values(rewardStates).find(s => s.error)?.error}
+                        </p>
+                      )}
+                      
+                      {/* Verify requirements for USDC days */}
+                      {Object.values(rewardStates).some(s => s.needsVerify) && (
+                        <div className="mb-2">
+                          <a 
+                            href="https://warpcast.com/doteth"
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="text-[10px] text-blue-500 hover:underline flex items-center gap-0.5"
+                          >
+                            Follow @doteth <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                          <button
+                            onClick={() => claimAllRewards()}
+                            disabled={Object.values(rewardStates).some(s => s.claiming)}
+                            className="mt-2 w-full px-3 py-2 text-xs font-medium rounded-lg border border-green-400 text-green-600 hover:bg-green-50 transition-all flex items-center justify-center gap-1.5"
+                          >
+                            {Object.values(rewardStates).some(s => s.claiming) 
+                              ? <><Loader2 className="w-3 h-3 animate-spin" /> Verifying...</>
+                              : 'Verify & Claim All'}
+                          </button>
+                        </div>
+                      )}
+                      
+                      {/* Normal claim button */}
+                      {!Object.values(rewardStates).some(s => s.needsVerify) && (
+                        <button
+                          onClick={() => claimAllRewards()}
+                          disabled={Object.values(rewardStates).some(s => s.claiming)}
+                          className="w-full px-3 py-2 text-xs font-medium rounded-lg bg-green-500 text-white hover:bg-green-600 transition-all flex items-center justify-center gap-1.5"
+                        >
+                          {Object.values(rewardStates).some(s => s.claiming) 
+                            ? <><Loader2 className="w-3 h-3 animate-spin" /> Claiming...</>
+                            : 'Claim All'}
+                        </button>
+                      )}
+                    </div>
+                  )}
                   
                   {/* Share Button - Shows after all rewards claimed */}
                   {allRewardsClaimed() && (
