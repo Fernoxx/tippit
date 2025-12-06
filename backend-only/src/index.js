@@ -2090,15 +2090,48 @@ app.get('/api/daily-checkin/status', async (req, res) => {
   }
 });
 
-// Daily reward amounts (in ECION tokens)
+// Daily reward ranges (matching frontend exactly)
 const DAILY_REWARDS = {
-  1: '69',
-  2: '1000',
-  3: '5000',
-  4: '10000',
-  5: '20000',
-  6: '30000',
-  7: '100000'
+  1: { ecionMin: 1, ecionMax: 69, usdcMin: 0.02, usdcMax: 0.06, hasUsdc: true },
+  2: { ecionMin: 69, ecionMax: 1000, usdcMin: 0, usdcMax: 0, hasUsdc: false },
+  3: { ecionMin: 1000, ecionMax: 5000, usdcMin: 0.02, usdcMax: 0.12, hasUsdc: true },
+  4: { ecionMin: 5000, ecionMax: 10000, usdcMin: 0, usdcMax: 0, hasUsdc: false },
+  5: { ecionMin: 5000, ecionMax: 10000, usdcMin: 0.02, usdcMax: 0.16, hasUsdc: true },
+  6: { ecionMin: 10000, ecionMax: 20000, usdcMin: 0, usdcMax: 0, hasUsdc: false },
+  7: { ecionMin: 10000, ecionMax: 20000, usdcMin: 0.02, usdcMax: 0.20, hasUsdc: true }
+};
+
+// Seeded random - MUST match frontend exactly
+const seededRandom = (seed) => {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    const char = seed.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  const x = Math.sin(hash) * 10000;
+  return x - Math.floor(x);
+};
+
+// Get consistent amount - MUST match frontend exactly
+const getConsistentAmount = (address, day, rewardId, min, max, decimals = 0) => {
+  const seed = `${address}-${day}-${rewardId}`;
+  const rand = seededRandom(seed);
+  const value = rand * (max - min) + min;
+  return decimals > 0 ? parseFloat(value.toFixed(decimals)) : Math.floor(value);
+};
+
+// Generate reward amounts for a user/day (matches frontend)
+const generateRewardAmounts = (address, dayNumber) => {
+  const range = DAILY_REWARDS[dayNumber];
+  if (!range) return null;
+  
+  const ecionAmount = getConsistentAmount(address, dayNumber, `ecion-${dayNumber}`, range.ecionMin, range.ecionMax, 0);
+  const usdcAmount = range.hasUsdc 
+    ? getConsistentAmount(address, dayNumber, `usdc-${dayNumber}`, range.usdcMin, range.usdcMax, 2)
+    : 0;
+  
+  return { ecionAmount, usdcAmount, hasUsdc: range.hasUsdc };
 };
 
 // Process daily check-in (just records the check-in, doesn't claim reward)
@@ -2134,11 +2167,16 @@ app.post('/api/daily-checkin/checkin', async (req, res) => {
       });
     }
     
+    // Generate the consistent reward amounts for this user
+    const rewards = generateRewardAmounts(userAddress.toLowerCase(), result.dayNumber);
+    
     res.json({
       success: true,
       streak: result.streak,
       dayNumber: result.dayNumber,
-      rewardAmount: DAILY_REWARDS[result.dayNumber] || '0'
+      ecionAmount: rewards?.ecionAmount || 0,
+      usdcAmount: rewards?.usdcAmount || 0,
+      hasUsdc: rewards?.hasUsdc || false
     });
   } catch (error) {
     console.error('Error processing daily check-in:', error);
@@ -2213,9 +2251,9 @@ app.post('/api/daily-checkin/claim', async (req, res) => {
       });
     }
     
-    // Get reward amount for this day
-    const rewardAmount = DAILY_REWARDS[dayNumber];
-    if (!rewardAmount) {
+    // Generate consistent reward amounts (same as frontend)
+    const rewards = generateRewardAmounts(userAddress.toLowerCase(), dayNumber);
+    if (!rewards) {
       return res.status(400).json({ 
         success: false, 
         error: 'Invalid day number' 
@@ -2229,26 +2267,47 @@ app.post('/api/daily-checkin/claim', async (req, res) => {
       const provider = await getProvider();
       const wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY, provider);
       
-      // Transfer ECION tokens (18 decimals)
-      const ecionAmount = ethers.parseUnits(rewardAmount, 18);
-      const ecionTokenContract = new ethers.Contract(
-        ECION_TOKEN_ADDRESS,
-        ['function transfer(address to, uint256 amount) returns (bool)'],
-        wallet
-      );
+      const txHashes = [];
       
-      const ecionTx = await ecionTokenContract.transfer(userAddress, ecionAmount);
-      await ecionTx.wait();
-      console.log(`✅ Transferred ${rewardAmount} ECION tokens to ${userAddress} (Day ${dayNumber}, FID: ${userData.fid})`);
+      // Transfer ECION tokens (18 decimals)
+      if (rewards.ecionAmount > 0) {
+        const ecionAmountWei = ethers.parseUnits(rewards.ecionAmount.toString(), 18);
+        const ecionTokenContract = new ethers.Contract(
+          ECION_TOKEN_ADDRESS,
+          ['function transfer(address to, uint256 amount) returns (bool)'],
+          wallet
+        );
+        
+        const ecionTx = await ecionTokenContract.transfer(userAddress, ecionAmountWei);
+        await ecionTx.wait();
+        txHashes.push(ecionTx.hash);
+        console.log(`✅ Transferred ${rewards.ecionAmount} ECION to ${userAddress} (Day ${dayNumber}, FID: ${userData.fid})`);
+      }
+      
+      // Transfer USDC tokens (6 decimals) if applicable
+      if (rewards.hasUsdc && rewards.usdcAmount > 0) {
+        const usdcAmountWei = ethers.parseUnits(rewards.usdcAmount.toString(), 6);
+        const usdcTokenContract = new ethers.Contract(
+          BASE_USDC_ADDRESS,
+          ['function transfer(address to, uint256 amount) returns (bool)'],
+          wallet
+        );
+        
+        const usdcTx = await usdcTokenContract.transfer(userAddress, usdcAmountWei);
+        await usdcTx.wait();
+        txHashes.push(usdcTx.hash);
+        console.log(`✅ Transferred $${rewards.usdcAmount} USDC to ${userAddress} (Day ${dayNumber}, FID: ${userData.fid})`);
+      }
       
       // Mark reward as claimed in database
-      await database.markRewardClaimed(userData.fid, today, rewardAmount);
+      await database.markRewardClaimed(userData.fid, today, rewards.ecionAmount.toString());
       
       res.json({
         success: true,
         dayNumber: dayNumber,
-        rewardAmount: rewardAmount,
-        transactionHash: ecionTx.hash
+        ecionAmount: rewards.ecionAmount,
+        usdcAmount: rewards.usdcAmount,
+        transactionHashes: txHashes
       });
     } catch (transferError) {
       console.error('❌ Error transferring reward:', transferError);
