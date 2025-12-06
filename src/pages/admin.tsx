@@ -303,9 +303,18 @@ export default function Admin() {
       console.log(`✅ Claimed ${data.ecionAmount} ECION + $${data.usdcAmount} USDC - tx: ${hash}`);
     } catch (err: any) {
       console.error('Claim error:', err);
+      
+      // Simplify error message for users
+      let userError = 'Claim failed';
+      if (err.message?.includes('rejected') || err.message?.includes('denied')) {
+        userError = 'Transaction rejected';
+      } else if (err.message?.includes('insufficient') || err.message?.includes('Insufficient')) {
+        userError = 'Contract has insufficient balance';
+      }
+      
       setRewardStates(prev => ({
         ...prev,
-        [rewardId]: { ...prev[rewardId], claiming: false, error: err.message || 'Claim failed' }
+        [rewardId]: { ...prev[rewardId], claiming: false, error: userError }
       }));
     }
   };
