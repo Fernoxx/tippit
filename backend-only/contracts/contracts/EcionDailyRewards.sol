@@ -1,0 +1,417 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+
+/**
+ * @title EcionDailyRewards
+ * @dev Daily check-in reward contract with random rewards (like Owlto Finance)
+ * @notice Users must follow @doteth (verified by backend) to claim rewards
+ * 
+ * Reward Structure:
+ * Day 1: 1-69 ECION + $0.01-$0.20 USDC
+ * Day 2: 69-1000 ECION only
+ * Day 3: 1000-5000 ECION + $0.01-$0.20 USDC
+ * Day 4: 5000-10000 ECION only
+ * Day 5: 5000-10000 ECION + $0.01-$0.20 USDC
+ * Day 6: 10000-20000 ECION only
+ * Day 7: 10000-20000 ECION + $0.01-$0.20 USDC
+ */
+contract EcionDailyRewards is Ownable, ReentrancyGuard {
+    using ECDSA for bytes32;
+    using MessageHashUtils for bytes32;
+
+    // Token contracts
+    IERC20 public immutable ecionToken;
+    IERC20 public immutable usdcToken;
+    
+    // Backend signer address (verifies @doteth follow + generates random amounts)
+    address public backendSigner;
+    
+    // Reward ranges for each day (in token decimals)
+    struct RewardRange {
+        uint256 ecionMin;
+        uint256 ecionMax;
+        uint256 usdcMin;  // 0 if no USDC for this day
+        uint256 usdcMax;  // 0 if no USDC for this day
+    }
+    
+    // Day rewards configuration
+    mapping(uint8 => RewardRange) public dayRewards;
+    
+    // User check-in data
+    struct UserData {
+        uint8 currentStreak;
+        uint256 lastCheckInDay;  // Unix day number (timestamp / 86400)
+        uint256 totalEcionEarned;
+        uint256 totalUsdcEarned;
+    }
+    
+    mapping(address => UserData) public userData;
+    
+    // Track claimed days per user (user => day => claimed)
+    mapping(address => mapping(uint8 => bool)) public claimedDays;
+    
+    // Nonce for signature replay protection
+    mapping(address => uint256) public nonces;
+    
+    // Events
+    event CheckIn(
+        address indexed user,
+        uint8 dayNumber,
+        uint256 ecionAmount,
+        uint256 usdcAmount,
+        uint8 newStreak,
+        uint256 timestamp
+    );
+    
+    event BackendSignerUpdated(address indexed oldSigner, address indexed newSigner);
+    event RewardRangeUpdated(uint8 dayNumber, uint256 ecionMin, uint256 ecionMax, uint256 usdcMin, uint256 usdcMax);
+    
+    // Errors
+    error InvalidDayNumber();
+    error AlreadyClaimedToday();
+    error InvalidSignature();
+    error SignatureExpired();
+    error MustFollowDoteth();
+    error TransferFailed();
+    error StreakMismatch();
+    
+    constructor(
+        address _ecionToken,
+        address _usdcToken,
+        address _backendSigner
+    ) Ownable(msg.sender) {
+        ecionToken = IERC20(_ecionToken);
+        usdcToken = IERC20(_usdcToken);
+        backendSigner = _backendSigner;
+        
+        // Initialize reward ranges (ECION has 18 decimals, USDC has 6 decimals)
+        // Day 1: 1-69 ECION + $0.01-$0.20 USDC
+        dayRewards[1] = RewardRange({
+            ecionMin: 1 * 1e18,
+            ecionMax: 69 * 1e18,
+            usdcMin: 0.01 * 1e6,  // 10000 = $0.01
+            usdcMax: 0.20 * 1e6   // 200000 = $0.20
+        });
+        
+        // Day 2: 69-1000 ECION only
+        dayRewards[2] = RewardRange({
+            ecionMin: 69 * 1e18,
+            ecionMax: 1000 * 1e18,
+            usdcMin: 0,
+            usdcMax: 0
+        });
+        
+        // Day 3: 1000-5000 ECION + $0.01-$0.20 USDC
+        dayRewards[3] = RewardRange({
+            ecionMin: 1000 * 1e18,
+            ecionMax: 5000 * 1e18,
+            usdcMin: 0.01 * 1e6,
+            usdcMax: 0.20 * 1e6
+        });
+        
+        // Day 4: 5000-10000 ECION only
+        dayRewards[4] = RewardRange({
+            ecionMin: 5000 * 1e18,
+            ecionMax: 10000 * 1e18,
+            usdcMin: 0,
+            usdcMax: 0
+        });
+        
+        // Day 5: 5000-10000 ECION + $0.01-$0.20 USDC
+        dayRewards[5] = RewardRange({
+            ecionMin: 5000 * 1e18,
+            ecionMax: 10000 * 1e18,
+            usdcMin: 0.01 * 1e6,
+            usdcMax: 0.20 * 1e6
+        });
+        
+        // Day 6: 10000-20000 ECION only
+        dayRewards[6] = RewardRange({
+            ecionMin: 10000 * 1e18,
+            ecionMax: 20000 * 1e18,
+            usdcMin: 0,
+            usdcMax: 0
+        });
+        
+        // Day 7: 10000-20000 ECION + $0.01-$0.20 USDC
+        dayRewards[7] = RewardRange({
+            ecionMin: 10000 * 1e18,
+            ecionMax: 20000 * 1e18,
+            usdcMin: 0.01 * 1e6,
+            usdcMax: 0.20 * 1e6
+        });
+    }
+    
+    /**
+     * @dev Check in and claim daily reward
+     * @param ecionAmount Random ECION amount (generated by backend within range)
+     * @param usdcAmount Random USDC amount (generated by backend, 0 if not applicable)
+     * @param isFollowing Whether user follows @doteth (verified by backend)
+     * @param expiry Signature expiry timestamp
+     * @param signature Backend signature proving verification
+     */
+    function checkIn(
+        uint256 ecionAmount,
+        uint256 usdcAmount,
+        bool isFollowing,
+        uint256 expiry,
+        bytes calldata signature
+    ) external nonReentrant {
+        // Check signature hasn't expired (5 minute window)
+        if (block.timestamp > expiry) revert SignatureExpired();
+        
+        // User must follow @doteth
+        if (!isFollowing) revert MustFollowDoteth();
+        
+        // Calculate current streak and day
+        uint256 currentDay = block.timestamp / 86400;
+        
+        // Check if already claimed today
+        uint8 claimDay = _calculateClaimDay(userData[msg.sender], currentDay);
+        if (claimedDays[msg.sender][claimDay]) revert AlreadyClaimedToday();
+        
+        // Verify signature from backend
+        _verifySignature(ecionAmount, usdcAmount, isFollowing, expiry, signature);
+        
+        // Validate amounts and process claim
+        _processClaimWithValidation(claimDay, ecionAmount, usdcAmount, currentDay);
+    }
+    
+    /**
+     * @dev Internal function to verify signature
+     */
+    function _verifySignature(
+        uint256 ecionAmount,
+        uint256 usdcAmount,
+        bool isFollowing,
+        uint256 expiry,
+        bytes calldata signature
+    ) internal {
+        bytes32 messageHash = keccak256(abi.encodePacked(
+            msg.sender,
+            ecionAmount,
+            usdcAmount,
+            isFollowing,
+            nonces[msg.sender],
+            expiry,
+            block.chainid
+        ));
+        
+        bytes32 ethSignedHash = messageHash.toEthSignedMessageHash();
+        address signer = ethSignedHash.recover(signature);
+        if (signer != backendSigner) revert InvalidSignature();
+        
+        // Increment nonce
+        nonces[msg.sender]++;
+    }
+    
+    /**
+     * @dev Internal function to process claim with validation
+     */
+    function _processClaimWithValidation(
+        uint8 claimDay,
+        uint256 ecionAmount,
+        uint256 usdcAmount,
+        uint256 currentDay
+    ) internal {
+        // Validate amounts are within range
+        RewardRange storage range = dayRewards[claimDay];
+        require(ecionAmount >= range.ecionMin && ecionAmount <= range.ecionMax, "ECION out of range");
+        if (range.usdcMax > 0) {
+            require(usdcAmount >= range.usdcMin && usdcAmount <= range.usdcMax, "USDC out of range");
+        } else {
+            require(usdcAmount == 0, "No USDC for this day");
+        }
+        
+        // Mark as claimed
+        claimedDays[msg.sender][claimDay] = true;
+        
+        // Update user data
+        UserData storage user = userData[msg.sender];
+        user.currentStreak = claimDay;
+        user.lastCheckInDay = currentDay;
+        user.totalEcionEarned += ecionAmount;
+        user.totalUsdcEarned += usdcAmount;
+        
+        // Transfer tokens
+        _transferRewards(ecionAmount, usdcAmount);
+        
+        emit CheckIn(msg.sender, claimDay, ecionAmount, usdcAmount, claimDay, block.timestamp);
+    }
+    
+    /**
+     * @dev Internal function to transfer rewards
+     */
+    function _transferRewards(uint256 ecionAmount, uint256 usdcAmount) internal {
+        if (ecionAmount > 0) {
+            require(ecionToken.transfer(msg.sender, ecionAmount), "ECION transfer failed");
+        }
+        if (usdcAmount > 0) {
+            require(usdcToken.transfer(msg.sender, usdcAmount), "USDC transfer failed");
+        }
+    }
+    
+    /**
+     * @dev Calculate which day the user should claim
+     * @param user User data
+     * @param currentDay Current Unix day
+     * @return claimDay The day number (1-7) to claim
+     */
+    function _calculateClaimDay(UserData storage user, uint256 currentDay) internal view returns (uint8) {
+        // If never checked in or streak broken (more than 1 day gap), start at day 1
+        if (user.lastCheckInDay == 0 || currentDay > user.lastCheckInDay + 1) {
+            return 1;
+        }
+        
+        // If checked in yesterday, continue streak
+        if (currentDay == user.lastCheckInDay + 1) {
+            uint8 nextDay = user.currentStreak + 1;
+            // Wrap around after day 7
+            return nextDay > 7 ? 1 : nextDay;
+        }
+        
+        // If same day, keep current position (will fail with AlreadyClaimedToday)
+        return user.currentStreak;
+    }
+    
+    /**
+     * @dev Get user's current status
+     */
+    function getUserStatus(address user) external view returns (
+        uint8 currentStreak,
+        uint8 nextClaimDay,
+        bool canClaimToday,
+        uint256 totalEcionEarned,
+        uint256 totalUsdcEarned,
+        bool[] memory claimedDaysArray
+    ) {
+        UserData storage data = userData[user];
+        uint256 currentDay = block.timestamp / 86400;
+        
+        currentStreak = data.currentStreak;
+        nextClaimDay = _calculateClaimDayView(data, currentDay);
+        canClaimToday = !claimedDays[user][nextClaimDay] && 
+                        (data.lastCheckInDay == 0 || currentDay >= data.lastCheckInDay);
+        totalEcionEarned = data.totalEcionEarned;
+        totalUsdcEarned = data.totalUsdcEarned;
+        
+        // Return claimed days array
+        claimedDaysArray = new bool[](7);
+        for (uint8 i = 1; i <= 7; i++) {
+            claimedDaysArray[i-1] = claimedDays[user][i];
+        }
+    }
+    
+    /**
+     * @dev View version of _calculateClaimDay
+     */
+    function _calculateClaimDayView(UserData storage user, uint256 currentDay) internal view returns (uint8) {
+        if (user.lastCheckInDay == 0 || currentDay > user.lastCheckInDay + 1) {
+            return 1;
+        }
+        if (currentDay == user.lastCheckInDay + 1) {
+            uint8 nextDay = user.currentStreak + 1;
+            return nextDay > 7 ? 1 : nextDay;
+        }
+        return user.currentStreak;
+    }
+    
+    /**
+     * @dev Get reward range for a specific day
+     */
+    function getRewardRange(uint8 dayNumber) external view returns (
+        uint256 ecionMin,
+        uint256 ecionMax,
+        uint256 usdcMin,
+        uint256 usdcMax,
+        bool hasUsdc
+    ) {
+        if (dayNumber < 1 || dayNumber > 7) revert InvalidDayNumber();
+        RewardRange memory range = dayRewards[dayNumber];
+        return (
+            range.ecionMin,
+            range.ecionMax,
+            range.usdcMin,
+            range.usdcMax,
+            range.usdcMax > 0
+        );
+    }
+    
+    // ============ Admin Functions ============
+    
+    /**
+     * @dev Update backend signer
+     */
+    function setBackendSigner(address newSigner) external onlyOwner {
+        require(newSigner != address(0), "Invalid address");
+        address oldSigner = backendSigner;
+        backendSigner = newSigner;
+        emit BackendSignerUpdated(oldSigner, newSigner);
+    }
+    
+    /**
+     * @dev Update reward range for a day
+     */
+    function setRewardRange(
+        uint8 dayNumber,
+        uint256 ecionMin,
+        uint256 ecionMax,
+        uint256 usdcMin,
+        uint256 usdcMax
+    ) external onlyOwner {
+        if (dayNumber < 1 || dayNumber > 7) revert InvalidDayNumber();
+        require(ecionMin <= ecionMax, "Invalid ECION range");
+        require(usdcMin <= usdcMax, "Invalid USDC range");
+        
+        dayRewards[dayNumber] = RewardRange({
+            ecionMin: ecionMin,
+            ecionMax: ecionMax,
+            usdcMin: usdcMin,
+            usdcMax: usdcMax
+        });
+        
+        emit RewardRangeUpdated(dayNumber, ecionMin, ecionMax, usdcMin, usdcMax);
+    }
+    
+    /**
+     * @dev Deposit tokens to contract for rewards
+     */
+    function depositTokens(address token, uint256 amount) external onlyOwner {
+        IERC20(token).transferFrom(msg.sender, address(this), amount);
+    }
+    
+    /**
+     * @dev Emergency withdraw tokens
+     */
+    function emergencyWithdraw(address token, uint256 amount) external onlyOwner {
+        if (token == address(0)) {
+            payable(owner()).transfer(amount);
+        } else {
+            IERC20(token).transfer(owner(), amount);
+        }
+    }
+    
+    /**
+     * @dev Get contract token balances
+     */
+    function getContractBalances() external view returns (uint256 ecionBalance, uint256 usdcBalance) {
+        ecionBalance = ecionToken.balanceOf(address(this));
+        usdcBalance = usdcToken.balanceOf(address(this));
+    }
+    
+    /**
+     * @dev Reset user data (for testing only - remove in production)
+     */
+    function resetUser(address user) external onlyOwner {
+        delete userData[user];
+        for (uint8 i = 1; i <= 7; i++) {
+            claimedDays[user][i] = false;
+        }
+    }
+}
