@@ -5,8 +5,14 @@ import { useFarcasterEmbed } from '@/hooks/useFarcasterEmbed';
 import { useWalletClient, usePublicClient } from 'wagmi';
 import { Gift, X, Check, Loader2, ExternalLink, Share2 } from 'lucide-react';
 
-const DAILY_REWARDS_CONTRACT = '0x8e4f21A66E8F99FbF1A6FfBEc757547C11E8653E';
+// Contract addresses per chain (V2 contracts)
+const DAILY_REWARDS_CONTRACTS: Record<number, string> = {
+  8453: process.env.NEXT_PUBLIC_DAILY_REWARDS_CONTRACT_BASE || '0x8e4f21A66E8F99FbF1A6FfBEc757547C11E8653E', // Base
+  42220: process.env.NEXT_PUBLIC_DAILY_REWARDS_CONTRACT_CELO || '', // CELO
+  42161: process.env.NEXT_PUBLIC_DAILY_REWARDS_CONTRACT_ARB || '' // Arbitrum
+};
 
+// Legacy contract ABI (V1 - claims all tokens at once)
 const CONTRACT_ABI = [
   {
     name: 'checkIn',
@@ -50,39 +56,51 @@ interface AdminStats {
 
 interface TokenReward {
   id: string;
-  token: 'ecion' | 'usdc';
+  token: 'ecion' | 'usdc' | 'celo' | 'arb';
   name: string;
   logo: string;
   minAmount: number;
   maxAmount: number;
+  chainId?: number; // Chain ID for this token (CELO=42220, ARB=42161, Base=8453)
 }
 
-// Reward config per day - Updated USDC ranges
+// Token logos
+const CELO_LOGO = 'https://assets.coingecko.com/coins/images/11090/small/InjXBNx9_400x400.jpg';
+const ARB_LOGO = 'https://assets.coingecko.com/coins/images/16547/small/photo_2023-03-29_21.47.00.jpeg';
+
+// Reward config per day - Updated with CELO and ARB rewards
 const DAY_REWARDS: Record<number, TokenReward[]> = {
   1: [
     { id: 'ecion-1', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 1, maxAmount: 69 },
     { id: 'usdc-1', token: 'usdc', name: 'USDC', logo: USDC_LOGO, minAmount: 0.02, maxAmount: 0.06 }
   ],
   2: [
-    { id: 'ecion-2', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 69, maxAmount: 1000 }
+    { id: 'ecion-2', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 69, maxAmount: 1000 },
+    { id: 'celo-2', token: 'celo', name: 'CELO', logo: CELO_LOGO, minAmount: 0.1, maxAmount: 0.2, chainId: 42220 },
+    { id: 'arb-2', token: 'arb', name: 'ARB', logo: ARB_LOGO, minAmount: 0.025, maxAmount: 0.1, chainId: 42161 }
   ],
   3: [
     { id: 'ecion-3', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 1000, maxAmount: 5000 },
     { id: 'usdc-3', token: 'usdc', name: 'USDC', logo: USDC_LOGO, minAmount: 0.02, maxAmount: 0.12 }
   ],
   4: [
-    { id: 'ecion-4', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 5000, maxAmount: 10000 }
+    { id: 'ecion-4', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 5000, maxAmount: 10000 },
+    { id: 'celo-4', token: 'celo', name: 'CELO', logo: CELO_LOGO, minAmount: 0.1, maxAmount: 0.2, chainId: 42220 }
   ],
   5: [
     { id: 'ecion-5', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 5000, maxAmount: 10000 },
-    { id: 'usdc-5', token: 'usdc', name: 'USDC', logo: USDC_LOGO, minAmount: 0.02, maxAmount: 0.16 }
+    { id: 'usdc-5', token: 'usdc', name: 'USDC', logo: USDC_LOGO, minAmount: 0.02, maxAmount: 0.16 },
+    { id: 'arb-5', token: 'arb', name: 'ARB', logo: ARB_LOGO, minAmount: 0.025, maxAmount: 0.1, chainId: 42161 }
   ],
   6: [
-    { id: 'ecion-6', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 10000, maxAmount: 20000 }
+    { id: 'ecion-6', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 10000, maxAmount: 20000 },
+    { id: 'celo-6', token: 'celo', name: 'CELO', logo: CELO_LOGO, minAmount: 0.1, maxAmount: 0.2, chainId: 42220 }
   ],
   7: [
     { id: 'ecion-7', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 10000, maxAmount: 20000 },
-    { id: 'usdc-7', token: 'usdc', name: 'USDC', logo: USDC_LOGO, minAmount: 0.02, maxAmount: 0.20 }
+    { id: 'usdc-7', token: 'usdc', name: 'USDC', logo: USDC_LOGO, minAmount: 0.02, maxAmount: 0.20 },
+    { id: 'celo-7', token: 'celo', name: 'CELO', logo: CELO_LOGO, minAmount: 0.1, maxAmount: 0.2, chainId: 42220 },
+    { id: 'arb-7', token: 'arb', name: 'ARB', logo: ARB_LOGO, minAmount: 0.025, maxAmount: 0.1, chainId: 42161 }
   ]
 };
 
@@ -104,6 +122,24 @@ const getConsistentAmount = (address: string, day: number, rewardId: string, min
   const value = rand * (max - min) + min;
   return decimals > 0 ? parseFloat(value.toFixed(decimals)) : Math.floor(value);
 };
+
+// Contract ABI for V2 (individual token claiming)
+const CONTRACT_ABI_V2 = [
+  {
+    name: 'claimToken',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'dayNumber', type: 'uint8' },
+      { name: 'tokenType', type: 'uint8' }, // 0=ECION, 1=USDC, 2=CELO, 3=ARB
+      { name: 'amount', type: 'uint256' },
+      { name: 'isFollowing', type: 'bool' },
+      { name: 'expiry', type: 'uint256' },
+      { name: 'signature', type: 'bytes' }
+    ],
+    outputs: []
+  }
+] as const;
 
 interface BoxStatus {
   streak: number;
@@ -200,7 +236,7 @@ export default function Admin() {
     const initialStates: Record<string, RewardState> = {};
     
     rewards.forEach(reward => {
-      const decimals = reward.token === 'usdc' ? 2 : 0;
+      const decimals = reward.token === 'usdc' ? 2 : reward.token === 'celo' || reward.token === 'arb' ? 3 : 0;
       const amount = getConsistentAmount(address, day, reward.id, reward.minAmount, reward.maxAmount, decimals);
       initialStates[reward.id] = {
         amount,
@@ -215,7 +251,133 @@ export default function Admin() {
     setSelectedBox(day);
   }, [address, boxStatus]);
 
-  // Claim ALL rewards for the day in one contract call
+  // Claim individual token (V2 - one by one)
+  const claimIndividualToken = async (rewardId: string, tokenType: string) => {
+    if (!address || !selectedBox || !walletClient) return;
+    
+    const reward = DAY_REWARDS[selectedBox]?.find(r => r.id === rewardId);
+    if (!reward) return;
+    
+    // Get chain ID for this token (default to Base/8453 for ECION and USDC)
+    const chainId = reward.chainId || 8453;
+    
+    // Mark as claiming
+    setRewardStates(prev => ({
+      ...prev,
+      [rewardId]: { ...prev[rewardId], claiming: true, error: null }
+    }));
+    
+    try {
+      // For USDC days: need to follow @doteth AND have 0.5+ Neynar score
+      if (tokenType === 'usdc') {
+        const followCheck = await fetch(`${BACKEND_URL}/api/neynar/check-follow-by-address/${address}`);
+        const followData = await followCheck.json();
+        
+        const isFollowing = followData.success && followData.isFollowing;
+        const neynarScore = followData.neynarScore || 0;
+        const hasScore = neynarScore >= 0.5;
+        
+        if (!isFollowing || !hasScore) {
+          let errorMsg = '';
+          if (!isFollowing && !hasScore) {
+            errorMsg = 'Follow @doteth and have 0.5+ Neynar score';
+          } else if (!isFollowing) {
+            errorMsg = 'Follow @doteth';
+          } else {
+            errorMsg = 'Must have 0.5+ Neynar score';
+          }
+          
+          setRewardStates(prev => ({
+            ...prev,
+            [rewardId]: { ...prev[rewardId], claiming: false, needsVerify: true, error: errorMsg }
+          }));
+          return;
+        }
+      }
+      
+      // Check in first (if not already checked in)
+      await fetch(`${BACKEND_URL}/api/daily-checkin/checkin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address, dayNumber: selectedBox }),
+      });
+      
+      // Get signature from backend for individual token
+      const response = await fetch(`${BACKEND_URL}/api/daily-checkin/claim-token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          address, 
+          dayNumber: selectedBox,
+          tokenType: tokenType,
+          chainId: chainId
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to get claim signature');
+      }
+      
+      // Get token type enum (0=ECION, 1=USDC, 2=CELO, 3=ARB)
+      const tokenTypeEnum = tokenType === 'ecion' ? 0 : tokenType === 'usdc' ? 1 : tokenType === 'celo' ? 2 : 3;
+      
+      // Get contract address for this chain
+      const contractAddress = data.contractAddress || DAILY_REWARDS_CONTRACTS[chainId];
+      if (!contractAddress) {
+        throw new Error(`Contract not deployed on chain ${chainId}`);
+      }
+      
+      // Call the contract - claims individual token
+      const hash = await walletClient.writeContract({
+        address: contractAddress as `0x${string}`,
+        abi: CONTRACT_ABI_V2,
+        functionName: 'claimToken',
+        args: [
+          selectedBox,
+          tokenTypeEnum,
+          BigInt(data.amountWei),
+          data.isFollowing,
+          BigInt(data.expiry),
+          data.signature as `0x${string}`
+        ]
+      });
+      
+      // Wait for transaction
+      if (publicClient) {
+        await publicClient.waitForTransactionReceipt({ hash });
+      }
+      
+      // Mark reward as claimed
+      setRewardStates(prev => ({
+        ...prev,
+        [rewardId]: { ...prev[rewardId], claiming: false, claimed: true }
+      }));
+      
+      await fetchBoxStatus();
+      
+      console.log(`✅ Claimed ${data.amount} ${tokenType.toUpperCase()} - tx: ${hash}`);
+    } catch (err: any) {
+      console.error('Claim error:', err);
+      
+      let userError = 'Claim failed';
+      if (err.message?.includes('rejected') || err.message?.includes('denied')) {
+        userError = 'Transaction rejected';
+      } else if (err.message?.includes('insufficient') || err.message?.includes('Insufficient')) {
+        userError = 'Contract has insufficient balance';
+      } else if (err.message) {
+        userError = err.message;
+      }
+      
+      setRewardStates(prev => ({
+        ...prev,
+        [rewardId]: { ...prev[rewardId], claiming: false, error: userError }
+      }));
+    }
+  };
+
+  // Claim ALL rewards for the day in one contract call (LEGACY - for old contract)
   const claimAllRewards = async () => {
     if (!address || !selectedBox || !walletClient) return;
     
@@ -360,22 +522,34 @@ export default function Admin() {
     if (!selectedBox) return;
     
     const dayRewards = DAY_REWARDS[selectedBox] || [];
-    const ecionReward = dayRewards.find(r => r.token === 'ecion');
-    const usdcReward = dayRewards.find(r => r.token === 'usdc');
+    const claimedRewards: string[] = [];
     
-    const ecionAmount = ecionReward ? rewardStates[ecionReward.id]?.amount : 0;
-    const usdcAmount = usdcReward ? rewardStates[usdcReward.id]?.amount : 0;
+    dayRewards.forEach(reward => {
+      const state = rewardStates[reward.id];
+      if (state?.claimed) {
+        const decimals = reward.token === 'usdc' ? 2 : reward.token === 'celo' || reward.token === 'arb' ? 3 : 0;
+        const amount = getConsistentAmount(
+          address || '', 
+          selectedBox, 
+          reward.id, 
+          reward.minAmount, 
+          reward.maxAmount, 
+          decimals
+        );
+        
+        if (reward.token === 'usdc') {
+          claimedRewards.push(`$${amount} USDC`);
+        } else if (reward.token === 'celo') {
+          claimedRewards.push(`${amount} CELO`);
+        } else if (reward.token === 'arb') {
+          claimedRewards.push(`${amount} ARB`);
+        } else {
+          claimedRewards.push(`${amount.toLocaleString()} $ECION`);
+        }
+      }
+    });
     
-    // Build share text
-    let rewardText = '';
-    if (ecionAmount && usdcAmount) {
-      rewardText = `${ecionAmount.toLocaleString()} $ECION and $${usdcAmount} USDC`;
-    } else if (ecionAmount) {
-      rewardText = `${ecionAmount.toLocaleString()} $ECION`;
-    } else if (usdcAmount) {
-      rewardText = `$${usdcAmount} USDC`;
-    }
-    
+    const rewardText = claimedRewards.join(', ');
     const shareText = `🎁 Opened today's daily reward box and claimed ${rewardText} from @ecion`;
     const shareUrl = 'https://ecion.vercel.app';
     
@@ -514,76 +688,87 @@ export default function Admin() {
                 </div>
                 
                 <div className="px-4 pb-4 space-y-3">
-                  {/* Token List - shows what will be claimed */}
+                  {/* Token List - Individual claim buttons */}
                   {currentDayRewards.map((reward) => {
                     const state = rewardStates[reward.id];
                     if (!state) return null;
                     
+                    const decimals = reward.token === 'usdc' ? 2 : reward.token === 'celo' || reward.token === 'arb' ? 3 : 0;
+                    const amount = getConsistentAmount(
+                      address || '', 
+                      selectedBox || 1, 
+                      reward.id, 
+                      reward.minAmount, 
+                      reward.maxAmount, 
+                      decimals
+                    );
+                    
                     return (
-                      <div key={reward.id} className="flex items-center gap-2">
-                        <img src={reward.logo} alt={reward.name} className="w-6 h-6 rounded-full bg-gray-100" />
-                        <div className="text-sm flex-1">
-                          <span className="font-medium text-gray-900">{reward.name}</span>
-                          <span className="ml-1.5 text-gray-600">
-                            {reward.token === 'usdc' ? `$${state.amount}` : state.amount.toLocaleString()}
-                          </span>
+                      <div key={reward.id} className="border border-gray-200 rounded-lg p-3 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <img src={reward.logo} alt={reward.name} className="w-6 h-6 rounded-full bg-gray-100" />
+                          <div className="text-sm flex-1">
+                            <span className="font-medium text-gray-900">{reward.name}</span>
+                            <span className="ml-1.5 text-gray-600">
+                              {reward.token === 'usdc' ? `$${amount}` : amount.toLocaleString()}
+                            </span>
+                            {reward.chainId && (
+                              <span className="ml-1.5 text-xs text-gray-400">
+                                ({reward.chainId === 42220 ? 'CELO' : reward.chainId === 42161 ? 'Arbitrum' : 'Base'})
+                              </span>
+                            )}
+                          </div>
+                          {state.claimed && (
+                            <span className="text-green-600 text-xs font-medium flex items-center gap-1">
+                              <Check className="w-3 h-3" /> Claimed
+                            </span>
+                          )}
                         </div>
-                        {state.claimed && (
-                          <span className="text-green-600 text-xs font-medium flex items-center gap-1">
-                            <Check className="w-3 h-3" /> Done
-                          </span>
+                        
+                        {/* Individual Claim Button */}
+                        {!state.claimed && (
+                          <div>
+                            {state.error && (
+                              <p className="text-[10px] text-red-500 mb-1">{state.error}</p>
+                            )}
+                            
+                            {state.needsVerify && reward.token === 'usdc' && (
+                              <div className="mb-2">
+                                <a 
+                                  href="https://warpcast.com/doteth"
+                                  target="_blank" 
+                                  rel="noopener noreferrer" 
+                                  className="text-[10px] text-blue-500 hover:underline flex items-center gap-0.5 mb-1"
+                                >
+                                  Follow @doteth <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                              </div>
+                            )}
+                            
+                            <button
+                              onClick={() => claimIndividualToken(reward.id, reward.token)}
+                              disabled={state.claiming}
+                              className={`w-full px-3 py-2 text-xs font-medium rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                                state.needsVerify && reward.token === 'usdc'
+                                  ? 'border border-green-400 text-green-600 hover:bg-green-50'
+                                  : 'bg-green-500 text-white hover:bg-green-600'
+                              }`}
+                            >
+                              {state.claiming ? (
+                                <>
+                                  <Loader2 className="w-3 h-3 animate-spin" /> Claiming...
+                                </>
+                              ) : state.needsVerify && reward.token === 'usdc' ? (
+                                'Verify & Claim'
+                              ) : (
+                                `Claim ${reward.name}`
+                              )}
+                            </button>
+                          </div>
                         )}
                       </div>
                     );
                   })}
-                  
-                  {/* Single Claim All Button */}
-                  {!allRewardsClaimed() && (
-                    <div className="pt-3">
-                      {/* Error Message */}
-                      {Object.values(rewardStates).some(s => s.error) && (
-                        <p className="text-[10px] text-red-500 mb-2">
-                          {Object.values(rewardStates).find(s => s.error)?.error}
-                        </p>
-                      )}
-                      
-                      {/* Verify requirements for USDC days */}
-                      {Object.values(rewardStates).some(s => s.needsVerify) && (
-                        <div className="mb-2">
-                          <a 
-                            href="https://warpcast.com/doteth"
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="text-[10px] text-blue-500 hover:underline flex items-center gap-0.5"
-                          >
-                            Follow @doteth <ExternalLink className="w-2.5 h-2.5" />
-                          </a>
-                          <button
-                            onClick={() => claimAllRewards()}
-                            disabled={Object.values(rewardStates).some(s => s.claiming)}
-                            className="mt-2 w-full px-3 py-2 text-xs font-medium rounded-lg border border-green-400 text-green-600 hover:bg-green-50 transition-all flex items-center justify-center gap-1.5"
-                          >
-                            {Object.values(rewardStates).some(s => s.claiming) 
-                              ? <><Loader2 className="w-3 h-3 animate-spin" /> Verifying...</>
-                              : 'Verify & Claim All'}
-                          </button>
-                        </div>
-                      )}
-                      
-                      {/* Normal claim button */}
-                      {!Object.values(rewardStates).some(s => s.needsVerify) && (
-                        <button
-                          onClick={() => claimAllRewards()}
-                          disabled={Object.values(rewardStates).some(s => s.claiming)}
-                          className="w-full px-3 py-2 text-xs font-medium rounded-lg bg-green-500 text-white hover:bg-green-600 transition-all flex items-center justify-center gap-1.5"
-                        >
-                          {Object.values(rewardStates).some(s => s.claiming) 
-                            ? <><Loader2 className="w-3 h-3 animate-spin" /> Claiming...</>
-                            : 'Claim All'}
-                        </button>
-                      )}
-                    </div>
-                  )}
                   
                   {/* Share Button - Shows after all rewards claimed */}
                   {allRewardsClaimed() && (
