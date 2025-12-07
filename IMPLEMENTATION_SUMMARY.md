@@ -35,29 +35,29 @@
 | Day | ECION | USDC | CELO | ARB |
 |-----|-------|------|------|-----|
 | 1   | 1-69  | $0.02-$0.06 | - | - |
-| 2   | 69-1000 | - | 0.1-0.2 | 0.025-0.1 |
+| 2   | 69-1000 | - | **0.05-0.15** | **0.05-0.15** |
 | 3   | 1000-5000 | $0.02-$0.12 | - | - |
-| 4   | 5000-10000 | - | 0.1-0.2 | - |
-| 5   | 5000-10000 | $0.02-$0.16 | - | 0.025-0.1 |
-| 6   | 10000-20000 | - | 0.1-0.2 | - |
-| 7   | 10000-20000 | $0.02-$0.20 | 0.1-0.2 | 0.025-0.1 |
+| 4   | 5000-10000 | - | **0.05-0.15** | - |
+| 5   | 5000-10000 | $0.02-$0.16 | - | **0.05-0.15** |
+| 6   | 10000-20000 | - | **0.05-0.15** | - |
+| 7   | 10000-20000 | $0.02-$0.20 | **0.05-0.15** | **0.05-0.15** |
 
 ### CELO Rewards Schedule:
-- **Day 2**: 0.1-0.2 CELO ✅
+- **Day 2**: 0.05-0.15 CELO ✅
 - **Day 3**: No CELO ✅
-- **Day 4**: 0.1-0.2 CELO ✅
+- **Day 4**: 0.05-0.15 CELO ✅
 - **Day 5**: No CELO ✅
-- **Day 6**: 0.1-0.2 CELO ✅
-- **Day 7**: 0.1-0.2 CELO ✅
+- **Day 6**: 0.05-0.15 CELO ✅
+- **Day 7**: 0.05-0.15 CELO ✅
 
 ### ARB Rewards Schedule:
 - **Day 1**: No ARB ✅
-- **Day 2**: 0.025-0.1 ARB ✅
+- **Day 2**: 0.05-0.15 ARB ✅
 - **Day 3**: No ARB ✅
 - **Day 4**: No ARB ✅
-- **Day 5**: 0.025-0.1 ARB ✅
+- **Day 5**: 0.05-0.15 ARB ✅
 - **Day 6**: No ARB ✅
-- **Day 7**: 0.025-0.1 ARB ✅
+- **Day 7**: 0.05-0.15 ARB ✅
 
 ## ⚠️ Important Notes
 
@@ -82,13 +82,19 @@
 - Deploy `EcionDailyRewardsV2.sol` with ECION, ARB tokens
 - Set environment variable: `DAILY_REWARDS_CONTRACT_ARB`
 
-### Token Addresses Needed Per Chain
+### Token Addresses Per Chain
 
-You'll need to provide:
-- **ECION token address** on each chain (Base, CELO, Arbitrum)
-- **USDC token address** on Base (already have: `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`)
-- **CELO token address** on CELO chain
-- **ARB token address** on Arbitrum chain
+**Base Chain (8453):**
+- **ECION**: Already deployed (existing contract)
+- **USDC**: `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`
+
+**CELO Chain (42220):**
+- **CELO**: `0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee` (Native CELO - sentinel address)
+- Note: ECION is Base-only, not available on CELO chain
+
+**Arbitrum Chain (42161):**
+- **ARB**: `0xb50721bcf8d664c30412cfbc6cf7a15145234ad1`
+- Note: ECION is Base-only, not available on Arbitrum chain
 
 ## 🚀 Next Steps
 

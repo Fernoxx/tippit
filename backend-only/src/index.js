@@ -2093,7 +2093,7 @@ app.get('/api/daily-checkin/status', async (req, res) => {
 });
 
 // Daily reward ranges (matching frontend exactly)
-// Updated with CELO and ARB rewards
+// Updated with CELO and ARB rewards (0.05-0.15 range)
 const DAILY_REWARDS = {
   1: { 
     ecionMin: 1, ecionMax: 69, 
@@ -2104,8 +2104,8 @@ const DAILY_REWARDS = {
   2: { 
     ecionMin: 69, ecionMax: 1000, 
     usdcMin: 0, usdcMax: 0, hasUsdc: false,
-    celoMin: 0.1, celoMax: 0.2, hasCelo: true,
-    arbMin: 0.025, arbMax: 0.1, hasArb: true
+    celoMin: 0.05, celoMax: 0.15, hasCelo: true,
+    arbMin: 0.05, arbMax: 0.15, hasArb: true
   },
   3: { 
     ecionMin: 1000, ecionMax: 5000, 
@@ -2116,26 +2116,26 @@ const DAILY_REWARDS = {
   4: { 
     ecionMin: 5000, ecionMax: 10000, 
     usdcMin: 0, usdcMax: 0, hasUsdc: false,
-    celoMin: 0.1, celoMax: 0.2, hasCelo: true,
+    celoMin: 0.05, celoMax: 0.15, hasCelo: true,
     arbMin: 0, arbMax: 0, hasArb: false
   },
   5: { 
     ecionMin: 5000, ecionMax: 10000, 
     usdcMin: 0.02, usdcMax: 0.16, hasUsdc: true,
     celoMin: 0, celoMax: 0, hasCelo: false,
-    arbMin: 0.025, arbMax: 0.1, hasArb: true
+    arbMin: 0.05, arbMax: 0.15, hasArb: true
   },
   6: { 
     ecionMin: 10000, ecionMax: 20000, 
     usdcMin: 0, usdcMax: 0, hasUsdc: false,
-    celoMin: 0.1, celoMax: 0.2, hasCelo: true,
+    celoMin: 0.05, celoMax: 0.15, hasCelo: true,
     arbMin: 0, arbMax: 0, hasArb: false
   },
   7: { 
     ecionMin: 10000, ecionMax: 20000, 
     usdcMin: 0.02, usdcMax: 0.20, hasUsdc: true,
-    celoMin: 0.1, celoMax: 0.2, hasCelo: true,
-    arbMin: 0.025, arbMax: 0.1, hasArb: true
+    celoMin: 0.05, celoMax: 0.15, hasCelo: true,
+    arbMin: 0.05, arbMax: 0.15, hasArb: true
   }
 };
 

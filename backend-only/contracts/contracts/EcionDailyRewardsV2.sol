@@ -14,12 +14,12 @@ import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.0.0/contr
  * 
  * Reward Structure:
  * Day 1: 1-69 ECION + $0.02-$0.06 USDC
- * Day 2: 69-1000 ECION + 0.1-0.2 CELO + 0.025-0.1 ARB
+ * Day 2: 69-1000 ECION + 0.05-0.15 CELO + 0.05-0.15 ARB
  * Day 3: 1000-5000 ECION + $0.02-$0.12 USDC
- * Day 4: 5000-10000 ECION + 0.1-0.2 CELO
- * Day 5: 5000-10000 ECION + $0.02-$0.16 USDC + 0.025-0.1 ARB
- * Day 6: 10000-20000 ECION + 0.1-0.2 CELO
- * Day 7: 10000-20000 ECION + $0.02-$0.20 USDC + 0.1-0.2 CELO + 0.025-0.1 ARB
+ * Day 4: 5000-10000 ECION + 0.05-0.15 CELO
+ * Day 5: 5000-10000 ECION + $0.02-$0.16 USDC + 0.05-0.15 ARB
+ * Day 6: 10000-20000 ECION + 0.05-0.15 CELO
+ * Day 7: 10000-20000 ECION + $0.02-$0.20 USDC + 0.05-0.15 CELO + 0.05-0.15 ARB
  */
 contract EcionDailyRewardsV2 is Ownable, ReentrancyGuard {
     using ECDSA for bytes32;
@@ -94,6 +94,13 @@ contract EcionDailyRewardsV2 is Ownable, ReentrancyGuard {
     error AmountOutOfRange();
     error NoRewardForThisDay();
     
+    /**
+     * @param _ecionToken ECION token address (Base chain only)
+     * @param _usdcToken USDC token address (Base chain)
+     * @param _celoToken CELO token address (0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee for native CELO on CELO chain)
+     * @param _arbToken ARB token address (0xb50721bcf8d664c30412cfbc6cf7a15145234ad1 on Arbitrum)
+     * @param _backendSigner Backend signer address
+     */
     constructor(
         address _ecionToken,
         address _usdcToken,
@@ -124,16 +131,16 @@ contract EcionDailyRewardsV2 is Ownable, ReentrancyGuard {
             arbMax: 0
         });
         
-        // Day 2: 69-1000 ECION + 0.1-0.2 CELO + 0.025-0.1 ARB
+        // Day 2: 69-1000 ECION + 0.05-0.15 CELO + 0.05-0.15 ARB
         dayRewards[2] = RewardRange({
             ecionMin: 69 * 1e18,
             ecionMax: 1000 * 1e18,
             usdcMin: 0,
             usdcMax: 0,
-            celoMin: 100000000000000000,  // 0.1 CELO (18 decimals)
-            celoMax: 200000000000000000,  // 0.2 CELO
-            arbMin: 25000000000000000,    // 0.025 ARB (18 decimals)
-            arbMax: 100000000000000000    // 0.1 ARB
+            celoMin: 50000000000000000,   // 0.05 CELO (18 decimals)
+            celoMax: 150000000000000000,  // 0.15 CELO
+            arbMin: 50000000000000000,    // 0.05 ARB (18 decimals)
+            arbMax: 150000000000000000    // 0.15 ARB
         });
         
         // Day 3: 1000-5000 ECION + $0.02-$0.12 USDC
@@ -148,19 +155,19 @@ contract EcionDailyRewardsV2 is Ownable, ReentrancyGuard {
             arbMax: 0
         });
         
-        // Day 4: 5000-10000 ECION + 0.1-0.2 CELO
+        // Day 4: 5000-10000 ECION + 0.05-0.15 CELO
         dayRewards[4] = RewardRange({
             ecionMin: 5000 * 1e18,
             ecionMax: 10000 * 1e18,
             usdcMin: 0,
             usdcMax: 0,
-            celoMin: 100000000000000000,
-            celoMax: 200000000000000000,
+            celoMin: 50000000000000000,   // 0.05 CELO
+            celoMax: 150000000000000000,  // 0.15 CELO
             arbMin: 0,
             arbMax: 0
         });
         
-        // Day 5: 5000-10000 ECION + $0.02-$0.16 USDC + 0.025-0.1 ARB
+        // Day 5: 5000-10000 ECION + $0.02-$0.16 USDC + 0.05-0.15 ARB
         dayRewards[5] = RewardRange({
             ecionMin: 5000 * 1e18,
             ecionMax: 10000 * 1e18,
@@ -168,32 +175,32 @@ contract EcionDailyRewardsV2 is Ownable, ReentrancyGuard {
             usdcMax: 160000,
             celoMin: 0,
             celoMax: 0,
-            arbMin: 25000000000000000,
-            arbMax: 100000000000000000
+            arbMin: 50000000000000000,    // 0.05 ARB
+            arbMax: 150000000000000000     // 0.15 ARB
         });
         
-        // Day 6: 10000-20000 ECION + 0.1-0.2 CELO
+        // Day 6: 10000-20000 ECION + 0.05-0.15 CELO
         dayRewards[6] = RewardRange({
             ecionMin: 10000 * 1e18,
             ecionMax: 20000 * 1e18,
             usdcMin: 0,
             usdcMax: 0,
-            celoMin: 100000000000000000,
-            celoMax: 200000000000000000,
+            celoMin: 50000000000000000,   // 0.05 CELO
+            celoMax: 150000000000000000,  // 0.15 CELO
             arbMin: 0,
             arbMax: 0
         });
         
-        // Day 7: 10000-20000 ECION + $0.02-$0.20 USDC + 0.1-0.2 CELO + 0.025-0.1 ARB
+        // Day 7: 10000-20000 ECION + $0.02-$0.20 USDC + 0.05-0.15 CELO + 0.05-0.15 ARB
         dayRewards[7] = RewardRange({
             ecionMin: 10000 * 1e18,
             ecionMax: 20000 * 1e18,
             usdcMin: 20000,
             usdcMax: 200000,
-            celoMin: 100000000000000000,
-            celoMax: 200000000000000000,
-            arbMin: 25000000000000000,
-            arbMax: 100000000000000000
+            celoMin: 50000000000000000,   // 0.05 CELO
+            celoMax: 150000000000000000,  // 0.15 CELO
+            arbMin: 50000000000000000,     // 0.05 ARB
+            arbMax: 150000000000000000     // 0.15 ARB
         });
     }
     

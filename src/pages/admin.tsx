@@ -34,6 +34,12 @@ const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:30
 // Token logos
 const ECION_LOGO = '/ecion.jpg';
 const USDC_LOGO = 'https://assets.coingecko.com/coins/images/6319/small/USD_Coin_icon.png';
+const CELO_LOGO = 'https://assets.coingecko.com/coins/images/11090/small/InjXBNx9_400x400.jpg';
+const ARB_LOGO = 'https://assets.coingecko.com/coins/images/16547/small/photo_2023-03-29_21.47.00.jpeg';
+
+// Token addresses
+const CELO_TOKEN_ADDRESS = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'; // Native CELO
+const ARB_TOKEN_ADDRESS = '0xb50721bcf8d664c30412cfbc6cf7a15145234ad1'; // ARB token on Arbitrum
 
 interface PeriodStats {
   tips: number;
@@ -64,11 +70,7 @@ interface TokenReward {
   chainId?: number; // Chain ID for this token (CELO=42220, ARB=42161, Base=8453)
 }
 
-// Token logos
-const CELO_LOGO = 'https://assets.coingecko.com/coins/images/11090/small/InjXBNx9_400x400.jpg';
-const ARB_LOGO = 'https://assets.coingecko.com/coins/images/16547/small/photo_2023-03-29_21.47.00.jpeg';
-
-// Reward config per day - Updated with CELO and ARB rewards
+// Reward config per day - Updated with CELO and ARB rewards (0.05-0.15 range)
 const DAY_REWARDS: Record<number, TokenReward[]> = {
   1: [
     { id: 'ecion-1', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 1, maxAmount: 69 },
@@ -76,8 +78,8 @@ const DAY_REWARDS: Record<number, TokenReward[]> = {
   ],
   2: [
     { id: 'ecion-2', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 69, maxAmount: 1000 },
-    { id: 'celo-2', token: 'celo', name: 'CELO', logo: CELO_LOGO, minAmount: 0.1, maxAmount: 0.2, chainId: 42220 },
-    { id: 'arb-2', token: 'arb', name: 'ARB', logo: ARB_LOGO, minAmount: 0.025, maxAmount: 0.1, chainId: 42161 }
+    { id: 'celo-2', token: 'celo', name: 'CELO', logo: CELO_LOGO, minAmount: 0.05, maxAmount: 0.15, chainId: 42220 },
+    { id: 'arb-2', token: 'arb', name: 'ARB', logo: ARB_LOGO, minAmount: 0.05, maxAmount: 0.15, chainId: 42161 }
   ],
   3: [
     { id: 'ecion-3', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 1000, maxAmount: 5000 },
@@ -85,22 +87,22 @@ const DAY_REWARDS: Record<number, TokenReward[]> = {
   ],
   4: [
     { id: 'ecion-4', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 5000, maxAmount: 10000 },
-    { id: 'celo-4', token: 'celo', name: 'CELO', logo: CELO_LOGO, minAmount: 0.1, maxAmount: 0.2, chainId: 42220 }
+    { id: 'celo-4', token: 'celo', name: 'CELO', logo: CELO_LOGO, minAmount: 0.05, maxAmount: 0.15, chainId: 42220 }
   ],
   5: [
     { id: 'ecion-5', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 5000, maxAmount: 10000 },
     { id: 'usdc-5', token: 'usdc', name: 'USDC', logo: USDC_LOGO, minAmount: 0.02, maxAmount: 0.16 },
-    { id: 'arb-5', token: 'arb', name: 'ARB', logo: ARB_LOGO, minAmount: 0.025, maxAmount: 0.1, chainId: 42161 }
+    { id: 'arb-5', token: 'arb', name: 'ARB', logo: ARB_LOGO, minAmount: 0.05, maxAmount: 0.15, chainId: 42161 }
   ],
   6: [
     { id: 'ecion-6', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 10000, maxAmount: 20000 },
-    { id: 'celo-6', token: 'celo', name: 'CELO', logo: CELO_LOGO, minAmount: 0.1, maxAmount: 0.2, chainId: 42220 }
+    { id: 'celo-6', token: 'celo', name: 'CELO', logo: CELO_LOGO, minAmount: 0.05, maxAmount: 0.15, chainId: 42220 }
   ],
   7: [
     { id: 'ecion-7', token: 'ecion', name: 'Ecion', logo: ECION_LOGO, minAmount: 10000, maxAmount: 20000 },
     { id: 'usdc-7', token: 'usdc', name: 'USDC', logo: USDC_LOGO, minAmount: 0.02, maxAmount: 0.20 },
-    { id: 'celo-7', token: 'celo', name: 'CELO', logo: CELO_LOGO, minAmount: 0.1, maxAmount: 0.2, chainId: 42220 },
-    { id: 'arb-7', token: 'arb', name: 'ARB', logo: ARB_LOGO, minAmount: 0.025, maxAmount: 0.1, chainId: 42161 }
+    { id: 'celo-7', token: 'celo', name: 'CELO', logo: CELO_LOGO, minAmount: 0.05, maxAmount: 0.15, chainId: 42220 },
+    { id: 'arb-7', token: 'arb', name: 'ARB', logo: ARB_LOGO, minAmount: 0.05, maxAmount: 0.15, chainId: 42161 }
   ]
 };
 
