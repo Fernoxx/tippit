@@ -5671,7 +5671,31 @@ app.get('/api/homepage', async (req, res) => {
   }
 });
 // Leaderboard endpoints  
+// LEADERBOARD DISABLED - Maintenance Mode
+// The leaderboard feature is currently under maintenance to reduce Neynar API usage.
+// All code is preserved below for future use when the feature is re-enabled.
 app.get('/api/leaderboard', async (req, res) => {
+  // Return empty response immediately to avoid any API calls or database queries
+  // This prevents Neynar API usage while the feature is disabled
+  console.log('🚫 Leaderboard endpoint called but disabled - returning empty response');
+  res.json({
+    tippers: [],
+    earners: [],
+    users: [],
+    amounts: [],
+    userStats: null,
+    pagination: {
+      page: 1,
+      limit: 10,
+      totalTippers: 0,
+      totalEarners: 0,
+      totalPages: 0,
+      hasMore: false
+    }
+  });
+  return;
+  
+  /* DISABLED CODE - PRESERVED FOR FUTURE USE
   try {
     const { timeFilter = '24h', page = 1, limit = 10, userFid } = req.query;
     const pageNum = parseInt(page);
@@ -5893,6 +5917,7 @@ app.get('/api/leaderboard', async (req, res) => {
     console.error('Leaderboard fetch error:', error);
     res.status(500).json({ error: 'Failed to fetch leaderboard data' });
   }
+  */ // END OF DISABLED CODE
 });
 
 // Tip history endpoints
