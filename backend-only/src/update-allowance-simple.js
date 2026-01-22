@@ -221,21 +221,30 @@ async function updateAllowanceSimple(req, res, database, batchTransferManager) {
         
         console.log(`💰 Total enabled tip amount: ${minTipAmount} (like: ${likeEnabled ? likeAmount : 0}, recast: ${recastEnabled ? recastAmount : 0}, reply: ${replyEnabled ? replyAmount : 0}), Current allowance: ${allowanceAmount}`);
       
-      // Determine webhook action based on allowance vs min tip
+      // Determine webhook action based on allowance AND balance vs min tip
+      // Remove if EITHER allowance OR balance is insufficient (per user requirement)
+      const hasSufficientAllowance = allowanceAmount >= minTipAmount;
+      const hasSufficientBalance = balanceAmount >= minTipAmount;
+      
       if (allowanceSource !== 'blockchain') {
         webhookAction = 'no_change';
         webhookReason = 'allowance_unverified';
         console.log(`⚠️ Allowance could not be verified on-chain for ${userAddress}. Skipping webhook updates to avoid false removals.`);
-      } else if (allowanceAmount < minTipAmount) {
-        // User has insufficient allowance - should be removed from webhook
+      } else if (!hasSufficientAllowance || !hasSufficientBalance) {
+        // User has insufficient allowance OR balance - should be removed from webhook
+        const reason = !hasSufficientAllowance && !hasSufficientBalance 
+          ? 'insufficient_allowance_and_balance'
+          : !hasSufficientAllowance 
+            ? 'insufficient_allowance' 
+            : 'insufficient_balance';
         webhookAction = 'remove';
-        webhookReason = 'insufficient_allowance';
-        console.log(`🚫 User ${userAddress} allowance ${allowanceAmount} < min tip ${minTipAmount} - removing from webhook`);
+        webhookReason = reason;
+        console.log(`🚫 User ${userAddress} has insufficient funds - allowance: ${allowanceAmount} ${hasSufficientAllowance ? '✅' : '❌'}, balance: ${balanceAmount} ${hasSufficientBalance ? '✅' : '❌'} (minTip: ${minTipAmount}) - removing from webhook`);
       } else {
-        // User has sufficient allowance - should be in webhook
+        // User has sufficient allowance AND balance - should be in webhook
         webhookAction = 'add';
-        webhookReason = 'sufficient_allowance';
-        console.log(`✅ User ${userAddress} allowance ${allowanceAmount} >= min tip ${minTipAmount} - ensuring in webhook`);
+        webhookReason = 'sufficient_allowance_and_balance';
+        console.log(`✅ User ${userAddress} has sufficient funds - allowance: ${allowanceAmount}, balance: ${balanceAmount} (minTip: ${minTipAmount}) - ensuring in webhook`);
       }
     }
     

@@ -4049,25 +4049,22 @@ async function updateUserWebhookStatus(userAddress) {
     
     const hasSufficientAllowance = allowanceAmount >= minTipAmount;
     const hasSufficientBalance = balanceAmount >= minTipAmount;
-    const canAfford = hasSufficientAllowance && hasSufficientBalance;
     
     console.log(`🔍 Allowance check for ${addressForCheck} (FID: ${fid}): allowance=${allowanceAmount}, balance=${balanceAmount}, minTip=${minTipAmount}, token=${tokenAddressForCheck}`);
     
-    // Only remove if BOTH allowance AND balance are insufficient
-    if (!canAfford) {
-      console.log(`❌ User ${addressForCheck} (FID: ${fid}) has insufficient funds (allowance: ${allowanceAmount} < ${minTipAmount} OR balance: ${balanceAmount} < ${minTipAmount}) - removing from webhook`);
-      await removeFidFromWebhook(fid, 'insufficient_funds');
+    // Remove if EITHER allowance OR balance is insufficient (per user requirement)
+    // User requirement: "remove when allowance < minTip OR balance < minTip"
+    if (!hasSufficientAllowance || !hasSufficientBalance) {
+      const reason = !hasSufficientAllowance && !hasSufficientBalance 
+        ? 'insufficient_allowance_and_balance'
+        : !hasSufficientAllowance 
+          ? 'insufficient_allowance' 
+          : 'insufficient_balance';
+      console.log(`❌ User ${addressForCheck} (FID: ${fid}) has insufficient funds - allowance: ${allowanceAmount} ${hasSufficientAllowance ? '✅' : '❌'}, balance: ${balanceAmount} ${hasSufficientBalance ? '✅' : '❌'} (minTip: ${minTipAmount}) - removing from webhook`);
+      await removeFidFromWebhook(fid, reason);
       
-      // If balance is insufficient, auto-revoke allowance
-      if (!hasSufficientBalance) {
-        console.log(`🔄 Auto-revoking allowance for ${addressForCheck} due to insufficient balance`);
-        try {
-          await autoRevokeAllowance(addressForCheck, tokenAddressForCheck);
-          console.log(`✅ Auto-revoked allowance for ${addressForCheck}`);
-        } catch (revokeError) {
-          console.error(`❌ Failed to auto-revoke allowance for ${userAddress}:`, revokeError);
-        }
-      }
+      // Note: We don't auto-revoke allowance anymore - user can revoke themselves
+      // If balance is insufficient but allowance exists, we just show allowance as 0 in UI
       
       // Send notification about insufficient funds
       const previousAllowance = userConfig.lastAllowance || 0;
@@ -4086,18 +4083,22 @@ async function updateUserWebhookStatus(userAddress) {
         await database.setUserConfig(userAddress, userConfig);
       }
     } else {
-      // Only add back to webhook if:
-      // 1. User is active, OR
-      // 2. User has BOTH sufficient allowance AND balance (they topped up)
-      // This prevents re-adding users who were just removed due to insufficient balance but still have allowance
-      if (!userConfig.isActive && !hasSufficientBalance) {
-        console.log(`⚠️ User ${addressForCheck} has sufficient allowance (${allowanceAmount}) but insufficient balance (${balanceAmount}) and isActive=false - not adding back to webhook (user was recently removed due to insufficient balance)`);
-        // Don't add back - user needs to top up balance first
-        return false;
+      // User has sufficient funds (both allowance AND balance) - add them back
+      // Check if user is already in webhook to avoid unnecessary updates
+      const trackedFids = await database.getTrackedFids();
+      const fidInt = parseInt(fid);
+      const isAlreadyInWebhook = trackedFids.includes(fidInt);
+      
+      if (isAlreadyInWebhook) {
+        console.log(`✅ User ${userAddress} (FID: ${fid}) already in webhook with sufficient funds - no update needed`);
+        // Still update last allowance check timestamp
+        userConfig.lastAllowance = allowanceAmount;
+        userConfig.lastAllowanceCheck = Date.now();
+        await database.setUserConfig(addressForCheck, userConfig);
+        return true;
       }
       
-      // User has sufficient funds (both allowance and balance) - add them back
-      console.log(`✅ User ${userAddress} has sufficient funds (allowance: ${allowanceAmount}, balance: ${balanceAmount}) - ensuring in webhook`);
+      console.log(`✅ User ${userAddress} has sufficient funds (allowance: ${allowanceAmount}, balance: ${balanceAmount}) - adding to webhook`);
       await addFidToWebhook(fid);
       
       // If user was inactive but now has sufficient funds, mark them as active again
@@ -4115,7 +4116,10 @@ async function updateUserWebhookStatus(userAddress) {
     }
     
     // Update last allowance check
-    userConfig.lastAllowance = allowanceAmount;
+    // If balance is insufficient, show allowance as 0 in UI (even if blockchain shows allowance > 0)
+    // This prevents confusion when user has allowance but can't actually tip due to low balance
+    const displayAllowance = hasSufficientBalance ? allowanceAmount : 0;
+    userConfig.lastAllowance = displayAllowance;
     userConfig.lastAllowanceCheck = Date.now();
     await database.setUserConfig(addressForCheck, userConfig);
     
@@ -4192,6 +4196,7 @@ app.post('/api/allowance-updated', async (req, res) => {
 
 // Periodic webhook status update - check all users every 3 hours (reduced from 1 hour)
 // Added rate limiting to prevent RPC overload
+// Only updates users if their status has actually changed (prevents add/remove cycles)
 setInterval(async () => {
   try {
     console.log('🔄 Running periodic webhook status update...');
@@ -4199,7 +4204,12 @@ setInterval(async () => {
     const activeUsers = await database.getActiveUsersWithApprovals();
     console.log(`📊 Checking webhook status for ${activeUsers.length} active users`);
     
+    // Get current tracked FIDs to avoid unnecessary updates
+    const trackedFids = await database.getTrackedFids();
+    const trackedFidsSet = new Set(trackedFids);
+    
     let processedCount = 0;
+    let skippedCount = 0;
     let errorCount = 0;
     
     // Process users in batches with delays to avoid rate limits
@@ -4209,8 +4219,22 @@ setInterval(async () => {
       
       await Promise.all(batch.map(async (userAddress) => {
         try {
+          // Get FID first to check if already in webhook
+          const fid = await getUserFid(userAddress);
+          if (fid && trackedFidsSet.has(parseInt(fid))) {
+            // User is already in webhook - only update if status might have changed
+            // (e.g., they might have topped up balance or allowance)
+            // Still call updateUserWebhookStatus but it will check internally and skip if no change needed
           await updateUserWebhookStatus(userAddress);
           processedCount++;
+          } else if (fid) {
+            // User has FID but not in webhook - check if they should be added
+            await updateUserWebhookStatus(userAddress);
+            processedCount++;
+          } else {
+            // No FID - skip (Base app users without Farcaster)
+            skippedCount++;
+          }
         } catch (error) {
           console.error(`❌ Error updating webhook status for ${userAddress}:`, error);
           errorCount++;
@@ -4223,7 +4247,7 @@ setInterval(async () => {
       }
     }
     
-    console.log(`✅ Periodic webhook update completed - processed: ${processedCount}, errors: ${errorCount}`);
+    console.log(`✅ Periodic webhook update completed - processed: ${processedCount}, skipped (no FID): ${skippedCount}, errors: ${errorCount}`);
   } catch (error) {
     console.error('❌ Error in periodic webhook update:', error);
   }
