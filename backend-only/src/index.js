@@ -2093,14 +2093,50 @@ app.get('/api/daily-checkin/status', async (req, res) => {
 });
 
 // Daily reward ranges (matching frontend exactly)
+// Updated with CELO and ARB rewards (0.05-0.15 range)
 const DAILY_REWARDS = {
-  1: { ecionMin: 1, ecionMax: 69, usdcMin: 0.02, usdcMax: 0.06, hasUsdc: true },
-  2: { ecionMin: 69, ecionMax: 1000, usdcMin: 0, usdcMax: 0, hasUsdc: false },
-  3: { ecionMin: 1000, ecionMax: 5000, usdcMin: 0.02, usdcMax: 0.12, hasUsdc: true },
-  4: { ecionMin: 5000, ecionMax: 10000, usdcMin: 0, usdcMax: 0, hasUsdc: false },
-  5: { ecionMin: 5000, ecionMax: 10000, usdcMin: 0.02, usdcMax: 0.16, hasUsdc: true },
-  6: { ecionMin: 10000, ecionMax: 20000, usdcMin: 0, usdcMax: 0, hasUsdc: false },
-  7: { ecionMin: 10000, ecionMax: 20000, usdcMin: 0.02, usdcMax: 0.20, hasUsdc: true }
+  1: { 
+    ecionMin: 1, ecionMax: 69, 
+    usdcMin: 0.02, usdcMax: 0.06, hasUsdc: true,
+    celoMin: 0, celoMax: 0, hasCelo: false,
+    arbMin: 0, arbMax: 0, hasArb: false
+  },
+  2: { 
+    ecionMin: 69, ecionMax: 1000, 
+    usdcMin: 0, usdcMax: 0, hasUsdc: false,
+    celoMin: 0.05, celoMax: 0.15, hasCelo: true,
+    arbMin: 0.05, arbMax: 0.15, hasArb: true
+  },
+  3: { 
+    ecionMin: 1000, ecionMax: 5000, 
+    usdcMin: 0.02, usdcMax: 0.12, hasUsdc: true,
+    celoMin: 0, celoMax: 0, hasCelo: false,
+    arbMin: 0, arbMax: 0, hasArb: false
+  },
+  4: { 
+    ecionMin: 5000, ecionMax: 10000, 
+    usdcMin: 0, usdcMax: 0, hasUsdc: false,
+    celoMin: 0.05, celoMax: 0.15, hasCelo: true,
+    arbMin: 0, arbMax: 0, hasArb: false
+  },
+  5: { 
+    ecionMin: 5000, ecionMax: 10000, 
+    usdcMin: 0.02, usdcMax: 0.16, hasUsdc: true,
+    celoMin: 0, celoMax: 0, hasCelo: false,
+    arbMin: 0.05, arbMax: 0.15, hasArb: true
+  },
+  6: { 
+    ecionMin: 10000, ecionMax: 20000, 
+    usdcMin: 0, usdcMax: 0, hasUsdc: false,
+    celoMin: 0.05, celoMax: 0.15, hasCelo: true,
+    arbMin: 0, arbMax: 0, hasArb: false
+  },
+  7: { 
+    ecionMin: 10000, ecionMax: 20000, 
+    usdcMin: 0.02, usdcMax: 0.20, hasUsdc: true,
+    celoMin: 0.05, celoMax: 0.15, hasCelo: true,
+    arbMin: 0.05, arbMax: 0.15, hasArb: true
+  }
 };
 
 // Seeded random - MUST match frontend exactly
@@ -2132,8 +2168,22 @@ const generateRewardAmounts = (address, dayNumber) => {
   const usdcAmount = range.hasUsdc 
     ? getConsistentAmount(address, dayNumber, `usdc-${dayNumber}`, range.usdcMin, range.usdcMax, 2)
     : 0;
+  const celoAmount = range.hasCelo
+    ? getConsistentAmount(address, dayNumber, `celo-${dayNumber}`, range.celoMin, range.celoMax, 3)
+    : 0;
+  const arbAmount = range.hasArb
+    ? getConsistentAmount(address, dayNumber, `arb-${dayNumber}`, range.arbMin, range.arbMax, 3)
+    : 0;
   
-  return { ecionAmount, usdcAmount, hasUsdc: range.hasUsdc };
+  return { 
+    ecionAmount, 
+    usdcAmount, 
+    celoAmount,
+    arbAmount,
+    hasUsdc: range.hasUsdc,
+    hasCelo: range.hasCelo,
+    hasArb: range.hasArb
+  };
 };
 
 // Process daily check-in (just records the check-in, doesn't claim reward)
@@ -2178,7 +2228,11 @@ app.post('/api/daily-checkin/checkin', async (req, res) => {
       dayNumber: result.dayNumber,
       ecionAmount: rewards?.ecionAmount || 0,
       usdcAmount: rewards?.usdcAmount || 0,
-      hasUsdc: rewards?.hasUsdc || false
+      celoAmount: rewards?.celoAmount || 0,
+      arbAmount: rewards?.arbAmount || 0,
+      hasUsdc: rewards?.hasUsdc || false,
+      hasCelo: rewards?.hasCelo || false,
+      hasArb: rewards?.hasArb || false
     });
   } catch (error) {
     console.error('Error processing daily check-in:', error);
@@ -2189,7 +2243,193 @@ app.post('/api/daily-checkin/checkin', async (req, res) => {
   }
 });
 
-// Claim daily reward (separate endpoint for claiming)
+// Claim individual token for daily reward (V2 - one by one claiming)
+app.post('/api/daily-checkin/claim-token', async (req, res) => {
+  try {
+    const userAddress = req.body.address || req.headers['x-user-address'];
+    const dayNumber = parseInt(req.body.dayNumber, 10);
+    const tokenType = req.body.tokenType; // 'ecion', 'usdc', 'celo', 'arb'
+    
+    if (!userAddress) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'User address is required' 
+      });
+    }
+    
+    if (!dayNumber || dayNumber < 1 || dayNumber > 7) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Valid day number (1-7) is required' 
+      });
+    }
+    
+    if (!tokenType || !['ecion', 'usdc', 'celo', 'arb'].includes(tokenType)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Valid token type (ecion, usdc, celo, arb) is required' 
+      });
+    }
+    
+    // Verify FID exists via Neynar
+    const userData = await getUserDataByAddress(userAddress);
+    if (!userData || !userData.fid) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Access denied. Only verified Farcaster users can claim rewards.' 
+      });
+    }
+    
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Check if user has checked in today
+    const checkinResult = await database.pool.query(
+      'SELECT * FROM daily_checkins WHERE fid = $1 AND checkin_date = $2',
+      [userData.fid, today]
+    );
+    
+    if (checkinResult.rows.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'You must check in first before claiming a reward' 
+      });
+    }
+    
+    const checkin = checkinResult.rows[0];
+    
+    // Verify the day number matches the streak
+    if (checkin.streak_count !== dayNumber) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Day number mismatch. Your current streak is ${checkin.streak_count}, not ${dayNumber}` 
+      });
+    }
+    
+    // Generate consistent reward amounts
+    const rewards = generateRewardAmounts(userAddress.toLowerCase(), dayNumber);
+    if (!rewards) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid day number' 
+      });
+    }
+    
+    // Check if this token is available for this day
+    const range = DAILY_REWARDS[dayNumber];
+    let amount = 0;
+    let decimals = 18;
+    let hasToken = false;
+    
+    if (tokenType === 'ecion') {
+      amount = rewards.ecionAmount;
+      decimals = 18;
+      hasToken = true;
+    } else if (tokenType === 'usdc') {
+      amount = rewards.usdcAmount;
+      decimals = 6;
+      hasToken = range.hasUsdc;
+    } else if (tokenType === 'celo') {
+      amount = rewards.celoAmount;
+      decimals = 18;
+      hasToken = range.hasCelo;
+    } else if (tokenType === 'arb') {
+      amount = rewards.arbAmount;
+      decimals = 18;
+      hasToken = range.hasArb;
+    }
+    
+    if (!hasToken || amount === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `No ${tokenType.toUpperCase()} reward available for day ${dayNumber}` 
+      });
+    }
+    
+    try {
+      const { ethers } = require('ethers');
+      const { getProvider } = require('./rpcProvider');
+      const provider = await getProvider();
+      
+      // Get chain ID from request or default to Base
+      const chainId = parseInt(req.body.chainId) || 8453; // Base mainnet default
+      
+      // Get contract address based on chain
+      let contractAddress;
+      if (chainId === 8453) { // Base
+        contractAddress = process.env.DAILY_REWARDS_CONTRACT_BASE || process.env.DAILY_REWARDS_CONTRACT || '0x8e4f21A66E8F99FbF1A6FfBEc757547C11E8653E';
+      } else if (chainId === 42220) { // CELO
+        contractAddress = process.env.DAILY_REWARDS_CONTRACT_CELO;
+      } else if (chainId === 42161) { // Arbitrum
+        contractAddress = process.env.DAILY_REWARDS_CONTRACT_ARB;
+      } else {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Unsupported chain' 
+        });
+      }
+      
+      if (!contractAddress) {
+        return res.status(400).json({ 
+          success: false, 
+          error: `Contract not deployed on chain ${chainId}` 
+        });
+      }
+      
+      const contractAbi = ['function nonces(address) view returns (uint256)'];
+      const contract = new ethers.Contract(contractAddress, contractAbi, provider);
+      const nonce = await contract.nonces(userAddress);
+      
+      // Prepare amount in wei
+      const amountWei = ethers.parseUnits(amount.toString(), decimals);
+      
+      // Token type enum: 0=ECION, 1=USDC, 2=CELO, 3=ARB
+      const tokenTypeEnum = tokenType === 'ecion' ? 0 : tokenType === 'usdc' ? 1 : tokenType === 'celo' ? 2 : 3;
+      
+      // Signature expires in 5 minutes
+      const expiry = Math.floor(Date.now() / 1000) + 300;
+      
+      // Create message hash (must match contract V2 exactly)
+      const messageHash = ethers.solidityPackedKeccak256(
+        ['address', 'uint8', 'uint8', 'uint256', 'bool', 'uint256', 'uint256', 'uint256'],
+        [userAddress, dayNumber, tokenTypeEnum, amountWei, true, nonce, expiry, chainId]
+      );
+      
+      // Sign the message
+      const wallet = new ethers.Wallet(process.env.BACKEND_WALLET_PRIVATE_KEY);
+      const signature = await wallet.signMessage(ethers.getBytes(messageHash));
+      
+      console.log(`✅ Generated signature for ${userAddress} - ${amount} ${tokenType.toUpperCase()} (Day ${dayNumber}, Chain ${chainId})`);
+      
+      res.json({
+        success: true,
+        dayNumber: dayNumber,
+        tokenType: tokenType,
+        amount: amount,
+        amountWei: amountWei.toString(),
+        tokenTypeEnum: tokenTypeEnum,
+        isFollowing: true,
+        expiry: expiry,
+        signature: signature,
+        chainId: chainId,
+        contractAddress: contractAddress
+      });
+    } catch (signError) {
+      console.error('❌ Error generating signature:', signError);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Failed to generate claim signature. Please try again.' 
+      });
+    }
+  } catch (error) {
+    console.error('Error claiming token:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to claim token' 
+    });
+  }
+});
+
+// Claim daily reward (separate endpoint for claiming) - LEGACY: claims all tokens at once
 app.post('/api/daily-checkin/claim', async (req, res) => {
   try {
     const userAddress = req.body.address || req.headers['x-user-address'];
